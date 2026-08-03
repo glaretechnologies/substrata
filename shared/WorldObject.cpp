@@ -92,6 +92,7 @@ WorldObject::WorldObject() noexcept
 	current_lod_level = 0;
 	loading_or_loaded_model_lod_level = -10;
 	loading_or_loaded_lod_level = -10;
+	splat_handle = 0; // = GaussianSplatRenderer::invalid_handle
 	is_path_controlled = false;
 	use_materialise_effect_on_load = false;
 	materialise_effect_start_time = -1000.f;
@@ -166,7 +167,8 @@ URLString WorldObject::getLODModelURLForLevel(const URLString& base_model_url, i
 		return URLString(base_model_url, glare::STLArenaAllocator<char>(options.allocator));
 
 	// .subvox files don't have the _opt3 suffix.  (They are not optimised by meshoptimizer etc.)
-	if(hasExtension(base_model_url, "subvox"))
+	// Likewise .sog files (Gaussian splat clouds), which have no LOD levels at all.
+	if(hasExtension(base_model_url, "subvox") || hasExtension(base_model_url, "sog"))
 		return URLString(base_model_url, glare::STLArenaAllocator<char>(options.allocator));
 
 	return makeOptimisedMeshURL(base_model_url, lod_level, /*get_optimised_mesh=*/options.get_optimised_mesh, options.opt_mesh_version, options.allocator);
@@ -532,6 +534,7 @@ std::string WorldObject::objectTypeString(ObjectType t)
 	case ObjectType_Portal: return "portal";
 	case ObjectType_Seat: return "seat";
 	case ObjectType_GearItem: return "gear item";
+	case ObjectType_Splat: return "splat";
 	default: return "Unknown";
 	}
 }
@@ -548,6 +551,7 @@ WorldObject::ObjectType WorldObject::objectTypeForString(const std::string& ob_t
 	if(ob_type_string == "portal") return ObjectType_Portal;
 	if(ob_type_string == "seat") return ObjectType_Seat;
 	if(ob_type_string == "gear item") return ObjectType_GearItem;
+	if(ob_type_string == "splat") return ObjectType_Splat;
 	throw glare::Exception("Unknown object type '" + ob_type_string + "'");
 }
 

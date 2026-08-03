@@ -280,16 +280,19 @@ public:
 		ObjectType_Text = 6, // Text displayed on a quad.  Displays the text in the content member variable.
 		ObjectType_Portal = 7, // A portal to another Substrata world or another location in the current world.
 		ObjectType_Seat = 8, // A seat that users can sit on
-		ObjectType_GearItem = 9 // An in-world pickup representing a GearItem (NFT) that can be picked up into a user's gear inventory.
+		ObjectType_GearItem = 9, // An in-world pickup representing a GearItem (NFT) that can be picked up into a user's gear inventory.
 		// For ObjectType_GearItem, target_url holds the gear item name, content holds the description, and type_data.gear_item_data.gear_item_id holds the GearItem UID.
+		ObjectType_Splat = 10 // A Gaussian splat cloud.  model_url points at a .sog file, which decodes to GaussianSplatData rather than a BatchedMesh.
+		// ObjectType_Splat objects have no materials, always have max_model_lod_level 0, and are rendered by GaussianSplatRenderer, not via opengl_engine_ob (which is null for them).
 	};
-	static const uint64 NUM_OBJECT_TYPES = 10;
+	static const uint64 NUM_OBJECT_TYPES = 11;
 
 	static std::string objectTypeString(ObjectType t);
 	static ObjectType objectTypeForString(const std::string& ob_type_string);
 
 	bool isPortal() const   { return object_type == ObjectType_Portal; }
 	bool isGearItem() const { return object_type == ObjectType_GearItem; }
+	bool isSplat() const    { return object_type == ObjectType_Splat; }
 
 	const std::string& getGearItemName() const { return target_url; }
 
@@ -464,6 +467,12 @@ public:
 	Reference<GLObject> opengl_engine_ob;
 	Reference<GLLight> opengl_light;
 	Reference<PhysicsObject> physics_object;
+
+	// For ObjectType_Splat objects: the GaussianSplatRenderer::Handle for this object's cloud, or 0
+	// (GaussianSplatRenderer::invalid_handle) if no cloud is currently registered for it.  Splat objects are drawn as part of
+	// the renderer's single shared world GLObject, so opengl_engine_ob stays null for them.
+	// Declared as uint64 rather than GaussianSplatRenderer::Handle to avoid pulling the opengl headers into this shared header.
+	uint64 splat_handle;
 
 	Reference<GLObject> edit_aabb; // Visualisation of the object bounding box, for editing, for decal objects etc.
 

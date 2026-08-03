@@ -10,6 +10,7 @@
 #include "../utils/Reference.h"
 #include "../utils/RefCounted.h"
 #include "../utils/GlareAllocator.h"
+#include "../utils/UniqueRef.h"
 #include <QtCore/QEvent>
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 #include <QtOpenGLWidgets/QOpenGLWidget>
@@ -24,6 +25,8 @@ namespace Indigo { class Mesh; }
 class TextureServer;
 class EnvEmitter;
 class QSettings;
+class GaussianSplatRenderer;
+class GaussianSplatData;
 
 
 class AddObjectPreviewWidget : public 
@@ -41,6 +44,11 @@ public:
 
 	void init(const std::string& base_dir_path_, QSettings* settings_, Reference<TextureServer> texture_server, glare::TaskManager* main_task_manager, glare::TaskManager* high_priority_task_manager);
 	void shutdown();
+
+	// Shows a Gaussian splat cloud as the preview object, replacing any previously shown one, and frames the camera on it.
+	// Splat clouds aren't GLObjects, so they can't go through the normal preview path.  Pass a null splat_data to just clear
+	// any existing preview cloud.
+	void setPreviewSplatCloud(const Reference<GaussianSplatData>& splat_data, const Vec3f& axis, float angle);
 
 protected:
 	virtual void initializeGL() override;
@@ -75,6 +83,8 @@ public:
 	Reference<OpenGLEngine> opengl_engine;
 
 	Reference<GLObject> target_marker_ob; // For debugging camera
+
+	UniqueRef<GaussianSplatRenderer> splat_renderer; // For previewing .sog Gaussian splat clouds, which have no GLObject representation.
 
 	Timer timer;
 	QSettings* settings;

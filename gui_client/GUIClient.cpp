@@ -106,6 +106,8 @@ Copyright Glare Technologies Limited 2024 -
 #include <opengl/OpenGLMeshRenderData.h>
 #include <opengl/SSAODebugging.h>
 #include <opengl/TransformGizmo.h>
+#include <opengl/GaussianSplatRenderer.h>
+#include <graphics/SOGDecoder.h>
 #include "../audio/AudioFileReader.h"
 #include <Escaping.h>
 #if !defined(EMSCRIPTEN)
@@ -263,6 +265,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	biome_manager = new BiomeManager();
 
 	this->animated_texture_manager = new AnimatedTextureManager();
+
+	this->splat_renderer.set(new GaussianSplatRenderer());
 
 	this->object_scripts_evaluator = new Scripting::ObjectScriptsEvaluator();
 }
@@ -942,6 +946,9 @@ void GUIClient::makeShaders()
 		portal_shader_prog->uses_vert_uniform_buf_obs = true;
 		opengl_engine->bindCommonVertUniformBlocksToProgram(portal_shader_prog);
 	}
+
+	// Make shaders for Gaussian splat rendering.
+	splat_renderer->makeShaders(*opengl_engine, opengl_engine->getDataDir() + "/shaders");
 }
 
 
@@ -960,6 +967,7 @@ void GUIClient::shutdown()
 
 	model_loaded_messages_to_process.clear();
 	texture_loaded_messages_to_process.clear();
+	splat_loaded_messages_to_process.clear();
 	async_model_loaded_messages_to_process.clear();
 	async_texture_loaded_messages_to_process.clear();
 
@@ -991,6 +999,9 @@ void GUIClient::shutdown()
 
 	disconnectFromServerAndClearAllObjects();
 
+
+	splat_renderer.set(nullptr); // Destroy splat_renderer.
+	splat_data_cache.clear();
 	
 	if(biome_manager)
 	{
@@ -1443,6 +1454,14 @@ void GUIClient::removeAndDeleteGLObjectsForOb(WorldObject& ob)
 	if(ob.opengl_light)
 		opengl_engine->removeLight(ob.opengl_light);
 
+	// Splat objects aren't drawn via opengl_engine_ob (which stays null for them), but as part of the splat renderer's
+	// single shared world object, so they are removed by handle instead.
+	if(ob.splat_handle != GaussianSplatRenderer::invalid_handle)
+	{
+		splat_renderer->removeObject(ob.splat_handle);
+		ob.splat_handle = GaussianSplatRenderer::invalid_handle;
+	}
+
 	ob.opengl_engine_ob = NULL;
 
 	ob.mesh_manager_data = NULL;
@@ -1516,6 +1535,14 @@ bool GUIClient::isResourceCurrentlyNeededForObjectGivenIsDependency(const URLStr
 			return false;
 
 		if(opengl_engine->isOpenGLTextureInsertedForKey(key))
+			return false;
+	}
+	else if(StringUtils::equalCaseInsensitive(extension, "sog"))
+	{
+		// Splat clouds are cached in splat_data_cache rather than mesh_manager, and are never dynamic.
+		if(models_processing.count(ModelProcessingKey(url, /*dynamic_physics_shape=*/false)) > 0)
+			return false;
+		if(splat_data_cache.count(url) > 0)
 			return false;
 	}
 	else
@@ -2840,6 +2867,52 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				}
 			}
 		}
+		else if(ob->object_type == WorldObject::ObjectType_Splat)
+		{
+			// Splat clouds have no LOD levels (max_model_lod_level is always 0), so the model URL is used as-is, and the
+			// model is only ever loaded once per object.
+			if(!ob->model_url.empty() && (ob->loading_or_loaded_model_lod_level != 0))
+			{
+				ob->loading_or_loaded_model_lod_level = 0;
+
+				auto res = splat_data_cache.find(ob->model_url);
+				if(res != splat_data_cache.end()) // If the cloud is already decoded:
+				{
+					loadPresentObjectSplatCloud(ob, res->second, world_state_lock);
+				}
+				else if(resource_manager->isFileForURLPresent(ob->model_url))
+				{
+					const bool just_added = this->checkAddModelToProcessingSet(ob->model_url, /*dynamic_physics_shape=*/false); // Avoid making multiple LoadModelTasks for this cloud.
+					if(just_added)
+					{
+						// Decode the .sog in a different thread
+						Reference<LoadModelTask> load_model_task = new LoadModelTask();
+
+						load_model_task->resource = resource_manager->getOrCreateResourceForURL(ob->model_url);
+						load_model_task->lod_model_url = ob->model_url;
+						load_model_task->model_lod_level = 0;
+						load_model_task->opengl_engine = this->opengl_engine;
+						load_model_task->result_msg_queue = &this->msg_queue;
+						load_model_task->resource_manager = resource_manager;
+						load_model_task->build_dynamic_physics_ob = false;
+						load_model_task->worker_allocator = worker_allocator;
+						// NOTE: upload_thread is deliberately left null: splat data has no geometry to upload, so the task
+						// returns its result directly via result_msg_queue.
+						load_model_task->ob_to_world_matrix = obToWorldMatrix(*ob);
+
+						load_item_queue.enqueueItem(/*key=*/ob->model_url, *ob, load_model_task, max_dist_for_ob_model_lod_level);
+					}
+					else
+						load_item_queue.checkUpdateItemPosition(/*key=*/ob->model_url, *ob);
+
+					// Splat objects are never dynamic, so the processing key always uses dynamic_physics_shape = false.
+					const ModelProcessingKey key(ob->model_url, /*dynamic_physics_shape=*/false);
+
+					// If the cloud isn't loaded yet, add this object to the wait list.
+					this->loading_model_URL_to_world_ob_UID_map[key].insert(ob->uid);
+				}
+			}
+		}
 		else
 		{
 			throw glare::Exception("Invalid object_type: " + toString((int)(ob->object_type)));
@@ -3912,13 +3985,15 @@ void GUIClient::printStr(const std::string& s) // Print a message without a newl
 // Also updates preview AABB for decal objects.
 void GUIClient::updateSelectedObjectPlacementBeamAndGizmos()
 {
-	if(selected_ob && this->selected_ob->opengl_engine_ob)
+	// NOTE: don't require a non-null opengl_engine_ob here - splat objects don't have one (they are drawn by
+	// GaussianSplatRenderer), but they still need the placement beam and the transform gizmo.  Use the world object's own
+	// transform and object-space AABB instead of the GL object's.
+	if(selected_ob)
 	{
 		//-------------------- Update object placement beam - a beam that goes from the object to what's below it. -----------------------
-		GLObjectRef opengl_ob = this->selected_ob->opengl_engine_ob;
-		const Matrix4f& to_world = opengl_ob->ob_to_world_matrix;
+		const Matrix4f to_world = obToWorldMatrix(*this->selected_ob);
 
-		const js::AABBox new_aabb_ws = opengl_engine->getAABBWSForObjectWithTransform(*opengl_ob, to_world);
+		const js::AABBox new_aabb_ws = this->selected_ob->getAABBOS().transformedAABBFast(to_world);
 
 		// We need to determine where to trace down from.
 		// To find this point, first trace up *just* against the selected object.
@@ -3954,7 +4029,7 @@ void GUIClient::updateSelectedObjectPlacementBeamAndGizmos()
 
 		//----------------------- Update x, y, z axis arrows and rotation arcs. -----------------------
 		if(transform_gizmo)
-			transform_gizmo->update(opengl_ob->ob_to_world_matrix.getColumn(3));
+			transform_gizmo->update(to_world.getColumn(3));
 	}
 
 	if(selected_ob && selected_ob->edit_aabb)
@@ -4112,17 +4187,12 @@ void GUIClient::tryToMoveObject(WorldObjectRef ob, /*const Matrix4f& tentative_n
 {
 	Lock lock(world_state->mutex);
 
-	GLObjectRef opengl_ob = this->selected_ob->opengl_engine_ob;
-	if(opengl_ob.isNull())
-	{
-		// conPrint("GUIClient::tryToMoveObject: opengl_ob is NULL");
-		return;
-	}
-
-	Matrix4f tentative_new_to_world = opengl_ob->ob_to_world_matrix;
+	// NOTE: opengl_ob is null for splat objects, which are drawn by GaussianSplatRenderer rather than as a GLObject, so use
+	// the world object's own transform and object-space AABB rather than the GL object's, and don't bail out when it's null.
+	Matrix4f tentative_new_to_world = obToWorldMatrix(*this->selected_ob);
 	tentative_new_to_world.setColumn(3, desired_new_ob_pos);
 
-	const js::AABBox tentative_new_aabb_ws = opengl_engine->getAABBWSForObjectWithTransform(*opengl_ob, tentative_new_to_world);
+	const js::AABBox tentative_new_aabb_ws = this->selected_ob->getAABBOS().transformedAABBFast(tentative_new_to_world);
 
 	// Check parcel permissions for this object
 	bool ob_pos_in_parcel;
@@ -4138,7 +4208,7 @@ void GUIClient::tryToMoveObject(WorldObjectRef ob, /*const Matrix4f& tentative_n
 	// Constrain the new position of the selected object so it stays inside the parcel it is currently in.
 	js::Vector<EdgeMarker, 16> edge_markers;
 	Vec3d new_ob_pos;
-	const bool new_transform_valid = clampObjectPositionToParcelForNewTransform(*this->selected_ob, opengl_ob, 
+	const bool new_transform_valid = clampObjectPositionToParcelForNewTransform(*this->selected_ob,
 		this->selected_ob->pos, // old ob pos
 		tentative_new_to_world, // tentative new transfrom
 		edge_markers, // edge markers out.
@@ -4182,9 +4252,7 @@ void GUIClient::tryToMoveObject(WorldObjectRef ob, /*const Matrix4f& tentative_n
 		}
 		//----------- End display edge markers -----------
 
-		runtimeCheck(opengl_ob.nonNull() && opengl_ob->mesh_data.nonNull());
-
-		doMoveObject(ob, new_ob_pos, opengl_ob->mesh_data->aabb_os);
+		doMoveObject(ob, new_ob_pos, this->selected_ob->getAABBOS());
 	} 
 	else // else if new transfrom not valid
 	{
@@ -4202,8 +4270,6 @@ void GUIClient::doMoveObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const j
 // Sets object velocity to zero also.
 void GUIClient::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const Vec3f& new_axis, float new_angle, const js::AABBox& aabb_os, bool summoning_object)
 {
-	GLObjectRef opengl_ob = ob->opengl_engine_ob;
-
 	// Set world object pos
 	ob->setTransformAndHistory(new_ob_pos, new_axis, new_angle);
 
@@ -4214,11 +4280,13 @@ void GUIClient::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos
 	// Set graphics object pos and update in opengl engine.
 	const Matrix4f new_to_world = obToWorldMatrix(*ob);
 
-	if(opengl_ob.nonNull())
+	if(ob->opengl_engine_ob)
 	{
-		opengl_ob->ob_to_world_matrix = new_to_world;
-		opengl_engine->updateObjectTransformData(*opengl_ob);
+		ob->opengl_engine_ob->ob_to_world_matrix = new_to_world;
+		opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
 	}
+
+	updateSplatObjectTransform(*ob);
 
 	// Update physics object
 	if(ob->physics_object)
@@ -4621,6 +4689,139 @@ void GUIClient::handleUploadedMeshData(const URLString& lod_model_url, int loade
 }
 
 
+void GUIClient::updateSplatObjectTransform(WorldObject& ob)
+{
+	updateSplatObjectTransform(ob, ob.pos.toVec4fPoint(), Quatf::fromAxisAndAngle(normalise(ob.axis), ob.angle));
+}
+
+
+void GUIClient::updateSplatObjectTransform(WorldObject& ob, const Vec4f& pos_ws, const Quatf& rot_ws)
+{
+	if(ob.splat_handle != GaussianSplatRenderer::invalid_handle)
+	{
+		// The renderer supports uniform scale only, so use the mean of the object scale components.
+		const Vec3f use_scale = useScaleForWorldOb(ob.scale);
+		const float uniform_scale = (use_scale.x + use_scale.y + use_scale.z) * (1 / 3.0f);
+
+		splat_renderer->updateObjectTransform(ob.splat_handle, pos_ws, rot_ws, uniform_scale, *opengl_engine);
+	}
+}
+
+
+// A .sog Gaussian splat cloud has finished decoding.  Insert it into the splat cache and hand it to any objects waiting for it.
+// The splat analogue of handleUploadedMeshData().
+void GUIClient::handleLoadedGaussianSplat(const URLString& lod_model_url, const Reference<GaussianSplatData>& splat_data)
+{
+	ZoneScoped; // Tracy profiler
+
+	// Now that this model is loaded, remove from models_processing set, so it can be reprocessed if it is unloaded later.
+	// Splat objects are never dynamic, so the key always uses dynamic_physics_shape = false.  See startDownloadingResourcesForObject().
+	const ModelProcessingKey key(lod_model_url, /*dynamic_physics_shape=*/false);
+	models_processing.erase(key);
+
+	splat_data_cache[lod_model_url] = splat_data;
+
+	// Assign the loaded cloud to any objects waiting for it:
+	WorldStateLock lock(this->world_state->mutex);
+
+	auto res = this->loading_model_URL_to_world_ob_UID_map.find(key);
+	if(res != this->loading_model_URL_to_world_ob_UID_map.end())
+	{
+		const std::set<UID>& waiting_obs = res->second;
+		for(auto it = waiting_obs.begin(); it != waiting_obs.end(); ++it)
+		{
+			auto res2 = this->world_state->objects.find(*it);
+			if(res2 != this->world_state->objects.end())
+			{
+				WorldObject* ob = res2.getValue().ptr();
+
+				if(ob->in_proximity && (ob->object_type == WorldObject::ObjectType_Splat))
+				{
+					try
+					{
+						if(!isFinite(ob->angle) || !ob->axis.isFinite())
+							throw glare::Exception("Invalid angle or axis");
+
+						loadPresentObjectSplatCloud(ob, splat_data, lock);
+					}
+					catch(glare::Exception& e)
+					{
+						print("Error while loading Gaussian splat cloud: " + e.what());
+					}
+				}
+			}
+		}
+
+		loading_model_URL_to_world_ob_UID_map.erase(key); // Now that this model has been loaded, remove from map
+	}
+}
+
+
+// Registers ob's splat cloud with the splat renderer, and builds a box physics object for it from the cloud's object-space AABB.
+// The splat analogue of loadPresentObjectGraphicsAndPhysicsModels().
+void GUIClient::loadPresentObjectSplatCloud(WorldObject* ob, const Reference<GaussianSplatData>& splat_data, WorldStateLock& world_state_lock)
+{
+	assert(ob->object_type == WorldObject::ObjectType_Splat);
+
+	// The splat capacity is world-wide, so a cloud that would overflow it has to be rejected rather than clamped.
+	// NOTE: checked before anything is torn down below, so that a rejected cloud leaves the object exactly as it was, and
+	// leaves loading_or_loaded_model_lod_level set by the caller - otherwise the load would be retried, and this error
+	// logged, every frame.
+	const size_t max_splats = GaussianSplatRenderer::maxSupportedSplats(opengl_engine->max_texture_size);
+	if(splat_renderer->numSplatsInWorld() + splat_data->numSplats() > max_splats)
+		throw glare::Exception("Can't load splat cloud with " + toString(splat_data->numSplats()) + " splats: world splat limit of " + toString(max_splats) + " would be exceeded.");
+
+	removeAndDeleteGLObjectsForOb(*ob); // Removes any existing splat cloud registration as well as any OpenGL object.
+
+	// Remove previous physics object.  Splat objects are never dynamic or kinematic, so we can always delete it.
+	if(ob->physics_object.nonNull())
+	{
+		destroyVehiclePhysicsControllingObject(ob); // Destroy any vehicle controller controlling this object, as vehicle controllers have pointers to physics bodies, which we can't leave dangling.
+		physics_world->removeObject(ob->physics_object);
+		ob->physics_object = NULL;
+	}
+
+	// The renderer supports uniform scale only, so use the mean of the object scale components.
+	const Vec3f use_scale = useScaleForWorldOb(ob->scale);
+	const float uniform_scale = (use_scale.x + use_scale.y + use_scale.z) * (1 / 3.0f);
+
+	ob->splat_handle = splat_renderer->addObject(splat_data, ob->pos.toVec4fPoint(), Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle), uniform_scale, *opengl_engine);
+
+	ob->loading_or_loaded_model_lod_level = 0; // Splat objects have max_model_lod_level 0.
+
+	// Build a box physics object from the cloud's object-space AABB, so the object is clickable and selectable.
+	// Collision is crude, but a splat cloud has no mesh to build a proper shape from.
+	{
+		const js::AABBox aabb_os = splat_data->aabb_os;
+
+		// Map the [0, 1]^3 unit cube shape onto the AABB.  Clamp the span away from zero: Jolt's ScaledShape rejects a
+		// degenerate scale, and a cloud can be flat in an axis (or empty, giving an inside-out AABB).
+		const Vec3f aabb_min(aabb_os.min_[0], aabb_os.min_[1], aabb_os.min_[2]);
+		const Vec3f aabb_span(
+			myMax(aabb_os.max_[0] - aabb_os.min_[0], 0.01f),
+			myMax(aabb_os.max_[1] - aabb_os.min_[1], 0.01f),
+			myMax(aabb_os.max_[2] - aabb_os.min_[2], 0.01f));
+
+		ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
+		ob->physics_object->shape = PhysicsWorld::createScaledAndTranslatedShapeForShape(this->unit_cube_shape, aabb_min, aabb_span);
+		ob->physics_object->is_sensor = ob->isSensor();
+		ob->physics_object->userdata = ob;
+		ob->physics_object->userdata_type = 0;
+		ob->physics_object->ob_uid = ob->uid;
+		ob->physics_object->pos = ob->pos.toVec4fPoint();
+		ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+		ob->physics_object->scale = use_scale;
+		ob->physics_object->motion_type = PhysicsObject::MotionType_static;
+
+		ob->physics_object->mass = ob->mass;
+		ob->physics_object->friction = ob->friction;
+		ob->physics_object->restitution = ob->restitution;
+
+		physics_world->addObject(ob->physics_object);
+	}
+}
+
+
 void GUIClient::handleUploadedTexture(const OpenGLTextureKey& path, const URLString& URL, const OpenGLTextureRef& opengl_tex, const TextureDataRef& tex_data, const Map2DRef& terrain_map)
 {
 	ZoneScoped; // Tracy profiler
@@ -4894,6 +5095,23 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 		// Also limit to a total number of bytes of data uploaded to OpenGL / the GPU per frame.
 		size_t total_bytes_uploaded = 0;
 		const size_t max_total_upload_bytes = 1024 * 1024;
+
+		// Process any loaded Gaussian splat clouds.  These don't carry mesh geometry, so they don't go through the
+		// partial-upload path below - the renderer does its own (small) texture upload in addObject().
+		while(!splat_loaded_messages_to_process.empty() && (timer_event_timer.elapsed() < MAX_LOADING_TIME))
+		{
+			const Reference<ModelLoadedThreadMessage> message = splat_loaded_messages_to_process.front();
+			splat_loaded_messages_to_process.pop_front();
+
+			try
+			{
+				handleLoadedGaussianSplat(message->lod_model_url, message->splat_data);
+			}
+			catch(glare::Exception& e)
+			{
+				print("Error while loading Gaussian splat cloud: " + e.what());
+			}
+		}
 
 		//int num_models_loaded = 0;
 		//int num_textures_loaded = 0;
@@ -7192,6 +7410,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 						opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
 					}
 
+					updateSplatObjectTransform(*ob);
+
 					ob->from_remote_summoned_dirty = false;
 				}
 			}
@@ -7281,12 +7501,14 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 							if(ob->opengl_engine_ob.nonNull())
 							{
-								ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) * 
+								ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) *
 									rot.toMatrix() *
 									Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
 
 								opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
 							}
+
+							updateSplatObjectTransform(*ob, Vec4f((float)pos.x, (float)pos.y, (float)pos.z, 1.f), rot);
 
 							if(ob->physics_object)
 							{
@@ -7488,6 +7710,12 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	{
 		opengl_engine->getCurrentScene()->wind_strength = (float)(0.25 * (1.0 + std::sin(global_time * 0.1234) + std::sin(global_time * 0.23543)));
 	}
+
+	// Applies any completed background splat depth sort and kicks off a new one if the camera has moved.
+	// NOTE: this reads the camera transform set on the engine by the previous frame's render, since the render happens after
+	// timerEvent().  The resulting one-frame lag doesn't matter: the sort is asynchronous and inherently several frames behind.
+	if(opengl_engine && (splat_renderer->numObjectsInWorld() > 0))
+		splat_renderer->think(*opengl_engine, model_and_texture_loader_task_manager);
 
 	assert(arena_allocator.currentOffset() == 0);
 	arena_allocator.clear();
@@ -8837,7 +9065,9 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		{
 			ModelLoadedThreadMessage* loaded_msg = checkedDowncastPtr<ModelLoadedThreadMessage>(msg);
 
-			if(vbo_pool && (loaded_msg->total_geom_size_B <= vbo_pool->getLargestVBOSize()))
+			if(loaded_msg->splat_data) // If this is a Gaussian splat cloud, there is no geometry to upload, so it takes its own path:
+				splat_loaded_messages_to_process.push_back(loaded_msg);
+			else if(vbo_pool && (loaded_msg->total_geom_size_B <= vbo_pool->getLargestVBOSize()))
 				async_model_loaded_messages_to_process.push_back(loaded_msg);
 			else
 				model_loaded_messages_to_process.push_back(loaded_msg);
@@ -10776,7 +11006,7 @@ bool GUIClient::haveObjectWritePermissions(const WorldObject& ob, const js::AABB
 // If the object was not in a parcel with write permissions at all, returns false.
 // If the object can not be made to fit in the current parcel, returns false.
 // new_ob_pos_out is set to new, clamped position.
-bool GUIClient::clampObjectPositionToParcelForNewTransform(const WorldObject& ob, GLObjectRef& opengl_ob, const Vec3d& old_ob_pos,
+bool GUIClient::clampObjectPositionToParcelForNewTransform(const WorldObject& ob, const Vec3d& old_ob_pos,
 	const Matrix4f& tentative_to_world_matrix,
 	js::Vector<EdgeMarker, 16>& edge_markers_out, Vec3d& new_ob_pos_out)
 {
@@ -10836,8 +11066,9 @@ bool GUIClient::clampObjectPositionToParcelForNewTransform(const WorldObject& ob
 	if(have_creation_perms)
 	{
 		// Get the AABB corresponding to tentative_new_ob_pos.
-		const js::AABBox ten_new_aabb_ws = opengl_engine->getAABBWSForObjectWithTransform(*opengl_ob, 
-			tentative_to_world_matrix);
+		// Use the world object's own object-space AABB rather than the GL object's: splat objects have no GLObject, since
+		// they are drawn by GaussianSplatRenderer.
+		const js::AABBox ten_new_aabb_ws = ob.getAABBOS().transformedAABBFast(tentative_to_world_matrix);
 
 		// Constrain tentative ob pos so that the tentative new aabb lies in parcel.
 		// This will have no effect if tentative new AABB is already in the parcel.
@@ -10923,7 +11154,31 @@ void GUIClient::createObject(const std::string& mesh_path, BatchedMeshRef loaded
 	WorldObjectRef new_world_object = new WorldObject();
 
 	js::AABBox aabb_os;
-	if(loaded_mesh.nonNull())
+	if(hasExtension(mesh_path, "sog"))
+	{
+		// A Gaussian splat cloud.  It is uploaded as-is: there is no mesh to convert to bmesh, and no LOD levels.
+		// NOTE: this is the one place where the file extension determines the object type.  Everything downstream keys off
+		// object_type, not the URL extension.
+		new_world_object->object_type = WorldObject::ObjectType_Splat;
+		new_world_object->max_model_lod_level = 0;
+
+		const uint64 model_hash = FileChecksum::fileChecksum(mesh_path);
+		const URLString mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(FileUtils::getFilename(mesh_path), "sog", model_hash);
+
+		// Copy the .sog to the local resources dir if not already there.  UploadResourceThread will read from here.
+		if(!this->resource_manager->isFileForURLPresent(mesh_URL))
+			this->resource_manager->copyLocalFileToResourceDir(mesh_path, mesh_URL);
+
+		new_world_object->model_url = mesh_URL;
+
+		// Read the bounds out of meta.json only - this avoids decoding the (much larger) WebP planes just to place the object.
+		MemMappedFile file(mesh_path);
+		aabb_os = SOGDecoder::readMetaSummaryFromBuffer(file.fileData(), file.fileSize()).aabb_os;
+
+		// Make not-collidable, as the physics rep is an AABB that contains the object, which doesn't give create collisions.
+		BitUtils::zeroBit(new_world_object->flags, WorldObject::COLLIDABLE_FLAG);
+	}
+	else if(loaded_mesh.nonNull())
 	{
 		// If the user wants to load a mesh that is not a bmesh file already, convert it to bmesh.
 		std::string bmesh_disk_path;
@@ -11399,6 +11654,8 @@ void GUIClient::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 					updateObjectModelForChangedDecompressedVoxels(in_world_ob);
 				else
 				{
+					updateSplatObjectTransform(*in_world_ob);
+
 					GLObjectRef opengl_ob = in_world_ob->opengl_engine_ob;
 					if(opengl_ob.nonNull())
 					{
@@ -12245,8 +12502,9 @@ void GUIClient::objectTransformEdited()
 
 		Matrix4f new_ob_to_world_matrix = obToWorldMatrix(*this->selected_ob); // Tentative new transform before it is possibly constrained to a parcel.
 
+		// NOTE: opengl_ob is null for splat objects, which are drawn by GaussianSplatRenderer rather than as a GLObject.
+		// Everything below other than the two GL transform-update calls applies to them too, so don't gate on it.
 		GLObjectRef opengl_ob = selected_ob->opengl_engine_ob;
-		if(opengl_ob.nonNull())
 		{
 			//ui->glWidget->makeCurrent();
 
@@ -12254,10 +12512,9 @@ void GUIClient::objectTransformEdited()
 			Vec3d new_ob_pos;
 			const bool valid = clampObjectPositionToParcelForNewTransform(
 				*this->selected_ob,
-				opengl_ob,
-				this->selected_ob->pos, 
+				this->selected_ob->pos,
 				new_ob_to_world_matrix,
-				edge_markers, 
+				edge_markers,
 				new_ob_pos);
 			if(valid)
 			{
@@ -12277,8 +12534,13 @@ void GUIClient::objectTransformEdited()
 				}
 
 				// Update transform of OpenGL object
-				opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
-				opengl_engine->updateObjectTransformData(*opengl_ob);
+				if(opengl_ob)
+				{
+					opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
+					opengl_engine->updateObjectTransformData(*opengl_ob);
+				}
+
+				updateSplatObjectTransform(*selected_ob);
 
 				// Update physics object transform
 				if(selected_ob->physics_object)
@@ -12556,17 +12818,17 @@ void GUIClient::objectEdited()
 		{
 			Matrix4f new_ob_to_world_matrix = obToWorldMatrix(*this->selected_ob);
 
+			// NOTE: opengl_ob is null for splat objects, which are drawn by GaussianSplatRenderer rather than as a GLObject.
+			// Everything below other than the GL transform-update calls applies to them too, so don't gate on it.
 			GLObjectRef opengl_ob = selected_ob->opengl_engine_ob;
-			if(opengl_ob.nonNull())
 			{
 				js::Vector<EdgeMarker, 16> edge_markers;
 				Vec3d new_ob_pos;
 				const bool valid = clampObjectPositionToParcelForNewTransform(
 					*this->selected_ob,
-					opengl_ob,
-					this->selected_ob->pos, 
+					this->selected_ob->pos,
 					new_ob_to_world_matrix,
-					edge_markers, 
+					edge_markers,
 					new_ob_pos);
 				if(valid)
 				{
@@ -12577,7 +12839,7 @@ void GUIClient::objectEdited()
 					if(this->selected_ob->object_type == WorldObject::ObjectType_Generic || this->selected_ob->object_type == WorldObject::ObjectType_VoxelGroup)
 					{
 						// Update materials
-						if(opengl_ob.nonNull())
+						if(opengl_ob)
 						{
 							if(!opengl_ob->materials.empty())
 							{
@@ -12658,8 +12920,13 @@ void GUIClient::objectEdited()
 					}
 
 					// Update transform of OpenGL object
-					opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
-					opengl_engine->updateObjectTransformData(*opengl_ob);
+					if(opengl_ob.nonNull())
+					{
+						opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
+						opengl_engine->updateObjectTransformData(*opengl_ob);
+					}
+
+					updateSplatObjectTransform(*selected_ob);
 
 					// Update physics object transform
 					if(selected_ob->physics_object)
@@ -13095,9 +13362,11 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 	udp_socket = NULL;
 
 	load_item_queue.clear();
-	model_and_texture_loader_task_manager.cancelAndWaitForTasksToComplete(); 
+	model_and_texture_loader_task_manager.cancelAndWaitForTasksToComplete();
 	model_loaded_messages_to_process.clear();
 	texture_loaded_messages_to_process.clear();
+	splat_loaded_messages_to_process.clear();
+	splat_data_cache.clear();
 
 	upload_queue.clear();
 
@@ -13255,6 +13524,8 @@ void GUIClient::clearAllObjects()
 
 			checkRemoveObAndSetRefToNull(physics_world, ob->physics_object);
 
+			ob->splat_handle = GaussianSplatRenderer::invalid_handle; // Cleared en masse by the removeAllObjects() call below.
+
 			if(ob->audio_source)
 			{
 				this->audio_engine.removeSource(ob->audio_source);
@@ -13265,6 +13536,10 @@ void GUIClient::clearAllObjects()
 
 			ob->move_to_controller = nullptr; // Break reference cycle (the ObjectMoveToController has a ref to the object)
 		}
+
+		// Remove all splat clouds in one go, rather than one per object: each individual removal re-uploads the entire
+		// remaining world cloud.
+		splat_renderer->removeAllObjects();
 
 		for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)
 		{
@@ -13777,7 +14052,9 @@ void GUIClient::mousePressed(MouseEvent& e)
 		}
 	}
 
-	if(this->selected_ob.nonNull() && this->selected_ob->opengl_engine_ob.nonNull())
+	// NOTE: don't require a non-null opengl_engine_ob - splat objects don't have one, but their transform gizmo still needs
+	// to respond to being grabbed.
+	if(this->selected_ob.nonNull())
 	{
 		// Don't try and grab an axis etc.. when we are clicking on a voxel group to add/remove voxels.
 		//bool mouse_trace_hit_selected_ob = false;
@@ -14440,6 +14717,8 @@ void GUIClient::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 		ob->axis = toVec3f(new_axis);
 
 		const Matrix4f new_ob_to_world = obToWorldMatrix(*ob);
+
+		updateSplatObjectTransform(*ob); // NOTE: before the early-out below, since splat objects have no opengl_engine_ob.
 
 		// Update in opengl engine.
 		GLObjectRef opengl_ob = ob->opengl_engine_ob;
@@ -15437,6 +15716,8 @@ void GUIClient::createModelObject(const std::string& local_model_path)
 		return;
 	}
 
+	// NOTE: for a .sog Gaussian splat cloud this returns a null gl_ob and batched_mesh, with axis/angle set to the SOG
+	// z-up correction.  createObject() then takes its .sog branch and reads the bounds out of the file.
 	ModelLoading::MakeGLObjectResults results;
 	ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, worker_allocator.ptr(), local_model_path, /*do_opengl_stuff=*/false,
 		results

@@ -17,6 +17,7 @@ class QSettings;
 struct GLObject;
 struct IMFDXGIDeviceManager;
 class TextureServer;
+class GaussianSplatData;
 
 
 /*=====================================================================
@@ -64,6 +65,8 @@ private:
 public:
 	std::string result_path;
 	BatchedMeshRef loaded_mesh;
+
+	Reference<GaussianSplatData> loaded_splat_data; // Non-null iff we loaded a .sog Gaussian splat cloud, in which case loaded_mesh and loaded_voxels are empty.
 
 	glare::AllocatorVector<Voxel, 16> loaded_voxels;
 	std::vector<WorldMaterialRef> loaded_materials; // Will be cleared if a valid object was not loaded.

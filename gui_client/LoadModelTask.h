@@ -19,18 +19,24 @@ Copyright Glare Technologies Limited 2025 -
 #include <string>
 class OpenGLEngine;
 class ResourceManager;
+class GaussianSplatData;
 
 
 class ModelLoadedThreadMessage : public ThreadMessage
 {
 public:
 	ModelLoadedThreadMessage() : ThreadMessage(Msg_ModelLoadedThreadMessage) {}
+	~ModelLoadedThreadMessage(); // Defined in LoadModelTask.cpp, where GaussianSplatData is a complete type.
 	GLARE_DISABLE_COPY(ModelLoadedThreadMessage);
 	// Results of the task:
 	
 	Reference<OpenGLMeshRenderData> gl_meshdata;
 	PhysicsShape physics_shape;
-	
+
+	// Non-null iff we loaded a .sog Gaussian splat cloud, in which case gl_meshdata and physics_shape are unset,
+	// and only lod_model_url and model_lod_level of the fields below are meaningful.
+	Reference<GaussianSplatData> splat_data;
+
 	URLString lod_model_url; // URL of the model we loaded.  Empty when loaded voxel object.
 	int model_lod_level; // LOD level of the model we loaded.
 	bool built_dynamic_physics_ob;

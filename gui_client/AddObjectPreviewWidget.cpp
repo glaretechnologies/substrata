@@ -8,6 +8,8 @@
 #include "../graphics/Map2D.h"
 #include "../graphics/ImageMap.h"
 #include "../graphics/SRGBUtils.h"
+#include "../graphics/GaussianSplatData.h"
+#include "../opengl/GaussianSplatRenderer.h"
 #include "../maths/vec3.h"
 #include "../maths/GeometrySampling.h"
 #include "../utils/Lock.h"
@@ -95,6 +97,8 @@ void AddObjectPreviewWidget::shutdown()
 	// Make context current as we destroy the opengl engine.
 	this->makeCurrent();
 
+	splat_renderer.set(nullptr); // Destroy splat_renderer.  Must happen while the GL context is still current.
+
 	if(opengl_engine.nonNull())
 		opengl_engine = NULL;
 }
@@ -159,6 +163,18 @@ void AddObjectPreviewWidget::initializeGL()
 
 		if(settings->value(MainOptionsDialog::BloomKey(), /*default val=*/true).toBool())
 			opengl_engine->getCurrentScene()->bloom_strength = 0.3f;
+
+		// For previewing .sog Gaussian splat clouds.
+		try
+		{
+			splat_renderer.set(new GaussianSplatRenderer());
+			splat_renderer->makeShaders(*opengl_engine, data_dir + "/shaders");
+		}
+		catch(glare::Exception& e)
+		{
+			conPrint("Error building Gaussian splat shaders: " + e.what());
+			splat_renderer.set(NULL); // Splat previews will just be unavailable.
+		}
 	}
 
 	cam_phi = 0;
@@ -223,7 +239,42 @@ void AddObjectPreviewWidget::paintGL()
 	opengl_engine->setMaxDrawDistance(100.f);
 	opengl_engine->setPerspectiveCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
 	opengl_engine->setCurrentTime((float)timer.elapsed());
+
+	// NOTE: after the camera transform is set, which think() needs for the depth sort and the covariance projection.
+	if(splat_renderer.ptr() && main_task_manager && (splat_renderer->numObjectsInWorld() > 0))
+		splat_renderer->think(*opengl_engine, *main_task_manager);
+
 	opengl_engine->draw();
+}
+
+
+void AddObjectPreviewWidget::setPreviewSplatCloud(const Reference<GaussianSplatData>& splat_data, const Vec3f& axis, float angle)
+{
+	if(!splat_renderer.ptr())
+		return;
+
+	this->makeCurrent();
+
+	splat_renderer->removeAllObjects(); // Remove any previously previewed cloud.
+
+	if(splat_data.isNull())
+		return;
+
+	// Offset the cloud vertically so it rests on the ground plane, like the mesh preview path does.
+	const Matrix4f rot_matrix = Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle);
+	const js::AABBox aabb_ws = splat_data->aabb_os.transformedAABBFast(rot_matrix);
+	const float z_trans = -aabb_ws.min_[2];
+
+	splat_renderer->addObject(splat_data, /*translation_ws=*/Vec4f(0, 0, z_trans, 1), Quatf::fromAxisAndAngle(normalise(axis.toVec4fVector()), angle),
+		/*uniform_scale_ws=*/1.f, *opengl_engine);
+
+	// Meshes are auto-scaled down to a sane size by getScaleForMesh(), but a splat cloud is placed in the world at scale 1,
+	// so frame the camera on it instead of scaling it, to keep the preview honest about how big it will be.
+	const Vec4f aabb_span = aabb_ws.max_ - aabb_ws.min_;
+	const float longest_extent = myMax(aabb_span[0], myMax(aabb_span[1], aabb_span[2]));
+
+	cam_target_pos = Vec4f(0, 0, aabb_span[2] * 0.5f, 1);
+	cam_dist = myMax(longest_extent * 1.5f, 0.5f);
 }
 
 

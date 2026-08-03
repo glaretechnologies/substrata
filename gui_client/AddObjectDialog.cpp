@@ -24,6 +24,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "../utils/TaskManager.h"
 #include <graphics/SRGBUtils.h>
 #include <graphics/PNGDecoder.h>
+#include <graphics/GaussianSplatData.h>
 #include "../indigo/TextureServer.h"
 #include "../qt/QtUtils.h"
 #include <QtWidgets/QMessageBox>
@@ -208,6 +209,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 	this->ob_cam_up_translation = 0;
 
 	this->loaded_materials.clear();
+	this->loaded_splat_data = NULL;
 	this->scale = Vec3f(1.f);
 	this->axis = Vec3f(0, 0, 1);
 	this->angle = 0;
@@ -219,7 +221,10 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 		{
 			// Remove previous object from engine.
 			objectPreviewGLWidget->opengl_engine->removeObject(preview_gl_ob);
+			this->preview_gl_ob = NULL;
 		}
+
+		objectPreviewGLWidget->setPreviewSplatCloud(NULL, Vec3f(0,0,1), 0.f); // Remove any previously previewed splat cloud.
 
 		if(ImageDecoding::hasSupportedImageExtension(local_path))
 		{
@@ -247,6 +252,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 
 			this->loaded_mesh = results.batched_mesh;
 			this->loaded_voxels = results.voxels.voxels;
+			this->loaded_splat_data = results.splat_data;
 
 			this->loaded_materials = results.materials;
 			this->scale = results.scale;
@@ -256,15 +262,23 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 		else
 			throw glare::Exception("file did not have a supported image or model extension: '" + getExtension(local_path) + "'");
 
-		// Try and load textures
-		tryLoadTexturesForPreviewOb(preview_gl_ob, this->loaded_materials, objectPreviewGLWidget->opengl_engine.ptr(), *texture_server, this);
+		// A .sog splat cloud has no GLObject representation - it is previewed by the widget's GaussianSplatRenderer instead.
+		if(this->loaded_splat_data.nonNull())
+		{
+			objectPreviewGLWidget->setPreviewSplatCloud(this->loaded_splat_data, this->axis, this->angle);
+		}
+		else if(preview_gl_ob.nonNull())
+		{
+			// Try and load textures
+			tryLoadTexturesForPreviewOb(preview_gl_ob, this->loaded_materials, objectPreviewGLWidget->opengl_engine.ptr(), *texture_server, this);
 
-		// Offset object vertically so it rests on the ground plane.
-		const js::AABBox cur_aabb_ws = preview_gl_ob->mesh_data->aabb_os.transformedAABBFast(preview_gl_ob->ob_to_world_matrix);
-		const float z_trans = -cur_aabb_ws.min_[2];
-		preview_gl_ob->ob_to_world_matrix = ::leftTranslateAffine3(Vec4f(0, 0, z_trans, 0), preview_gl_ob->ob_to_world_matrix);
+			// Offset object vertically so it rests on the ground plane.
+			const js::AABBox cur_aabb_ws = preview_gl_ob->mesh_data->aabb_os.transformedAABBFast(preview_gl_ob->ob_to_world_matrix);
+			const float z_trans = -cur_aabb_ws.min_[2];
+			preview_gl_ob->ob_to_world_matrix = ::leftTranslateAffine3(Vec4f(0, 0, z_trans, 0), preview_gl_ob->ob_to_world_matrix);
 
-		objectPreviewGLWidget->opengl_engine->addObject(preview_gl_ob);
+			objectPreviewGLWidget->opengl_engine->addObject(preview_gl_ob);
+		}
 	}
 	catch(Indigo::IndigoException& e)
 	{

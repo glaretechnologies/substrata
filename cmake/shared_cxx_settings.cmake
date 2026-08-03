@@ -30,6 +30,8 @@ addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/networking")
 addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/maths")
 addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/opengl") # For Glew
 addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/giflib/lib")
+addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/libwebp/src") # For #include <webp/decode.h> etc.
+addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/libwebp") # libwebp source files include their own headers like "src/dsp/dsp.h", so the libwebp root dir needs to be on the include path as well.
 addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/little_cms/include")
 addIncludeDirectory("${zstddir}/lib")
 addIncludeDirectory("${zstddir}/lib/common")

@@ -21,6 +21,7 @@ class RayMesh;
 class PhysicsShape;
 class VoxelGroup;
 class VertexBufferAllocator;
+class GaussianSplatData;
 namespace Indigo { class TaskManager; }
 
 
@@ -59,8 +60,11 @@ public:
 		GLARE_ALIGNED_16_NEW_DELETE
 
 		Matrix4f ob_to_world;
-		GLObjectRef gl_ob;
-		BatchedMeshRef batched_mesh; // Not set if we loaded a .vox model.
+		GLObjectRef gl_ob; // Null if do_opengl_stuff was false, and also null for .sog Gaussian splat clouds, which have no GLObject representation - they are drawn by GaussianSplatRenderer.  Callers must handle null.
+		BatchedMeshRef batched_mesh; // Not set if we loaded a .vox model, or a .sog splat cloud.
+		// The decoded splat cloud, set only when loading a .sog file AND do_opengl_stuff was true - decoding is expensive, and
+		// callers that just want to upload the file (rather than display it) don't need it.
+		Reference<GaussianSplatData> splat_data;
 		//js::Vector<Voxel, 16> voxels; // Set if we loaded a .vox model.
 		VoxelGroup voxels;
 		std::vector<WorldMaterialRef> materials;
@@ -118,7 +122,8 @@ bool ModelLoading::isSupportedModelExtension(string_view extension)
 		StringUtils::equalCaseInsensitive(extension, "glb") ||
 		StringUtils::equalCaseInsensitive(extension, "vrm") ||
 		StringUtils::equalCaseInsensitive(extension, "igmesh") ||
-		StringUtils::equalCaseInsensitive(extension, "subvox");
+		StringUtils::equalCaseInsensitive(extension, "subvox") ||
+		StringUtils::equalCaseInsensitive(extension, "sog"); // Gaussian splat cloud.  Decodes to GaussianSplatData, not a BatchedMesh.
 }
 
 

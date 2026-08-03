@@ -76,6 +76,101 @@ ${pugixmldir}/pugiconfig.hpp
 enable_language(ASM) # For the .S file in zstd below.
 
 FILE(GLOB giflib "${GLARE_CORE_TRUNK_DIR_ENV}/giflib/lib/*.c" "${GLARE_CORE_TRUNK_DIR_ENV}/giflib/lib/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/giflib/lib/*.h")
+
+# libwebp: the decoding parts only.  (The encoder, in libwebp/src/enc, additionally needs the sharpyuv dir, which glare-core doesn't have a copy of)
+# The MIPS and MSA (MIPS SIMD) files are omitted.  The SSE/AVX/NEON files are all listed; they compile to nothing on platforms that
+# don't support the instruction set, due to the WEBP_USE_XXX guards in them.
+set(libwebpdir "${GLARE_CORE_TRUNK_DIR_ENV}/libwebp/src")
+set(libwebp
+${libwebpdir}/webp/decode.h
+${libwebpdir}/webp/demux.h
+${libwebpdir}/webp/format_constants.h
+${libwebpdir}/webp/mux_types.h
+${libwebpdir}/webp/types.h
+
+${libwebpdir}/dec/alpha_dec.c
+${libwebpdir}/dec/alphai_dec.h
+${libwebpdir}/dec/buffer_dec.c
+${libwebpdir}/dec/common_dec.h
+${libwebpdir}/dec/frame_dec.c
+${libwebpdir}/dec/idec_dec.c
+${libwebpdir}/dec/io_dec.c
+${libwebpdir}/dec/quant_dec.c
+${libwebpdir}/dec/tree_dec.c
+${libwebpdir}/dec/vp8_dec.c
+${libwebpdir}/dec/vp8_dec.h
+${libwebpdir}/dec/vp8i_dec.h
+${libwebpdir}/dec/vp8l_dec.c
+${libwebpdir}/dec/vp8li_dec.h
+${libwebpdir}/dec/webp_dec.c
+${libwebpdir}/dec/webpi_dec.h
+
+${libwebpdir}/demux/anim_decode.c
+${libwebpdir}/demux/demux.c
+
+${libwebpdir}/dsp/alpha_processing.c
+${libwebpdir}/dsp/alpha_processing_neon.c
+${libwebpdir}/dsp/alpha_processing_sse2.c
+${libwebpdir}/dsp/alpha_processing_sse41.c
+${libwebpdir}/dsp/common_sse2.h
+${libwebpdir}/dsp/common_sse41.h
+${libwebpdir}/dsp/cpu.c
+${libwebpdir}/dsp/cpu.h
+${libwebpdir}/dsp/dec.c
+${libwebpdir}/dsp/dec_clip_tables.c
+${libwebpdir}/dsp/dec_neon.c
+${libwebpdir}/dsp/dec_sse2.c
+${libwebpdir}/dsp/dec_sse41.c
+${libwebpdir}/dsp/dsp.h
+${libwebpdir}/dsp/filters.c
+${libwebpdir}/dsp/filters_neon.c
+${libwebpdir}/dsp/filters_sse2.c
+${libwebpdir}/dsp/lossless.c
+${libwebpdir}/dsp/lossless.h
+${libwebpdir}/dsp/lossless_avx2.c
+${libwebpdir}/dsp/lossless_common.h
+${libwebpdir}/dsp/lossless_neon.c
+${libwebpdir}/dsp/lossless_sse2.c
+${libwebpdir}/dsp/lossless_sse41.c
+${libwebpdir}/dsp/neon.h
+${libwebpdir}/dsp/quant.h
+${libwebpdir}/dsp/rescaler.c
+${libwebpdir}/dsp/rescaler_neon.c
+${libwebpdir}/dsp/rescaler_sse2.c
+${libwebpdir}/dsp/upsampling.c
+${libwebpdir}/dsp/upsampling_neon.c
+${libwebpdir}/dsp/upsampling_sse2.c
+${libwebpdir}/dsp/upsampling_sse41.c
+${libwebpdir}/dsp/yuv.c
+${libwebpdir}/dsp/yuv.h
+${libwebpdir}/dsp/yuv_neon.c
+${libwebpdir}/dsp/yuv_sse2.c
+${libwebpdir}/dsp/yuv_sse41.c
+
+${libwebpdir}/utils/bit_reader_inl_utils.h
+${libwebpdir}/utils/bit_reader_utils.c
+${libwebpdir}/utils/bit_reader_utils.h
+${libwebpdir}/utils/bounds_safety.h
+${libwebpdir}/utils/color_cache_utils.c
+${libwebpdir}/utils/color_cache_utils.h
+${libwebpdir}/utils/endian_inl_utils.h
+${libwebpdir}/utils/filters_utils.c
+${libwebpdir}/utils/filters_utils.h
+${libwebpdir}/utils/huffman_utils.c
+${libwebpdir}/utils/huffman_utils.h
+${libwebpdir}/utils/palette.c
+${libwebpdir}/utils/palette.h
+${libwebpdir}/utils/quant_levels_dec_utils.c
+${libwebpdir}/utils/quant_levels_dec_utils.h
+${libwebpdir}/utils/random_utils.c
+${libwebpdir}/utils/random_utils.h
+${libwebpdir}/utils/rescaler_utils.c
+${libwebpdir}/utils/rescaler_utils.h
+${libwebpdir}/utils/thread_utils.c
+${libwebpdir}/utils/thread_utils.h
+${libwebpdir}/utils/utils.c
+${libwebpdir}/utils/utils.h
+)
 #FILE(GLOB little_cms "${GLARE_CORE_TRUNK_DIR_ENV}/little_cms/src/*.c"  "${GLARE_CORE_TRUNK_DIR_ENV}/little_cms/include/*.h")
 FILE(GLOB zstandard "${zstddir}/lib/*.h"  
 "${zstddir}/lib/common/*.c"     "${zstddir}/lib/common/*.h"
@@ -88,6 +183,7 @@ SOURCE_GROUP(libpng FILES ${libpng})
 SOURCE_GROUP(zlib FILES ${zlib})
 SOURCE_GROUP(pugixml FILES ${pugixml})
 SOURCE_GROUP(giflib FILES ${giflib})
+SOURCE_GROUP(libwebp FILES ${libwebp})
 #SOURCE_GROUP(little_cms FILES ${little_cms})
 SOURCE_GROUP(zstandard FILES ${zstandard})
 
@@ -102,6 +198,7 @@ ${libpng}
 ${zlib}
 ${pugixml}
 ${giflib}
+${libwebp}
 #${little_cms}
 ${zstandard}
 )

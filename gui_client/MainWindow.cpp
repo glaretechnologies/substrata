@@ -1967,7 +1967,7 @@ void MainWindow::on_actionAddObject_triggered()
 	const int res = dialog.exec();
 	ui->glWidget->makeCurrent(); // Change back from the dialog GL context to the mainwindow GL context.
 
-	if((res == QDialog::Accepted) && !dialog.loaded_materials.empty()) // If dialog was accepted, and we loaded an object successfully in it:
+	if((res == QDialog::Accepted)/* && !dialog.loaded_materials.empty()*/) // If dialog was accepted, and we loaded an object successfully in it:
 	{
 		try
 		{

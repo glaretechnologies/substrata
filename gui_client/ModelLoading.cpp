@@ -19,6 +19,7 @@ Code By Nicholas Chapman.
 #include "../graphics/FormatDecoderGLTF.h"
 #include "../graphics/FormatDecoderVox.h"
 #include "../graphics/FormatDecoderSubVox.h"
+#include "../graphics/SOGDecoder.h"
 #include "../graphics/SRGBUtils.h"
 #include "../simpleraytracer/raymesh.h"
 #include "../dll/IndigoStringUtils.h"
@@ -33,6 +34,7 @@ Code By Nicholas Chapman.
 #include "../utils/Sort.h"
 #include "../utils/IncludeHalf.h"
 #include "../utils/BitUtils.h"
+#include "../utils/MemMappedFile.h"
 #include "../opengl/GLMeshBuilding.h"
 #include "../opengl/IncludeOpenGL.h"
 #include "../indigo/UVUnwrapper.h"
@@ -942,6 +944,34 @@ void ModelLoading::makeGLObjectForModelFile(
 
 		results_out.batched_mesh = bmesh;
 		results_out.gl_ob = gl_ob;
+	}
+	else if(hasExtension(model_path, "sog"))
+	{
+		// A Gaussian splat cloud.  It decodes to GaussianSplatData rather than a BatchedMesh, and is drawn by
+		// GaussianSplatRenderer rather than as a GLObject, so there is nothing to make here:
+		// results_out.gl_ob and results_out.batched_mesh are both left null (see the note on gl_ob in ModelLoading.h).
+		//
+		// SOG files generally use a y-down, z-forwards convention whereas Substrata is z-up, so return a -90 degree
+		// rotation about X.  Carrying this on the object transform rather than hiding it inside the renderer means the
+		// user can correct it in the object editor if a particular capture needs something different.
+		results_out.axis = Vec3f(1, 0, 0);
+		results_out.angle = -Maths::pi_2<float>();
+
+		results_out.ob_to_world = Matrix4f::rotationMatrix(normalise(results_out.axis.toVec4fVector()), results_out.angle);
+
+		MemMappedFile file(model_path);
+
+		if(do_opengl_stuff)
+		{
+			// The caller wants something displayable, so decode the cloud for it to hand to a GaussianSplatRenderer.
+			results_out.splat_data = SOGDecoder::decodeFromBuffer(file.fileData(), file.fileSize(), allocator); // Throws glare::Exception on failure.
+		}
+		else
+		{
+			// Just validate that the file is decodable, so an unreadable .sog is reported here rather than silently
+			// producing an object that fails to load later.  Reads meta.json only - no WebP decoding.
+			SOGDecoder::readMetaSummaryFromBuffer(file.fileData(), file.fileSize()); // Throws glare::Exception on failure.
+		}
 	}
 	else
 		throw glare::Exception("Format not supported: " + getExtension(model_path));

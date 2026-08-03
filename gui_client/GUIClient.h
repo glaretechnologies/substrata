@@ -97,6 +97,8 @@ struct PBOAsyncUploadedTextureInfo;
 class OpenGLUploadThread;
 class AnimatedTextureManager;
 class MiniMap;
+class GaussianSplatRenderer;
+class GaussianSplatData;
 class VBOPool;
 class PBOPool;
 class VBO;
@@ -356,7 +358,7 @@ public:
 	// If the object was not in a parcel with write permissions at all, returns false.
 	// If the object can not be made to fit in the current parcel, returns false.
 	// new_ob_pos_out is set to new, clamped position.
-	bool clampObjectPositionToParcelForNewTransform(const WorldObject& ob, GLObjectRef& opengl_ob, const Vec3d& old_ob_pos,
+	bool clampObjectPositionToParcelForNewTransform(const WorldObject& ob, const Vec3d& old_ob_pos,
 		const Matrix4f& tentative_to_world_matrix, js::Vector<EdgeMarker, 16>& edge_markers_out, Vec3d& new_ob_pos_out);
 	bool checkAddTextureToProcessingSet(const OpenGLTextureKey& path); // returns true if was not in processed set (and hence this call added it), false if it was.
 	bool checkAddModelToProcessingSet(const URLString& url, bool dynamic_physics_shape); // returns true if was not in processed set (and hence this call added it), false if it was.
@@ -438,6 +440,11 @@ public:
 
 	void createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix, WorldObject* ob, bool use_materialise_effect, PhysicsObjectRef& physics_ob_out, GLObjectRef& opengl_ob_out);
 	void updateSpotlightGraphicsEngineData(const Matrix4f& ob_to_world_matrix, WorldObject* ob);
+
+	// Re-bakes a splat object's cloud at the given transform (or at the object's own transform).  No-op for objects with no
+	// registered splat cloud, so it's safe (and cheap) to call alongside the opengl_engine_ob transform updates.
+	void updateSplatObjectTransform(WorldObject& ob);
+	void updateSplatObjectTransform(WorldObject& ob, const Vec4f& pos_ws, const Quatf& rot_ws);
 	void recreateTextGraphicsAndPhysicsObs(WorldObject* ob);
 
 	void swapInLoadedLODChunkGraphics(LODChunk* chunk) REQUIRES(world_state->mutex);
@@ -448,6 +455,10 @@ public:
 	void handleUploadedMeshData(const URLString& lod_model_url, int loaded_model_lod_level, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, 
 		int voxel_subsample_factor, uint64 voxel_hash);
 	void handleUploadedTexture(const OpenGLTextureKey& path, const URLString& URL, const OpenGLTextureRef& opengl_tex, const TextureDataRef& tex_data, const Map2DRef& terrain_map);
+
+	// Splat analogues of handleUploadedMeshData() and loadPresentObjectGraphicsAndPhysicsModels().
+	void handleLoadedGaussianSplat(const URLString& lod_model_url, const Reference<GaussianSplatData>& splat_data);
+	void loadPresentObjectSplatCloud(WorldObject* ob, const Reference<GaussianSplatData>& splat_data, WorldStateLock& world_state_lock) REQUIRES(world_state->mutex);
 
 	void updateOurAvatarModel(BatchedMeshRef loaded_mesh, const std::string& local_model_path, const Matrix4f& pre_ob_to_world_matrix, const std::vector<WorldMaterialRef>& materials);
 
@@ -614,6 +625,12 @@ public:
 
 	MeshManager mesh_manager;
 
+	UniqueRef<GaussianSplatRenderer> splat_renderer; // Renders all ObjectType_Splat objects in the world as a single shared GLObject.
+
+	// Decoded .sog splat clouds, keyed on model URL.  Splat data can't go in mesh_manager, which is typed around
+	// OpenGLMeshRenderData and PhysicsShape.
+	std::unordered_map<URLString, Reference<GaussianSplatData>, URLStringHasher> splat_data_cache;
+
 	AnimationManager animation_manager;
 
 	std::string server_hostname; // Hostname of the server the client is connected to.  e.g. "substrata.info" or "localhost"
@@ -632,6 +649,10 @@ public:
 	// ModelLoadedThreadMessages that have been sent to this thread, but are still to be processed.
 	std::deque<Reference<ModelLoadedThreadMessage> > model_loaded_messages_to_process;
 	std::deque<Reference<TextureLoadedThreadMessage> > texture_loaded_messages_to_process;
+
+	// Loaded .sog splat clouds still to be handed to the splat renderer.  Kept separate from
+	// model_loaded_messages_to_process, whose processing assumes the message carries mesh geometry to upload.
+	std::deque<Reference<ModelLoadedThreadMessage> > splat_loaded_messages_to_process;
 
 	CircularBuffer<Reference<ModelLoadedThreadMessage> > async_model_loaded_messages_to_process;
 	CircularBuffer<Reference<TextureLoadedThreadMessage> > async_texture_loaded_messages_to_process;

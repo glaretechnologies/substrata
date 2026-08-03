@@ -170,6 +170,7 @@ void ObjectEditor::updateInfoLabel(const WorldObject& ob)
 	case WorldObject::ObjectType_Portal: ob_type = "Portal"; break;
 	case WorldObject::ObjectType_Seat: ob_type = "Seat"; break;
 	case WorldObject::ObjectType_GearItem: ob_type = "Gear Item"; break;
+	case WorldObject::ObjectType_Splat: ob_type = "Gaussian Splat"; break;
 	}
 
 	std::string info_text = ob_type + " (UID: " + ob.uid.toString() + "), \ncreated by '" + creator_name + "' " + ob.created_time.timeAgoDescription();
@@ -368,6 +369,19 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 		this->seatGroupBox->hide();
 		this->audioGroupBox->show();
 		this->physicsSettingsGroupBox->hide();
+		this->videoGroupBox->hide();
+	}
+	else if(ob.object_type == WorldObject::ObjectType_Splat)
+	{
+		// Splat objects have no materials, and are not lightmapped.  Show the model widget so the .sog URL is visible.
+		this->materialsGroupBox->hide();
+		this->lightmapGroupBox->hide();
+		this->modelLabel->show();
+		this->modelFileSelectWidget->show();
+		this->spotlightGroupBox->hide();
+		this->seatGroupBox->hide();
+		this->audioGroupBox->show();
+		this->physicsSettingsGroupBox->show();
 		this->videoGroupBox->hide();
 	}
 	else

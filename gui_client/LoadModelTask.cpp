@@ -19,7 +19,12 @@ Copyright Glare Technologies Limited 2025 -
 #include <utils/UniqueRef.h>
 #include <utils/MemMappedFile.h>
 #include <graphics/FormatDecoderSubVox.h>
+#include <graphics/SOGDecoder.h>
 #include <tracy/Tracy.hpp>
+
+
+ModelLoadedThreadMessage::~ModelLoadedThreadMessage()
+{}
 
 
 LoadModelTask::LoadModelTask()
@@ -103,6 +108,31 @@ void LoadModelTask::run(size_t thread_index)
 				file.set(new MemMappedFile(lod_model_path));
 				model_buffer = ArrayRef<uint8>((const uint8*)file->fileData(), file->fileSize());
 #endif
+
+				if(hasExtension(lod_model_path, "sog"))
+				{
+					// A Gaussian splat cloud decodes to GaussianSplatData, not a mesh.  There is no geometry to upload
+					// and no physics shape to build here, so none of the code below this block applies - return early.
+					ZoneText("SOG", 3);
+
+					Reference<GaussianSplatData> splat_data = SOGDecoder::decodeFromBuffer(model_buffer.data(), model_buffer.size(), worker_allocator.ptr());
+
+					Reference<ModelLoadedThreadMessage> msg = new ModelLoadedThreadMessage();
+					msg->splat_data = splat_data;
+					msg->lod_model_url = lod_model_url;
+					msg->model_lod_level = model_lod_level;
+					msg->built_dynamic_physics_ob = false;
+					msg->subsample_factor = 1;
+					msg->voxel_hash = 0;
+					msg->index_data_src_offset_B = 0;
+					msg->total_geom_size_B = 0;
+					msg->vert_data_size_B = 0;
+					msg->index_data_size_B = 0;
+
+					result_msg_queue->enqueue(msg);
+
+					return;
+				}
 
 				if(hasExtension(lod_model_path, "subvox"))
 				{

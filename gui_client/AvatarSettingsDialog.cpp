@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "../shared/ResourceManager.h"
 #include "../indigo/TextureServer.h"
 #include "graphics/SRGBUtils.h"
+#include "graphics/GaussianSplatData.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../dll/include/IndigoException.h"
 #include "../dll/IndigoStringUtils.h"

@@ -42,6 +42,9 @@ ${GRAPHICS_DIR}/GaussianFilterFunction.cpp
 ${GRAPHICS_DIR}/GaussianFilterFunction.h
 ${GRAPHICS_DIR}/GaussianImageFilter.cpp
 ${GRAPHICS_DIR}/GaussianImageFilter.h
+${GRAPHICS_DIR}/GaussianSplatData.h
+${GRAPHICS_DIR}/SOGDecoder.cpp
+${GRAPHICS_DIR}/SOGDecoder.h
 ${GRAPHICS_DIR}/GifDecoder.cpp
 ${GRAPHICS_DIR}/GifDecoder.h
 ${GRAPHICS_DIR}/GridNoise.cpp
@@ -81,6 +84,8 @@ ${GRAPHICS_DIR}/PNGDecoder.cpp
 ${GRAPHICS_DIR}/PNGDecoder.h
 ${GRAPHICS_DIR}/Voronoi.cpp
 ${GRAPHICS_DIR}/Voronoi.h
+${GRAPHICS_DIR}/WebPDecoder.cpp
+${GRAPHICS_DIR}/WebPDecoder.h
 ${GRAPHICS_DIR}/TextureProcessing.cpp
 ${GRAPHICS_DIR}/TextureProcessing.h
 ${GRAPHICS_DIR}/TextureProcessingTests.cpp
