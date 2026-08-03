@@ -115,6 +115,7 @@ private slots:;
 
 	void diagnosticsWidgetChanged();
 	void diagnosticsReloadTerrain();
+	void diagnosticsScrollChanged();
 	void sendChatMessageSlot();
 	void sendLightmapNeededFlagsSlot();
 
@@ -370,6 +371,13 @@ public:
 	double last_timerEvent_CPU_work_elapsed;
 	double last_updateGL_time;
 private:
+	// Where the user has scrolled the diagnostics text to.  Tracked here rather than read back off the widget before
+	// each refresh: QPlainTextEdit lays out lazily, so the scrollbar range isn't final immediately after setPlainText(),
+	// and restoring a position then lands slightly off.  Reading that back the next frame would compound the error, so
+	// diagnosticsScrollChanged() ignores the scrollbar movement our own refresh causes.
+	int diagnostics_scroll_pos_v, diagnostics_scroll_pos_h;
+	bool updating_diagnostics_text;
+
 	bool need_help_info_dock_widget_position; // We may need to position the Help info dock widget to the bottom right of the GL view.
 	// But we need to wait until the gl view has been resized before we do this, so set this flag to do in a timer event.
 	

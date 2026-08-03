@@ -56,6 +56,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QErrorMessage>
 #include <QtWidgets/QStyle>
+#include <QtWidgets/QScrollBar>
 #include <QtGamepad/QGamepadManager>
 #include <QtGamepad/QGamepad>
 #include "../qt/QtUtils.h"
@@ -307,6 +308,9 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	parsed_args(args),
 	QMainWindow(parent),
 	need_help_info_dock_widget_position(false),
+	diagnostics_scroll_pos_v(0),
+	diagnostics_scroll_pos_h(0),
+	updating_diagnostics_text(false),
 	log_window(NULL),
 	in_CEF_message_loop(false),
 	should_close(false),
@@ -525,6 +529,8 @@ void MainWindow::initialiseUI()
 	ui->diagnosticsWidget->init(settings);
 	connect(ui->diagnosticsWidget, SIGNAL(settingsChangedSignal()), this, SLOT(diagnosticsWidgetChanged()));
 	connect(ui->diagnosticsWidget, SIGNAL(reloadTerrainSignal()), this, SLOT(diagnosticsReloadTerrain()));
+	connect(ui->diagnosticsWidget->diagnosticsTextEdit->verticalScrollBar(),   SIGNAL(valueChanged(int)), this, SLOT(diagnosticsScrollChanged()));
+	connect(ui->diagnosticsWidget->diagnosticsTextEdit->horizontalScrollBar(), SIGNAL(valueChanged(int)), this, SLOT(diagnosticsScrollChanged()));
 
 	ui->environmentOptionsWidget->init(settings);
 	connect(ui->environmentOptionsWidget, SIGNAL(settingChanged()), this, SLOT(environmentSettingChangedSlot()));
@@ -1403,8 +1409,22 @@ void MainWindow::updateDiagnostics()
 		const std::string msg = gui_client.getDiagnosticsString(do_graphics_diagnostics, do_physics_diagnostics, do_terrain_diagnostics, last_timerEvent_CPU_work_elapsed, last_updateGL_time);
 
 		// Don't update diagnostics string when part of it is selected, so user can actually copy it.
-		if(!ui->diagnosticsWidget->diagnosticsTextEdit->textCursor().hasSelection())
-			ui->diagnosticsWidget->diagnosticsTextEdit->setPlainText(QtUtils::toQString(msg));
+		QPlainTextEdit* const diagnostics_text_edit = ui->diagnosticsWidget->diagnosticsTextEdit;
+		if(!diagnostics_text_edit->textCursor().hasSelection())
+		{
+			// setPlainText() replaces the whole document, which resets the scroll position to the top.  Since this runs
+			// on a timer, anything below the first screenful would otherwise be impossible to read.  Restore the
+			// position the user last scrolled to, rather than whatever the widget currently reports - see
+			// diagnostics_scroll_pos_v in MainWindow.h for why the difference matters.
+			updating_diagnostics_text = true;
+
+			diagnostics_text_edit->setPlainText(QtUtils::toQString(msg));
+
+			diagnostics_text_edit->verticalScrollBar()  ->setValue(diagnostics_scroll_pos_v);
+			diagnostics_text_edit->horizontalScrollBar()->setValue(diagnostics_scroll_pos_h);
+
+			updating_diagnostics_text = false;
+		}
 	}
 }
 
@@ -4000,6 +4020,18 @@ void MainWindow::diagnosticsWidgetChanged()
 	}
 
 	gui_client.diagnosticsSettingsChanged();
+}
+
+
+// Records where the user has scrolled the diagnostics text to.  Movement caused by our own refresh is ignored: see the
+// comment on diagnostics_scroll_pos_v in MainWindow.h.
+void MainWindow::diagnosticsScrollChanged()
+{
+	if(updating_diagnostics_text)
+		return;
+
+	diagnostics_scroll_pos_v = ui->diagnosticsWidget->diagnosticsTextEdit->verticalScrollBar()->value();
+	diagnostics_scroll_pos_h = ui->diagnosticsWidget->diagnosticsTextEdit->horizontalScrollBar()->value();
 }
 
 
