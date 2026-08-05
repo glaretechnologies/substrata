@@ -177,6 +177,11 @@ public:
 
 	void traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, JPH::BodyID ignore_body_id, RayTraceResult& results_out) const;
 
+	// Like traceRay(), but only traces against collidable objects, e.g. objects in the NON_MOVING and MOVING layers.
+	// Non-collidable objects are ignored: holograms, other avatars' mouse-picking capsules, and Gaussian splat clouds, whose physics
+	// shape is just a bounding box around the cloud.
+	void traceRayAgainstCollidableObs(const Vec4f& origin, const Vec4f& dir, float max_t, JPH::BodyID ignore_body_id, RayTraceResult& results_out) const;
+
 	bool doesRayHitAnything(const Vec4f& origin, const Vec4f& dir, float max_t) const;
 
 	void writeJoltSnapshotToDisk(const std::string& path);

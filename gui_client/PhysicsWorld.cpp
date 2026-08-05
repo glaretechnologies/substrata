@@ -1654,7 +1654,19 @@ static const JPH::MeshShape* getInnerMeshShape(const JPH::Shape* shape)
 }
 
 
-void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, JPH::BodyID ignore_body_id, RayTraceResult& results_out) const
+// Object layer filter that only accepts collidable objects, e.g. rejects objects in the NON_MOVING_NON_COLLIDABLE and MOVING_NON_COLLIDABLE layers.
+class CollidableObjectLayerFilter final : public JPH::ObjectLayerFilter
+{
+public:
+	virtual bool ShouldCollide(JPH::ObjectLayer layer) const override
+	{
+		return (layer == Layers::NON_MOVING) || (layer == Layers::MOVING);
+	}
+};
+
+
+static void doTraceRay(JPH::PhysicsSystem* physics_system, const Vec4f& origin, const Vec4f& dir, float max_t, JPH::BodyID ignore_body_id,
+	const JPH::ObjectLayerFilter& object_layer_filter, RayTraceResult& results_out)
 {
 	results_out.hit_object = NULL;
 
@@ -1662,7 +1674,7 @@ void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, 
 
 	const JPH::RRayCast ray(toJoltVec3(origin), toJoltVec3(dir * max_t));
 	JPH::RayCastResult hit_result;
-	const bool found_hit = this->physics_system->GetNarrowPhaseQuery().CastRay(ray, hit_result, {}, {}, player_physics_body_filter);
+	const bool found_hit = physics_system->GetNarrowPhaseQuery().CastRay(ray, hit_result, {}, object_layer_filter, player_physics_body_filter);
 	if(found_hit)
 	{
 		// Lock the body.  Use locking interface so we can call body->GetWorldSpaceSurfaceNormal().
@@ -1688,6 +1700,19 @@ void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, 
 			// conPrint("Hit object, hitdist_ws: " + toString(results_out.hitdist_ws) + ", hit_tri_index: " + toString(results_out.hit_tri_index));
 		}
 	}
+}
+
+
+void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, JPH::BodyID ignore_body_id, RayTraceResult& results_out) const
+{
+	doTraceRay(this->physics_system, origin, dir, max_t, ignore_body_id, /*object layer filter=*/JPH::ObjectLayerFilter(), results_out);
+}
+
+
+void PhysicsWorld::traceRayAgainstCollidableObs(const Vec4f& origin, const Vec4f& dir, float max_t, JPH::BodyID ignore_body_id, RayTraceResult& results_out) const
+{
+	CollidableObjectLayerFilter object_layer_filter;
+	doTraceRay(this->physics_system, origin, dir, max_t, ignore_body_id, object_layer_filter, results_out);
 }
 
 
