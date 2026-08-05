@@ -2868,10 +2868,13 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 			{
 				ob->loading_or_loaded_model_lod_level = 0;
 
+				bool added_opengl_ob = false;
+
 				auto res = splat_data_cache.find(ob->model_url);
 				if(res != splat_data_cache.end()) // If the cloud is already decoded:
 				{
 					loadPresentObjectSplatCloud(ob, res->second, world_state_lock);
+					added_opengl_ob = true;
 				}
 				else if(resource_manager->isFileForURLPresent(ob->model_url))
 				{
@@ -2897,11 +2900,13 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 					}
 					else
 						load_item_queue.checkUpdateItemPosition(/*key=*/ob->model_url, *ob);
+				}
 
+				// If the cloud isn't loaded yet, add this object to the wait list.
+				if(!added_opengl_ob)
+				{
 					// Splat objects are never dynamic, so the processing key always uses dynamic_physics_shape = false.
 					const ModelProcessingKey key(ob->model_url, /*dynamic_physics_shape=*/false);
-
-					// If the cloud isn't loaded yet, add this object to the wait list.
 					this->loading_model_URL_to_world_ob_UID_map[key].insert(ob->uid);
 				}
 			}
