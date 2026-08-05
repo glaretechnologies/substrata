@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <opengl/OpenGLEngine.h>
 #include <dll/include/IndigoMesh.h>
 #include <graphics/BatchedMesh.h>
+#include <graphics/GaussianSplatData.h>
 #include <utils/Vector.h>
 
 
@@ -21,7 +22,6 @@ class RayMesh;
 class PhysicsShape;
 class VoxelGroup;
 class VertexBufferAllocator;
-class GaussianSplatData;
 namespace Indigo { class TaskManager; }
 
 
