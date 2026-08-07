@@ -708,14 +708,14 @@ int main(int argc, char** argv)
 
 		conPrint("main finished...");
 
+		CPU_render_stats_widget = NULL;
+		GPU_render_stats_widget = NULL;
+
 		gui_client->shutdown();
 		delete gui_client;
 		gui_client = NULL;
 
 		CEF::shutdownCEF();
-
-		CPU_render_stats_widget = NULL;
-		GPU_render_stats_widget = NULL;
 
 		opengl_engine = NULL;
 

@@ -829,6 +829,9 @@ void MainWindow::closeEvent(QCloseEvent* event)
 
 	ui->glWidget->makeCurrent();
 
+	CPU_render_stats_widget = nullptr;
+	GPU_render_stats_widget = nullptr;
+
 	// If we are in fullscreen mode, exit it before we save the window state.  This is because we want to start next time not in fullscreen mode.
 	if(this->isFullScreen())
 		exitFromFullScreenMode();
@@ -841,10 +844,6 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	stopMCPClientServer();
 
 	gui_client.shutdown();
-
-	CPU_render_stats_widget = nullptr;
-	GPU_render_stats_widget = nullptr;
-
 
 	this->opengl_engine = NULL;
 	ui->glWidget->shutdown(); // Shuts down OpenGL Engine.
