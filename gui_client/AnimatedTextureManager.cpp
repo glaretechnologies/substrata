@@ -59,6 +59,8 @@ struct CreateWMFVideoReaderTask : public glare::Task
 {
 	void run(size_t /*thread_index*/) override
 	{
+		ZoneScoped; // Tracy profiler
+
 		try
 		{
 			Reference<WMFVideoReader> video_reader = new WMFVideoReader(/*read from video device=*/false, /*just read audio=*/false, 
@@ -91,6 +93,8 @@ struct CreateWMFVideoReaderTask : public glare::Task
 void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, IMFDXGIDeviceManager* dx_device_manager, ID3D11Device* d3d_device, glare::TaskManager& task_manager, WorldObject* ob, 
 	double anim_time, double dt, const OpenGLTextureKey& tex_path, bool in_view_frustum)
 {
+	ZoneScoped; // Tracy profiler
+
 #if WMF_MP4_PLAYBACK_SUPPORT
 	if(use_WMF_for_vid_playback)
 	{
@@ -103,6 +107,8 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 					ResourceRef resource = gui_client->resource_manager->getExistingResourceForURL(tex_path);
 					if(resource && resource->isPresent())
 					{
+						ZoneScopedN("Creating CreateWMFVideoReaderTask"); // Tracy profiler
+
 						gui_client->logMessage("Creating WMFVideoReader to play vid, URL: " + std::string(tex_path));
 
 						create_vid_reader_task = new CreateWMFVideoReaderTask();
@@ -150,6 +156,8 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 			// Process any audio frames we have queued: mix down to mono and append to the audio source buffer.
 			while(video_reader->audio_frame_queue.nonEmpty())
 			{
+				ZoneScopedN("Processing queued audio frame"); // Tracy profiler
+
 				Reference<SampleInfo> front_frame = video_reader->audio_frame_queue.popAndReturnFront();
 
 				assert(front_frame->is_audio);
@@ -233,6 +241,8 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 				assert(!front_frame->is_audio);
 				if(!front_frame->is_EOS_marker)
 				{
+					ZoneScopedN("Processing queued video frame"); // Tracy profiler
+
 					WMFSampleInfo* wmf_frame = front_frame.downcastToPtr<WMFSampleInfo>();
 
 					// conPrint("frame_time: " + toString(front_frame->frame_time) + ", video_reader->timer: " + toString(video_reader->timer.elapsed()));
@@ -247,17 +257,24 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 
 							if(!texture_copy)
 							{
-								texture_copy = Direct3DUtils::copyTextureToNewShareableTexture(d3d_device, wmf_frame->d3d_tex);;
+								ZoneScopedN("Making new d3d texture copy"); // Tracy profiler
+
+								texture_copy = Direct3DUtils::copyTextureToNewShareableTexture(d3d_device, wmf_frame->d3d_tex);
 								shared_handle = Direct3DUtils::getSharedHandleForTexture(texture_copy);
 							}
 				
 							//----------------- Do the texture copy -----------------
-							Direct3DUtils::copyTextureToExistingShareableTexture(d3d_device, /*source=*/wmf_frame->d3d_tex, /*dest=*/texture_copy);
+							{
+								ZoneScopedN("copyTextureToExistingShareableTexture"); // Tracy profiler
+								Direct3DUtils::copyTextureToExistingShareableTexture(d3d_device, /*source=*/wmf_frame->d3d_tex, /*dest=*/texture_copy);
+							}
 
 
 							//====================== Create an OpenGL texture to show the video ========================
 							if(video_display_opengl_tex.isNull())
 							{
+								ZoneScopedN("Making new OpenGL tex copy"); // Tracy profiler
+
 								gl_mem_ob = new OpenGLMemoryObject();
 
 								gl_mem_ob->importD3D11ImageFromHandle(shared_handle);
@@ -294,6 +311,8 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 					const bool loop = (ob->object_type == WorldObject::ObjectType_Video) ? BitUtils::isBitSet(ob->flags, WorldObject::VIDEO_LOOP) : true;
 					if(loop)
 					{
+						ZoneScopedN("video_reader->seekToStart()"); // Tracy profiler
+
 						// conPrint("Received EOS, seeking to beginning...");
 						video_reader->seekToStart(); // Resets timer as well
 					}
@@ -305,7 +324,10 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 			const int TARGET_NUM_FRAMES_DECODED_OR_DECODING = 6;
 			const int num_additional_samples_needed = myMax(0, TARGET_NUM_FRAMES_DECODED_OR_DECODING - (int)video_reader->video_frame_queue.size() - (int)video_reader->num_pending_reads);
 			for(int i=0; i<num_additional_samples_needed; ++i)
+			{
+				ZoneScopedN("video_reader->startReadingNextSample()"); // Tracy profiler
 				video_reader->startReadingNextSample();
+			}
 		}
 	}
 
@@ -375,6 +397,8 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 
 void AnimatedTexData::checkCloseMP4Playback(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob)
 {
+	ZoneScoped; // Tracy profiler
+
 #if WMF_MP4_PLAYBACK_SUPPORT
 	if(video_reader)
 	{
