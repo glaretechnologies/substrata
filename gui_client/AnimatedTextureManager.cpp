@@ -34,6 +34,7 @@ Copyright Glare Technologies Limited 2023 -
 
 AnimatedTexData::AnimatedTexData(size_t mat_index_, bool is_refl_tex_, bool use_WMF_for_vid_playback_)
 :	shared_handle(nullptr),
+	num_video_frames_received(0),
 	error_occurred(false),
 	mat_index(mat_index_),
 	is_refl_tex(is_refl_tex_),
@@ -45,6 +46,15 @@ AnimatedTexData::~AnimatedTexData()
 {}
 
 
+// TEMP: set to false to run the video decoder normally but never touch its decoded frames: no shareable D3D texture, no copy, no OpenGL import.
+// Distinguishes a hitch caused by the decoder itself from one caused by sharing its output with OpenGL.
+[[maybe_unused]] static const bool DO_VIDEO_TEXTURE_DISPLAY = true;
+
+// TEMP: set to false to still create the shareable D3D texture and copy decoded frames into it, but never import it into OpenGL.  Splits the cost
+// of the shared D3D allocation from the cost of the GL import.  Only has an effect when DO_VIDEO_TEXTURE_DISPLAY is true.
+[[maybe_unused]] static const bool DO_OPENGL_IMPORT = true;
+
+
 [[maybe_unused]] static std::string makeDataURL(const std::string& html)
 {
 	std::string html_base64;
@@ -52,6 +62,12 @@ AnimatedTexData::~AnimatedTexData()
 
 	return "data:text/html;base64," + html_base64;
 }
+
+
+struct CreateWMFVideoReaderTaskInFlightCounter : public ThreadSafeRefCounted
+{
+	glare::AtomicInt count;
+};
 
 
 #if WMF_MP4_PLAYBACK_SUPPORT
@@ -66,8 +82,6 @@ struct CreateWMFVideoReaderTask : public glare::Task
 			Reference<WMFVideoReader> video_reader = new WMFVideoReader(/*read from video device=*/false, /*just read audio=*/false, 
 				/*URL=*/path_or_URL, /*async_mode=*/true, dx_device_manager, /*decode to d3d tex=*/true);
 
-			video_reader->startReadingNextSample();
-
 			{
 				Lock lock(mutex);
 				video_reader_result = video_reader;
@@ -78,6 +92,8 @@ struct CreateWMFVideoReaderTask : public glare::Task
 			Lock lock(mutex);
 			error_str = e.what();
 		}
+
+		in_flight_counter->count--;
 	}
 
 	Mutex mutex;
@@ -86,11 +102,13 @@ struct CreateWMFVideoReaderTask : public glare::Task
 
 	IMFDXGIDeviceManager* dx_device_manager;
 	std::string path_or_URL;
+
+	Reference<CreateWMFVideoReaderTaskInFlightCounter> in_flight_counter;
 };
 #endif
 
 
-void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, IMFDXGIDeviceManager* dx_device_manager, ID3D11Device* d3d_device, glare::TaskManager& task_manager, WorldObject* ob, 
+void AnimatedTexData::processMP4AnimatedTex(AnimatedTextureManager& animated_tex_manager, GUIClient* gui_client, OpenGLEngine* opengl_engine, IMFDXGIDeviceManager* dx_device_manager, ID3D11Device* d3d_device, glare::TaskManager& task_manager, WorldObject* ob, 
 	double anim_time, double dt, const OpenGLTextureKey& tex_path, bool in_view_frustum)
 {
 	ZoneScoped; // Tracy profiler
@@ -102,20 +120,32 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 		{
 			if(!error_occurred)
 			{
-				if(!create_vid_reader_task)
+				if(create_vid_reader_task.isNull())
 				{
-					ResourceRef resource = gui_client->resource_manager->getExistingResourceForURL(tex_path);
-					if(resource && resource->isPresent())
+					// Creating multiple WMFVideoReader simultaneously, or nearly simultaneously, can create severe hitching/suttering in the OpenGL rendering, despite the WMFVideoReader being done on 
+					// another CPU thread.  This is probably due to lots of GPU work being done creating frame textures etc.
+					// Work around this by making sure we don't create more than 1 at once.
+					if((animated_tex_manager.in_flight_counter->count == 0) && 
+						((Clock::getTimeSinceInit() - animated_tex_manager.last_create_wmf_vid_reader_task_creation_time) > 0.25))
 					{
-						ZoneScopedN("Creating CreateWMFVideoReaderTask"); // Tracy profiler
+						ResourceRef resource = gui_client->resource_manager->getExistingResourceForURL(tex_path);
+						if(resource && resource->isPresent())
+						{
+							ZoneScopedN("Creating CreateWMFVideoReaderTask"); // Tracy profiler
 
-						gui_client->logMessage("Creating WMFVideoReader to play vid, URL: " + std::string(tex_path));
+							gui_client->logMessage("Creating WMFVideoReader to play vid, URL: " + std::string(tex_path));
 
-						create_vid_reader_task = new CreateWMFVideoReaderTask();
-						create_vid_reader_task->path_or_URL = gui_client->resource_manager->getLocalAbsPathForResource(*resource);
-						create_vid_reader_task->dx_device_manager = dx_device_manager;
+							animated_tex_manager.in_flight_counter->count++;
 
-						task_manager.addTask(create_vid_reader_task);
+							create_vid_reader_task = new CreateWMFVideoReaderTask();
+							create_vid_reader_task->path_or_URL = gui_client->resource_manager->getLocalAbsPathForResource(*resource);
+							create_vid_reader_task->dx_device_manager = dx_device_manager;
+							create_vid_reader_task->in_flight_counter = animated_tex_manager.in_flight_counter;
+
+							task_manager.addTask(create_vid_reader_task);
+
+							animated_tex_manager.last_create_wmf_vid_reader_task_creation_time = Clock::getTimeSinceInit();
+						}
 					}
 				}
 				else
@@ -149,7 +179,10 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 					if(frame->is_audio)
 						video_reader->audio_frame_queue.push_back(frame);
 					else
+					{
 						video_reader->video_frame_queue.push_back(frame);
+						num_video_frames_received++;
+					}
 				}
 			}
 
@@ -250,55 +283,95 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 					{
 						video_reader->video_frame_queue.pop_front(); // Remove from queue
 
-						// If the object with the video applied is visible, copy the video frame to another texture and assign it to the object.
-						if(in_view_frustum)
+						// If the object with the video applied is visible, convert the video frame into another texture and assign it to the object.
+						if(in_view_frustum && DO_VIDEO_TEXTURE_DISPLAY && !error_occurred)
 						{
-							// conPrint("Presenting frame with time " + toString(front_frame->frame_time));
-
-							if(!texture_copy)
+							try
 							{
-								ZoneScopedN("Making new d3d texture copy"); // Tracy profiler
-
-								texture_copy = Direct3DUtils::copyTextureToNewShareableTexture(d3d_device, wmf_frame->d3d_tex);
-								shared_handle = Direct3DUtils::getSharedHandleForTexture(texture_copy);
-							}
-				
-							//----------------- Do the texture copy -----------------
-							{
-								ZoneScopedN("copyTextureToExistingShareableTexture"); // Tracy profiler
-								Direct3DUtils::copyTextureToExistingShareableTexture(d3d_device, /*source=*/wmf_frame->d3d_tex, /*dest=*/texture_copy);
-							}
-
-
-							//====================== Create an OpenGL texture to show the video ========================
-							if(video_display_opengl_tex.isNull())
-							{
-								ZoneScopedN("Making new OpenGL tex copy"); // Tracy profiler
-
-								gl_mem_ob = new OpenGLMemoryObject();
-
-								gl_mem_ob->importD3D11ImageFromHandle(shared_handle);
-
+								// Take the device without blocking: Media Foundation holds it for hundreds of ms while building a decoder for some other video,
+								// and waiting for it here stalls rendering.  If it's busy, drop this frame and leave the object showing the previous one.
+								//MFScopedDeviceLock device_lock(dx_device_manager);
+								//if(!device_lock.isLocked())
+								//{
+								//	ZoneScopedN("skipped video frame, D3D device busy"); // Tracy profiler
+								//}
+								//else
 								{
-									//OpenGLMemoryObjectLock mem_ob_lock(gl_mem_ob);
+									// conPrint("Presenting frame with time " + toString(front_frame->frame_time));
 
-									video_display_opengl_tex = new OpenGLTexture(front_frame->width, front_frame->height, opengl_engine, ArrayRef<uint8>(), OpenGLTextureFormat::Format_SRGBA_Uint8,
-										OpenGLTexture::Filtering_Bilinear, 
-										(ob->object_type == WorldObject::ObjectType_Video) ? OpenGLTexture::Wrapping_Clamp : OpenGLTexture::Wrapping_Repeat, // Video objects should have the UV transform correct to show [0, 1], other objects may not, so need tiling.
-										/*has mipmaps=*/false, -1, 0, gl_mem_ob);
+									//const ComObHandle<ID3D11Device>& d3d_device = device_lock.getDevice();
 
-									glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_R, GL_BLUE);  // Final R = interpreted B (orig R)
-									glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_G, GL_GREEN); // Final G = interpreted G (orig G)
-									glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_B, GL_RED);   // Final B = interpreted R (orig B)
-									glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_A, GL_ONE);   // Final A = 1 (opaque)
+									if(!video_processor)
+									{
+										ZoneScopedN("Making video processor and output texture"); // Tracy profiler
+
+										// The frames come out of the decoder as NV12, which OpenGL can't sample, so the GPU's video processor converts them
+										// to BGRA on the way into the texture we share with OpenGL.  h264 pads the coded frame size up to a multiple of 16,
+										// so the decoder's textures can be bigger than the picture in them; the processor takes the picture out as it goes.
+										D3D11_TEXTURE2D_DESC decoded_frame_desc;
+										wmf_frame->d3d_tex->GetDesc(&decoded_frame_desc);
+
+										const FormatInfo& format = video_reader->getCurrentFormat();
+
+										video_processor = new D3DVideoProcessor(d3d_device, decoded_frame_desc.Width, decoded_frame_desc.Height,
+											/*output width=*/myMin((uint32)front_frame->width,  decoded_frame_desc.Width),
+											/*output height=*/myMin((uint32)front_frame->height, decoded_frame_desc.Height),
+											format.bt_709, format.full_range);
+
+										texture_copy = video_processor->createOutputTexture();
+										shared_handle = Direct3DUtils::getSharedHandleForTexture(texture_copy);
+									}
+
+									//----------------- Convert the frame into the texture we share with OpenGL -----------------
+									{
+										ZoneScopedN("video processor convert"); // Tracy profiler
+										video_processor->convert(/*src=*/wmf_frame->d3d_tex, /*dest=*/texture_copy);
+									}
+
+
+									//====================== Create an OpenGL texture to show the video ========================
+									if(video_display_opengl_tex.isNull() && DO_OPENGL_IMPORT)
+									{
+										ZoneScopedN("Making new OpenGL tex copy"); // Tracy profiler
+
+										gl_mem_ob = new OpenGLMemoryObject();
+
+										gl_mem_ob->importD3D11ImageFromHandle(shared_handle);
+
+										{
+											//OpenGLMemoryObjectLock mem_ob_lock(gl_mem_ob);
+
+											// Take the size from the shared texture rather than from the frame: the video processor may have trimmed padding
+											// off, and the OpenGL texture has to describe the shared memory exactly as D3D made it.
+											D3D11_TEXTURE2D_DESC shared_tex_desc;
+											texture_copy->GetDesc(&shared_tex_desc);
+
+											video_display_opengl_tex = new OpenGLTexture(shared_tex_desc.Width, shared_tex_desc.Height, opengl_engine, ArrayRef<uint8>(), OpenGLTextureFormat::Format_SRGBA_Uint8,
+												OpenGLTexture::Filtering_Bilinear, 
+												(ob->object_type == WorldObject::ObjectType_Video) ? OpenGLTexture::Wrapping_Clamp : OpenGLTexture::Wrapping_Repeat, // Video objects should have the UV transform correct to show [0, 1], other objects may not, so need tiling.
+												/*has mipmaps=*/false, -1, 0, gl_mem_ob);
+
+											glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_R, GL_BLUE);  // Final R = interpreted B (orig R)
+											glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_G, GL_GREEN); // Final G = interpreted G (orig G)
+											glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_B, GL_RED);   // Final B = interpreted R (orig B)
+											glTextureParameteri(video_display_opengl_tex->texture_handle, GL_TEXTURE_SWIZZLE_A, GL_ONE);   // Final A = 1 (opaque)
+										}
+
+										if(is_refl_tex)
+											ob->opengl_engine_ob->materials[mat_index].albedo_texture = video_display_opengl_tex;
+										else
+											ob->opengl_engine_ob->materials[mat_index].emission_texture = video_display_opengl_tex;
+										ob->opengl_engine_ob->materials[mat_index].allow_alpha_test = false;
+										opengl_engine->materialTextureChanged(*ob->opengl_engine_ob, ob->opengl_engine_ob->materials[mat_index]);
+									}
 								}
-
-								if(is_refl_tex)
-									ob->opengl_engine_ob->materials[mat_index].albedo_texture = video_display_opengl_tex;
-								else
-									ob->opengl_engine_ob->materials[mat_index].emission_texture = video_display_opengl_tex;
-								ob->opengl_engine_ob->materials[mat_index].allow_alpha_test = false;
-								opengl_engine->materialTextureChanged(*ob->opengl_engine_ob, ob->opengl_engine_ob->materials[mat_index]);
+							}
+							catch(glare::Exception& e)
+							{
+								// We failed to display the frame, e.g. the driver wouldn't make a video processor for this format.  Give up on displaying this
+								// video, rather than trying and logging again for every frame.  The decoder and the audio playback are left running.
+								gui_client->logMessage("Error while displaying video frame for '" + std::string(tex_path) + "': " + e.what());
+								error_occurred = true;
 							}
 						}
 					}
@@ -322,7 +395,14 @@ void AnimatedTexData::processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine*
 			// Start doing some new sample reads if needed.
 			assert(video_reader->audio_frame_queue.empty()); // We should have processed all audio samples.
 			const int TARGET_NUM_FRAMES_DECODED_OR_DECODING = 6;
-			const int num_additional_samples_needed = myMax(0, TARGET_NUM_FRAMES_DECODED_OR_DECODING - (int)video_reader->video_frame_queue.size() - (int)video_reader->num_pending_reads);
+
+			// Ramp the number of in-flight reads up as frames come back, rather than asking for the full amount as soon as playback starts.  Media
+			// Foundation allocates an output surface per in-flight sample, and asking for them all at once is a burst of GPU allocation that stalls
+			// rendering for the next frame or two.  Pacing against decoded frames rather than rendered ones means the pipeline only gets deeper once
+			// the decoder has actually delivered, so the allocations spread out however long the decoder takes to get going.
+			const int ramped_target = myMin<int>(TARGET_NUM_FRAMES_DECODED_OR_DECODING, 1 + num_video_frames_received);
+
+			const int num_additional_samples_needed = myMax(0, ramped_target - (int)video_reader->video_frame_queue.size() - (int)video_reader->num_pending_reads);
 			for(int i=0; i<num_additional_samples_needed; ++i)
 			{
 				ZoneScopedN("video_reader->startReadingNextSample()"); // Tracy profiler
@@ -406,6 +486,8 @@ void AnimatedTexData::checkCloseMP4Playback(GUIClient* gui_client, OpenGLEngine*
 
 		gui_client->sendVideoReaderToGarbageDeleterThread(video_reader);
 		video_reader = NULL;
+		num_video_frames_received = 0;
+		video_processor = NULL;
 		texture_copy = NULL;
 		shared_handle = NULL;
 		
@@ -452,7 +534,7 @@ void AnimatedTexData::checkCloseMP4Playback(GUIClient* gui_client, OpenGLEngine*
 }
 
 
-AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, IMFDXGIDeviceManager* dx_device_manager, ID3D11Device* d3d_device, glare::TaskManager& task_manager, WorldObject* ob, double anim_time, double dt)
+AnimatedTexObDataProcessStats AnimatedTexObData::process(AnimatedTextureManager& animated_tex_manager, GUIClient* gui_client, OpenGLEngine* opengl_engine, IMFDXGIDeviceManager* dx_device_manager, ID3D11Device* d3d_device, glare::TaskManager& task_manager, WorldObject* ob, double anim_time, double dt)
 {
 	ZoneScoped; // Tracy profiler
 
@@ -490,7 +572,7 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, 
 			AnimatedTexData* refl_data = this->mat_animtexdata[m].refl_col_animated_tex_data.ptr();
 			if(refl_data)
 			{
-				refl_data->processMP4AnimatedTex(gui_client, opengl_engine, dx_device_manager, d3d_device, task_manager, ob, anim_time, dt, mat.tex_path, in_cam_frustum);
+				refl_data->processMP4AnimatedTex(animated_tex_manager, gui_client, opengl_engine, dx_device_manager, d3d_device, task_manager, ob, anim_time, dt, mat.tex_path, in_cam_frustum);
 				stats.num_mp4_textures_processed++;
 			}
 
@@ -498,7 +580,7 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(GUIClient* gui_client, 
 			AnimatedTexData* emission_data = this->mat_animtexdata[m].emission_col_animated_tex_data.ptr();
 			if(emission_data)
 			{
-				emission_data->processMP4AnimatedTex(gui_client, opengl_engine, dx_device_manager, d3d_device, task_manager, ob, anim_time, dt, mat.emission_tex_path, in_cam_frustum);
+				emission_data->processMP4AnimatedTex(animated_tex_manager, gui_client, opengl_engine, dx_device_manager, d3d_device, task_manager, ob, anim_time, dt, mat.emission_tex_path, in_cam_frustum);
 				stats.num_mp4_textures_processed++;
 			}
 		}
@@ -554,7 +636,14 @@ void AnimatedTexObData::rescanObjectForAnimatedTextures(OpenGLEngine* opengl_eng
 
 AnimatedTextureManager::AnimatedTextureManager()
 :	last_num_textures_visible_and_close(0),
-	use_WMF_for_vid_playback(false)
+	use_WMF_for_vid_playback(false),
+	last_create_wmf_vid_reader_task_creation_time(-10000.0),
+	in_flight_counter(new CreateWMFVideoReaderTaskInFlightCounter())
+{
+}
+
+
+AnimatedTextureManager::~AnimatedTextureManager()
 {
 }
 

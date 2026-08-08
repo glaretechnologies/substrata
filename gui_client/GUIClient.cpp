@@ -6238,7 +6238,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 				try
 				{
-					const AnimatedTexObDataProcessStats stats = animation_data.process(this, opengl_engine.ptr(), device_manager, d3d_device, model_and_texture_loader_task_manager, ob, anim_time, dt);
+					const AnimatedTexObDataProcessStats stats = animation_data.process(*animated_texture_manager, this, opengl_engine.ptr(), device_manager, d3d_device, model_and_texture_loader_task_manager, ob, anim_time, dt);
 					num_mp4_textures_processed += stats.num_mp4_textures_processed;
 				}
 				catch(glare::Exception& e)

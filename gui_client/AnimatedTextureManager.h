@@ -26,10 +26,12 @@ class OpenGLTexture;
 class PCG32;
 class AnimatedTextureManager;
 class WMFVideoReader;
+class D3DVideoProcessor;
 struct IMFDXGIDeviceManager;
 struct ID3D11Device;
 struct ID3D11Texture2D;
 struct CreateWMFVideoReaderTask;
+struct CreateWMFVideoReaderTaskInFlightCounter;
 
 
 // Use a Windows Media Foundation (WMF)-based player on Windows, and a Chromium Embedded Framework (CEF)-based player on other systems.
@@ -45,16 +47,19 @@ struct AnimatedTexData : public RefCounted
 
 	static double maxVidPlayDist() { return 20.0; }
 
-	void processMP4AnimatedTex(GUIClient* gui_client, OpenGLEngine* opengl_engine, IMFDXGIDeviceManager* dx_device_manager, ID3D11Device* d3d_device, glare::TaskManager& task_manager, WorldObject* ob, 
+	void processMP4AnimatedTex(AnimatedTextureManager& animated_tex_manager, GUIClient* gui_client, OpenGLEngine* opengl_engine, IMFDXGIDeviceManager* dx_device_manager, ID3D11Device* d3d_device, glare::TaskManager& task_manager, WorldObject* ob, 
 		double anim_time, double dt, const OpenGLTextureKey& tex_path, bool in_view_frustum);
 	void checkCloseMP4Playback(GUIClient* gui_client, OpenGLEngine* opengl_engine, WorldObject* ob);
 
 #if WMF_MP4_PLAYBACK_SUPPORT
 	Reference<WMFVideoReader> video_reader;
-	ComObHandle<ID3D11Texture2D> texture_copy;
+	Reference<D3DVideoProcessor> video_processor; // Converts the decoder's NV12 frames to the BGRA that OpenGL samples.  One per video being played.
+	ComObHandle<ID3D11Texture2D> texture_copy; // The BGRA texture the video processor writes into, shared with OpenGL.
 	Reference<OpenGLTexture> video_display_opengl_tex;
 	Reference<OpenGLMemoryObject> gl_mem_ob;
 	js::Vector<float> temp_buf;
+
+	int num_video_frames_received; // Since playback started.  Used to ramp up how many sample reads we keep in flight.
 
 	Reference<CreateWMFVideoReaderTask> create_vid_reader_task;
 #endif
@@ -86,7 +91,7 @@ struct AnimatedTexObData : public RefCounted
 {
 	std::vector<MaterialAnimatedTexData> mat_animtexdata; // size() == ob.material.size()
 
-	AnimatedTexObDataProcessStats process(GUIClient* gui_client, OpenGLEngine* opengl_engine, IMFDXGIDeviceManager* dx_device_manager, ID3D11Device* d3d_device, glare::TaskManager& task_manager, WorldObject* ob, double anim_time, double dt);
+	AnimatedTexObDataProcessStats process(AnimatedTextureManager& animated_tex_manager, GUIClient* gui_client, OpenGLEngine* opengl_engine, IMFDXGIDeviceManager* dx_device_manager, ID3D11Device* d3d_device, glare::TaskManager& task_manager, WorldObject* ob, double anim_time, double dt);
 
 	void rescanObjectForAnimatedTextures(OpenGLEngine* opengl_engine, WorldObject* ob, PCG32& rng, AnimatedTextureManager& animated_tex_manager);
 };
@@ -135,6 +140,7 @@ class AnimatedTextureManager : public ThreadSafeRefCounted
 {
 public:
 	AnimatedTextureManager();
+	~AnimatedTextureManager();
 
 	void init(OpenGLEngine* opengl_engine);
 
@@ -152,4 +158,7 @@ public:
 	int last_num_textures_visible_and_close;
 
 	bool use_WMF_for_vid_playback;
+
+	double last_create_wmf_vid_reader_task_creation_time; // Clock::getTimeSinceInit() at last CreateWMFVideoReaderTask created, or a large negative number if none so far.
+	Reference<CreateWMFVideoReaderTaskInFlightCounter> in_flight_counter;
 };
