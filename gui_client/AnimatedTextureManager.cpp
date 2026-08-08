@@ -268,8 +268,79 @@ void AnimatedTexData::processMP4AnimatedTex(AnimatedTextureManager& animated_tex
 
 
 			// Check the video frame queue to see if there is a frame due to be presented.
+			//
+			// We also want to discard stale frames:
+			// Imagine the following video frames in the video_frame_queue.   Frames are pushed to the back of the queue in ascending presentation time order (probably)
+			// In this case frames 0, 1, 2 are ready to present, but there is no point in showing frames 0 and 1, we can skip directly to frame 2 and display it.
+			// 
+			//   queue front                              queue back
+			// -------------------------------------------------------
+			//     frame 0    frame  1     frame  2     frame 3
+			//     t=0          t=0.1         t=0.2        t=0.3
+			//                                  ^
+			//                                  |
+			//                                cur play time = 0.2
+
+			const double cur_play_time = video_reader->timer.elapsed();
+
+			// Frames are in ascending presentation time order (probably!, asserted below), so if the frame behind the front one is also due to be shown, the front one is stale: drop it
+			// rather than spending a conversion on it.  Never drop the EOS marker or the frame in front of it - the marker has to be seen to loop the video.
+			while(video_reader->video_frame_queue.size() >= 2)
+			{
+				auto it = video_reader->video_frame_queue.beginIt();
+				const SampleInfo* front_frame = (*it).ptr();
+				++it;
+				const SampleInfo* next_frame  = (*it).ptr();
+
+				if(!(front_frame->is_EOS_marker || next_frame->is_EOS_marker))
+					assert(next_frame->frame_time >= front_frame->frame_time); // Assert in ascending frame time order.  If this fails, use code below in the #if 0 block.
+
+				if(front_frame->is_EOS_marker || next_frame->is_EOS_marker || (next_frame->frame_time > cur_play_time))
+					break;
+
+				video_reader->video_frame_queue.pop_front();
+				// conPrint("Discarding stale video frame");
+			}
+
 			if(video_reader->video_frame_queue.nonEmpty())
 			{
+#if 0
+				// Version of the code that works even if frame_times aren't always ascending:
+				// Find frame with the largest frame presentation time that is <= cur play time.
+				double largest_presentation_time = -1000;
+				for(auto it = video_reader->video_frame_queue.beginIt(); it != video_reader->video_frame_queue.endIt(); ++it)
+				{
+					SampleInfo* frame = (*it).ptr();
+					assert(!frame->is_audio);
+					if(!frame->is_EOS_marker)
+					{
+						WMFSampleInfo* wmf_frame = static_cast<WMFSampleInfo*>(frame);
+						if(wmf_frame->frame_time <= cur_play_time)
+							largest_presentation_time = myMax(wmf_frame->frame_time, largest_presentation_time);
+					}
+				}
+				
+				// Pop all frames that are video frames with frame_time < largest_presentation_time
+				while(video_reader->video_frame_queue.nonEmpty())
+				{
+					Reference<SampleInfo> front_frame = video_reader->video_frame_queue.front(); // Look at front video frame, but don't remove from queue yet.
+					assert(!front_frame->is_audio);
+					if(front_frame->is_EOS_marker)
+						break;
+					WMFSampleInfo* wmf_frame = front_frame.downcastToPtr<WMFSampleInfo>();
+					if(wmf_frame->frame_time < largest_presentation_time)
+					{
+						conPrint("Discarding stale video frame");
+						video_reader->video_frame_queue.pop_front(); // Remove from queue
+					}
+					else
+						break;
+				}
+
+				// At this point there should be either the EOS marker in the queue, or a video frame with frame_time >= largest_presentation_time
+				runtimeCheck(video_reader->video_frame_queue.nonEmpty());
+#endif
+
 				Reference<SampleInfo> front_frame = video_reader->video_frame_queue.front(); // Look at front video frame, but don't remove from queue yet.
 				assert(!front_frame->is_audio);
 				if(!front_frame->is_EOS_marker)
@@ -279,7 +350,7 @@ void AnimatedTexData::processMP4AnimatedTex(AnimatedTextureManager& animated_tex
 					WMFSampleInfo* wmf_frame = front_frame.downcastToPtr<WMFSampleInfo>();
 
 					// conPrint("frame_time: " + toString(front_frame->frame_time) + ", video_reader->timer: " + toString(video_reader->timer.elapsed()));
-					if(front_frame->frame_time <= video_reader->timer.elapsed()) // If the play time has reached the frame presentation time, then present the frame:
+					if(front_frame->frame_time <= cur_play_time) // If the play time has reached the frame presentation time, then present the frame:
 					{
 						video_reader->video_frame_queue.pop_front(); // Remove from queue
 
