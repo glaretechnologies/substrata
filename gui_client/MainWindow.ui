@@ -58,6 +58,7 @@
      </property>
      <addaction name="actionBake_Lightmaps_fast_for_all_objects_in_parcel"/>
      <addaction name="actionBake_lightmaps_high_quality_for_all_objects_in_parcel"/>
+     <addaction name="actionRemove_lightmaps_for_all_objects_in_parcel"/>
     </widget>
     <addaction name="actionUndo"/>
     <addaction name="actionRedo"/>
@@ -789,6 +790,11 @@
   <action name="actionConvert_Selected_Object_To_Gear_Item">
    <property name="text">
     <string>Convert Selected Object To Gear Item</string>
+   </property>
+  </action>
+  <action name="actionRemove_lightmaps_for_all_objects_in_parcel">
+   <property name="text">
+    <string>Remove lightmaps for all objects in parcel</string>
    </property>
   </action>
  </widget>

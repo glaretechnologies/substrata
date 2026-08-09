@@ -11791,6 +11791,56 @@ void GUIClient::bakeLightmapsForAllObjectsInParcel(uint32 lightmap_flag)
 }
 
 
+void GUIClient::removeLightmapsForAllObjectsInParcel()
+{
+	int num_lightmaps_removed = 0;
+	const Parcel* cur_parcel = NULL;
+	{
+		Lock lock(world_state->mutex);
+
+		// Get current parcel
+		for(auto& it : world_state->parcels)
+		{
+			const Parcel* parcel = it.second.ptr();
+
+			if(parcel->pointInParcel(cam_controller.getFirstPersonPosition()))
+			{
+				cur_parcel = parcel;
+				break;
+			}
+		}
+
+		if(cur_parcel)
+		{
+			for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
+			{
+				WorldObject* ob = it.getValue().ptr();
+
+				if(cur_parcel->pointInParcel(ob->pos) && objectModificationAllowed(*ob))
+				{
+					if(BitUtils::isBitSet(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG) || !ob->lightmap_url.empty())
+					{
+						BitUtils::zeroBit(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
+						ob->lightmap_url.clear();
+
+						// Mark as from-local-dirty to send an object updated message to the server
+						ob->from_local_other_dirty = true;
+						this->world_state->dirty_from_local_objects.insert(ob);
+
+						num_lightmaps_removed++;
+					}
+				}
+			}
+		}
+	} // End lock scope
+
+	if(cur_parcel)
+		showInfoNotification("Cleared pending or built lightmaps for " + toString(num_lightmaps_removed) + " objects in current parcel.");
+	else
+		showErrorNotification("You must be in a parcel to remove lightmaps from it.");
+}
+
+
 std::string GUIClient::serialiseAllObjectsInParcelToXML(size_t& num_obs_serialised_out)
 {
 	std::string xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";

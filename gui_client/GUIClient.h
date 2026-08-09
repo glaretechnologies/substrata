@@ -320,6 +320,7 @@ public:
 	void removeInstancesOfObject(WorldObject* ob);
 	void removeObScriptingInfo(WorldObject* ob);
 	void bakeLightmapsForAllObjectsInParcel(uint32 lightmap_flag);
+	void removeLightmapsForAllObjectsInParcel();
 	std::string serialiseAllObjectsInParcelToXML(size_t& num_obs_serialised_out);
 	void deleteAllParcelObjects(size_t& num_obs_deleted_out);
 	void setMaterialFlagsForObject(WorldObject* ob);

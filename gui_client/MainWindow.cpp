@@ -3682,6 +3682,12 @@ void MainWindow::on_actionBake_lightmaps_high_quality_for_all_objects_in_parcel_
 }
 
 
+void MainWindow::on_actionRemove_lightmaps_for_all_objects_in_parcel_triggered()
+{
+	gui_client.removeLightmapsForAllObjectsInParcel();
+}
+
+
 void MainWindow::on_actionSummon_Bike_triggered()
 {
 	try
