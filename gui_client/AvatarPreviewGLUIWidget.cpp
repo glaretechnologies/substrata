@@ -177,8 +177,8 @@ void AvatarPreviewGLUIWidget::recreateFBO(int avatar_preview_w, int avatar_previ
 
 	// MSAA FBO — rendered into each frame
 	avatar_preview_fbo = new FrameBuffer();
-	avatar_preview_fbo->attachRenderBuffer(*avatar_preview_color_rb, GL_COLOR_ATTACHMENT0);
-	avatar_preview_fbo->attachRenderBuffer(*avatar_preview_depth_rb, GL_DEPTH_ATTACHMENT);
+	avatar_preview_fbo->attachRenderBuffers(*avatar_preview_color_rb, GL_COLOR_ATTACHMENT0,
+	                                        *avatar_preview_depth_rb, GL_DEPTH_ATTACHMENT);
 	assert(avatar_preview_fbo->isComplete());
 
 	// Resolve texture — regular (non-MSAA) texture shown in the widget
