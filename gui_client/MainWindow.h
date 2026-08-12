@@ -131,6 +131,7 @@ private slots:;
 	void gamepadButtonXChanged(bool pressed);
 	void gamepadButtonAChanged(bool pressed);
 	void glWidgetViewportResized(int w, int h);
+	void buildImGuiUI(); // Called from GlWidget::paintGL() while building an ImGui frame.  Builds the ImGui info window.
 	void onIndigoViewDockWidgetVisibilityChanged(bool v);
 	void glWidgetCutShortcutTriggered();
 	void glWidgetCopyShortcutTriggered();

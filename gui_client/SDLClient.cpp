@@ -133,11 +133,9 @@ Reference<OpenGLEngine> opengl_engine;
 Timer* timer;
 Timer* time_since_last_frame;
 Timer* stats_timer;
-Timer* diagnostics_timer;
 Timer* mem_usage_sampling_timer;
 Timer* last_update_URL_timer;
 int num_frames = 0;
-std::string last_diagnostics;
 bool reset = false;
 double fps = 0;
 bool wireframes = false;
@@ -287,7 +285,6 @@ int main(int argc, char** argv)
 		timer = new Timer();
 		time_since_last_frame = new Timer();
 		stats_timer = new Timer();
-		diagnostics_timer = new Timer();
 		mem_usage_sampling_timer = new Timer();
 		last_update_URL_timer = new Timer();
 
@@ -634,6 +631,8 @@ int main(int argc, char** argv)
 #ifdef _WIN32
 		// Create a GPU device.  Needed to get hardware accelerated video decoding and for hardware texture sharing for CEF.
 		Direct3DUtils::createGPUDeviceAndMFDeviceManager(d3d_device, device_manager);
+		gui_client->device_manager = device_manager.ptr;
+		gui_client->d3d_device = d3d_device.ptr;
 
 		sdl_ui_interface->d3d11_device = (void*)d3d_device.ptr;
 #endif //_WIN32
@@ -848,11 +847,6 @@ static void convertFromSDLTextInputEvent(SDL_Event ev, TextInputEvent& text_inpu
 	text_input_event.text = std::string(ev.text.text);
 }
 
-
-static bool do_graphics_diagnostics = false;
-static bool do_physics_diagnostics = false;
-static bool do_terrain_diagnostics = false;
-static bool show_frame_time_graphs = false;
 
 static size_t last_total_memory = 0;
 static uintptr_t last_dynamic_top = 0;
@@ -1211,68 +1205,40 @@ static void doOneMainLoopIter()
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplSDL2_NewFrame();
 		ImGui::NewFrame();
-		
-		//ImGui::ShowDemoWindow();
-		
-		ImGui::SetNextWindowPos(ImVec2(400, 10), ImGuiCond_FirstUseEver);
-		ImGui::SetNextWindowSize(ImVec2(600, 900), ImGuiCond_FirstUseEver);
-		ImGui::SetNextWindowCollapsed(false, ImGuiCond_FirstUseEver);
-		if(ImGui::Begin("Info"))
-		{
-			// ImGui::InputFloat("proj_len_viewable_threshold", &proj_len_viewable_threshold, 0.0001f, 0.0001f, "%.5f");
 
-			ImGui::TextColored(ImVec4(1,1,0,1), "Stats");
-			ImGui::TextUnformatted(("FPS: " + doubleToStringNDecimalPlaces(fps, 1)).c_str());
-		
+		gui_client->buildImGuiContent(last_timerEvent_CPU_work_elapsed, last_updateGL_time); // Draw the window contents shared with the Qt client.  See ImGUIDrawing.cpp.
+
 #if TRACE_ALLOCATIONS
+		if(ImGui::Begin("Memory"))
+		{
 			ImGui::TextUnformatted("mem usage (MB)");
 			ImGui::PlotLines("mem usage", mem_usage_values.data(), (int)mem_usage_values.size(),
-					/*values offset=*/0, /* overlay text=*/NULL, 
-				/*scale min=*/0.0, /*scale max=*/std::numeric_limits<float>::max(), 
+					/*values offset=*/0, /* overlay text=*/NULL,
+				/*scale min=*/0.0, /*scale max=*/std::numeric_limits<float>::max(),
 				/*graph size=*/ImVec2(500, 200));
-#endif
-
-			ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
-			if(ImGui::CollapsingHeader("Diagnostics"))
-			{
-				bool diag_changed = false;
-				diag_changed = diag_changed || ImGui::Checkbox("graphics", &do_graphics_diagnostics);
-				diag_changed = diag_changed || ImGui::Checkbox("physics", &do_physics_diagnostics);
-				diag_changed = diag_changed || ImGui::Checkbox("terrain", &do_terrain_diagnostics);
-
-				if((diagnostics_timer->elapsed() > 1.0) || diag_changed)
-				{
-					last_diagnostics = gui_client->getDiagnosticsString(do_graphics_diagnostics, do_physics_diagnostics, do_terrain_diagnostics, last_timerEvent_CPU_work_elapsed, last_updateGL_time);
-					diagnostics_timer->reset();
-				}
-
-				//--------------------------------
-				if(ImGui::Checkbox("show frame time graphs", &show_frame_time_graphs))
-				{
-					if(show_frame_time_graphs && !CPU_render_stats_widget)
-					{
-						opengl_engine->setProfilingEnabled(true);
-
-						CPU_render_stats_widget = new RenderStatsWidget(opengl_engine, gui_client->gl_ui, /*widget index=*/0);
-						GPU_render_stats_widget = new RenderStatsWidget(opengl_engine, gui_client->gl_ui, /*widget index=*/1);
-					}
-					else if(!show_frame_time_graphs && CPU_render_stats_widget.nonNull())
-					{
-						opengl_engine->setProfilingEnabled(false);
-
-						CPU_render_stats_widget = nullptr;
-						GPU_render_stats_widget = nullptr;
-					}
-				}
-				//--------------------------------
-
-				ImGui::TextUnformatted(last_diagnostics.c_str());
-			}
 		}
 		ImGui::End();
-		
+#endif
+
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+		// Create or destroy the render stats widgets, to match the 'show frame time graphs' checkbox in the ImGUI window.
+		const bool show_frame_time_graphs = gui_client->imgui_drawing.show_frame_time_graphs;
+		if(show_frame_time_graphs && CPU_render_stats_widget.isNull())
+		{
+			opengl_engine->setProfilingEnabled(true);
+
+			CPU_render_stats_widget = new RenderStatsWidget(opengl_engine, gui_client->gl_ui, /*widget index=*/0);
+			GPU_render_stats_widget = new RenderStatsWidget(opengl_engine, gui_client->gl_ui, /*widget index=*/1);
+		}
+		else if(!show_frame_time_graphs && CPU_render_stats_widget.nonNull())
+		{
+			opengl_engine->setProfilingEnabled(false);
+
+			CPU_render_stats_widget = nullptr;
+			GPU_render_stats_widget = nullptr;
+		}
 	}
 
 	// Plot the total time spent on CPU work this frame.

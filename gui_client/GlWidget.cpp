@@ -34,6 +34,8 @@ Copyright Glare Technologies Limited 2023 -
 #if defined(_WIN32)
 #include <QtPlatformHeaders/QWGLNativeContext>
 #endif
+#include <imgui.h>
+#include <backends/imgui_impl_opengl3.h>
 #include <tracy/Tracy.hpp>
 #include <set>
 #include <stack>
@@ -98,6 +100,7 @@ GlWidget::GlWidget(QWidget *parent)
 #else
 	QGLWidget(makeFormat(), parent),
 #endif
+	imgui_initialised(false),
 	cam_controller(NULL),
 	cam_rot_on_mouse_move_enabled(true),
 	cam_move_on_key_input_enabled(true),
@@ -108,6 +111,7 @@ GlWidget::GlWidget(QWidget *parent)
 	settings(NULL),
 	take_map_screenshot(false),
 	screenshot_ortho_sensor_width_m(10),
+	show_imgui_window(false),
 	allow_bindless_textures(true),
 	allow_multi_draw_indirect(true)
 {
@@ -201,14 +205,153 @@ void GlWidget::gamepadInputSlot()
 
 GlWidget::~GlWidget()
 {
+	shutdownImGui();
+
 	opengl_engine = NULL;
 }
 
 
 void GlWidget::shutdown()
 {
+	shutdownImGui();
+
 	opengl_engine = NULL;
 }
+
+
+//======================================== ImGui support ========================================
+// ImGui only ships with an SDL2 platform backend (as used by SDLClient), so for the Qt build we feed the Qt input events into ImGui ourselves.
+// The OpenGL rendering backend (imgui_impl_opengl3) is used as-is.
+
+
+static ImGuiKey imGuiKeyForQtKey(int qt_key)
+{
+	if(qt_key >= Qt::Key_A  && qt_key <= Qt::Key_Z)   return (ImGuiKey)(ImGuiKey_A  + (qt_key - Qt::Key_A));
+	if(qt_key >= Qt::Key_0  && qt_key <= Qt::Key_9)   return (ImGuiKey)(ImGuiKey_0  + (qt_key - Qt::Key_0));
+	if(qt_key >= Qt::Key_F1 && qt_key <= Qt::Key_F12) return (ImGuiKey)(ImGuiKey_F1 + (qt_key - Qt::Key_F1));
+
+	switch(qt_key)
+	{
+	case Qt::Key_Tab:			return ImGuiKey_Tab;
+	case Qt::Key_Left:			return ImGuiKey_LeftArrow;
+	case Qt::Key_Right:			return ImGuiKey_RightArrow;
+	case Qt::Key_Up:			return ImGuiKey_UpArrow;
+	case Qt::Key_Down:			return ImGuiKey_DownArrow;
+	case Qt::Key_PageUp:		return ImGuiKey_PageUp;
+	case Qt::Key_PageDown:		return ImGuiKey_PageDown;
+	case Qt::Key_Home:			return ImGuiKey_Home;
+	case Qt::Key_End:			return ImGuiKey_End;
+	case Qt::Key_Insert:		return ImGuiKey_Insert;
+	case Qt::Key_Delete:		return ImGuiKey_Delete;
+	case Qt::Key_Backspace:		return ImGuiKey_Backspace;
+	case Qt::Key_Space:			return ImGuiKey_Space;
+	case Qt::Key_Return:		return ImGuiKey_Enter;
+	case Qt::Key_Enter:			return ImGuiKey_KeypadEnter;
+	case Qt::Key_Escape:		return ImGuiKey_Escape;
+	case Qt::Key_Control:		return ImGuiKey_LeftCtrl;
+	case Qt::Key_Shift:			return ImGuiKey_LeftShift;
+	case Qt::Key_Alt:			return ImGuiKey_LeftAlt;
+	case Qt::Key_Meta:			return ImGuiKey_LeftSuper;
+	case Qt::Key_Menu:			return ImGuiKey_Menu;
+	case Qt::Key_CapsLock:		return ImGuiKey_CapsLock;
+	case Qt::Key_ScrollLock:	return ImGuiKey_ScrollLock;
+	case Qt::Key_NumLock:		return ImGuiKey_NumLock;
+	case Qt::Key_Print:			return ImGuiKey_PrintScreen;
+	case Qt::Key_Pause:			return ImGuiKey_Pause;
+	case Qt::Key_Apostrophe:	return ImGuiKey_Apostrophe;
+	case Qt::Key_Comma:			return ImGuiKey_Comma;
+	case Qt::Key_Minus:			return ImGuiKey_Minus;
+	case Qt::Key_Period:		return ImGuiKey_Period;
+	case Qt::Key_Slash:			return ImGuiKey_Slash;
+	case Qt::Key_Semicolon:		return ImGuiKey_Semicolon;
+	case Qt::Key_Equal:			return ImGuiKey_Equal;
+	case Qt::Key_BracketLeft:	return ImGuiKey_LeftBracket;
+	case Qt::Key_Backslash:		return ImGuiKey_Backslash;
+	case Qt::Key_BracketRight:	return ImGuiKey_RightBracket;
+	case Qt::Key_QuoteLeft:		return ImGuiKey_GraveAccent;
+	default:					return ImGuiKey_None;
+	}
+}
+
+
+// Map from a Qt mouse button to an ImGui mouse button index.  Returns -1 for buttons ImGui doesn't handle.
+static int imGuiMouseButtonForQtButton(Qt::MouseButton button)
+{
+	switch(button)
+	{
+	case Qt::LeftButton:	return 0;
+	case Qt::RightButton:	return 1;
+	case Qt::MiddleButton:	return 2;
+	default:				return -1;
+	}
+}
+
+
+static void addImGuiKeyModifierEvents(Qt::KeyboardModifiers modifiers)
+{
+	ImGuiIO& io = ImGui::GetIO();
+	io.AddKeyEvent(ImGuiMod_Ctrl,  (modifiers & Qt::ControlModifier) != 0);
+	io.AddKeyEvent(ImGuiMod_Shift, (modifiers & Qt::ShiftModifier)   != 0);
+	io.AddKeyEvent(ImGuiMod_Alt,   (modifiers & Qt::AltModifier)     != 0);
+	io.AddKeyEvent(ImGuiMod_Super, (modifiers & Qt::MetaModifier)    != 0);
+}
+
+
+void GlWidget::initImGui()
+{
+	ImGui::CreateContext();
+
+	ImGuiIO& io = ImGui::GetIO();
+	io.BackendPlatformName = "substrata_qt";
+
+	ImGui::StyleColorsDark();
+
+	ImGui_ImplOpenGL3_Init("#version 150"); // We have a core profile context (see makeFormat()), so use a GLSL version that is valid for core profiles.
+
+	imgui_frame_timer.reset();
+	imgui_initialised = true;
+}
+
+
+void GlWidget::shutdownImGui()
+{
+	if(imgui_initialised)
+	{
+		makeCurrent(); // ImGui_ImplOpenGL3_Shutdown() destroys GL objects, so needs the GL context to be current.
+
+		ImGui_ImplOpenGL3_Shutdown();
+		ImGui::DestroyContext();
+
+		imgui_initialised = false;
+	}
+}
+
+
+void GlWidget::checkInitImGui()
+{
+	if(!imgui_initialised)
+		initImGui();
+}
+
+
+bool GlWidget::imGuiWantsMouseInput() const
+{
+	return imgui_initialised && show_imgui_window && ImGui::GetIO().WantCaptureMouse;
+}
+
+
+bool GlWidget::imGuiWantsKeyboardInput() const
+{
+	return imgui_initialised && show_imgui_window && ImGui::GetIO().WantCaptureKeyboard;
+}
+
+
+// Note that ImGui mouse positions are in logical (device-independent) pixels, matching io.DisplaySize, which we set in paintGL().
+static void addImGuiMousePosEvent(const QPoint& widget_pos)
+{
+	ImGui::GetIO().AddMousePosEvent((float)widget_pos.x(), (float)widget_pos.y());
+}
+//===============================================================================================
 
 
 void GlWidget::setCameraController(CameraController* cam_controller_)
@@ -282,6 +425,7 @@ void GlWidget::initializeGL()
 	engine_settings.allow_multi_draw_indirect = this->allow_multi_draw_indirect;
 	engine_settings.allow_bindless_textures = this->allow_bindless_textures;
 	engine_settings.ssao = use_SSAO;
+	engine_settings.irradiance_probes_support = false;
 
 #ifdef OSX
 	// Force SSAO to false for now on Mac, as when it's enabled, the number of texture units exceeds the max (16) for the terrain shader.
@@ -418,6 +562,25 @@ void GlWidget::paintGL()
 		opengl_engine->draw();
 	}
 
+	if(imgui_initialised && show_imgui_window)
+	{
+		ImGuiIO& io = ImGui::GetIO();
+		// ImGui works in logical (device-independent) pixels, and multiplies by DisplayFramebufferScale to get the framebuffer size when rendering.
+		const float device_pixel_ratio = (float)this->devicePixelRatio();
+		io.DisplaySize = ImVec2((float)this->width(), (float)this->height());
+		io.DisplayFramebufferScale = ImVec2(device_pixel_ratio, device_pixel_ratio);
+		io.DeltaTime = myMax(1.0e-6f, (float)imgui_frame_timer.elapsed()); // DeltaTime must be > 0.
+		imgui_frame_timer.reset();
+
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui::NewFrame();
+
+		emit buildImGuiUISignal(); // Let MainWindow build the window contents.
+
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+	}
+
 	//conPrint("FPS: " + doubleToStringNSigFigs(1 / fps_timer.elapsed(), 1));
 	//fps_timer.reset();
 
@@ -427,12 +590,37 @@ void GlWidget::paintGL()
 
 void GlWidget::keyPressEvent(QKeyEvent* e)
 {
+	if(imgui_initialised && show_imgui_window)
+	{
+		ImGuiIO& io = ImGui::GetIO();
+
+		addImGuiKeyModifierEvents(e->modifiers());
+
+		const ImGuiKey imgui_key = imGuiKeyForQtKey(e->key());
+		if(imgui_key != ImGuiKey_None)
+			io.AddKeyEvent(imgui_key, /*down=*/true);
+
+		const QString text = e->text();
+		if(!text.isEmpty() && (text.at(0).unicode() >= 32) && (text.at(0).unicode() != 127)) // Ignore control characters (return, backspace, escape etc.)
+			io.AddInputCharactersUTF8(text.toUtf8().constData());
+	}
+
+	// Note that we emit the event even when ImGui wants the keyboard input, so that the ImGui window toggle key keeps working.  MainWindow calls imGuiWantsKeyboardInput() to decide whether to pass the event on to the client.
 	emit keyPressed(e);
 }
 
 
 void GlWidget::keyReleaseEvent(QKeyEvent* e)
 {
+	if(imgui_initialised && show_imgui_window)
+	{
+		addImGuiKeyModifierEvents(e->modifiers());
+
+		const ImGuiKey imgui_key = imGuiKeyForQtKey(e->key());
+		if(imgui_key != ImGuiKey_None)
+			ImGui::GetIO().AddKeyEvent(imgui_key, /*down=*/false);
+	}
+
 	emit keyReleased(e);
 }
 
@@ -441,6 +629,9 @@ void GlWidget::keyReleaseEvent(QKeyEvent* e)
 // Otherwise we might miss the key-up event, leading to our keys appearing to be stuck down.
 void GlWidget::focusOutEvent(QFocusEvent* e)
 {
+	if(imgui_initialised)
+		ImGui::GetIO().AddFocusEvent(/*focused=*/false); // Makes ImGui clear its input state as well.
+
 	emit focusOutSignal();
 }
 
@@ -468,6 +659,17 @@ void GlWidget::setCursorIfNotHidden(Qt::CursorShape new_shape)
 void GlWidget::mousePressEvent(QMouseEvent* e)
 {
 	//conPrint("mousePressEvent at " + toString(QCursor::pos().x()) + ", " + toString(QCursor::pos().y()));
+
+	if(imgui_initialised && show_imgui_window)
+	{
+		const int imgui_button = imGuiMouseButtonForQtButton(e->button());
+		if(imgui_button >= 0)
+		{
+			addImGuiMousePosEvent(e->pos());
+			ImGui::GetIO().AddMouseButtonEvent(imgui_button, /*down=*/true);
+		}
+	}
+
 	mouse_move_origin = QCursor::pos();
 	last_mouse_press_pos = QCursor::pos();
 
@@ -480,6 +682,16 @@ void GlWidget::mousePressEvent(QMouseEvent* e)
 
 void GlWidget::mouseReleaseEvent(QMouseEvent* e)
 {
+	if(imgui_initialised && show_imgui_window)
+	{
+		const int imgui_button = imGuiMouseButtonForQtButton(e->button());
+		if(imgui_button >= 0)
+		{
+			addImGuiMousePosEvent(e->pos());
+			ImGui::GetIO().AddMouseButtonEvent(imgui_button, /*down=*/false);
+		}
+	}
+
 	// Unhide cursor.
 	this->unsetCursor();
 
@@ -503,8 +715,11 @@ void GlWidget::showEvent(QShowEvent* e)
 
 void GlWidget::mouseMoveEvent(QMouseEvent* e)
 {
+	if(imgui_initialised && show_imgui_window)
+		addImGuiMousePosEvent(e->pos());
+
 	Qt::MouseButtons mb = e->buttons();
-	if(cam_rot_on_mouse_move_enabled && (cam_controller != NULL) && (mb & Qt::LeftButton))// && (e->modifiers() & Qt::AltModifier))
+	if(cam_rot_on_mouse_move_enabled && (cam_controller != NULL) && (mb & Qt::LeftButton) && !imGuiWantsMouseInput())// && (e->modifiers() & Qt::AltModifier))
 	{
 		/*switch(e->source())
 		{
@@ -558,11 +773,28 @@ void GlWidget::mouseMoveEvent(QMouseEvent* e)
 
 void GlWidget::wheelEvent(QWheelEvent* e)
 {
+	if(imgui_initialised && show_imgui_window)
+	{
+		// angleDelta() is in eighths of a degree.  ImGui wheel units are in mouse wheel notches, which are 15 degrees = 120 eighths of a degree.
+		ImGui::GetIO().AddMouseWheelEvent((float)e->angleDelta().x() / 120.f, (float)e->angleDelta().y() / 120.f);
+	}
+
 	emit mouseWheelSignal(e);
 }
 
 
 void GlWidget::mouseDoubleClickEvent(QMouseEvent* e)
 {
+	if(imgui_initialised && show_imgui_window)
+	{
+		// Qt sends a double-click event instead of the second press event, so feed a press event to ImGui here, otherwise it sees an unmatched release.
+		const int imgui_button = imGuiMouseButtonForQtButton(e->button());
+		if(imgui_button >= 0)
+		{
+			addImGuiMousePosEvent(e->pos());
+			ImGui::GetIO().AddMouseButtonEvent(imgui_button, /*down=*/true);
+		}
+	}
+
 	emit mouseDoubleClickedSignal(e);
 }

@@ -180,6 +180,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/HeadUpDisplayUI.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/HeadUpDisplayUI.h
 ${CMAKE_SOURCE_DIR}/gui_client/HoverCarPhysics.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/HoverCarPhysics.h
+${CMAKE_SOURCE_DIR}/gui_client/ImGUIDrawing.cpp
+${CMAKE_SOURCE_DIR}/gui_client/ImGUIDrawing.h
 ${CMAKE_SOURCE_DIR}/gui_client/Imposter.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/Imposter.h
 ${CMAKE_SOURCE_DIR}/gui_client/IndigoConversion.cpp
@@ -939,28 +941,33 @@ include_directories(${cef_binary_dist_dir})
 
 
 #============== ImGui ==============
-if(USE_SDL)
-	set(imguidir 	"${GLARE_CORE_TRUNK_DIR_ENV}/ImGui")
+set(imguidir 	"${GLARE_CORE_TRUNK_DIR_ENV}/ImGui")
 
-	set(imgui
-	${imguidir}/imgui.cpp
-	${imguidir}/imgui.h
-	${imguidir}/imgui_demo.cpp
-	${imguidir}/imgui_draw.cpp
-	${imguidir}/imgui_internal.h
-	${imguidir}/imgui_widgets.cpp
-	${imguidir}/imgui_tables.cpp
-	${imguidir}/imstb_rectpack.h
-	${imguidir}/imstb_textedit.h
-	${imguidir}/imstb_truetype.h
+set(imgui
+${imguidir}/imconfig.h
+${imguidir}/imgui.cpp
+${imguidir}/imgui.h
+${imguidir}/imgui_demo.cpp
+${imguidir}/imgui_draw.cpp
+${imguidir}/imgui_internal.h
+${imguidir}/imgui_widgets.cpp
+${imguidir}/imgui_tables.cpp
+${imguidir}/imstb_rectpack.h
+${imguidir}/imstb_textedit.h
+${imguidir}/imstb_truetype.h
+${imguidir}/backends/imgui_impl_opengl3.cpp
+${imguidir}/backends/imgui_impl_opengl3.h
+)
+
+if(USE_SDL)
+	# The SDL2 platform backend.  For the Qt build there is no ImGui platform backend, the Qt code feeds input into ImGui itself.
+	set(imgui ${imgui}
 	${imguidir}/backends/imgui_impl_sdl2.cpp
 	${imguidir}/backends/imgui_impl_sdl2.h
-	${imguidir}/backends/imgui_impl_opengl3.cpp
-	${imguidir}/backends/imgui_impl_opengl3.h
 	)
-
-	include_directories(${imguidir})
 endif()
+
+include_directories(${imguidir})
 
 
 #================ FreeType =============

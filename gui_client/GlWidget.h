@@ -65,6 +65,14 @@ public:
 
 	void* makeNewSharedGLContext();
 
+	//---------------------------------------- ImGui ----------------------------------------
+	// ImGui doesn't have a Qt platform backend, so we feed Qt input events into ImGui ourselves.  (See GlWidget.cpp)
+	// Returns true if ImGui is showing and wants to consume the input, in which case the event should not be passed on to the rest of the client.
+	void checkInitImGui();
+	bool imGuiWantsMouseInput() const;
+	bool imGuiWantsKeyboardInput() const;
+	//---------------------------------------------------------------------------------------
+
 protected:
 
 	virtual void initializeGL();
@@ -83,6 +91,7 @@ protected:
 	void showEvent(QShowEvent* e);
 	
 signals:;
+	void buildImGuiUISignal(); // Emitted from paintGL(), between ImGui::NewFrame() and ImGui::Render(), so that connected slots can build the ImGui windows.
 	void widgetShowSignal();
 	void mousePressed(QMouseEvent* e);
 	void mouseReleased(QMouseEvent* e);
@@ -105,7 +114,12 @@ private slots:
 	void buttonXChangedSlot(bool pressed);
 
 private:
-	
+	void initImGui(); // Creates the ImGui context and the OpenGL rendering backend.  The GL context must be current.
+	void shutdownImGui();
+
+	bool imgui_initialised;
+	Timer imgui_frame_timer; // Used for computing the ImGui frame delta time.
+
 	QPoint mouse_move_origin;
 	QPoint last_mouse_press_pos;
 	CameraController* cam_controller;
@@ -131,6 +145,8 @@ public:
 
 	bool take_map_screenshot;
 	float screenshot_ortho_sensor_width_m;
+
+	bool show_imgui_window; // Show the ImGui info/diagnostics window?  Toggled with F2, see MainWindow::glWidgetKeyPressed().
 
 	bool allow_bindless_textures;
 	bool allow_multi_draw_indirect;

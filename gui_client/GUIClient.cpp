@@ -45,6 +45,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "JoltUtils.h"
 #include "MiniMap.h"
 #include "PhotoModeUI.h"
+#include "ImGUIDrawing.h"
 #include "BuilderAIUI.h"
 #include "../shared/ProtocolStructs.h"
 #include "GearInventoryUI.h"
@@ -212,6 +213,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	resources_dir_path = base_dir_path + "/data/resources";
 
 	scripted_ob_proximity_checker.gui_client = this;
+
+	imgui_drawing = new ImGUIDrawing(this);
 
 	SubstrataLuaVM::SubstrataLuaVMArgs lua_vm_args;
 	lua_vm_args.gui_client = this;
@@ -10292,6 +10295,12 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 #ifdef _WIN32
 #pragma warning(pop) // Pop Enable warn on implicit fallthrough in switch statement.
 #endif
+
+
+void GUIClient::buildImGuiContent(double last_timerEvent_CPU_work_elapsed, double last_updateGL_time)
+{
+	imgui_drawing->drawWindows(last_timerEvent_CPU_work_elapsed, last_updateGL_time); // See ImGUIDrawing.cpp
+}
 
 
 std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool do_physics_diagnostics, bool do_terrain_diagnostics, double last_timerEvent_CPU_work_elapsed, double last_updateGL_time)

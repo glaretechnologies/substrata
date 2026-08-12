@@ -109,6 +109,7 @@ class BuilderAIUI;
 class GearInventoryUI;
 class TransformGizmo;
 namespace Scripting { class ObjectScriptsEvaluator; }
+class ImGUIDrawing;
 
 
 struct ResourceUserList
@@ -220,6 +221,11 @@ public:
 	void startDownloadingResource(const URLString& url, const Vec4f& centroid_ws, float aabb_ws_longest_len, const DownloadingResourceInfo& resouce_info); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
 	
 	std::string getDiagnosticsString(bool do_graphics_diagnostics, bool do_physics_diagnostics, bool do_terrain_diagnostics, double last_timerEvent_CPU_work_elapsed, double last_updateGL_time);
+
+	// Builds the contents of the ImGUI info/diagnostics window.  Must be called between ImGui::NewFrame() and ImGui::Render().
+	// Used by both the SDL client (see SDLClient.cpp) and the Qt client (see GlWidget::paintGL() and MainWindow::buildImGuiUI()).  Just forwards to imgui_drawing.
+	void buildImGuiContent(double last_timerEvent_CPU_work_elapsed, double last_updateGL_time);
+
 	void diagnosticsSettingsChanged();
 	void updateVoxelEditMarkers(const MouseCursorState& mouse_cursor_state);
 
@@ -642,6 +648,8 @@ public:
 	Timer fps_display_timer;
 	int num_frames_since_fps_timer_reset;
 	double last_fps;
+
+	Reference<ImGUIDrawing> imgui_drawing; // Draws the ImGUI info window.  See buildImGuiContent().
 
 	double last_physics_sim_time;
 
