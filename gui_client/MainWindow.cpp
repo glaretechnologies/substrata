@@ -4726,38 +4726,6 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 	if(ui->glWidget->imGuiWantsKeyboardInput()) // If ImGui is using the keyboard input (e.g. the user is typing into an ImGui text field), don't pass the event on to the client.
 		return;
 
-#if BUILD_TESTS
-	if(e->key() == Qt::Key_F6)
-	{
-		ui->glWidget->opengl_engine->show_ssao = !ui->glWidget->opengl_engine->show_ssao;
-		conPrint("Toggling show_ssao to " + boolToString(ui->glWidget->opengl_engine->show_ssao));
-	}
-	if(e->key() == Qt::Key_F7)
-	{
-		ui->glWidget->opengl_engine->toggleShowTexDebug(0);
-	}
-	if(e->key() == Qt::Key_F8)
-	{
-		ui->glWidget->opengl_engine->toggleShowTexDebug(1);
-	}
-	if(e->key() == Qt::Key_F9)
-	{
-		ui->glWidget->opengl_engine->toggleShowTexDebug(2);
-	}
-	if(e->key() == Qt::Key_F10)
-	{
-		ui->glWidget->opengl_engine->toggleShowTexDebug(3);
-	}
-	if(e->key() == Qt::Key_F11)
-	{
-		ui->glWidget->opengl_engine->toggleShowTexDebug(4);
-	}
-	if(e->key() == Qt::Key_F12)
-	{
-		ui->glWidget->opengl_engine->toggleShowTexDebug(5);
-	}
-#endif
-
 	KeyEvent key_event;
 	setKeyEventFromQt(e, key_event);
 

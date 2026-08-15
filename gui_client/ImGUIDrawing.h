@@ -49,4 +49,6 @@ private:
 	Timer diagnostics_timer; // Time since last_diagnostics was computed.
 
 	std::string last_probe_capture_msg;
+
+	bool first_draw;
 };
