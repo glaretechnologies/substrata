@@ -210,7 +210,7 @@ BatchedMeshRef loadAndSimplifyGeometry(const ObInfo& ob_info, LRUCache<std::stri
 			auto res = mesh_cache.find(ob_info.model_path);
 			if(res == mesh_cache.end())
 			{
-				conPrint("Loading '" + ob_info.model_path + "'...");
+				conPrint("ChunkGenThread: Loading '" + ob_info.model_path + "'...");
 				mesh = LODGeneration::loadModel(ob_info.model_path);
 
 				mesh_cache.insert(std::make_pair(ob_info.model_path, mesh), mesh->getTotalMemUsage());
@@ -303,7 +303,7 @@ static void buildAndSaveArrayTexture(const std::vector<std::string>& used_tex_pa
 			{
 				const std::string tex_path = *it;
 
-				conPrint("Loading '" + tex_path + "'...");
+				conPrint("ChunkGenThread: Loading '" + tex_path + "'...");
 				Reference<Map2D> map;
 				if(hasExtension(tex_path, "gif"))
 					map = GIFDecoder::decodeImageSequence(tex_path);
@@ -356,7 +356,7 @@ static void buildAndSaveArrayTexture(const std::vector<std::string>& used_tex_pa
 			}
 			catch(glare::Exception& e)
 			{
-				conPrint("Error while loading image: " + e.what());
+				conPrint("ChunkGenThread: Error while loading image: " + e.what());
 			}
 		}
 
@@ -396,7 +396,7 @@ static void buildAndSaveArrayTexture(const std::vector<std::string>& used_tex_pa
 			if(result != basisu::basis_compressor::cECSuccess)
 				throw glare::Exception("basisCompressor.process() failed.");
 
-			conPrint("Basisu compression and writing of file to '" + params.m_out_filename + "' took " + timer.elapsedStringNSigFigs(3));
+			conPrint("ChunkGenThread: Basisu compression and writing of file to '" + params.m_out_filename + "' took " + timer.elapsedStringNSigFigs(3));
 
 			// Compute hash over it
 			const uint64 hash = FileChecksum::fileChecksum(params.m_out_filename);
@@ -405,10 +405,10 @@ static void buildAndSaveArrayTexture(const std::vector<std::string>& used_tex_pa
 			combined_texture_hash_out = hash;
 		}
 		else
-			conPrint("Not writing texture array, no textures to process.");
+			conPrint("ChunkGenThread: Not writing texture array, no textures to process.");
 	}
 	else
-		conPrint("Not writing texture array, no textures to process.");
+		conPrint("ChunkGenThread: Not writing texture array, no textures to process.");
 }
 
 
@@ -561,7 +561,7 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 				const bool invertible = ob_to_world.getUpperLeftInverseTranspose(ob_normals_to_world);
 				if(!invertible)
 				{
-					conPrint("Warning: ob_to_world not invertible.");
+					conPrint("ChunkGenThread: Warning: ob_to_world not invertible.");
 					ob_normals_to_world = ob_to_world;
 				}
 
@@ -808,7 +808,7 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 		}
 		catch(glare::Exception& e)
 		{
-			conPrint("ChunkGenThread error while processing ob: " + e.what());
+			conPrint("ChunkGenThread: error while processing ob: " + e.what());
 
 			// If an exception was thrown after space was allocated for the mesh verts, we want to trim that off.
 			combined_mesh->vertex_data.resize(initial_combined_mesh_vert_data_size);
@@ -886,7 +886,7 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 			//-------------------------------------- Remove unused materials --------------------------------------
 			std::vector<MatInfo> new_mat_infos;
 			{
-				conPrint("Raw combined mesh num materials: " + toString(combined_mat_infos.size()));
+				conPrint("ChunkGenThread: Raw combined mesh num materials: " + toString(combined_mat_infos.size()));
 
 				const size_t num_verts = combined_mesh->numVerts();
 
@@ -908,7 +908,7 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 					std::memcpy(combined_mesh->vertex_data.data() + combined_mesh_vert_size * v + combined_mesh_mat_index_offset_B, &new_mat_i_val, sizeof(uint32)); // Copy new value back to combined_mesh
 				}
 
-				conPrint("Used combined mesh num materials: " + toString(new_mat_infos.size()));
+				conPrint("ChunkGenThread: Used combined mesh num materials: " + toString(new_mat_infos.size()));
 			}
 
 			//-------------------------------------- Build list of used textures --------------------------------------
@@ -974,7 +974,7 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 			runtimeCheck(combined_mesh->numVerts() > 0);
 
 			// Write combined mesh to disk
-			conPrint("Writing combined mesh to disk...");
+			conPrint("ChunkGenThread: Writing combined mesh to disk... (num indices: " + toString(combined_mesh->numIndices()) + ", num verts: " + toString(combined_mesh->numVerts()) + ")");
 			// NOTE: naming scheme needs to start with "chunk_", see if(hasPrefix(lod_model_url, "chunk_")) check in GUIClient::handleUploadedMeshData().
 			const std::string path = PlatformUtils::getTempDirPath() + "/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bmesh";
 			//const std::string path = "d:/tempfiles/main_world/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bmesh";
@@ -991,9 +991,9 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 
 			// FormatDecoderGLTF::writeBatchedMeshToGLBFile(*combined_mesh, "d:/tempfiles/main_world/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".glb", GLTFWriteOptions());
 
-			printVar(num_obs_combined);
-			printVar(num_batches_combined);
-			conPrint("Wrote chunk mesh to '" + path + "'.");
+			conPrint("ChunkGenThread: num_obs_combined: " + toString(num_obs_combined));
+			conPrint("ChunkGenThread: num_batches_combined: " + toString(num_batches_combined));
+			conPrint("ChunkGenThread: Wrote chunk mesh to '" + path + "'.");
 
 			// Compute hash over it
 			const uint64 hash = FileChecksum::fileChecksum(path);
@@ -1017,7 +1017,7 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 				combined_mesh->writeToFile(opt_mesh_path, options);
 			}
 
-			conPrint("Wrote optimised chunk mesh to '" + opt_mesh_path + "'.");
+			conPrint("ChunkGenThread: Wrote optimised chunk mesh to '" + opt_mesh_path + "'.");
 			//---------------------------------------------------------------------------------
 
 
@@ -1204,7 +1204,7 @@ static void updateObjectExcludeFlagsAndUpdateChunks(ServerAllWorldsState* all_wo
 		const bool exclusion_changed = cur_excluded != should_exclude;
 		if(exclusion_changed)
 		{
-			conPrint("Updating EXCLUDE_FROM_LOD_CHUNK_MESH flag for ob to " + toString(should_exclude));
+			conPrint("ChunkGenThread: Updating EXCLUDE_FROM_LOD_CHUNK_MESH flag for ob to " + toString(should_exclude));
 			BitUtils::setOrZeroBit(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH, should_exclude);
 
 			// Mark as db-dirty so gets saved to disk.
@@ -1224,7 +1224,7 @@ static void updateObjectExcludeFlagsAndUpdateChunks(ServerAllWorldsState* all_wo
 			if(!should_exclude && (chunk_res == lod_chunks.end()))
 			{
 				// Need new chunk
-				conPrint("Adding new LODChunk with coords " + chunk_coords.toString());
+				conPrint("ChunkGenThread: Adding new LODChunk with coords " + chunk_coords.toString());
 
 				LODChunkRef chunk = new LODChunk();
 				chunk->coords = chunk_coords;
@@ -1241,7 +1241,7 @@ static void updateObjectExcludeFlagsAndUpdateChunks(ServerAllWorldsState* all_wo
 			// If exclusion changed for this object, and there is a chunk object containing it, mark the chunk as needs-rebuild.
 			if(exclusion_changed && (chunk_res != lod_chunks.end()))
 			{
-				conPrint("Object " + ob->uid.toString() + " exclude-from-chunk changed to " + boolToString(should_exclude) + ", marking chunk " + chunk_coords.toString() + " as needs-rebuild.");
+				conPrint("ChunkGenThread: Object " + ob->uid.toString() + " exclude-from-chunk changed to " + boolToString(should_exclude) + ", marking chunk " + chunk_coords.toString() + " as needs-rebuild.");
 				chunk_res->second->needs_rebuild = true;
 			}
 
@@ -1345,11 +1345,11 @@ void ChunkGenThread::doRun()
 					Vec4f((x + 1) * chunk_w, (y + 1) * chunk_w,  500.f, 1.f) // max
 				);
 
-				conPrint("================================= Building chunk " + toString(x) + ", " + toString(y) + " (" + toString(i) + "/" + toString(dirty_chunks.size()) + " dirty chunks) =================================");
+				conPrint("================================= ChunkGenThread: Building chunk " + toString(x) + ", " + toString(y) + " (" + toString(i) + "/" + toString(dirty_chunks.size()) + " dirty chunks) =================================");
 
 				const ChunkBuildResults results = buildChunk(all_worlds_state, dirty_chunks[i].world_state, chunk_aabb, x, y, task_manager);
 
-				conPrint("====== chunk " + toString(x) + ", " + toString(y) + " built. ======");
+				conPrint("====== ChunkGenThread: chunk " + toString(x) + ", " + toString(y) + " built. ======");
 
 				//------------ Build compressed mat_info ------------
 				js::Vector<uint8> compressed_data(ZSTD_compressBound(results.output_mat_infos.dataSizeBytes()));
@@ -1456,7 +1456,7 @@ void ChunkGenThread::doRun()
 			}
 
 			if(!dirty_chunks.empty())
-				conPrint("---------Finished building " + toString(dirty_chunks.size()) + " dirty chunks.---------");
+				conPrint("---------ChunkGenThread: Finished building " + toString(dirty_chunks.size()) + " dirty chunks.---------");
 
 			bool keep_running = true;
 			waitForPeriod(30.0, keep_running);
