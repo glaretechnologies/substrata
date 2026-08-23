@@ -34,7 +34,9 @@ Copyright Glare Technologies Limited 2023 -
 
 AnimatedTexData::AnimatedTexData(size_t mat_index_, bool is_refl_tex_, bool use_WMF_for_vid_playback_)
 :	shared_handle(nullptr),
+#if WMF_MP4_PLAYBACK_SUPPORT
 	num_video_frames_received(0),
+#endif
 	error_occurred(false),
 	mat_index(mat_index_),
 	is_refl_tex(is_refl_tex_),
@@ -133,7 +135,7 @@ void AnimatedTexData::processMP4AnimatedTex(AnimatedTextureManager& animated_tex
 						{
 							ZoneScopedN("Creating CreateWMFVideoReaderTask"); // Tracy profiler
 
-							gui_client->logMessage("Creating WMFVideoReader to play vid, URL: " + std::string(tex_path));
+							gui_client->logMessage("Creating WMFVideoReader to play vid for ob " + ob->uid.toString() + ", URL: " + std::string(tex_path));
 
 							animated_tex_manager.in_flight_counter->count++;
 
