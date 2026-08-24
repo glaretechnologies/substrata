@@ -83,7 +83,12 @@ static QGLFormat makeFormat()
 #endif
 //	format.setVersion(4, 6); // TEMP NEW
 	format.setProfile(QGLFormat::CoreProfile);
-	format.setSampleBuffers(true); // Enable multisampling
+
+	// NOTE: The OpenGLEngine by default renders to an off-screen render buffer with MSAA. (OpenGLEngineSettings::render_to_offscreen_renderbuffers).
+	// A resolve down to MSAA samples=1 is done before blitting to the final framebuffer, so we can use MSAA without this final framebuffer having MSAA.
+	// The only thing that is drawn directly onto the final Qt framebuffer is the UI, which does show a some aliasing along curved edges.
+	// Not having MSAA here has no measureable perf impact but does save quite a lot of GPU mem (~230 MB at 2560 x 1282).
+	//format.setSampleBuffers(true); // Enable multisampling
 
 //	format.setSwapInterval(0); // TEMP: turn off vsync
 
