@@ -1149,7 +1149,24 @@ inline static bool shouldExcludeObjectFromLODChunkMesh(const WorldObject* ob)
 {
 	// Objects with scripts are likely to be moving, so don't bake into chunk.
 	if(!ob->script.empty())
+	{
+		// Scripts like
+		// def evalTranslation(float time, WinterEnv env) vec3 : vec3(0.28, 0.2, 1.65)
+		// Where the object transform is static (independent of time) are compatible with chunk baking, so don't need to be excluded.
+		if(StringUtils::containsString(ob->script, "evalTranslation") && (StringUtils::countOccurrences(ob->script, "time") == 1))
+			return false;
+
+		// Allow dynamic_texture_update script objects to be baked into chunks.  Chunks can be rebuilt when the object's texture maps are updated.
+		if(StringUtils::containsString(ob->script, "dynamic_texture_update"))
+			return false; // Don't exclude from chunk baking
+
+		// Lua scripts tend to be more about onTouchEvents, less about moving around.
+		if(StringUtils::containsString(ob->script, "--lua"))
+			if(!(StringUtils::containsString(ob->script, "moveTo") || StringUtils::containsString(ob->script, "rotateTo"))) // If the script doesn't contain moveTo or rotateTo calls:
+				return false; // Don't exclude from chunk baking
+
 		return true;
+	}
 
 	// Objects that have the park biome are used for computing grass and tree scattering coverage.  This won't work if they are baked into the chunk.
 	// So keep separate.
@@ -1171,7 +1188,7 @@ inline static bool shouldExcludeObjectFromLODChunkMesh(const WorldObject* ob)
 
 		const js::AABBox ob_aabb_ws = ob->getAABBWS();
 		const float extension = myMax(horizontalMax((ob_aabb_ws.max_ - chunk_aabb.max_).v), horizontalMax((chunk_aabb.min_ - ob_aabb_ws.min_).v)); // Distance the object extends out of chunk AABB
-		if(extension > 6.f)
+		if(extension > (chunk_w / 4.0f))
 			return true;
 	}
 
