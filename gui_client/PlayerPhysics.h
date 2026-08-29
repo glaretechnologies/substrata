@@ -73,6 +73,10 @@ public:
 	void setFlyModeEnabled(bool enabled);
 	bool flyModeEnabled() const { return fly_mode; }
 
+	// In noclip mode the player moves without any collision detection, so can move through objects and under the terrain surface.
+	void setNoClipEnabled(bool enabled) { noclip_mode = enabled; }
+	bool noClipEnabled() const { return noclip_mode; }
+
 	void setGravityEnabled(bool enabled) { gravity_enabled = enabled; }
 	
 	bool onGroundRecently() const { return on_ground; }
@@ -117,6 +121,8 @@ private:
 	bool last_runpressed; // Was the run key pressed as of the last time processMoveForwards etc. was called?
 
 	bool fly_mode;
+
+	bool noclip_mode;
 
 	bool gravity_enabled;
 

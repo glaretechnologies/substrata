@@ -78,6 +78,16 @@
     </widget>
    </item>
    <item>
+    <widget class="QCheckBox" name="noClipCheckBox">
+     <property name="toolTip">
+      <string>Move the camera through objects and under the terrain surface.</string>
+     </property>
+     <property name="text">
+      <string>Noclip</string>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QCheckBox" name="showLodChunkVisCheckBox">
      <property name="text">
       <string>Show LOD chunk visualisation</string>

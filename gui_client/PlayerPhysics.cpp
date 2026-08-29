@@ -39,6 +39,7 @@ PlayerPhysics::PlayerPhysics()
 	last_jump_time(-1),
 	on_ground(false),
 	fly_mode(false),
+	noclip_mode(false),
 	last_runpressed(false),
 	//time_since_on_ground(0),
 	campos_z_delta(0),
@@ -202,7 +203,7 @@ void PlayerPhysics::processMoveUp(float factor, bool runpressed, CameraControlle
 
 	const bool underwater = isUnderWater(/*foot pos=*/toVec4fPos(jolt_character->GetPosition()), *m_physics_world);
 
-	if(fly_mode || (cam.current_cam_mode == CameraController::CameraMode_FreeCamera) || underwater)
+	if(fly_mode || noclip_mode || (cam.current_cam_mode == CameraController::CameraMode_FreeCamera) || underwater)
 		move_desired_vel += Vec3f(0,0,1) * factor * move_speed * doRunFactor(runpressed);
 
 	this->gravity_enabled = true;
@@ -258,7 +259,11 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 	Vec3f vel = toVec3f(jolt_character->GetLinearVelocity());
 
 	// Apply movement forces
-	if(!fly_mode) // if not flying
+	if(noclip_mode && !fly_mode)
+	{
+		vel = move_desired_vel; // In noclip mode, when not flying, just move directly at the usual walking/running speed.
+	}
+	else if(!fly_mode) // if not flying
 	{
 		Vec3f parallel_vel = move_desired_vel;
 
@@ -314,12 +319,13 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 	if(std::fabs(campos_z_delta) < 1.0e-5f)
 		campos_z_delta = 0;
 
-	this->on_ground = jolt_character->IsSupported() && 
+	// NOTE: in noclip mode we don't run the character update below, so the character's ground state is stale.  Just treat the player as never being on the ground.
+	this->on_ground = !noclip_mode && jolt_character->IsSupported() &&
 		((jolt_character->GetLinearVelocity().GetZ() - jolt_character->GetGroundVelocity().GetZ()) < 0.1f); // And not moving away from ground.  (Need this because sometimes IsSupported() is true after we jumped)
 
 	// Jump
 	const double time_since_jump_pressed = cur_time - last_jump_time;
-	if((time_since_jump_pressed < JUMP_PERIOD) &&
+	if((time_since_jump_pressed < JUMP_PERIOD) && !noclip_mode &&
 		jolt_character->IsSupported()) // jolt_character->GetGroundState() == JPH::CharacterVirtual::EGroundState::OnGround) // If on ground
 	{
 		//conPrint("JUMPING");
@@ -349,8 +355,11 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 
 	// Put the guts of ExtendedUpdate here, just so we can extract pre_stair_walk_position from the middle of it.
 #if 1
-	jolt_character->ExtendedUpdate(dtime, physics_world.physics_system->GetGravity(), settings, physics_world.physics_system->GetDefaultBroadPhaseLayerFilter(Layers::MOVING), 
-		physics_world.physics_system->GetDefaultLayerFilter(Layers::MOVING), /*player_physics_body_filter*/{}, {}, *physics_world.temp_allocator);
+	if(noclip_mode)
+		jolt_character->SetPosition(jolt_character->GetPosition() + toJoltVec3(vel) * dtime); // Move without any collision detection, so we can move through objects and under the terrain surface.
+	else
+		jolt_character->ExtendedUpdate(dtime, physics_world.physics_system->GetGravity(), settings, physics_world.physics_system->GetDefaultBroadPhaseLayerFilter(Layers::MOVING),
+			physics_world.physics_system->GetDefaultLayerFilter(Layers::MOVING), /*player_physics_body_filter*/{}, {}, *physics_world.temp_allocator);
 
 	const JPH::Vec3 pre_stair_walk_position = jolt_character->GetPosition();
 #else

@@ -969,4 +969,6 @@ public:
 	double last_ping_send_time;
 
 	TimerQueue timer_queue;
+
+	bool draw_chunks; // Just for debugging
 };

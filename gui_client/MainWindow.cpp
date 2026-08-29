@@ -4017,6 +4017,8 @@ void MainWindow::diagnosticsWidgetChanged()
 {
 	opengl_engine->setDrawWireFrames(ui->diagnosticsWidget->showWireframesCheckBox->isChecked());
 
+	gui_client.player_physics.setNoClipEnabled(ui->diagnosticsWidget->noClipCheckBox->isChecked());
+
 	if(ui->diagnosticsWidget->showFrameTimeGraphsCheckBox->isChecked() && this->CPU_render_stats_widget.isNull())
 	{
 		opengl_engine->setProfilingEnabled(true);

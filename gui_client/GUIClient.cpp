@@ -206,7 +206,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	only_load_most_important_obs(false),
 	last_ping_send_time(-1000),
 	gear_item_update_sender(/*send period=*/2.0),
-	active_move_to_controllers(/*empty val=*/nullptr)
+	active_move_to_controllers(/*empty val=*/nullptr),
+	draw_chunks(true)
 {
 	ZoneScoped; // Tracy profiler
 
@@ -6522,7 +6523,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 	// Force player above terrain surface.
 	// Useful to prevent player falling down to infinity if they fall below the terrain surface before it is loaded.
-	if(terrain_system.nonNull())
+	// Skipped in noclip mode, where the player is allowed to move below the terrain surface.
+	if(terrain_system.nonNull() && !player_physics.noClipEnabled())
 	{
 		const Vec3d player_pos = player_physics.getCapsuleBottomPosition();
 
@@ -7961,7 +7963,8 @@ void GUIClient::updateLODChunkGraphics()
 				// Show the chunk graphics object
 				if(!chunk->graphics_ob_in_engine)
 				{
-					opengl_engine->addObject(chunk->graphics_ob);
+					if(this->draw_chunks)
+						opengl_engine->addObject(chunk->graphics_ob);
 
 					if(chunk->diagnostics_gl_ob)
 						opengl_engine->addObject(chunk->diagnostics_gl_ob);
@@ -12877,7 +12880,7 @@ void GUIClient::objectEdited()
 
 		startDownloadingResourcesForObject(this->selected_ob.ptr(), ob_lod_level);
 
-		if(selected_ob->model_url.empty() || resource_manager->isFileForURLPresent(selected_ob->model_url))
+		//if(selected_ob->model_url.empty())// || resource_manager->isFileForURLPresent(selected_ob->model_url))
 		{
 			Matrix4f new_ob_to_world_matrix = obToWorldMatrix(*this->selected_ob);
 
