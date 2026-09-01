@@ -252,6 +252,7 @@ const uint32 OBJECT_TEXTURE_BASISU_SUPPORT			= 0x1;
 const uint32 TERRAIN_DETAIL_MAPS_BASISU_SUPPORT		= 0x2;
 const uint32 OPTIMISED_MESH_SUPPORT					= 0x4;
 
-const int OPTIMISED_MESH_VERSION = 3;
+const int OPTIMISED_MESH_VERSION = 4;
+// v4: Improved LOD logic to make smaller meshes.
 
 } // end namespace Protocol
