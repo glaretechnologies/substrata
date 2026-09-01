@@ -262,12 +262,12 @@ BatchedMeshRef loadAndSimplifyGeometry(const ObInfo& ob_info, LRUCache<std::stri
 
 		const size_t original_num_verts = mesh->numVerts();
 
-		const float error_threshold_ws = 0.4f;
-		const float relative_err = 0.08f;
-		const float global_error_threshold_os = error_threshold_ws / (ob_info.ob_to_world_scale * voxel_scale);
-		const float per_ob_error_threshold_os = mesh->aabb_os.longestLength() * relative_err;
+		const float error_threshold_ws = 0.4f; // absolute error threshold in world space
+		const float relative_err = 0.08f; // relative error threshold
+		const float global_error_threshold_os = error_threshold_ws / (ob_info.ob_to_world_scale * voxel_scale); // absolute error threshold in object space
+		const float per_ob_error_threshold_os = mesh->aabb_os.longestLength() * relative_err; // absolute error threshold in object space, from the relative error threshold
 
-		const float error_threshold_os = myMax(global_error_threshold_os, per_ob_error_threshold_os);
+		const float error_threshold_os = myMax(global_error_threshold_os, per_ob_error_threshold_os); // final absolute error threshold, in object space.
 		//printVar(error_threshold_ws);
 		//printVar(error_threshold_os);
 
