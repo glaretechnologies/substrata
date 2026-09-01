@@ -195,6 +195,12 @@ inline static Vec4f transformSkinnedVertex(const Vec4f vert_pos, size_t joint_of
 }
 
 
+static BatchedMeshRef simplerMesh(BatchedMeshRef a, BatchedMeshRef b)
+{
+	return a->numIndices() < b->numIndices() ? a : b;
+}
+
+
 // May return null mesh if there were no voxels or mesh was simplified away.
 // May also return mesh with zero indices.
 BatchedMeshRef loadAndSimplifyGeometry(const ObInfo& ob_info, LRUCache<std::string, BatchedMeshRef>& mesh_cache, Matrix4f& voxel_scale_matrix_out)
@@ -258,34 +264,54 @@ BatchedMeshRef loadAndSimplifyGeometry(const ObInfo& ob_info, LRUCache<std::stri
 	// Simplify mesh
 	if(mesh)
 	{
-		// conPrint("Simplifying mesh..");
+		conPrint("ChunkGenThread: Simplifying mesh..");
 
-		const size_t original_num_verts = mesh->numVerts();
+		const size_t original_num_tris = mesh->numIndices()/3;
+
+		// NOTE: This code is pretty similar to LODGeneration::computeLODModel(), with a slightly more world-space focus.
+
+		// Chunks are displayed >= 150 m away from the camera.
+		// For a render resolution of 2560 x 1282 pixels,
+		// pixel/h = 2560 / (w/l) = 1828.571428 pixels/projected_len_h
+		// So a world-space error of 0.4 m gives a projected length of 0.4 m / 150 m = 0.002666
+		// So this corresponds to an error of 0.002666 * pixel/h = 0.002666 * 1828.57142 = 4.87 pixels.
 
 		const float error_threshold_ws = 0.4f; // absolute error threshold in world space
-		const float relative_err = 0.08f; // relative error threshold
-		const float global_error_threshold_os = error_threshold_ws / (ob_info.ob_to_world_scale * voxel_scale); // absolute error threshold in object space
-		const float per_ob_error_threshold_os = mesh->aabb_os.longestLength() * relative_err; // absolute error threshold in object space, from the relative error threshold
+		const float error_threshold_os_abs = error_threshold_ws / (ob_info.ob_to_world_scale * voxel_scale); // absolute error threshold in object space
+		const size_t sloppy_tri_threshold = 1500; // Number of tris in the non-sloppy simplified mesh at which we should also try using sloppy simplification.
 
-		const float error_threshold_os = myMax(global_error_threshold_os, per_ob_error_threshold_os); // final absolute error threshold, in object space.
-		//printVar(error_threshold_ws);
-		//printVar(error_threshold_os);
-
-		mesh = MeshSimplification::removeSmallComponents(mesh, error_threshold_os);
+		mesh = MeshSimplification::removeSmallComponents(mesh, error_threshold_os_abs);
 		if(mesh->numIndices() == 0)
-			return mesh;
-
-		mesh = MeshSimplification::buildSimplifiedMesh(*mesh, /*target_reduction_ratio=*/1000.f, /*target_error=*/error_threshold_os, /*sloppy=*/false);
-		
-		// If we achieved less than a 4x reduction in the number of vertices (and this is a med/large mesh), try again with sloppy simplification
-		if((mesh->numVerts() > 1024) && // if this is a med/large mesh
-			((float)mesh->numVerts() > (original_num_verts / 4.f)))
 		{
-			mesh = MeshSimplification::buildSimplifiedMesh(*mesh, /*target_reduction_ratio=*/1000.f, 
-				/*target_error (relative)=*/relative_err, /*sloppy=*/true);
+			conPrint("\tChunkGenThread: removeSmallComponents() removed all tris.");
+			return mesh;
+		}
+
+		// NOTE: compute the relative error threshold after removeSmallComponents() as removeSmallComponents() may change the mesh AABB.
+		const float error_threshold_os_rel = error_threshold_os_abs / mesh->aabb_os.longestLength(); // final relative error threshold, in object space.
+
+		// conPrint("\tChunkGenThread: error_threshold_os_abs: " + doubleToStringNDecimalPlaces(error_threshold_os_abs, 3) + ", error_threshold_os_rel: " + doubleToStringNDecimalPlaces(error_threshold_os_rel, 3));
+
+		BatchedMeshRef simplified_mesh = MeshSimplification::buildSimplifiedMesh(*mesh, /*target_reduction_ratio=*/100000.f, /*target_error=*/error_threshold_os_abs, /*sloppy=*/false);
+		
+		conPrint("\tChunkGenThread: simplified_mesh num tris: " + uInt64ToStringCommaSeparated(simplified_mesh->numIndices() / 3) + " (original_num_tris: " + uInt64ToStringCommaSeparated(original_num_tris) + ")");
+
+		// If the simplified mesh is still quite complex, try again with sloppy simplification.
+		if((simplified_mesh->numIndices()/3) > sloppy_tri_threshold)
+		{
+			BatchedMeshRef sloppy_mesh = MeshSimplification::buildSimplifiedMesh(*mesh, /*target_reduction_ratio=*/100000.f, /*target_error (relative)=*/error_threshold_os_rel, /*sloppy=*/true);
+
+			conPrint("\tChunkGenThread: Tried sloppy simplification, sloppy_mesh num tris: " + uInt64ToStringCommaSeparated(sloppy_mesh->numIndices() / 3) + " (original_num_tris: " + uInt64ToStringCommaSeparated(original_num_tris) + ")");
+
+			return simplerMesh(sloppy_mesh, simplerMesh(simplified_mesh, mesh)); // Return the mesh that actually ended up the most simple.
+		}
+		else
+		{
+			return simplerMesh(simplified_mesh, mesh);  // Return the mesh that actually ended up the most simple.
 		}
 	}
-	return mesh;
+	else
+		return nullptr;
 }
 
 
