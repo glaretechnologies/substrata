@@ -264,7 +264,7 @@ BatchedMeshRef loadAndSimplifyGeometry(const ObInfo& ob_info, LRUCache<std::stri
 	// Simplify mesh
 	if(mesh)
 	{
-		conPrint("ChunkGenThread: Simplifying mesh..");
+		//conPrint("ChunkGenThread: Simplifying mesh..");
 
 		const size_t original_num_tris = mesh->numIndices()/3;
 
@@ -283,7 +283,7 @@ BatchedMeshRef loadAndSimplifyGeometry(const ObInfo& ob_info, LRUCache<std::stri
 		mesh = MeshSimplification::removeSmallComponents(mesh, error_threshold_os_abs);
 		if(mesh->numIndices() == 0)
 		{
-			conPrint("\tChunkGenThread: removeSmallComponents() removed all tris.");
+			//conPrint("\tChunkGenThread: removeSmallComponents() removed all tris.");
 			return mesh;
 		}
 
@@ -294,14 +294,14 @@ BatchedMeshRef loadAndSimplifyGeometry(const ObInfo& ob_info, LRUCache<std::stri
 
 		BatchedMeshRef simplified_mesh = MeshSimplification::buildSimplifiedMesh(*mesh, /*target_reduction_ratio=*/100000.f, /*target_error=*/error_threshold_os_abs, /*sloppy=*/false);
 		
-		conPrint("\tChunkGenThread: simplified_mesh num tris: " + uInt64ToStringCommaSeparated(simplified_mesh->numIndices() / 3) + " (original_num_tris: " + uInt64ToStringCommaSeparated(original_num_tris) + ")");
+		//conPrint("\tChunkGenThread: simplified_mesh num tris: " + uInt64ToStringCommaSeparated(simplified_mesh->numIndices() / 3) + " (original_num_tris: " + uInt64ToStringCommaSeparated(original_num_tris) + ")");
 
 		// If the simplified mesh is still quite complex, try again with sloppy simplification.
 		if((simplified_mesh->numIndices()/3) > sloppy_tri_threshold)
 		{
 			BatchedMeshRef sloppy_mesh = MeshSimplification::buildSimplifiedMesh(*mesh, /*target_reduction_ratio=*/100000.f, /*target_error (relative)=*/error_threshold_os_rel, /*sloppy=*/true);
 
-			conPrint("\tChunkGenThread: Tried sloppy simplification, sloppy_mesh num tris: " + uInt64ToStringCommaSeparated(sloppy_mesh->numIndices() / 3) + " (original_num_tris: " + uInt64ToStringCommaSeparated(original_num_tris) + ")");
+			//conPrint("\tChunkGenThread: Tried sloppy simplification, sloppy_mesh num tris: " + uInt64ToStringCommaSeparated(sloppy_mesh->numIndices() / 3) + " (original_num_tris: " + uInt64ToStringCommaSeparated(original_num_tris) + ")");
 
 			return simplerMesh(sloppy_mesh, simplerMesh(simplified_mesh, mesh)); // Return the mesh that actually ended up the most simple.
 		}
