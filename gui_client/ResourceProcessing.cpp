@@ -125,6 +125,85 @@ static void convertTextureToBasisFile(const std::string& path)
 }
 
 
+// Packs several images into a single basis array texture, one array layer per image, in the order given.
+//
+// Used for the water caustics, which are an animation: as an array texture the engine binds one texture instead of one
+// per frame, and the shader picks the layer to sample from the time uniform.  See OpenGLEngine::startAsyncLoadingData()
+// and the caustic code in phong_frag_shader.glsl.
+//
+// NOTE: the texture type must be cBASISTexType2DArray.  cBASISTexTypeVideoFrames would compress an animation better,
+// since it can use inter-frame prediction, but BasisDecoder::decodeFromBuffer() sends video frame files down the
+// animated-GIF path, which sets D to 1 and produces a single 2D texture rather than an array.
+static void convertTexturesToArrayBasisFile(const std::vector<std::string>& paths, const std::string& save_path)
+{
+#if SERVER // basisu compression stuff is only compiled into the server.
+	conPrint("-------------------convertTexturesToArrayBasisFile: " + save_path + "------------------------");
+
+	try
+	{
+		if(paths.empty())
+			throw glare::Exception("No source images given.");
+
+		basisu::basisu_encoder_init(); // Can be called multiple times harmlessly.
+		basisu::basis_compressor_params params;
+
+		// Hold onto the decoded images until after process() has run.
+		std::vector<ImageMapUInt8Ref> source_maps;
+		source_maps.reserve(paths.size());
+
+		for(size_t i=0; i<paths.size(); ++i)
+		{
+			conPrint("Reading '" + paths[i] + "'...");
+			ImageMapUInt8Ref map_uint8 = PNGDecoder::decode(paths[i]).downcast<ImageMapUInt8>();
+
+			// All layers of an array texture have to have the same dimensions and channel count.
+			if(i > 0 && (map_uint8->getWidth() != source_maps[0]->getWidth() || map_uint8->getHeight() != source_maps[0]->getHeight() || map_uint8->getN() != source_maps[0]->getN()))
+				throw glare::Exception("Image '" + paths[i] + "' has dimensions " + toString(map_uint8->getWidth()) + "x" + toString(map_uint8->getHeight()) + "x" + toString(map_uint8->getN()) +
+					", which does not match the first image's " + toString(source_maps[0]->getWidth()) + "x" + toString(source_maps[0]->getHeight()) + "x" + toString(source_maps[0]->getN()) + ".");
+
+			source_maps.push_back(map_uint8);
+
+			basisu::image img(map_uint8->getData(), (uint32)map_uint8->getWidth(), (uint32)map_uint8->getHeight(), (uint32)map_uint8->getN());
+			params.m_source_images.push_back(img); // Becomes array layer i.
+		}
+
+		params.m_tex_type = basist::cBASISTexType2DArray;
+		params.m_perceptual = true;
+		params.m_status_output = false;
+		params.m_write_output_basis_or_ktx2_files = true;
+		params.m_out_filename = save_path;
+		params.m_create_ktx2_file = false;
+		params.m_mip_gen = true; // Generate mipmaps for each source image
+		params.m_mip_srgb = true; // Convert image to linear before filtering, then back to sRGB
+		params.m_etc1s_quality_level = 255;
+
+		basisu::job_pool jpool(PlatformUtils::getNumLogicalProcessors());
+		params.m_pJob_pool = &jpool;
+
+		basisu::basis_compressor basisCompressor;
+		basisu::enable_debug_printf(false);
+
+		const bool res = basisCompressor.init(params);
+		if(!res)
+			throw glare::Exception("Failed to create basisCompressor");
+
+		basisu::basis_compressor::error_code result = basisCompressor.process();
+
+		if(result != basisu::basis_compressor::cECSuccess)
+			throw glare::Exception("basisCompressor.process() failed.");
+
+		conPrint("Saved " + toString(paths.size()) + " array layers to '" + save_path + "'.");
+	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
+	}
+#else
+	conPrint("convertTexturesToArrayBasisFile: not building for server, skipping " + save_path);
+#endif
+}
+
+
 static void convertTextures()
 {
 	glare::TaskManager task_manager;
@@ -169,11 +248,17 @@ static void convertTextures()
 	convertTextureToBasisFile("C:\\code\\substrata\\source_resources\\sprites\\smoke_sprite_rear.png");
 	convertTextureToBasisFile("C:\\code\\substrata\\source_resources\\sprites\\smoke_sprite_front.png");
 
-	// Build caustic textures
-	for(int im_i=0; im_i<32; ++im_i)
-		convertTextureToBasisFile("D:\\models\\caustics\\save." + ::leftPad(toString(1 + im_i), '0', 2) + ".png");
-		//convertTextureToCompressedKTX2File(KTXDecoder::Format_BC1, "caus3 (1)\\save." + ::leftPad(toString(1 + im_i), '0', 2) + ".png");
-	
+	// Build caustic texture.  All the animation frames go into a single array texture, one layer per frame in order, so
+	// that the engine binds one texture rather than two per frame and the shader picks the frame itself.  The result
+	// belongs at /gl_data/caustics/caustics.basis, see OpenGLEngine::startAsyncLoadingData().
+	{
+		std::vector<std::string> caustic_paths;
+		for(int im_i=0; im_i<32; ++im_i)
+			caustic_paths.push_back("D:\\models\\caustics\\save." + ::leftPad(toString(1 + im_i), '0', 2) + ".png");
+
+		convertTexturesToArrayBasisFile(caustic_paths, "D:\\models\\caustics\\caustics.basis");
+	}
+
 	// Modify foam image
 	{
 		ImageMapUInt8Ref foam_map = PNGDecoder::decode("foam.png").downcast<ImageMapUInt8>();
