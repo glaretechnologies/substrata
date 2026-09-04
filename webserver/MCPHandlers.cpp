@@ -120,7 +120,7 @@ static const size_t MAX_NUM_FAILED_AUTH_RATE_LIMITERS          = 10000;
 
 
 // Record a failed authentication attempt from the given client IP, creating the rate limiter for the IP lazily.
-static void recordFailedAuthAttempt(ServerAllWorldsState& world_state, const std::string& client_ip, WorldStateLock& /*lock*/)
+static void recordFailedAuthAttempt(ServerAllWorldsState& world_state, const std::string& client_ip, WorldStateLock& /*lock*/) REQUIRES(world_state.mutex)
 {
 	if(!world_state.server_config.do_mcp_rate_limiting)
 		return;
@@ -161,7 +161,7 @@ static const std::string vec3ToJSON(const Vec3d& v)
 
 // Returns the (non-null) world state for the given world name, throwing glare::Exception if there is no such world.
 // The returned pointer is owned by all_worlds and is valid as long as the world state lock is held.
-static ServerWorldState* getWorld(ServerAllWorldsState& all_worlds, const std::string& world_name, WorldStateLock& lock)
+static ServerWorldState* getWorld(ServerAllWorldsState& all_worlds, const std::string& world_name, WorldStateLock& /*lock*/) REQUIRES(all_worlds.mutex)
 {
 	auto res = all_worlds.world_states.find(world_name);
 	if(res == all_worlds.world_states.end())
