@@ -10330,8 +10330,8 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 		if(selected_ob->opengl_engine_ob.nonNull())
 		{
 			msg += 
-				"num tris: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumTris()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUIndicesMemUsage()) + ")\n" + 
-				"num verts: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumVerts()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUVertMemUsage()) + ")\n" +
+				"num tris: " + uInt64ToStringCommaSeparated(selected_ob->opengl_engine_ob->mesh_data->getNumTris()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUIndicesMemUsage()) + ")\n" + 
+				"num verts: " + uInt64ToStringCommaSeparated(selected_ob->opengl_engine_ob->mesh_data->getNumVerts()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUVertMemUsage()) + ")\n" +
 				"num batches (draw calls): " + toString(selected_ob->opengl_engine_ob->mesh_data->batches.size()) + "\n" +
 				"num materials: " + toString(selected_ob->opengl_engine_ob->materials.size()) + "\n" +
 				"shading normals: " + boolToString(selected_ob->opengl_engine_ob->mesh_data->has_shading_normals) + "\n" + 
@@ -12751,10 +12751,13 @@ void GUIClient::objectEdited()
 			{
 				removeAndDeleteGLAndPhysicsObjectsForOb(*this->selected_ob); // Remove old opengl and physics objects
 
-				const std::string mesh_path = FileUtils::fileExists(this->selected_ob->model_url) ? toStdString(this->selected_ob->model_url) : resource_manager->pathForURL(this->selected_ob->model_url);
+				const bool URL_is_local_path = FileUtils::fileExists(this->selected_ob->model_url);
+				const URLString optimised_mesh_URL = WorldObject::makeOptimisedMeshURL(/*base URL=*/this->selected_ob->model_url, /*lod level=*/0, /*get optimised mesh=*/this->server_has_optimised_meshes,
+					this->server_opt_mesh_version);
+				const std::string local_abs_mesh_path = URL_is_local_path ? toStdString(this->selected_ob->model_url) : resource_manager->pathForURL(optimised_mesh_URL);
 
 				ModelLoading::MakeGLObjectResults results;
-				ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, worker_allocator.ptr(), mesh_path,
+				ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, worker_allocator.ptr(), local_abs_mesh_path,
 					/*do_opengl_stuff=*/true,
 					results
 				);
@@ -12768,32 +12771,36 @@ void GUIClient::objectEdited()
 
 				if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED))
 				{
-					// If the user selected a mesh that is not a bmesh, convert it to bmesh.
-					std::string bmesh_disk_path;
-					if(!hasExtension(mesh_path, "bmesh")) 
+					if(URL_is_local_path)
 					{
-						// Save as bmesh in temp location
-						bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
+						// If the user selected a mesh that is not a bmesh, convert it to bmesh.
+						std::string bmesh_disk_path;
+						if(!hasExtension(local_abs_mesh_path, "bmesh")) 
+						{
+							// Save as bmesh in temp location
+							bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
 
-						BatchedMesh::WriteOptions write_options;
-						write_options.compression_level = 9; // Use a somewhat high compression level, as this mesh is likely to be read many times, and only encoded here.
-						// TODO: show 'processing...' dialog while it compresses and saves?
-						results.batched_mesh->writeToFile(bmesh_disk_path, write_options);
+							BatchedMesh::WriteOptions write_options;
+							write_options.compression_level = 9; // Use a somewhat high compression level, as this mesh is likely to be read many times, and only encoded here.
+							// TODO: show 'processing...' dialog while it compresses and saves?
+							results.batched_mesh->writeToFile(bmesh_disk_path, write_options);
+						}
+						else
+							bmesh_disk_path = local_abs_mesh_path;
+
+						// Compute hash over model
+						const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
+
+						const std::string original_filename = FileUtils::getFilename(toStdString(this->selected_ob->model_url)); // Use the original filename, not 'temp.bmesh'.
+						const URLString mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(bmesh_disk_path), model_hash); // Make a URL like "projectdog_png_5624080605163579508.png"
+
+						// Copy model to local resources dir if not already there.  UploadResourceThread will read from here.
+						if(!this->resource_manager->isFileForURLPresent(mesh_URL))
+							this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
+
+						this->selected_ob->model_url = mesh_URL;
 					}
-					else
-						bmesh_disk_path = mesh_path;
 
-					// Compute hash over model
-					const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
-
-					const std::string original_filename = FileUtils::getFilename(mesh_path); // Use the original filename, not 'temp.bmesh'.
-					const URLString mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(bmesh_disk_path), model_hash); // Make a URL like "projectdog_png_5624080605163579508.png"
-
-					// Copy model to local resources dir if not already there.  UploadResourceThread will read from here.
-					if(!this->resource_manager->isFileForURLPresent(mesh_URL))
-						this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
-
-					this->selected_ob->model_url = mesh_URL;
 					this->selected_ob->max_model_lod_level = (results.batched_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
 					this->selected_ob->setAABBOS(results.batched_mesh->aabb_os);
 				}
