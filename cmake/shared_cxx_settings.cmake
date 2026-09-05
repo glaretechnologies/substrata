@@ -189,7 +189,8 @@ elseif(WIN32)
 	add_definitions(/fp:fast) # Set fast floating point model.
 	
 	add_definitions(-D__SSE4_1__)
-	
+
+	# Use C++17	
 	add_definitions(/std:c++17)
 	add_definitions(/Zc:__cplusplus) # Make the __cplusplus macro show the updated, actual C++ version.
 	
