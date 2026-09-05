@@ -632,8 +632,10 @@ void BrowserVidPlayer::process(GUIClient* gui_client, OpenGLEngine* opengl_engin
 
 				if(html_view_handle >= 0) // If loaded:
 				{
-					// Now that we are loading the iframe, draw this object with alpha zero.
-					ob->opengl_engine_ob->materials[0].alpha = 0.f; // Set alpha to zero for alpha-cutout technique, to show web views in iframe under the opengl canvas.
+					// Now that we are loading the iframe, punch a hole in the canvas where this object is, so the iframe under the
+					// canvas shows through.  See OpenGLEngine::drawAlphaPunchThroughObjects().
+					ob->opengl_engine_ob->materials[0].alpha = 0.f;
+					ob->opengl_engine_ob->materials[0].alpha_punch_through = true;
 					opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob);
 				}
 

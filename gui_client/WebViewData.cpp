@@ -194,6 +194,7 @@ void WebViewData::process(GUIClient* gui_client, OpenGLEngine* opengl_engine, Wo
 
 				// Now that we are loading the iframe, draw this object with alpha zero.
 				ob->opengl_engine_ob->materials[0].alpha = 0.f; // Set alpha to zero for alpha-cutout technique, to show web views in iframe under the opengl canvas.
+				ob->opengl_engine_ob->materials[0].alpha_punch_through = true;
 				opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob);
 			}
 			else
