@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "TestSuite.h"
 #include "URLParser.h"
 #include "ModelLoading.h"
+#include "ImGUIDrawing.h"
 #include "CEF.h"
 #include <maths/GeometrySampling.h>
 #include <graphics/FormatDecoderGLTF.h>
@@ -1224,7 +1225,7 @@ static void doOneMainLoopIter()
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
 		// Create or destroy the render stats widgets, to match the 'show frame time graphs' checkbox in the ImGUI window.
-		const bool show_frame_time_graphs = gui_client->imgui_drawing.show_frame_time_graphs;
+		const bool show_frame_time_graphs = gui_client->imgui_drawing->show_frame_time_graphs;
 		if(show_frame_time_graphs && CPU_render_stats_widget.isNull())
 		{
 			opengl_engine->setProfilingEnabled(true);
