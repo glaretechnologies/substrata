@@ -911,6 +911,12 @@ endif() # end if not emscripten.
 #============== OpenGL engine ==============
 include(${GLARE_CORE_TRUNK_DIR_ENV}/opengl/opengl.cmake)
 
+set(opengl 
+	${opengl}
+	${GLARE_CORE_TRUNK_DIR_ENV}/opengl/RenderStatsWidget.cpp
+	${GLARE_CORE_TRUNK_DIR_ENV}/opengl/RenderStatsWidget.h
+)
+
 set(substrata_shaders
 ../shaders/parcel_frag_shader.glsl
 ../shaders/parcel_vert_shader.glsl
