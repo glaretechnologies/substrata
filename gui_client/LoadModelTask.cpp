@@ -167,21 +167,10 @@ void LoadModelTask::run(size_t thread_index)
 				}
 			}
 
-
-			ArrayRef<uint8> vert_data, index_data;
-			gl_meshdata->getVertAndIndexArrayRefs(vert_data, index_data);
-			
-			const size_t index_data_src_offset_B = Maths::roundUpToMultipleOfPowerOf2<size_t>(vert_data.size(), 16); // Offset in VBO
-			const size_t total_geom_size_B = index_data_src_offset_B + index_data.size();
-
 			if(upload_thread)
 			{
 				UploadGeometryMessage* upload_msg = new UploadGeometryMessage();
 				upload_msg->meshdata = gl_meshdata;
-				upload_msg->index_data_src_offset_B = index_data_src_offset_B;
-				upload_msg->total_geom_size_B = total_geom_size_B;
-				upload_msg->vert_data_size_B = vert_data.size();
-				upload_msg->index_data_size_B = index_data.size();
 
 				LoadModelTaskUploadingUserInfo* user_info = new LoadModelTaskUploadingUserInfo();
 				user_info->physics_shape = physics_shape;
@@ -202,6 +191,12 @@ void LoadModelTask::run(size_t thread_index)
 			}
 			else
 			{
+				ArrayRef<uint8> vert_data, index_data;
+				gl_meshdata->getVertAndIndexArrayRefs(vert_data, index_data);
+
+				const size_t index_data_src_offset_B = Maths::roundUpToMultipleOfPowerOf2<size_t>(vert_data.size(), 16); // Offset in VBO
+				const size_t total_geom_size_B = index_data_src_offset_B + index_data.size();
+
 				// Send a ModelLoadedThreadMessage back to main window.
 				Reference<ModelLoadedThreadMessage> msg = new ModelLoadedThreadMessage();
 				msg->gl_meshdata = gl_meshdata;
