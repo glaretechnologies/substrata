@@ -29,6 +29,8 @@ ImGUIDrawing::~ImGUIDrawing()
 
 static int cur_debug_tex_index = 0;
 static bool ssao_enabled = false;
+static int cur_msaa_option = 2; //gui_client->opengl_engine->getMSAASamples();
+static int cur_shadow_map_detail_index = 1;
 
 
 void ImGUIDrawing::drawWindows(double last_timerEvent_CPU_work_elapsed, double last_updateGL_time)
@@ -45,11 +47,31 @@ void ImGUIDrawing::drawWindows(double last_timerEvent_CPU_work_elapsed, double l
 	ImGui::SetNextWindowCollapsed(false, ImGuiCond_FirstUseEver);
 	if(ImGui::Begin("Info"))
 	{
+
+		ImGui::Checkbox("Draw chunks", &gui_client->draw_chunks);
+
 		ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
 		if(ImGui::CollapsingHeader("Graphics engine"))
 		{
 			if(ImGui::Checkbox("use SSR and SSGI", &ssao_enabled))
 				gui_client->opengl_engine->setSSAOEnabled(ssao_enabled);
+
+			const char* MSAA_options[] = { "Disabled", "2", "4", "8", "16" };
+			const int MSAA_vals[] = { -1, 2, 4, 8, 16 };
+
+			if(ImGui::Combo("MSAA", &cur_msaa_option, MSAA_options, staticArrayNumElems(MSAA_options)))
+			{
+				gui_client->opengl_engine->setMSAASamples(MSAA_vals[cur_msaa_option]);
+			}
+
+			const char* shadow_map_detail_levels[] = { 
+				"low (1024 * 1024)",
+				"medium (2048 * 2048)",
+				"high (4096 * 4096)",
+				"ultra (8192 * 8192)",
+			};
+			if(ImGui::Combo("shadow map details", &cur_shadow_map_detail_index, shadow_map_detail_levels, staticArrayNumElems(shadow_map_detail_levels)))
+				gui_client->opengl_engine->setShadowMappingDetail((OpenGLEngineSettings::ShadowMappingDetail)cur_shadow_map_detail_index);
 
 			const char** names      = gui_client->opengl_engine->getDebugPassViewNames();
 			const size_t names_size = gui_client->opengl_engine->getDebugPassViewNamesSize();
