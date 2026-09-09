@@ -85,6 +85,7 @@ struct MeshLODGenThreadTexInfo
 struct MeshLODGenThreadMeshInfo
 {
 	size_t num_tris;
+	bool load_failed; // If true, the mesh could not be loaded, and num_tris is not valid.
 };
 
 
@@ -311,48 +312,59 @@ static void checkForOptimisedMeshToGenerateForURL(const URLString& URL, Resource
 
 static void checkObjectFlags(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::map<URLString, MeshLODGenThreadMeshInfo>& mesh_info, WorldStateLock& lock)
 {
-	try
+	//-------------------------------------------- Check MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1 flag ---------------------------------------
+	if(ob->object_type == WorldObject::ObjectType_Generic) // Only consider the object types that have LOD-able meshes.
 	{
-		//-------------------------------------------- Check MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1 flag ---------------------------------------
 		if(!ob->model_url.empty())
 		{
-			// Get num triangles in the mesh. Either get from cached mesh info, or if not in cache, load mesh and get from loaded mesh, then store in cache.
-			size_t num_tris;
-			auto res = mesh_info.find(ob->model_url);
-			if(res != mesh_info.end())
-				num_tris = res->second.num_tris;
-			else
+			ResourceRef base_resource = world_state->resource_manager->getExistingResourceForURL(ob->model_url);
+			if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
 			{
-				const std::string model_local_abs_path = world_state->resource_manager->pathForURLForPresentResource(ob->model_url);
+				// Get num triangles in the mesh. Either get from cached mesh info, or if not in cache, load mesh and get from loaded mesh, then store in cache.
+				MeshLODGenThreadMeshInfo info;
+				auto res = mesh_info.find(ob->model_url);
+				if(res != mesh_info.end())
+					info = res->second;
+				else
+				{
+					info.num_tris = 0;
+					info.load_failed = false;
+					try
+					{
+						const std::string model_local_abs_path = world_state->resource_manager->getLocalAbsPathForResource(*base_resource);
 
-				BatchedMeshRef batched_mesh = LODGeneration::loadModel(model_local_abs_path);
+						BatchedMeshRef batched_mesh = LODGeneration::loadModel(model_local_abs_path);
 
-				num_tris = batched_mesh->numIndices()/3;
+						info.num_tris = batched_mesh->numIndices()/3;
+					}
+					catch(glare::Exception& e)
+					{
+						// Cache the failure as well, so we don't try to load the mesh again for each other object using it.
+						info.load_failed = true;
+						conPrint("MeshLODGenThread: checkObjectFlags: Failed to load mesh for ob " + ob->uid.toString() + " (model URL: '" + toString(ob->model_url) + "'): " + e.what());
+					}
 
-				MeshLODGenThreadMeshInfo new_info;
-				new_info.num_tris = num_tris;
-				mesh_info[ob->model_url] = new_info;
-			}
+					mesh_info[ob->model_url] = info;
+				}
 
-			// At this point num_tris should be set.
-			const bool new_model_neg_1_lod_flag_is_set = num_tris > WorldObject::MIN_MODEL_LOD_LEVEL_NEG_1_TRI_THRESHOLD;
+				if(!info.load_failed)
+				{
+					const bool new_model_neg_1_lod_flag_is_set = info.num_tris > WorldObject::MIN_MODEL_LOD_LEVEL_NEG_1_TRI_THRESHOLD;
 
-			const bool model_neg_1_lod_flag_is_set = BitUtils::isBitSet(ob->flags, WorldObject::MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1);
+					const bool model_neg_1_lod_flag_is_set = BitUtils::isBitSet(ob->flags, WorldObject::MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1);
 
-			if(new_model_neg_1_lod_flag_is_set != model_neg_1_lod_flag_is_set)
-			{
-				conPrint("Updating object MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1 flag for Ob " + ob->uid.toString() + " to " + boolToString(new_model_neg_1_lod_flag_is_set) + 
-					" (model URL: '" + toString(ob->model_url) + "', num_tris: " + uInt64ToStringCommaSeparated(num_tris) + ")");
+					if(new_model_neg_1_lod_flag_is_set != model_neg_1_lod_flag_is_set)
+					{
+						conPrint("Updating object MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1 flag for Ob " + ob->uid.toString() + " to " + boolToString(new_model_neg_1_lod_flag_is_set) +
+							" (model URL: '" + toString(ob->model_url) + "', num_tris: " + uInt64ToStringCommaSeparated(info.num_tris) + ")");
 
-				BitUtils::setOrZeroBit(ob->flags, WorldObject::MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1, /*should set=*/new_model_neg_1_lod_flag_is_set);
-				world->addWorldObjectAsDBDirty(ob, lock);
-				world_state->markAsChanged();
+						BitUtils::setOrZeroBit(ob->flags, WorldObject::MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1, /*should set=*/new_model_neg_1_lod_flag_is_set);
+						world->addWorldObjectAsDBDirty(ob, lock);
+						world_state->markAsChanged();
+					}
+				}
 			}
 		}
-	}
-	catch(glare::Exception& e)
-	{
-		conPrint("\tExcep while checking object flags: " + e.what());
 	}
 }
 
@@ -769,6 +781,16 @@ void MeshLODGenThread::doRun()
 
 							const URLString detail_height_map_URL = world->world_settings.terrain_spec.detail_height_map_URLs[i];
 							checkForBasisTexturesToGenerateForURL(detail_height_map_URL, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
+						}
+
+						// Check chatbot avatars.  A chatbot has its own copy of the avatar settings it was created with, so the model and textures it uses
+						// are not necessarily still referenced by any user avatar.
+						for(auto it = world->getChatBots(lock).begin(); it != world->getChatBots(lock).end(); ++it)
+						{
+							const ChatBot* chatbot = it->second.ptr();
+							checkForOptimisedMeshToGenerateForURL(chatbot->avatar_settings.model_url, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
+
+							checkForBasisTexturesToGenerateForMaterials(world_state, chatbot->avatar_settings.materials, lod_URLs_considered, basis_textures_to_gen);
 						}
 					}
 
