@@ -76,7 +76,6 @@ public:
 	};
 
 	static URLString getLODModelURLForLevel(const URLString& base_model_url, int level, const GetLODModelURLOptions& options);
-	int getModelLODLevelForObLODLevel(int ob_lod_level) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
 
 	struct GetDependencyOptions
 	{

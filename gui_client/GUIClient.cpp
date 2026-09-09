@@ -2235,9 +2235,9 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 	ob->loading_or_loaded_lod_level = ob_lod_level;
 
 	// Object LOD level is in [-1, 2].
-	// model LOD level is in [0, ob->max_model_lod_level], which is {0} or [0, 2].
+	// model LOD level is in [ob->minModelLODLevel(), ob->max_model_lod_level], which is {0} or [-1, 2] or [0, 2].
 
-	const int ob_model_lod_level = myClamp(ob_lod_level, 0, ob->max_model_lod_level);
+	const int ob_model_lod_level = myClamp(ob_lod_level, ob->minModelLODLevel(), ob->max_model_lod_level);
 
 	// Compute the maximum distance from the camera at which the object LOD level will remain what it currently is.
 	const float max_dist_for_ob_lod_level = ob->getMaxDistForLODLevel(ob_lod_level);
@@ -2801,7 +2801,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 				WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/this->server_has_optimised_meshes, this->server_opt_mesh_version);
 				options.get_optimised_mesh = this->server_has_optimised_meshes;
-				const URLString lod_model_url = WorldObject::getLODModelURLForLevel(ob->model_url, ob_model_lod_level, options);
+				const URLString lod_model_url = WorldObject::getLODModelURLForLevel(ob->model_url, ob->minModelLODLevel(), ob_model_lod_level, options);
 
 				// print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", lod_model_url: " + lod_model_url);
 
@@ -3357,7 +3357,7 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 			bool added_opengl_ob = false;
 
 			WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/this->server_has_optimised_meshes, this->server_opt_mesh_version);
-			const URLString lod_model_url = avatar_is_default_model ? DEFAULT_AVATAR_MODEL_URL : WorldObject::getLODModelURLForLevel(avatar->avatar_settings.model_url, ob_model_lod_level, options);
+			const URLString lod_model_url = avatar_is_default_model ? DEFAULT_AVATAR_MODEL_URL : WorldObject::getLODModelURLForLevel(avatar->avatar_settings.model_url, /*model min LOD lvl=*/0, ob_model_lod_level, options);
 
 			avatar->graphics.loaded_lod_level = ob_lod_level;
 
@@ -3432,7 +3432,7 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 			bool added_opengl_ob = false;
 
 			WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/this->server_has_optimised_meshes, this->server_opt_mesh_version);
-			const URLString lod_model_url = WorldObject::getLODModelURLForLevel(gear_item->model_url, ob_model_lod_level, options);
+			const URLString lod_model_url = WorldObject::getLODModelURLForLevel(gear_item->model_url, /*model min LOD lvl=*/0, ob_model_lod_level, options);
 
 			Reference<MeshData> mesh_data = mesh_manager.getMeshData(lod_model_url);
 			if(mesh_data.nonNull())
@@ -4602,11 +4602,13 @@ void GUIClient::handleUploadedMeshData(const URLString& lod_model_url, int loade
 				if(ob->in_proximity)
 				{
 					const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
-					const int ob_model_lod_level = myClamp(ob_lod_level, 0, ob->max_model_lod_level);
-								
+					const int ob_model_lod_level = myClamp(ob_lod_level, ob->minModelLODLevel(), ob->max_model_lod_level);
+
+					// loaded_model_lod_level may be -1 just because the model URL had no _lodN suffix, in which case the model is at the minimum LOD level for this object.
+					const int loaded_level = myMax(loaded_model_lod_level, ob->minModelLODLevel());
+
 					// Check the object wants this particular LOD level model right now:
-					//const std::string current_desired_model_LOD_URL = ob->getLODModelURLForLevel(ob->model_url, ob_model_lod_level);
-					if(/*(current_desired_model_LOD_URL == lod_model_url)*/(ob_model_lod_level == loaded_model_lod_level) && (ob->isDynamic() == dynamic_physics_shape))
+					if((ob_model_lod_level == loaded_level) && (ob->isDynamic() == dynamic_physics_shape))
 					{
 						try
 						{
@@ -10321,8 +10323,9 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 		msg += "aabb ws: " + selected_ob->getAABBWS().toStringMaxNDecimalPlaces(3) + "\n";
 		msg += "aabb_ws_longest_len: " + doubleToStringMaxNDecimalPlaces(selected_ob->getAABBWSLongestLength(), 2) + "\n";
 		msg += "biased aabb longest len: " + doubleToStringMaxNDecimalPlaces(selected_ob->getBiasedAABBLength(), 2) + "\n";
-
-		msg += "max_model_lod_level: " + toString(selected_ob->max_model_lod_level) + "\n";
+		msg += "biased projected len: " + doubleToStringMaxNDecimalPlaces(selected_ob->getBiasedProjectedLength(cam_controller.getPosition()), 3) + "\n";
+		msg += "min model LOD level: " + toString(selected_ob->minModelLODLevel()) + "\n";
+		msg += "max model LOD level: " + toString(selected_ob->max_model_lod_level) + "\n";
 		msg += "current_lod_level: " + toString(selected_ob->current_lod_level) + "\n";
 		msg += "loading_or_loaded_model_lod_level: " + toString(selected_ob->loading_or_loaded_model_lod_level) + "\n";
 		msg += "loading_or_loaded_lod_level: " + toString(selected_ob->loading_or_loaded_lod_level) + "\n";
@@ -11228,6 +11231,8 @@ void GUIClient::createObject(const std::string& mesh_path, BatchedMeshRef loaded
 		aabb_os = loaded_mesh->aabb_os;
 
 		new_world_object->max_model_lod_level = (loaded_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
+
+		BitUtils::setOrZeroBit(new_world_object->flags, WorldObject::MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1, (loaded_mesh->numIndices()/3) > WorldObject::MIN_MODEL_LOD_LEVEL_NEG_1_TRI_THRESHOLD);
 	}
 	else
 	{
@@ -11392,6 +11397,7 @@ void GUIClient::createObjectLoadedFromXML(WorldObjectRef new_world_object, Print
 
 		new_world_object->setAABBOS(batched_mesh->aabb_os);
 		new_world_object->max_model_lod_level = (batched_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
+		BitUtils::setOrZeroBit(new_world_object->flags, WorldObject::MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1, (batched_mesh->numIndices()/3) > WorldObject::MIN_MODEL_LOD_LEVEL_NEG_1_TRI_THRESHOLD);
 	}
 
 	// Search for an existing object with the same model url or voxel group and transform.
@@ -12752,7 +12758,7 @@ void GUIClient::objectEdited()
 				removeAndDeleteGLAndPhysicsObjectsForOb(*this->selected_ob); // Remove old opengl and physics objects
 
 				const bool URL_is_local_path = FileUtils::fileExists(this->selected_ob->model_url);
-				const URLString optimised_mesh_URL = WorldObject::makeOptimisedMeshURL(/*base URL=*/this->selected_ob->model_url, /*lod level=*/0, /*get optimised mesh=*/this->server_has_optimised_meshes,
+				const URLString optimised_mesh_URL = WorldObject::makeOptimisedMeshURL(/*base URL=*/this->selected_ob->model_url, this->selected_ob->minModelLODLevel(), /*lod level=*/0, /*get optimised mesh=*/this->server_has_optimised_meshes,
 					this->server_opt_mesh_version);
 				const std::string local_abs_mesh_path = URL_is_local_path ? toStdString(this->selected_ob->model_url) : resource_manager->pathForURL(optimised_mesh_URL);
 
@@ -12803,6 +12809,7 @@ void GUIClient::objectEdited()
 
 					this->selected_ob->max_model_lod_level = (results.batched_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
 					this->selected_ob->setAABBOS(results.batched_mesh->aabb_os);
+					BitUtils::setOrZeroBit(this->selected_ob->flags, WorldObject::MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1, (results.batched_mesh->numIndices()/3) > WorldObject::MIN_MODEL_LOD_LEVEL_NEG_1_TRI_THRESHOLD);
 				}
 				else
 				{

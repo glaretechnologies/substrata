@@ -20,8 +20,11 @@ namespace URLUtils
 // base_34345436654_lod2_opt3.bmesh
 // 
 // with minimal allocations.
-URLString makeOptimisedMeshURL(const URLString& base_model_url, int lod_level, bool get_optimised_mesh, int opt_mesh_version, glare::ArenaAllocator* arena_allocator)
+URLString makeOptimisedMeshURL(const URLString& base_model_url, int model_min_lod_level, int lod_level, bool get_optimised_mesh, int opt_mesh_version, glare::ArenaAllocator* arena_allocator)
 {
+	assert(model_min_lod_level == -1 || model_min_lod_level == 0);
+	assert(lod_level >= model_min_lod_level);
+
 	glare::STLArenaAllocator<char> stl_arena_allocator(arena_allocator);
 	URLString new_url(stl_arena_allocator);
 
@@ -31,7 +34,7 @@ URLString makeOptimisedMeshURL(const URLString& base_model_url, int lod_level, b
 	const std::string::size_type dot_index = base_model_url.find_last_of('.');
 	new_url.assign(base_model_url, /*subpos=*/0, /*count=*/dot_index);
 
-	if(lod_level >= 1)
+	if(lod_level > model_min_lod_level)
 	{
 		new_url += "_lod";
 		new_url.push_back('0' + (char)myMin(lod_level, 9));

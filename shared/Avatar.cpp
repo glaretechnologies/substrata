@@ -278,14 +278,7 @@ URLString Avatar::getLODModelURLForLevel(const URLString& base_model_url, int lo
 	if(hasExtension(base_model_url, "subvox"))
 		return base_model_url;
 
-	return URLUtils::makeOptimisedMeshURL(base_model_url, lod_level, /*get_optimised_mesh=*/options.get_optimised_mesh, options.opt_mesh_version, /*allocator=*/nullptr);
-}
-
-
-int Avatar::getModelLODLevelForObLODLevel(int ob_lod_level) const
-{
-	return 0; // TEMP just use LOD 0 for now        
-	//myClamp<int>(ob_lod_level, 0, this->max_model_lod_level);
+	return URLUtils::makeOptimisedMeshURL(base_model_url, /*model min lod level=*/0, lod_level, /*get_optimised_mesh=*/options.get_optimised_mesh, options.opt_mesh_version, /*allocator=*/nullptr);
 }
 
 

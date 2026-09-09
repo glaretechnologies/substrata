@@ -266,7 +266,7 @@ BatchedMeshRef loadAndSimplifyGeometry(const ObInfo& ob_info, LRUCache<std::stri
 	{
 		//conPrint("ChunkGenThread: Simplifying mesh..");
 
-		const size_t original_num_tris = mesh->numIndices()/3;
+		//const size_t original_num_tris = mesh->numIndices()/3;
 
 		// NOTE: This code is pretty similar to LODGeneration::computeLODModel(), with a slightly more world-space focus.
 

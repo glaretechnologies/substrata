@@ -123,7 +123,7 @@ static BatchedMeshRef simplerMesh(BatchedMeshRef a, BatchedMeshRef b)
 
 	pixel/h = 2560 / (w/l) = 1828.571428 pixels/projected_len_h
 
-	Consider the projected length at the lod 0 / lod 1 transiton: 0.16.  (See WorldObject::getLODLevel() for the 0.16 threshold)
+	Consider the projected length at the lod 0 / lod 1 transition: 0.16.  (See WorldObject::getLODLevel() for the 0.16 threshold)
 	projected length h = 0.16 gives 0.16 * pixel/h = 0.16 * 1828.57142 = 292.57 pixels
 
 	So a relative error (error relative to size of object) of 0.004 corresponds to 
@@ -134,6 +134,13 @@ static BatchedMeshRef simplerMesh(BatchedMeshRef a, BatchedMeshRef b)
 
 	Note that for the sloppy case, the algorithm is completely different, and the error thresholds are not really comparable in terms of visual error.
 	The error thresholds for sloppy need to be *much* larger to look similar to the non-sloppy result.
+
+
+	At lod -1 / lod 0 transition, projected length = 0.4 (See WorldObject::getLODLevel())
+	projected length h = 0.4 gives 0.4 * pixel/h = 0.4 * 1828.57142 = 731 pixels
+
+	So a relative error (error relative to size of object) of 0.0008 corresponds to 
+	0.0008 * 731  = 0.58 pixel error
 */
 BatchedMeshRef computeLODModel(BatchedMeshRef batched_mesh, int lod_level)
 {
@@ -141,7 +148,13 @@ BatchedMeshRef computeLODModel(BatchedMeshRef batched_mesh, int lod_level)
 	float target_error_rel_sloppy;
 	size_t sloppy_tri_threshold; // Number of tris in the non-sloppy simplified mesh at which we should also try using sloppy simplification.
 	
-	if(lod_level == 1)
+	if(lod_level == 0)
+	{
+		target_error_rel        = 0.0008f; // Eyeballed as about right for the lod-1/lod0 transition, gives ~0.58 pixel error at 2560 pixel resolution.
+		target_error_rel_sloppy = 0.01f;
+		sloppy_tri_threshold    = 100000;
+	}
+	else if(lod_level == 1)
 	{
 		target_error_rel        = 0.004f; // Eyeballed as about right for the lod0/lod1 transition, gives ~1.17 pixel error at 2560 pixel resolution.
 		target_error_rel_sloppy = 0.034f;
@@ -193,18 +206,21 @@ bool isMeshQuantised(BatchedMeshRef batched_mesh)
 }
 
 
-void generateOptimisedMesh(const std::string& source_mesh_abs_path, int lod_level, const std::string& optimised_mesh_path)
+void generateOptimisedMesh(const std::string& source_mesh_abs_path, int min_lod_level, int lod_level, const std::string& optimised_mesh_path)
 {
+	assert(min_lod_level == -1 || min_lod_level == 0);
+	assert(min_lod_level <= lod_level);
+
 	BatchedMeshRef batched_mesh = LODGeneration::loadModel(source_mesh_abs_path);
 
-	if(lod_level > 0)
+	if(lod_level > min_lod_level)
 		batched_mesh = LODGeneration::computeLODModel(batched_mesh, lod_level);
 
 	if(!isMeshQuantised(batched_mesh))
 	{
 		BatchedMesh::QuantiseOptions quantise_options;
-		quantise_options.pos_bits = (lod_level == 0) ? 16 : 12;
-		quantise_options.uv_bits  = (lod_level == 0) ? 16 : 10;
+		quantise_options.pos_bits = (lod_level == min_lod_level) ? 16 : 12;
+		quantise_options.uv_bits  = (lod_level == min_lod_level) ? 16 : 10;
 		batched_mesh = batched_mesh->buildQuantisedMesh(quantise_options);
 	}
 

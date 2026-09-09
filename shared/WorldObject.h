@@ -168,21 +168,21 @@ public:
 		glare::ArenaAllocator* allocator;
 	};
 
-	static URLString getLODModelURLForLevel(const URLString& base_model_url, int level, const GetLODModelURLOptions& options);
-	static int getLODLevelForURL(const URLString& URL); // Identifies _lod1 etc. suffix.
+	static URLString getLODModelURLForLevel(const URLString& base_model_url, int model_min_lod_level, int level, const GetLODModelURLOptions& options);
+	// Identifies _lod1 etc. suffix.  Returns -1 for URLs without a _lodN suffix: such a URL is the model at the minimum LOD level of the object using it,
+	// which is -1 or 0 depending on the object's MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1 flag.  Resolve with myMax(level, ob->minModelLODLevel()).
+	static int getLODLevelForURL(const URLString& URL);
 	static URLString getLODLightmapURLForLevel(const URLString& base_lightmap_url, int level, glare::ArenaAllocator* allocator);
 #if GUI_CLIENT
 	static OpenGLTextureKey getLODLightmapPathForLevel(const OpenGLTextureKey& base_lightmap_path, int level);
 #endif
-	static URLString makeOptimisedMeshURL(const URLString& base_model_url, int lod_level, bool get_optimised_mesh, int opt_mesh_version, glare::ArenaAllocator* allocator = nullptr);
+	static URLString makeOptimisedMeshURL(const URLString& base_model_url, int model_min_lod_level, int lod_level, bool get_optimised_mesh, int opt_mesh_version, glare::ArenaAllocator* allocator = nullptr);
 
 	inline int getLODLevel(const Vec3d& campos) const;
 	inline int getLODLevel(const Vec4f& campos) const;
+	inline float getBiasedProjectedLength(const Vec3d& campos) const; // Just for diagnostics
 	inline float getMaxDistForLODLevel(int level);
 	inline int getLODLevel(float cam_to_ob_d2) const;
-	int getModelLODLevel(const Vec3d& campos) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
-	int getModelLODLevelForObLODLevel(int ob_lod_level) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
-	URLString getLODModelURL(const Vec3d& campos, const GetLODModelURLOptions& options) const; // Using lod level clamped to max_model_lod_level
 
 	// Sometimes we are not interested in all dependencies, such as lightmaps.  So make returning those optional.
 	struct GetDependencyOptions
@@ -269,6 +269,8 @@ public:
 	// Gets event_handlers.  If event_handlers is null, sets to a new ObjectEventHandlers object first. 
 	Reference<ObjectEventHandlers> getOrCreateEventHandlers();
 
+	inline int minModelLODLevel() const { return BitUtils::isBitSet(flags, MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1) ? -1 : 0; }
+
 	enum ObjectType
 	{
 		ObjectType_Generic = 0,
@@ -328,6 +330,9 @@ public:
 	static const size_t MAX_URL_SIZE                      = 1000;
 	static const size_t MAX_SCRIPT_SIZE                   = 10000;
 	static const size_t MAX_CONTENT_SIZE                  = 10000;
+
+	// For objects with mesh models with >= this number of triangles, the model will have minimum LOD level -1, meaning that there is an extra LOD model generated at lod 0.
+	static const size_t MIN_MODEL_LOD_LEVEL_NEG_1_TRI_THRESHOLD = 50000;
 	
 
 	URLString model_url;          // Max length MAX_URL_SIZE
@@ -356,6 +361,7 @@ public:
 	static const uint32 AUDIO_AUTOPLAY                          = 1024; // For objects that play audio, should the audio auto-play?
 	static const uint32 AUDIO_LOOP                              = 2048; // For objects that play audio, should the audio loop?
 	static const uint32 CREATED_VIA_MCP                         = 4096; // Was this object created via the Model Context Protocol (MCP) API?
+	static const uint32 MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1       = 8192; // Is the minimum model lod level for this object -1, instead of 0?
 	uint32 flags;
 
 	TimeStamp created_time;
@@ -681,7 +687,7 @@ int WorldObject::getLODLevel(const Vec4f& campos) const
 	const float recip_dist = (campos - this->centroid_ws).fastApproxRecipLength();
 	const float proj_len = biased_aabb_len * recip_dist;
 
-	if(proj_len > 0.6f)
+	if(proj_len > 0.4f)
 		return -1;
 	else if(proj_len > 0.16f)
 		return 0;
@@ -689,6 +695,13 @@ int WorldObject::getLODLevel(const Vec4f& campos) const
 		return 1;
 	else
 		return 2;
+}
+
+
+float WorldObject::getBiasedProjectedLength(const Vec3d& campos) const
+{
+	const float recip_dist = (campos.toVec4fPoint() - this->centroid_ws).fastApproxRecipLength();
+	return biased_aabb_len * recip_dist;
 }
 
 
@@ -707,7 +720,7 @@ float WorldObject::getMaxDistForLODLevel(int level)
 {
 	const float eps_factor = 1.001f; // Make distance slightly larger to account for fastApproxRecipLength() usage in getLODLevel().
 	if(level == -1)
-		return biased_aabb_len * (eps_factor / 0.6f);
+		return biased_aabb_len * (eps_factor / 0.4f);
 	else if(level == 0)
 		return biased_aabb_len * (eps_factor  / 0.16f);
 	else if(level == 1)
@@ -726,7 +739,7 @@ int WorldObject::getLODLevel(float cam_to_ob_d2) const
 
 	const float proj_len = biased_aabb_len * recip_dist;
 
-	if(proj_len > 0.6f)
+	if(proj_len > 0.4f)
 		return -1;
 	else if(proj_len > 0.16f)
 		return 0;

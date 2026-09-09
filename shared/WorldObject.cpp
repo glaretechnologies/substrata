@@ -152,15 +152,19 @@ WorldObject::~WorldObject()
 // base_34345436654_lod2_opt3.bmesh
 // 
 // with minimal allocations.
-URLString WorldObject::makeOptimisedMeshURL(const URLString& base_model_url, int lod_level, bool get_optimised_mesh, int opt_mesh_version, glare::ArenaAllocator* arena_allocator)
+URLString WorldObject::makeOptimisedMeshURL(const URLString& base_model_url, int model_min_lod_level, int lod_level, bool get_optimised_mesh, int opt_mesh_version, glare::ArenaAllocator* arena_allocator)
 {
-	return URLUtils::makeOptimisedMeshURL(base_model_url, lod_level, get_optimised_mesh, opt_mesh_version, arena_allocator);
+	return URLUtils::makeOptimisedMeshURL(base_model_url, model_min_lod_level, lod_level, get_optimised_mesh, opt_mesh_version, arena_allocator);
 }
 
 
-URLString WorldObject::getLODModelURLForLevel(const URLString& base_model_url, int lod_level, const GetLODModelURLOptions& options)
+URLString WorldObject::getLODModelURLForLevel(const URLString& base_model_url, int model_min_lod_level, int lod_level, const GetLODModelURLOptions& options)
 {
-	if((lod_level == 0) && !options.get_optimised_mesh)
+	assert(model_min_lod_level == -1 || model_min_lod_level == 0);
+	assert(lod_level >= model_min_lod_level);
+
+	// Special case for the minimum lod level and no _optX extension: return base model URL
+	if((lod_level == model_min_lod_level) && !options.get_optimised_mesh)
 		return URLString(base_model_url, glare::STLArenaAllocator<char>(options.allocator));
 
 	if(hasPrefix(base_model_url, "http:") || hasPrefix(base_model_url, "https:"))
@@ -171,7 +175,7 @@ URLString WorldObject::getLODModelURLForLevel(const URLString& base_model_url, i
 	if(hasExtension(base_model_url, "subvox") || hasExtension(base_model_url, "sog"))
 		return URLString(base_model_url, glare::STLArenaAllocator<char>(options.allocator));
 
-	return makeOptimisedMeshURL(base_model_url, lod_level, /*get_optimised_mesh=*/options.get_optimised_mesh, options.opt_mesh_version, options.allocator);
+	return makeOptimisedMeshURL(base_model_url, model_min_lod_level, lod_level, /*get_optimised_mesh=*/options.get_optimised_mesh, options.opt_mesh_version, options.allocator);
 }
 
 
@@ -186,52 +190,23 @@ static URLString removeTrailingNumerals(const URLString& URL)
 
 int WorldObject::getLODLevelForURL(const URLString& URL) // Identifies _lod1 etc. suffix.
 {
+	// NOTE: this is slow code that does a bunch of allocations, but only called occasionally - when a resource downloads.
+
 	URLString base = removeDotAndExtension(URL);
 
-	// Return "_optXX" suffix if present
-	const URLString numerals_removed = removeTrailingNumerals(base);
-	if(hasSuffix(numerals_removed, "_opt"))
-		base = eatSuffix(numerals_removed, "_opt");
+	// Remove "_optXX" suffix if present
+	const URLString with_numerals_removed = removeTrailingNumerals(base);
+	if(hasSuffix(with_numerals_removed, "_opt"))
+		base = eatSuffix(with_numerals_removed, "_opt");
 
-
-	if(hasSuffix(base, "_lod1"))
+	if(hasSuffix(base, "_lod0"))
+		return 0;
+	else if(hasSuffix(base, "_lod1"))
 		return 1;
 	else if(hasSuffix(base, "_lod2"))
 		return 2;
 	else
-		return 0;
-}
-
-
-int WorldObject::getModelLODLevel(const Vec3d& campos) const // getLODLevel() clamped to max_model_lod_level
-{
-	if(max_model_lod_level == 0)
-		return 0;
-
-	return myMax(0, getLODLevel(campos));
-}
-
-
-int WorldObject::getModelLODLevelForObLODLevel(int ob_lod_level) const
-{
-	return myClamp<int>(ob_lod_level, 0, this->max_model_lod_level);
-}
-
-
-URLString WorldObject::getLODModelURL(const Vec3d& campos, const GetLODModelURLOptions& options) const
-{
-	// Early-out for max_model_lod_level == 0: avoid computing LOD
-	if(this->max_model_lod_level == 0)
-	{
-		if(options.get_optimised_mesh)
-			return makeOptimisedMeshURL(this->model_url, /*lod_level=*/0, /*get_optimised_mesh=*/true, options.opt_mesh_version);
-		else
-			return URLString(this->model_url, glare::STLArenaAllocator<char>(options.allocator));
-	}
-
-	const int ob_lod_level = getLODLevel(campos);
-	const int ob_model_lod_level = myClamp(ob_lod_level, 0, this->max_model_lod_level);
-	return getLODModelURLForLevel(this->model_url, ob_model_lod_level, options);
+		return -1; // A URL without a _lodN suffix is the model at the minimum LOD level of the object using it, which is -1 or 0.  See comment on declaration.
 }
 
 
@@ -295,11 +270,12 @@ void WorldObject::appendDependencyURLs(int ob_lod_level, const GetDependencyOpti
 {
 	if(!model_url.empty())
 	{
-		const int ob_model_lod_level =  myClamp(ob_lod_level, 0, this->max_model_lod_level);
+		const int ob_min_model_lod_level = this->minModelLODLevel();
+		const int ob_model_lod_level =  myClamp(ob_lod_level, ob_min_model_lod_level, this->max_model_lod_level);
 
 		GetLODModelURLOptions url_options(/*get_optimised_mesh=*/options.get_optimised_mesh, options.opt_mesh_version);
 		url_options.allocator = options.allocator;
-		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(model_url, ob_model_lod_level, url_options)));
+		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(model_url, ob_min_model_lod_level, ob_model_lod_level, url_options)));
 	}
 
 	if(options.include_lightmaps && !lightmap_url.empty())
@@ -326,11 +302,9 @@ void WorldObject::appendDependencyURLsForAllLODLevels(const GetDependencyOptions
 	{
 		GetLODModelURLOptions url_options(/*get_optimised_mesh=*/options.get_optimised_mesh, options.opt_mesh_version);
 
-		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(model_url, 0, url_options)));
-		if(max_model_lod_level > 0)
+		for(int lvl=this->minModelLODLevel(); lvl<=myMin(2, max_model_lod_level); ++lvl)
 		{
-			URLs_out.push_back(DependencyURL(getLODModelURLForLevel(model_url, 1, url_options)));
-			URLs_out.push_back(DependencyURL(getLODModelURLForLevel(model_url, 2, url_options)));
+			URLs_out.push_back(DependencyURL(getLODModelURLForLevel(model_url, minModelLODLevel(), lvl, url_options)));
 		}
 	}
 
@@ -358,7 +332,7 @@ void WorldObject::appendDependencyURLsBaseLevel(const GetDependencyOptions& opti
 	{
 		GetLODModelURLOptions url_options(/*get_optimised_mesh=*/options.get_optimised_mesh, options.opt_mesh_version);
 
-		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(model_url, 0, url_options)));
+		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(model_url, /*model min LOD level=*/this->minModelLODLevel(), /*model LOD level=*/this->minModelLODLevel(), url_options)));
 	}
 
 	if(options.include_lightmaps && !lightmap_url.empty())
@@ -875,7 +849,7 @@ void readWorldObjectFromStream(RandomAccessInStream& stream, WorldObject& ob)
 	}
 
 	if(v >= 15)
-		ob.max_model_lod_level = stream.readInt32();
+		ob.max_model_lod_level = myClamp(stream.readInt32(), 0, 2);
 	
 	if(v >= 9 && ob.object_type == WorldObject::ObjectType_VoxelGroup)
 	{
@@ -1362,7 +1336,7 @@ void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, Worl
 
 	ob.setAABBOS(aabb);
 
-	ob.max_model_lod_level = stream.readInt32();
+	ob.max_model_lod_level = myClamp(stream.readInt32(), 0, 2);
 
 	if(ob.object_type == WorldObject::ObjectType_VoxelGroup)
 	{
@@ -1971,7 +1945,7 @@ void WorldObject::test()
 
 	//----------------------------- Test obToWorldMatrix ------------------------------
 	{
-		const int N = 10000000;
+		const int N = 1000000;
 
 		{
 			Timer timer;
@@ -1993,36 +1967,63 @@ void WorldObject::test()
 
 
 	//----------------------------- Test makeOptimisedMeshURL ----------------------------
-	testAssert(makeOptimisedMeshURL("something_5345345435", /*lod level=*/0, /*get optimised mesh=*/false, /*opt mesh version=*/1) == "something_5345345435.bmesh");
-	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*lod level=*/0, /*get optimised mesh=*/false, /*opt mesh version=*/1) == "something_5345345435.bmesh");
-	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*lod level=*/1, /*get optimised mesh=*/false, /*opt mesh version=*/1) == "something_5345345435_lod1.bmesh");
-	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*lod level=*/2, /*get optimised mesh=*/false, /*opt mesh version=*/1) == "something_5345345435_lod2.bmesh");
-	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*lod level=*/2, /*get optimised mesh=*/true, /*opt mesh version=*/1) == "something_5345345435_lod2_opt1.bmesh");
-	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*lod level=*/2, /*get optimised mesh=*/true, /*opt mesh version=*/123) == "something_5345345435_lod2_opt123.bmesh");
-	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*lod level=*/0, /*get optimised mesh=*/true, /*opt mesh version=*/123) == "something_5345345435_opt123.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435",       /*min lod level=*/0, /*lod level=*/0, /*get optimised mesh=*/false, /*opt mesh version=*/1) == "something_5345345435.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/0, /*lod level=*/0, /*get optimised mesh=*/false, /*opt mesh version=*/1) == "something_5345345435.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/0, /*lod level=*/1, /*get optimised mesh=*/false, /*opt mesh version=*/1) == "something_5345345435_lod1.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/0, /*lod level=*/2, /*get optimised mesh=*/false, /*opt mesh version=*/1) == "something_5345345435_lod2.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/0, /*lod level=*/2, /*get optimised mesh=*/true, /*opt mesh version=*/1) == "something_5345345435_lod2_opt1.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/0, /*lod level=*/2, /*get optimised mesh=*/true, /*opt mesh version=*/123) == "something_5345345435_lod2_opt123.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/0, /*lod level=*/0, /*get optimised mesh=*/true, /*opt mesh version=*/123) == "something_5345345435_opt123.bmesh");
 
-	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*lod level=*/0, /*get optimised mesh=*/true, /*opt mesh version=*/0) == "something_5345345435_opt0.bmesh");
-	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*lod level=*/0, /*get optimised mesh=*/true, /*opt mesh version=*/1) == "something_5345345435_opt1.bmesh");
-	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*lod level=*/0, /*get optimised mesh=*/true, /*opt mesh version=*/9) == "something_5345345435_opt9.bmesh");
-	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*lod level=*/0, /*get optimised mesh=*/true, /*opt mesh version=*/10) == "something_5345345435_opt10.bmesh");
-	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*lod level=*/0, /*get optimised mesh=*/true, /*opt mesh version=*/11) == "something_5345345435_opt11.bmesh");
-	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*lod level=*/0, /*get optimised mesh=*/true, /*opt mesh version=*/99) == "something_5345345435_opt99.bmesh");
-	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*lod level=*/0, /*get optimised mesh=*/true, /*opt mesh version=*/100) == "something_5345345435_opt100.bmesh");
+	// Test with min lod level = -1
+	testAssert(makeOptimisedMeshURL("something_5345345435",       /*min lod level=*/-1, /*lod level=*/-1, /*get optimised mesh=*/false, /*opt mesh version=*/1) == "something_5345345435.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/-1, /*lod level=*/-1, /*get optimised mesh=*/false, /*opt mesh version=*/1) == "something_5345345435.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435",       /*min lod level=*/-1, /*lod level=*/0, /*get optimised mesh=*/false, /*opt mesh version=*/1) == "something_5345345435_lod0.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/-1, /*lod level=*/0, /*get optimised mesh=*/false, /*opt mesh version=*/1) == "something_5345345435_lod0.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/-1, /*lod level=*/1, /*get optimised mesh=*/false, /*opt mesh version=*/1) == "something_5345345435_lod1.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/-1, /*lod level=*/2, /*get optimised mesh=*/false, /*opt mesh version=*/1) == "something_5345345435_lod2.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/-1, /*lod level=*/2, /*get optimised mesh=*/true, /*opt mesh version=*/1) == "something_5345345435_lod2_opt1.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/-1, /*lod level=*/2, /*get optimised mesh=*/true, /*opt mesh version=*/123) == "something_5345345435_lod2_opt123.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/-1, /*lod level=*/0, /*get optimised mesh=*/true, /*opt mesh version=*/123) == "something_5345345435_lod0_opt123.bmesh");
+
+
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/0, /*lod level=*/0, /*get optimised mesh=*/true, /*opt mesh version=*/0) == "something_5345345435_opt0.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/0, /*lod level=*/0, /*get optimised mesh=*/true, /*opt mesh version=*/1) == "something_5345345435_opt1.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/0, /*lod level=*/0, /*get optimised mesh=*/true, /*opt mesh version=*/9) == "something_5345345435_opt9.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/0, /*lod level=*/0, /*get optimised mesh=*/true, /*opt mesh version=*/10) == "something_5345345435_opt10.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/0, /*lod level=*/0, /*get optimised mesh=*/true, /*opt mesh version=*/11) == "something_5345345435_opt11.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/0, /*lod level=*/0, /*get optimised mesh=*/true, /*opt mesh version=*/99) == "something_5345345435_opt99.bmesh");
+	testAssert(makeOptimisedMeshURL("something_5345345435.bmesh", /*min lod level=*/0, /*lod level=*/0, /*get optimised mesh=*/true, /*opt mesh version=*/100) == "something_5345345435_opt100.bmesh");
 
 
 	//---------------------------- Test getLODModelURLForLevel ----------------------------
-	testAssert(getLODModelURLForLevel("base", /*lod level=*/0, GetLODModelURLOptions(/*get optimised mesh=*/false, /*opt mesh version=*/1)) == "base");
-	testAssert(getLODModelURLForLevel("base", /*lod level=*/1, GetLODModelURLOptions(/*get optimised mesh=*/false, /*opt mesh version=*/1)) == "base_lod1.bmesh");
-	testAssert(getLODModelURLForLevel("base", /*lod level=*/2, GetLODModelURLOptions(/*get optimised mesh=*/false, /*opt mesh version=*/1)) == "base_lod2.bmesh");
+	testAssert(getLODModelURLForLevel("base", /*min lod level=*/0, /*lod level=*/0, GetLODModelURLOptions(/*get optimised mesh=*/false, /*opt mesh version=*/1)) == "base");
+	testAssert(getLODModelURLForLevel("base", /*min lod level=*/0, /*lod level=*/1, GetLODModelURLOptions(/*get optimised mesh=*/false, /*opt mesh version=*/1)) == "base_lod1.bmesh");
+	testAssert(getLODModelURLForLevel("base", /*min lod level=*/0, /*lod level=*/2, GetLODModelURLOptions(/*get optimised mesh=*/false, /*opt mesh version=*/1)) == "base_lod2.bmesh");
 
-	testAssert(getLODModelURLForLevel("base", /*lod level=*/0, GetLODModelURLOptions(/*get optimised mesh=*/true, /*opt mesh version=*/7)) == "base_opt7.bmesh");
-	testAssert(getLODModelURLForLevel("base", /*lod level=*/0, GetLODModelURLOptions(/*get optimised mesh=*/true, /*opt mesh version=*/89)) == "base_opt89.bmesh");
-	testAssert(getLODModelURLForLevel("base", /*lod level=*/1, GetLODModelURLOptions(/*get optimised mesh=*/true, /*opt mesh version=*/89)) == "base_lod1_opt89.bmesh");
-	testAssert(getLODModelURLForLevel("base", /*lod level=*/2, GetLODModelURLOptions(/*get optimised mesh=*/true, /*opt mesh version=*/89)) == "base_lod2_opt89.bmesh");
+	testAssert(getLODModelURLForLevel("base", /*min lod level=*/0, /*lod level=*/0, GetLODModelURLOptions(/*get optimised mesh=*/true, /*opt mesh version=*/7)) == "base_opt7.bmesh");
+	testAssert(getLODModelURLForLevel("base", /*min lod level=*/0, /*lod level=*/0, GetLODModelURLOptions(/*get optimised mesh=*/true, /*opt mesh version=*/89)) == "base_opt89.bmesh");
+	testAssert(getLODModelURLForLevel("base", /*min lod level=*/0, /*lod level=*/1, GetLODModelURLOptions(/*get optimised mesh=*/true, /*opt mesh version=*/89)) == "base_lod1_opt89.bmesh");
+	testAssert(getLODModelURLForLevel("base", /*min lod level=*/0, /*lod level=*/2, GetLODModelURLOptions(/*get optimised mesh=*/true, /*opt mesh version=*/89)) == "base_lod2_opt89.bmesh");
 
+	// Test with min lod level = -1
+	testAssert(getLODModelURLForLevel("base", /*min lod level=*/-1, /*lod level=*/-1, GetLODModelURLOptions(/*get optimised mesh=*/false, /*opt mesh version=*/1)) == "base");
+	testAssert(getLODModelURLForLevel("base", /*min lod level=*/-1, /*lod level=*/0,  GetLODModelURLOptions(/*get optimised mesh=*/false, /*opt mesh version=*/1)) == "base_lod0.bmesh");
+	testAssert(getLODModelURLForLevel("base", /*min lod level=*/-1, /*lod level=*/1,  GetLODModelURLOptions(/*get optimised mesh=*/false, /*opt mesh version=*/1)) == "base_lod1.bmesh");
+	testAssert(getLODModelURLForLevel("base", /*min lod level=*/-1, /*lod level=*/2,  GetLODModelURLOptions(/*get optimised mesh=*/false, /*opt mesh version=*/1)) == "base_lod2.bmesh");
+
+	testAssert(getLODModelURLForLevel("base", /*min lod level=*/-1, /*lod level=*/-1, GetLODModelURLOptions(/*get optimised mesh=*/true, /*opt mesh version=*/7))  == "base_opt7.bmesh");
+	testAssert(getLODModelURLForLevel("base", /*min lod level=*/-1, /*lod level=*/0, GetLODModelURLOptions(/*get optimised mesh=*/true, /*opt mesh version=*/7))  == "base_lod0_opt7.bmesh");
+	testAssert(getLODModelURLForLevel("base", /*min lod level=*/-1, /*lod level=*/0, GetLODModelURLOptions(/*get optimised mesh=*/true, /*opt mesh version=*/89)) == "base_lod0_opt89.bmesh");
+	testAssert(getLODModelURLForLevel("base", /*min lod level=*/-1, /*lod level=*/1, GetLODModelURLOptions(/*get optimised mesh=*/true, /*opt mesh version=*/89)) == "base_lod1_opt89.bmesh");
+	testAssert(getLODModelURLForLevel("base", /*min lod level=*/-1, /*lod level=*/2, GetLODModelURLOptions(/*get optimised mesh=*/true, /*opt mesh version=*/89)) == "base_lod2_opt89.bmesh");
 
 	//----------------------------- Test getLODLevelForURL ----------------------------
-	testAssert(getLODLevelForURL("something_5345345435.bmesh") == 0);
+	// URLs without a _lodN suffix are at the minimum LOD level for the object using them, so -1 is returned for them.
+	testAssert(getLODLevelForURL("something_5345345435.bmesh") == -1);
+	testAssert(getLODLevelForURL("something_5345345435_lod0.bmesh") == 0);
+	testAssert(getLODLevelForURL("something_5345345435_lod0_opt1.bmesh") == 0);
+	testAssert(getLODLevelForURL("something_5345345435_opt1.bmesh") == -1);
 	testAssert(getLODLevelForURL("something_5345345435_lod1.bmesh") == 1);
 	testAssert(getLODLevelForURL("something_5345345435_lod2.bmesh") == 2);
 	testAssert(getLODLevelForURL("something_5345345435_lod2_opt1.bmesh") == 2);
@@ -2030,9 +2031,9 @@ void WorldObject::test()
 	testAssert(getLODLevelForURL("something_5345345435_lod2_opt3.bmesh") == 2);
 	testAssert(getLODLevelForURL("something_5345345435_lod2_opt123.bmesh") == 2);
 
-	testAssert(getLODLevelForURL("something_5345345435") == 0);
-	testAssert(getLODLevelForURL("something") == 0);
-	testAssert(getLODLevelForURL("") == 0);
+	testAssert(getLODLevelForURL("something_5345345435") == -1);
+	testAssert(getLODLevelForURL("something") == -1);
+	testAssert(getLODLevelForURL("") == -1);
 
 	try
 	{
