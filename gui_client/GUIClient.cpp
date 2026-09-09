@@ -12758,9 +12758,17 @@ void GUIClient::objectEdited()
 				removeAndDeleteGLAndPhysicsObjectsForOb(*this->selected_ob); // Remove old opengl and physics objects
 
 				const bool URL_is_local_path = FileUtils::fileExists(this->selected_ob->model_url);
-				const URLString optimised_mesh_URL = WorldObject::makeOptimisedMeshURL(/*base URL=*/this->selected_ob->model_url, this->selected_ob->minModelLODLevel(), /*lod level=*/0, /*get optimised mesh=*/this->server_has_optimised_meshes,
-					this->server_opt_mesh_version);
-				const std::string local_abs_mesh_path = URL_is_local_path ? toStdString(this->selected_ob->model_url) : resource_manager->pathForURL(optimised_mesh_URL);
+
+				// Load the model at the object's minimum (= highest detail) LOD level, since the loaded mesh is used to rebuild the physics shape,
+				// and (if the model URL changed) to compute the object space AABB.
+				// NOTE: the resulting URL is the same for min LOD level -1 and 0, so it doesn't matter that MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1 still
+				// describes the old mesh at this point (it's updated for the new mesh below).
+				const WorldObject::GetLODModelURLOptions url_options(/*get_optimised_mesh=*/this->server_has_optimised_meshes, this->server_opt_mesh_version);
+
+				const URLString base_lod_mesh_URL = WorldObject::getLODModelURLForLevel(this->selected_ob->model_url,
+					/*model min LOD level=*/this->selected_ob->minModelLODLevel(), /*model LOD level=*/this->selected_ob->minModelLODLevel(), url_options);
+
+				const std::string local_abs_mesh_path = URL_is_local_path ? toStdString(this->selected_ob->model_url) : resource_manager->pathForURL(base_lod_mesh_URL);
 
 				ModelLoading::MakeGLObjectResults results;
 				ModelLoading::makeGLObjectForModelFile(*opengl_engine, *opengl_engine->vert_buf_allocator, worker_allocator.ptr(), local_abs_mesh_path,
