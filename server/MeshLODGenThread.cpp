@@ -85,7 +85,7 @@ struct MeshLODGenThreadTexInfo
 struct MeshLODGenThreadMeshInfo
 {
 	size_t num_tris;
-	bool load_failed; // If true, the mesh could not be loaded, and num_tris is not valid.
+	bool load_succeeded; // If false, the mesh could not be loaded, and num_tris is not valid.
 };
 
 
@@ -310,58 +310,78 @@ static void checkForOptimisedMeshToGenerateForURL(const URLString& URL, Resource
 }
 
 
+// If the object has a LOD-able mesh, add the mesh URL to mesh_URLS_to_load.
+static void checkInsertMeshURLToLoad(WorldObject* ob, std::set<URLString>& mesh_URLS_to_load, WorldStateLock& /*lock*/)
+{
+	if((ob->object_type == WorldObject::ObjectType_Generic) && !ob->model_url.empty()) // Only consider the object types that have LOD-able meshes.
+		mesh_URLS_to_load.insert(ob->model_url);
+}
+
+
+// Try and load the mesh identified by mesh_url, insert load result and number of triangles in mesh into mesh_info.
+static MeshLODGenThreadMeshInfo buildMeshInfoForMeshURL(ServerAllWorldsState* world_state, const URLString& mesh_url, std::map<URLString, MeshLODGenThreadMeshInfo>& mesh_info)
+{
+	MeshLODGenThreadMeshInfo info;
+	info.num_tris = 0;
+	info.load_succeeded = false;
+
+	try
+	{
+		ResourceRef base_resource = world_state->resource_manager->getExistingResourceForURL(mesh_url);
+		if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
+		{
+			const std::string model_local_abs_path = world_state->resource_manager->getLocalAbsPathForResource(*base_resource);
+			
+			BatchedMeshRef batched_mesh = LODGeneration::loadModel(model_local_abs_path);
+
+			info.load_succeeded = true;
+			info.num_tris = batched_mesh->numIndices()/3;
+		}
+		else
+		{
+			// conPrint("not present");
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("MeshLODGenThread: buildMeshInfoForMeshURL: Failed to load mesh with URL: '" + toString(mesh_url) + "': " + e.what());
+	}
+
+	mesh_info[mesh_url] = info;
+	return info;
+}
+
+
 static void checkObjectFlags(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::map<URLString, MeshLODGenThreadMeshInfo>& mesh_info, WorldStateLock& lock)
 {
 	//-------------------------------------------- Check MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1 flag ---------------------------------------
-	if(ob->object_type == WorldObject::ObjectType_Generic) // Only consider the object types that have LOD-able meshes.
+	if((ob->object_type == WorldObject::ObjectType_Generic) && !ob->model_url.empty()) // Only consider the object types that have LOD-able meshes.
 	{
-		if(!ob->model_url.empty())
+		ResourceRef base_resource = world_state->resource_manager->getExistingResourceForURL(ob->model_url);
+		if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
 		{
-			ResourceRef base_resource = world_state->resource_manager->getExistingResourceForURL(ob->model_url);
-			if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
+			// Get num triangles in the mesh. Either get from cached mesh info, or if not in cache, load mesh and get from loaded mesh, then store in cache.
+			MeshLODGenThreadMeshInfo info;
+			auto res = mesh_info.find(ob->model_url);
+			if(res != mesh_info.end())
+				info = res->second;
+			else
+				info = buildMeshInfoForMeshURL(world_state, ob->model_url, mesh_info); // Inserts info into mesh_info also.
+
+			if(info.load_succeeded)
 			{
-				// Get num triangles in the mesh. Either get from cached mesh info, or if not in cache, load mesh and get from loaded mesh, then store in cache.
-				MeshLODGenThreadMeshInfo info;
-				auto res = mesh_info.find(ob->model_url);
-				if(res != mesh_info.end())
-					info = res->second;
-				else
+				const bool new_model_neg_1_lod_flag_is_set = info.num_tris > WorldObject::MIN_MODEL_LOD_LEVEL_NEG_1_TRI_THRESHOLD;
+
+				const bool model_neg_1_lod_flag_is_set = BitUtils::isBitSet(ob->flags, WorldObject::MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1);
+
+				if(new_model_neg_1_lod_flag_is_set != model_neg_1_lod_flag_is_set)
 				{
-					info.num_tris = 0;
-					info.load_failed = false;
-					try
-					{
-						const std::string model_local_abs_path = world_state->resource_manager->getLocalAbsPathForResource(*base_resource);
+					conPrint("Updating object MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1 flag for Ob " + ob->uid.toString() + " to " + boolToString(new_model_neg_1_lod_flag_is_set) +
+						" (model URL: '" + toString(ob->model_url) + "', num_tris: " + uInt64ToStringCommaSeparated(info.num_tris) + ")");
 
-						BatchedMeshRef batched_mesh = LODGeneration::loadModel(model_local_abs_path);
-
-						info.num_tris = batched_mesh->numIndices()/3;
-					}
-					catch(glare::Exception& e)
-					{
-						// Cache the failure as well, so we don't try to load the mesh again for each other object using it.
-						info.load_failed = true;
-						conPrint("MeshLODGenThread: checkObjectFlags: Failed to load mesh for ob " + ob->uid.toString() + " (model URL: '" + toString(ob->model_url) + "'): " + e.what());
-					}
-
-					mesh_info[ob->model_url] = info;
-				}
-
-				if(!info.load_failed)
-				{
-					const bool new_model_neg_1_lod_flag_is_set = info.num_tris > WorldObject::MIN_MODEL_LOD_LEVEL_NEG_1_TRI_THRESHOLD;
-
-					const bool model_neg_1_lod_flag_is_set = BitUtils::isBitSet(ob->flags, WorldObject::MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1);
-
-					if(new_model_neg_1_lod_flag_is_set != model_neg_1_lod_flag_is_set)
-					{
-						conPrint("Updating object MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1 flag for Ob " + ob->uid.toString() + " to " + boolToString(new_model_neg_1_lod_flag_is_set) +
-							" (model URL: '" + toString(ob->model_url) + "', num_tris: " + uInt64ToStringCommaSeparated(info.num_tris) + ")");
-
-						BitUtils::setOrZeroBit(ob->flags, WorldObject::MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1, /*should set=*/new_model_neg_1_lod_flag_is_set);
-						world->addWorldObjectAsDBDirty(ob, lock);
-						world_state->markAsChanged();
-					}
+					BitUtils::setOrZeroBit(ob->flags, WorldObject::MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1, /*should set=*/new_model_neg_1_lod_flag_is_set);
+					world->addWorldObjectAsDBDirty(ob, lock);
+					world_state->markAsChanged();
 				}
 			}
 		}
@@ -739,13 +759,31 @@ void MeshLODGenThread::doRun()
 			// conPrint("MeshLODGenThread: Iterating over world object(s)...");
 			Timer timer;
 			
+			if(do_initial_full_scan)
 			{
-				WorldStateLock lock(world_state->mutex);
+				// For checking object flags, first populate the mesh_info cache without holding the lock while loading meshes.
 
-				// markOptimisedMeshesAsNotPresent(world_state);
-
-				if(do_initial_full_scan)
+				// Build mesh_URLS_to_load
+				std::set<URLString> mesh_URLS_to_load;
 				{
+					WorldStateLock lock(world_state->mutex);
+					for(auto world_it = world_state->world_states.begin(); world_it != world_state->world_states.end(); ++world_it)
+					{
+						ServerWorldState* world = world_it->second.ptr();
+						for(auto it = world->getObjects(lock).begin(); it != world->getObjects(lock).end(); ++it)
+							checkInsertMeshURLToLoad(/*ob=*/it->second.ptr(), mesh_URLS_to_load, lock);
+					}
+				}
+
+				// Populate mesh_info cache without holding the lock
+				{
+					for(auto it = mesh_URLS_to_load.begin(); it != mesh_URLS_to_load.end(); ++it)
+						buildMeshInfoForMeshURL(world_state, /*mesh URL=*/*it, mesh_info);
+				}
+
+				{
+					WorldStateLock lock(world_state->mutex);
+
 					for(auto world_it = world_state->world_states.begin(); world_it != world_state->world_states.end(); ++world_it)
 					{
 						ServerWorldState* world = world_it->second.ptr();
@@ -802,45 +840,47 @@ void MeshLODGenThread::doRun()
 
 						checkForBasisTexturesToGenerateForMaterials(world_state, user->avatar_settings.materials, lod_URLs_considered, basis_textures_to_gen);
 					}
-
-					do_initial_full_scan = false;
 				}
-				else
+				
+				do_initial_full_scan = false;
+			}
+			else
+			{
+				WorldStateLock lock(world_state->mutex);
+
+				for(auto it = obs_to_scan_UIDs.begin(); it != obs_to_scan_UIDs.end(); ++it)
 				{
-					for(auto it = obs_to_scan_UIDs.begin(); it != obs_to_scan_UIDs.end(); ++it)
+					const UID ob_to_scan_UID = *it;
+					// Look up object for UID
+					for(auto world_it = world_state->world_states.begin(); world_it != world_state->world_states.end(); ++world_it)
 					{
-						const UID ob_to_scan_UID = *it;
-						// Look up object for UID
-						for(auto world_it = world_state->world_states.begin(); world_it != world_state->world_states.end(); ++world_it)
+						ServerWorldState* world = world_it->second.ptr();
+						auto res = world->getObjects(lock).find(ob_to_scan_UID);
+						if(res != world->getObjects(lock).end())
 						{
-							ServerWorldState* world = world_it->second.ptr();
-							auto res = world->getObjects(lock).find(ob_to_scan_UID);
-							if(res != world->getObjects(lock).end())
+							WorldObject* ob = res->second.ptr();
+							try
 							{
-								WorldObject* ob = res->second.ptr();
-								try
-								{
-									checkObjectFlags(world_state, world, ob, mesh_info, lock);
-									checkForLODAndOptimisedMeshesToGenerate(world_state, world, ob, lod_URLs_considered, meshes_to_gen);
-									checkForLODTexturesToGenerate(world_state, world, ob, lod_URLs_considered, lod_textures_to_gen);
-									checkForBasisTexturesToGenerateForOb(world_state, ob, lod_URLs_considered, basis_textures_to_gen);
-								}
-								catch(glare::Exception& e)
-								{
-									conPrint("\tMeshLODGenThread: exception while processing object: " + e.what());
-								}
+								checkObjectFlags(world_state, world, ob, mesh_info, lock);
+								checkForLODAndOptimisedMeshesToGenerate(world_state, world, ob, lod_URLs_considered, meshes_to_gen);
+								checkForLODTexturesToGenerate(world_state, world, ob, lod_URLs_considered, lod_textures_to_gen);
+								checkForBasisTexturesToGenerateForOb(world_state, ob, lod_URLs_considered, basis_textures_to_gen);
+							}
+							catch(glare::Exception& e)
+							{
+								conPrint("\tMeshLODGenThread: exception while processing object: " + e.what());
 							}
 						}
 					}
-
-					for(auto it = URLs_to_check.begin(); it != URLs_to_check.end(); ++it)
-					{
-						const URLString URL_to_check = *it;
-						checkForBasisTexturesToGenerateForURL(URL_to_check, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
-						checkForOptimisedMeshToGenerateForURL(URL_to_check, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
-					}
 				}
-			} // End lock scope
+
+				for(auto it = URLs_to_check.begin(); it != URLs_to_check.end(); ++it)
+				{
+					const URLString URL_to_check = *it;
+					checkForBasisTexturesToGenerateForURL(URL_to_check, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
+					checkForOptimisedMeshToGenerateForURL(URL_to_check, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
+				}
+			}
 
 			if(!meshes_to_gen.empty() || !lod_textures_to_gen.empty() || !basis_textures_to_gen.empty())
 				conPrint("MeshLODGenThread: Iterating over objects took " + timer.elapsedStringNSigFigs(4) + ", meshes_to_gen: " + toString(meshes_to_gen.size()) + ", lod_textures_to_gen: " + toString(lod_textures_to_gen.size()) + 
