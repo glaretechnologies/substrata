@@ -22,7 +22,7 @@ class LoginDialog : public QDialog, public Ui_LoginDialog
 {
 	Q_OBJECT
 public:
-	LoginDialog(QSettings* settings, CredentialManager& credential_manager, const std::string& server_hostname);
+	LoginDialog(QSettings* settings, CredentialManager* credential_manager, const std::string& server_hostname);
 	~LoginDialog();
 
 	
@@ -33,4 +33,5 @@ private slots:;
 private:
 	std::string server_hostname;
 	QSettings* settings;
+	CredentialManager* credential_manager;
 };

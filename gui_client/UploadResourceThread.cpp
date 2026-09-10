@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2025 -
 #include "UploadResourceThread.h"
 
 
+#include "CredentialManager.h"
 #include "../shared/Protocol.h"
 #include <MySocket.h>
 #include <TLSSocket.h>
@@ -20,13 +21,12 @@ Copyright Glare Technologies Limited 2025 -
 
 
 UploadResourceThread::UploadResourceThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, ThreadSafeQueue<Reference<ResourceToUpload>>* upload_queue_,
-										const std::string& hostname_, int port_, const std::string& username_, const std::string& password_, struct tls_config* config_,
+										const std::string& hostname_, int port_, CredentialManager* credential_manager_, struct tls_config* config_,
 										glare::AtomicInt* num_resources_uploading_)
 :	upload_queue(upload_queue_),
 	hostname(hostname_),
+	credential_manager(credential_manager_),
 	port(port_),
-	username(username_),
-	password(password_),
 	config(config_),
 	num_resources_uploading(num_resources_uploading_)
 {}
@@ -141,7 +141,13 @@ void UploadResourceThread::doRun()
 				if(server_protocol_version >= 43)
 					server_mesh_optimisation_version = socket->readInt32();
 
-				// Send login details
+				// Send login details.  Get the credentials now, instead of when this thread was created, so that we use the credentials of the user that is currently logged in.
+				std::string username, password;
+				if(credential_manager)
+				{
+					username = credential_manager->getUsernameForDomain(hostname);
+					password = credential_manager->getDecryptedPasswordForDomain(hostname);
+				}
 				socket->writeStringLengthFirst(username);
 				socket->writeStringLengthFirst(password);
 

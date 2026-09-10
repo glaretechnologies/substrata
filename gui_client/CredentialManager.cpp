@@ -13,12 +13,15 @@ Copyright Glare Technologies Limited 2021 -
 #include <AESEncryption.h>
 #include <Base64.h>
 #include <Exception.h>
+#include <Lock.h>
 
 
 
 #if USE_QT // TEMP HACK REFACTOR TODO
 void CredentialManager::loadFromSettings(QSettings& settings)
 {
+	Lock lock(mutex);
+
 	credentials.clear();
 
 	// See if we have the old LoginDialog/username key
@@ -54,6 +57,8 @@ void CredentialManager::loadFromSettings(QSettings& settings)
 
 void CredentialManager::saveToSettings(QSettings& settings)
 {
+	Lock lock(mutex);
+
 	// See https://doc.qt.io/qt-5/qsettings.html#beginWriteArray
 	settings.beginWriteArray("credentials");
 
@@ -76,6 +81,8 @@ void CredentialManager::saveToSettings(QSettings& settings)
 
 std::string CredentialManager::getUsernameForDomain(const std::string& domain)
 {
+	Lock lock(mutex);
+
 	auto res = credentials.find(domain);
 	if(res != credentials.end())
 		return res->second.username;
@@ -86,6 +93,8 @@ std::string CredentialManager::getUsernameForDomain(const std::string& domain)
 
 std::string CredentialManager::getDecryptedPasswordForDomain(const std::string& domain)
 {
+	Lock lock(mutex);
+
 	auto res = credentials.find(domain);
 	if(res != credentials.end())
 		return decryptPassword(res->second.encrypted_password);
@@ -96,6 +105,8 @@ std::string CredentialManager::getDecryptedPasswordForDomain(const std::string& 
 
 void CredentialManager::setDomainCredentials(const std::string& domain, const std::string& username, const std::string& plaintext_password)
 {
+	Lock lock(mutex);
+
 	// Update fields in-place, to preserve any other credentials stored for this domain (such as the MCP API key).
 	DomainCredentials& cred = credentials[domain];
 	cred.domain = domain;

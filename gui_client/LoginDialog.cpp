@@ -16,9 +16,10 @@ LoginDialog.cpp
 #include "../qt/QtUtils.h"
 
 
-LoginDialog::LoginDialog(QSettings* settings_, CredentialManager& credential_manager, const std::string& server_hostname_)
+LoginDialog::LoginDialog(QSettings* settings_, CredentialManager* credential_manager_, const std::string& server_hostname_)
 :	settings(settings_),
-	server_hostname(server_hostname_)
+	server_hostname(server_hostname_),
+	credential_manager(credential_manager_)
 {
 	setupUi(this);
 
@@ -29,8 +30,8 @@ LoginDialog::LoginDialog(QSettings* settings_, CredentialManager& credential_man
 	this->restoreGeometry(settings->value("LoginDialog/geometry").toByteArray());
 
 
-	this->usernameLineEdit->setText(QtUtils::toQString(credential_manager.getUsernameForDomain(server_hostname)));
-	this->passwordLineEdit->setText(QtUtils::toQString(credential_manager.getDecryptedPasswordForDomain(server_hostname)));
+	this->usernameLineEdit->setText(QtUtils::toQString(credential_manager->getUsernameForDomain(server_hostname)));
+	this->passwordLineEdit->setText(QtUtils::toQString(credential_manager->getDecryptedPasswordForDomain(server_hostname)));
 
 	this->buttonBox->button(QDialogButtonBox::Ok)->setText("Log in");
 
@@ -49,12 +50,11 @@ LoginDialog::~LoginDialog()
 
 void LoginDialog::accepted()
 {
-	CredentialManager manager;
-	manager.loadFromSettings(*settings);
+	// Update the credential manager that the rest of the program uses (for resource uploads etc.), not just the saved settings,
+	// otherwise those will keep using the credentials that were loaded at startup.
+	credential_manager->setDomainCredentials(server_hostname, QtUtils::toStdString(this->usernameLineEdit->text()), QtUtils::toStdString(this->passwordLineEdit->text()));
 
-	manager.setDomainCredentials(server_hostname, QtUtils::toStdString(this->usernameLineEdit->text()), QtUtils::toStdString(this->passwordLineEdit->text()));
-
-	manager.saveToSettings(*settings);
+	credential_manager->saveToSettings(*settings);
 
 	settings->setValue("LoginDialog/auto_login", true);
 }

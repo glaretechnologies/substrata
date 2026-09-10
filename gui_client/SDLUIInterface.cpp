@@ -373,6 +373,11 @@ std::string SDLUIInterface::getDecryptedPasswordForDomain(const std::string& dom
 	return std::string();
 }
 
+CredentialManager* SDLUIInterface::getCredentialManager()
+{
+	return NULL; // The SDL client doesn't store credentials.
+}
+
 bool SDLUIInterface::inScreenshotTakingMode()
 {
 	return false;

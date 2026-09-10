@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <string>
 class WorldObject;
 class Parcel;
+class CredentialManager;
 
 
 /*=====================================================================
@@ -124,6 +125,7 @@ public:
 	// Credential manager
 	virtual std::string getUsernameForDomain(const std::string& domain) = 0; // Returns empty string if no stored username for domain
 	virtual std::string getDecryptedPasswordForDomain(const std::string& domain) = 0; // Returns empty string if no stored password for domain
+	virtual CredentialManager* getCredentialManager() = 0; // May return NULL if this UI doesn't store credentials.  The returned manager must remain valid until the client is shut down.
 
 	virtual bool inScreenshotTakingMode() = 0;
 	virtual void takeScreenshot() = 0;

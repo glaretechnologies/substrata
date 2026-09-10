@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2025 -
 #include <SocketInterface.h>
 #include <string>
 struct tls_config;
+class CredentialManager;
 
 
 struct ResourceToUpload : public ThreadSafeRefCounted
@@ -29,8 +30,10 @@ Uploads resources to the server
 class UploadResourceThread : public MessageableThread
 {
 public:
+	// credential_manager may be NULL, in which case empty login details are sent to the server.
+	// Credentials are looked up for each upload, instead of being copied here, so that logging in as a different user takes effect without restarting the client.
 	UploadResourceThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, ThreadSafeQueue<Reference<ResourceToUpload>>* upload_queue, const std::string& hostname, int port,
-		const std::string& username, const std::string& password, struct tls_config* config, glare::AtomicInt* num_resources_uploading);
+		CredentialManager* credential_manager, struct tls_config* config, glare::AtomicInt* num_resources_uploading);
 	virtual ~UploadResourceThread();
 
 	virtual void doRun();
@@ -42,7 +45,7 @@ public:
 private:
 	ThreadSafeQueue<Reference<ResourceToUpload>>* upload_queue;
 	std::string hostname;
-	std::string username, password;
+	CredentialManager* credential_manager;
 	int port;
 	struct tls_config* config;
 	glare::AtomicInt* num_resources_uploading;

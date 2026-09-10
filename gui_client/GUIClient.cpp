@@ -9955,9 +9955,6 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				{
 					const std::string path = resource_manager->pathForURL(m->URL);
 
-					const std::string username = ui_interface->getUsernameForDomain(server_hostname);
-					const std::string password = ui_interface->getDecryptedPasswordForDomain(server_hostname);
-
 					this->num_resources_uploading++;
 #if EMSCRIPTEN
 					const size_t max_num_upload_threads = 1;
@@ -9967,7 +9964,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					if(resource_upload_thread_manager.getNumThreads() == 0)
 					{
 						for(size_t q=0; q<max_num_upload_threads; ++q)
-							resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, &upload_queue, server_hostname, server_port, username, password, this->client_tls_config, 
+							resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, &upload_queue, server_hostname, server_port, ui_interface->getCredentialManager(), this->client_tls_config,
 								&this->num_resources_uploading));
 					}
 

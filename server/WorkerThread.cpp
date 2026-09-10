@@ -196,7 +196,7 @@ void WorkerThread::handleResourceUploadConnection()
 
 		if(!client_user_id.valid())
 		{
-			conPrintIfNotFuzzing("\tLogin failed.");
+			conPrintIfNotFuzzing("handleResourceUploadConnection: Login failed.");
 			socket->writeUInt32(Protocol::LogInFailure); // Note that this is not a framed message.
 			socket->writeStringLengthFirst("Login failed.");
 

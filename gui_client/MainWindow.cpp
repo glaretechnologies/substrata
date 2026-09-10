@@ -3006,7 +3006,7 @@ void MainWindow::on_actionLogIn_triggered()
 		return;
 	}
 
-	LoginDialog dialog(settings, credential_manager, gui_client.server_hostname);
+	LoginDialog dialog(settings, &credential_manager, gui_client.server_hostname);
 	const int res = dialog.exec();
 	if(res == QDialog::Accepted)
 	{
@@ -4510,6 +4510,13 @@ std::string MainWindow::getUsernameForDomain(const std::string& domain)
 std::string MainWindow::getDecryptedPasswordForDomain(const std::string& domain)
 {
 	return credential_manager.getDecryptedPasswordForDomain(domain);
+}
+
+
+CredentialManager* MainWindow::getCredentialManager()
+{
+	// credential_manager is a member of MainWindow, and gui_client.shutdown(), which kills the upload threads, is called in MainWindow::closeEvent(), before MainWindow is destroyed.
+	return &credential_manager;
 }
 
 
