@@ -385,6 +385,7 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_d
 			gl_ob->mesh_data = MeshPrimitiveBuilding::makeCylinderMesh(*opengl_engine->vert_buf_allocator.ptr(), /*end_caps=*/false);
 
 			gl_ob->materials.resize(1);
+			gl_ob->materials[0].simple_double_sided = true; // Cylinder is viewed from the inside, so don't backface cull.
 			gl_ob->materials[0].albedo_linear_rgb = Colour3f(1,0,0);
 			//gl_ob->materials[0] = water_mat;
 
