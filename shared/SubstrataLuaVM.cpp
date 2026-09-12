@@ -1571,15 +1571,22 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 
 
 #if SERVER
+// Returns true if the string value changed, false otherwise.
 template <class StringType>
-static void assignStringWithSizeCheck(lua_State* state, int index, StringType& field, const char* field_name, size_t max_size)
+static bool assignStringWithSizeCheck(lua_State* state, int index, StringType& field, const char* field_name, size_t max_size)
 {
 	size_t new_len;
 	const char* new_string = LuaUtils::getStringPointerAndLen(state, index, new_len);
 	if(new_len > max_size)
 		throw glare::Exception("New " + std::string(field_name) + " length too long. (string had length " + toString(new_len) + ", max len is " + toString(max_size) + ")" + errorContextString(state));
 	
-	field.assign(new_string, new_len);
+	if(field != string_view(new_string, new_len))
+	{
+		field.assign(new_string, new_len);
+		return true;
+	}
+	else
+		return false;
 }
 #endif
 
@@ -1621,6 +1628,7 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 
 	bool transform_changed = false;
 	bool other_changed = false;
+	bool specific_dirty_flag_set = false;
 
 	int atom = -1;
 	const char* key_str = LuaUtils::getStringAndAtom(state, /*index=*/2, atom);
@@ -1629,21 +1637,27 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 	case Atom_model_url:
 		assert(stringEqual(key_str, "model_url"));
 
-		assignStringWithSizeCheck(state, /*index=*/3, /*field=*/ob->model_url, /*field name=*/"model_url", /*max size=*/WorldObject::MAX_URL_SIZE);
-		ob->from_remote_model_url_dirty = true; // TODO: rename
+		if(assignStringWithSizeCheck(state, /*index=*/3, /*field=*/ob->model_url, /*field name=*/"model_url", /*max size=*/WorldObject::MAX_URL_SIZE))
+		{
+			ob->from_remote_model_url_dirty = true;
+			specific_dirty_flag_set = true;
+		}
 
-#if SERVER
-		script_evaluator->world_state->getDirtyFromRemoteObjects(*script_evaluator->cur_world_state_lock).insert(ob);
-#endif
 		break;
 	case Atom_pos:
+		{
 		assert(stringEqual(key_str, "pos"));
-		ob->pos = LuaUtils::getVec3d(state, /*index=*/3);
-		transform_changed = true;
+		const Vec3d new_pos = LuaUtils::getVec3d(state, /*index=*/3);
+		if(ob->pos != new_pos)
+		{
+			ob->pos = new_pos;
+			transform_changed = true;
+		}
 		break;
+		}
 	case Atom_axis:
 		assert(stringEqual(key_str, "axis"));
-		ob->axis = LuaUtils::getVec3f(state, /*index=*/3);
+		ob->axis = LuaUtils::getVec3f(state, /*index=*/3); // TODO: check value actually changed, likewise for other fields below.
 		transform_changed = true;
 		break;
 	case Atom_angle:
@@ -1673,20 +1687,19 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		{
 		assert(stringEqual(key_str, "content"));
 
-		assignStringWithSizeCheck(state, /*index=*/3, /*field=*/ob->content, /*field name=*/"content", /*max size=*/WorldObject::MAX_CONTENT_SIZE);
-
-		ob->from_remote_content_dirty = true; // TODO: rename
-		script_evaluator->world_state->getDirtyFromRemoteObjects(*script_evaluator->cur_world_state_lock).insert(ob);
+		if(assignStringWithSizeCheck(state, /*index=*/3, /*field=*/ob->content, /*field name=*/"content", /*max size=*/WorldObject::MAX_CONTENT_SIZE))
+		{
+			ob->from_remote_content_dirty = true;
+			specific_dirty_flag_set = true;
+		}
 		break;
 		}
 	case Atom_target_url:
 		{
 		assert(stringEqual(key_str, "target_url"));
 
-		assignStringWithSizeCheck(state, /*index=*/3, /*field=*/ob->target_url, /*field name=*/"target_url", /*max size=*/WorldObject::MAX_URL_SIZE);
-
-		ob->from_remote_other_dirty = true; // TODO: rename
-		script_evaluator->world_state->getDirtyFromRemoteObjects(*script_evaluator->cur_world_state_lock).insert(ob);
+		if(assignStringWithSizeCheck(state, /*index=*/3, /*field=*/ob->target_url, /*field name=*/"target_url", /*max size=*/WorldObject::MAX_URL_SIZE))
+			other_changed = true;
 		break;
 		}
 	case Atom_video_autoplay:
@@ -1727,9 +1740,8 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 	case Atom_audio_source_url:
 		assert(stringEqual(key_str, "audio_source_url"));
 
-		assignStringWithSizeCheck(state, /*index=*/3, /*field=*/ob->audio_source_url, /*field name=*/"audio_source_url", /*max size=*/WorldObject::MAX_URL_SIZE);
-
-		other_changed = true;
+		if(assignStringWithSizeCheck(state, /*index=*/3, /*field=*/ob->audio_source_url, /*field name=*/"audio_source_url", /*max size=*/WorldObject::MAX_URL_SIZE)) // If changed:
+			other_changed = true;
 		break;
 	case Atom_audio_volume:
 		assert(stringEqual(key_str, "audio_volume"));
@@ -1749,16 +1761,21 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 	{
 		ob->last_transform_update_avatar_uid = std::numeric_limits<uint32>::max();
 		ob->from_remote_transform_dirty = true; // TODO: rename
-		script_evaluator->world_state->getDirtyFromRemoteObjects(*script_evaluator->cur_world_state_lock).insert(ob);
 	}
 	else if(other_changed)
 	{
 		ob->from_remote_other_dirty = true; // TODO: rename
-		script_evaluator->world_state->getDirtyFromRemoteObjects(*script_evaluator->cur_world_state_lock).insert(ob);
 	}
 
-	script_evaluator->world_state->addWorldObjectAsDBDirty(ob, *script_evaluator->cur_world_state_lock);
-	sub_lua_vm->server->world_state->markAsChanged();
+	if(transform_changed || other_changed || specific_dirty_flag_set)
+	{
+		// Add to dirty set so changes will be sent to clients
+		script_evaluator->world_state->getDirtyFromRemoteObjects(*script_evaluator->cur_world_state_lock).insert(ob);
+
+		// Update in the database
+		script_evaluator->world_state->addWorldObjectAsDBDirty(ob, *script_evaluator->cur_world_state_lock);
+		sub_lua_vm->server->world_state->markAsChanged();
+	}
 
 	return 0; // Count of returned values
 #endif
