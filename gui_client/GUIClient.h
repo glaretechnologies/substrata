@@ -460,7 +460,7 @@ public:
 	void assignLoadedOpenGLTexturesToMats(WorldObject* ob);
 
 	void handleUploadedMeshData(const URLString& lod_model_url, int loaded_model_lod_level, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, 
-		int voxel_subsample_factor, uint64 voxel_hash);
+		int voxel_subsample_factor);
 	void handleUploadedTexture(const OpenGLTextureKey& path, const URLString& URL, const OpenGLTextureRef& opengl_tex, const TextureDataRef& tex_data, const Map2DRef& terrain_map);
 
 	// Splat analogues of handleUploadedMeshData() and loadPresentObjectGraphicsAndPhysicsModels().
@@ -792,7 +792,6 @@ public:
 	URLString cur_loading_lod_model_url;
 	int cur_loading_model_lod_level;
 	bool cur_loading_dynamic_physics_shape;
-	uint64 cur_loading_voxel_hash;
 	int cur_loading_voxel_subsample_factor;
 	PhysicsShape cur_loading_physics_shape;
 
@@ -929,7 +928,6 @@ public:
 		bool dynamic_physics_shape;
 		PhysicsShape physics_shape;
 		int voxel_subsample_factor;
-		uint64 voxel_hash;
 	};
 	
 

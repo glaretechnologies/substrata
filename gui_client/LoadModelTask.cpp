@@ -123,7 +123,6 @@ void LoadModelTask::run(size_t thread_index)
 					msg->model_lod_level = model_lod_level;
 					msg->built_dynamic_physics_ob = false;
 					msg->subsample_factor = 1;
-					msg->voxel_hash = 0;
 					msg->index_data_src_offset_B = 0;
 					msg->total_geom_size_B = 0;
 					msg->vert_data_size_B = 0;
@@ -178,7 +177,6 @@ void LoadModelTask::run(size_t thread_index)
 				user_info->model_lod_level = model_lod_level;
 				user_info->built_dynamic_physics_ob = this->build_dynamic_physics_ob;
 				user_info->voxel_subsample_factor = subsample_factor;
-				user_info->voxel_hash = voxel_hash;
 
 				upload_msg->user_info = user_info;
 
@@ -203,7 +201,6 @@ void LoadModelTask::run(size_t thread_index)
 				msg->physics_shape = physics_shape;
 				msg->lod_model_url = lod_model_url;
 				msg->model_lod_level = model_lod_level;
-				msg->voxel_hash = voxel_hash;
 				msg->subsample_factor = subsample_factor;
 				msg->built_dynamic_physics_ob = this->build_dynamic_physics_ob;
 				msg->index_data_src_offset_B = index_data_src_offset_B;

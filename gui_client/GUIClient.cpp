@@ -2731,7 +2731,6 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 							load_model_task->resource_manager = resource_manager;
 							load_model_task->compressed_voxels = ob->getCompressedVoxels();
 							load_model_task->ob_to_world_matrix = obToWorldMatrix(*ob);
-							load_model_task->voxel_hash = hash;
 							load_model_task->mat_transparent = mat_transparent;
 							load_model_task->need_lightmap_uvs = !ob->lightmap_url.empty();
 							load_model_task->build_dynamic_physics_ob = ob->isDynamic();
@@ -4562,7 +4561,7 @@ struct CloserToCamComparator
 
 
 void GUIClient::handleUploadedMeshData(const URLString& lod_model_url, int loaded_model_lod_level, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, 
-	int voxel_subsample_factor, uint64 voxel_hash)
+	int voxel_subsample_factor)
 {
 	// conPrint("handleUploadedMeshData(): lod_model_url: " + lod_model_url);
 	ZoneScoped; // Tracy profiler
@@ -5143,7 +5142,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 				if(mesh_data_loading_progress.done())
 				{
 					handleUploadedMeshData(cur_loading_lod_model_url, cur_loading_model_lod_level, cur_loading_dynamic_physics_shape, cur_loading_mesh_data, cur_loading_physics_shape, 
-						cur_loading_voxel_subsample_factor, cur_loading_voxel_hash);
+						cur_loading_voxel_subsample_factor);
 
 					cur_loading_mesh_data = NULL;
 					cur_loading_lod_model_url.clear();
@@ -5206,7 +5205,6 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 						if(!message->gl_meshdata->vbo_handle.valid()) // Mesh data may already be loaded into OpenGL, in that case we don't need to start loading it.
 						{
 							this->cur_loading_mesh_data              = message->gl_meshdata;
-							this->cur_loading_voxel_hash             = message->voxel_hash;
 							this->cur_loading_voxel_subsample_factor = message->subsample_factor;
 							this->cur_loading_physics_shape          = message->physics_shape;
 							this->cur_loading_lod_model_url          = message->lod_model_url;
@@ -5317,7 +5315,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 					{
 						// Process the finished upload (assign mesh to objects etc.)
 						handleUploadedMeshData(loading_info.lod_model_url, loading_info.ob_model_lod_level, loading_info.dynamic_physics_shape, temp_uploaded_geom_infos[i].meshdata, loading_info.physics_shape,
-							loading_info.voxel_subsample_factor, loading_info.voxel_hash);
+							loading_info.voxel_subsample_factor);
 					}
 					catch(glare::Exception& e)
 					{
@@ -5445,7 +5443,6 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 				uploading_info->dynamic_physics_shape = message->built_dynamic_physics_ob;
 				uploading_info->physics_shape = message->physics_shape;
 				uploading_info->voxel_subsample_factor = message->subsample_factor;
-				uploading_info->voxel_hash = message->voxel_hash;
 
 				// Start asynchronous load from VBO
 				async_geom_loader.startUploadingGeometry(message->gl_meshdata, /*source VBO=*/vert_vbo, index_vbo, dummy_vert_vbo, dummy_index_vbo, 
@@ -10268,7 +10265,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 				// Process the finished upload (assign mesh to objects etc.)
 				handleUploadedMeshData(user_info->lod_model_url, user_info->model_lod_level, user_info->built_dynamic_physics_ob, m->meshdata, user_info->physics_shape,
-					user_info->voxel_subsample_factor, user_info->voxel_hash);
+					user_info->voxel_subsample_factor);
 			}
 			catch(glare::Exception& e)
 			{
