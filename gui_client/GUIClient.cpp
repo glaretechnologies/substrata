@@ -3007,18 +3007,19 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 	physics_shape_data->shapeDataBecameUsed();
 	ob->mesh_manager_shape_data = physics_shape_data; // Likewise for the physics mesh data.
 
-	const float current_time = (float)Clock::getTimeSinceInit();
-	const bool use_materialise_effect = ob->use_materialise_effect_on_load && (current_time - ob->materialise_effect_start_time < 2.0f);
-
-
 	assignLoadedOpenGLTexturesToMats(ob);
 
-	if(use_materialise_effect)
-		for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
-		{
-			ob->opengl_engine_ob->materials[z].materialise_effect = use_materialise_effect;
-			ob->opengl_engine_ob->materials[z].materialise_start_time = ob->materialise_effect_start_time;
-		}
+	if(ob->use_materialise_effect_on_load)
+	{
+		const float current_time = (float)Clock::getTimeSinceInit();
+		const bool use_materialise_effect = (current_time - ob->materialise_effect_start_time) < 2.0f;
+		if(use_materialise_effect)
+			for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
+			{
+				ob->opengl_engine_ob->materials[z].materialise_effect = use_materialise_effect;
+				ob->opengl_engine_ob->materials[z].materialise_start_time = ob->materialise_effect_start_time;
+			}
+	}
 
 
 	ob->loading_or_loaded_model_lod_level = ob_model_lod_level; // NOTE: probably not needed as should have been set when loading started
@@ -3041,7 +3042,6 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 		ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
 		ob->physics_object->scale = useScaleForWorldOb(ob->scale);
 
-		// TEMP HACK
 		ob->physics_object->motion_type = ob->isDynamic() ? PhysicsObject::MotionType_dynamic : ((!ob->script.empty()) ? PhysicsObject::MotionType_kinematic : PhysicsObject::MotionType_static);
 		ob->physics_object->is_sphere = isModelURLBuiltInIcosahedron(ob->model_url);
 		ob->physics_object->is_cube   = isModelURLBuiltInCube(       ob->model_url);
@@ -4625,7 +4625,7 @@ void GUIClient::handleUploadedMeshData(const URLString& lod_model_url, int loade
 			}
 		}
 
-		loading_model_URL_to_world_ob_UID_map.erase(model_loading_key); // Now that this model has been downloaded, remove from map
+		loading_model_URL_to_world_ob_UID_map.erase(res); // Now that this model has been downloaded, remove from map
 	}
 
 	// Assign the loaded model to any avatars waiting for this model:
@@ -4651,7 +4651,7 @@ void GUIClient::handleUploadedMeshData(const URLString& lod_model_url, int loade
 					// If we are using the default avatar, make sure this check doesn't fail due to getLODModelURLForLevel() appending "_optX" suffix.
 					{
 						const URLString current_desired_model_LOD_URL = av->getLODModelURLForLevel(av->avatar_settings.model_url, av_lod_level, options);
-						if((current_desired_model_LOD_URL == lod_model_url) || (av->avatar_settings.model_url == DEFAULT_AVATAR_MODEL_URL))
+						if((current_desired_model_LOD_URL == lod_model_url) || ((av->avatar_settings.model_url == DEFAULT_AVATAR_MODEL_URL) && hasPrefix(lod_model_url, DEFAULT_AVATAR_MODEL_URL)))
 						{
 							try
 							{
@@ -4684,6 +4684,8 @@ void GUIClient::handleUploadedMeshData(const URLString& lod_model_url, int loade
 				}
 			}
 		}
+
+		loading_model_URL_to_avatar_UID_map.erase(waiting_av_res);
 	}
 
 	// Assign to any LOD chunks using this model
