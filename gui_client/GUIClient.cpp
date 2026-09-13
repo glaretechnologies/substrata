@@ -3103,7 +3103,7 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 // Assign any loaded textures.
 void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const Reference<MeshData>& mesh_data)
 {
-	conPrint("GUIClient::loadPresentAvatarModel.  URL: " + toStdString(avatar->avatar_settings.model_url));
+	// conPrint("GUIClient::loadPresentAvatarModel.  URL: " + toStdString(avatar->avatar_settings.model_url));
 
 	avatar->graphics.destroy(*opengl_engine, *physics_world, /*destroy gear models=*/false);
 
@@ -7896,7 +7896,7 @@ void GUIClient::assignLODChunkSubMeshPlaceholderToOb(const LODChunk* chunk, Worl
 			}
 			else
 			{
-				conPrint("ERROR: invalid chunk sub-range");
+				// conPrint("ERROR: invalid chunk sub-range");
 			}
 		}
 	}
@@ -10328,13 +10328,9 @@ std::string GUIClient::getDiagnosticsString(bool do_graphics_diagnostics, bool d
 
 		if(selected_ob->opengl_engine_ob.nonNull())
 		{
+			msg += selected_ob->opengl_engine_ob->mesh_data->getDiagnosticsString();
 			msg += 
-				"num tris: " + uInt64ToStringCommaSeparated(selected_ob->opengl_engine_ob->mesh_data->getNumTris()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUIndicesMemUsage()) + ")\n" + 
-				"num verts: " + uInt64ToStringCommaSeparated(selected_ob->opengl_engine_ob->mesh_data->getNumVerts()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUVertMemUsage()) + ")\n" +
-				"num batches (draw calls): " + toString(selected_ob->opengl_engine_ob->mesh_data->batches.size()) + "\n" +
-				"num materials: " + toString(selected_ob->opengl_engine_ob->materials.size()) + "\n" +
-				"shading normals: " + boolToString(selected_ob->opengl_engine_ob->mesh_data->has_shading_normals) + "\n" + 
-				"vert colours: " + boolToString(selected_ob->opengl_engine_ob->mesh_data->has_vert_colours) + "\n";
+				"num materials: " + toString(selected_ob->opengl_engine_ob->materials.size()) + "\n";
 
 			if(!selected_ob->opengl_engine_ob->materials.empty() && !selected_ob->materials.empty())
 			{
@@ -13711,6 +13707,47 @@ void GUIClient::clearAllObjects()
 }
 
 
+// Throw away all data that is cached between connections: meshes, physics shapes, textures, animations, splat clouds.
+// All objects must have been removed from the OpenGL and physics engines first (e.g. with disconnectFromServerAndClearAllObjects()), otherwise
+// the cached items will still be in use, and so won't be freed.
+void GUIClient::clearCachedData()
+{
+	mesh_manager.clear();
+
+	animation_manager.clear();
+
+	splat_data_cache.clear();
+
+	if(biome_manager)
+		biome_manager->clearTexturesAndModels(); // Note: must be done before clearTextureCache(), so the biome textures are unused by the time we clear the texture cache.
+
+	if(opengl_engine.nonNull())
+		opengl_engine->clearTextureCache();
+
+	if(texture_server.nonNull())
+		texture_server->clear();
+
+	// Everything using the shared vertex and index buffers has been destroyed by this point, but the blocks they used are
+	// quarantined until the GPU has finished with them (see VertexBufferAllocator.h).  Since we're about to reload the
+	// world, wait for the GPU here and get the blocks back, so we start from empty buffers rather than reloading into
+	// what looks like a full, fragmented one.  A stall is fine here - we're in the middle of a force-refresh anyway.
+	if(opengl_engine.nonNull() && opengl_engine->vert_buf_allocator.nonNull())
+		opengl_engine->vert_buf_allocator->waitForGPUAndReleaseAllPendingFrees();
+}
+
+
+void GUIClient::forceRefresh(const URLParseResults& parse_res)
+{
+	// Do the disconnect process before clearing the cached data, so that the objects using the cached meshes and textures have been removed
+	// from the OpenGL and physics engines, and hence the cached items are unused and can be freed.
+	disconnectFromServerAndClearAllObjects();
+
+	clearCachedData();
+
+	connectToServer(parse_res);
+}
+
+
 void GUIClient::connectToServer(const URLParseResults& parse_res)
 {
 	ZoneScoped; // Tracy profiler
@@ -16906,7 +16943,14 @@ void GUIClient::keyPressed(KeyEvent& e)
 		url_parse_results.parsed_x = url_parse_results.parsed_y = url_parse_results.parsed_z = true;
 		url_parse_results.heading =  Maths::doubleMod(::radToDegree(this->cam_controller.getAngles().x), 360.0);
 
-		this->connectToServer(url_parse_results);
+		if(SHIFT_down)
+		{
+			// Shift + F5 does a force-refresh: like F5, but throws away all cached data first, so everything is loaded and built again from scratch.
+			showInfoNotification("Force-refreshing...");
+			this->forceRefresh(url_parse_results);
+		}
+		else
+			this->connectToServer(url_parse_results);
 	}
 }
 

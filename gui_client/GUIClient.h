@@ -410,8 +410,10 @@ public:
 
 	void disconnectFromServerAndClearAllObjects(); // Remove any WorldObjectRefs held by MainWindow.
 	void clearAllObjects();
+	void clearCachedData(); // Clear cached meshes, physics shapes, textures, animations etc.  All objects must have been removed first, e.g. with disconnectFromServerAndClearAllObjects().
 
 	void connectToServer(const URLParseResults& url_results);
+	void forceRefresh(const URLParseResults& url_results); // Reconnect to the server, after throwing away all cached data, so that everything is loaded and built again from scratch.
 	void changeToDifferentWorld(const URLParseResults& url_results);
 
 	void checkCreateResourceDownloadThreads(); // Create DownloadResourcesThread etc. if not created already and resource_manager is non-null.

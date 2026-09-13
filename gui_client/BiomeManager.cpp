@@ -35,6 +35,23 @@ BiomeManager::BiomeManager()
 //}
 
 
+// Throw away the textures and models loaded by initTexturesAndModels(), which will lazily load them again when needed.
+// The objects using them (the terrain scattering objects) must have been removed from the OpenGL and physics engines first.
+void BiomeManager::clearTexturesAndModels()
+{
+	elm_imposters_tex = NULL;
+	elm_bark_tex = NULL;
+	elm_leaf_tex = NULL;
+	elm_leaf_backface_tex = NULL;
+	elm_leaf_transmission_tex = NULL;
+	grass_tex = NULL;
+
+	elm_tree_mesh_render_data = NULL;
+	elm_tree_physics_shape = PhysicsShape();
+	elm_tree_gl_materials.clear();
+}
+
+
 void BiomeManager::initTexturesAndModels(const std::string& resources_dir_path, OpenGLEngine& opengl_engine, ResourceManager& resource_manager)
 {
 	const URLString quad_mesh_URL = "Quad_obj_17249492137259942610.bmesh";

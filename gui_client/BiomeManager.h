@@ -40,6 +40,9 @@ public:
 
 	void initTexturesAndModels(const std::string& resources_dir_path, OpenGLEngine& opengl_engine, ResourceManager& resource_manager);
 
+	// Throw away the textures and models loaded by initTexturesAndModels().  They will be loaded again by the next initTexturesAndModels() call.
+	void clearTexturesAndModels();
+
 	Reference<OpenGLTexture> elm_imposters_tex;
 	Reference<OpenGLTexture> elm_bark_tex;
 	Reference<OpenGLTexture> elm_leaf_tex;
