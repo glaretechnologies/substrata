@@ -783,6 +783,12 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 							Vec2f uv;
 							std::memcpy(&uv, &mesh->vertex_data[vert_stride_B * i + uv0_attr->offset_B], sizeof(Vec2f));
 
+							// Clamp UVs to some reasonable range, otherwise the 8-bit UV quantisation which is spread across the entire UV 
+							// range for the chunk can result in the coordinates 0 and 1 ending up as the same quantised value, which breaks texture mapping
+							// for most of the chunk.  The cost is the UV-clamped object will render incorrectly, but it should be worth the cost.
+							uv.x = myClamp(uv.x, -4.f, 4.f);
+							uv.y = myClamp(uv.y, -4.f, 4.f);
+
 							const half new_uv[2] = {half(uv.x), half(uv.y)};
 							std::memcpy(
 								/*dest=*/&combined_mesh->vertex_data[write_i_B + combined_mesh_vert_size * i + combined_mesh_uv0_offset_B], 
@@ -1315,13 +1321,13 @@ void ChunkGenThread::doRun()
 #if 0
 		{
 			WorldStateLock lock(all_worlds_state->mutex);
-			Reference<ServerWorldState> world_state = all_worlds_state->getRootWorldState();
-			//Reference<ServerWorldState> world_state = all_worlds_state->world_states["cryptovoxels"];
+			//Reference<ServerWorldState> world_state = all_worlds_state->getRootWorldState();
+			Reference<ServerWorldState> world_state = all_worlds_state->world_states["joblank"];
 			
 			//for(int x=-10; x<10; ++x)
 			//for(int y=-10; y<10; ++y)
 			int x = 0;
-			int y = 0;
+			int y = -2;
 			{
 				if(all_worlds_state->getRootWorldState()->getLODChunks(lock).count(Vec3i(x, y, 0)) != 0)
 				{
@@ -1407,7 +1413,7 @@ void ChunkGenThread::doRun()
 
 				// Copy combined mesh and texture array files into resource system.
 
-				const int MESH_EPOCH = 2; // This can be bumped to punch through caches, in particular if the optimised mesh needs to be rebuilt.
+				const int MESH_EPOCH = 5; // This can be bumped to punch through caches, in particular if the optimised mesh needs to be rebuilt.
 				// Note that because we store mesh_url in the LodChunk object, which is sent to clients, they will automatically pick up a new epoch version if it's incremented.
 
 				URLString mesh_URL;
