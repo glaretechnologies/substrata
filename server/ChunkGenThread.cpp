@@ -1036,7 +1036,7 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 
 			BatchedMesh::QuantiseOptions quantise_options;
 			quantise_options.pos_bits = 13;
-			quantise_options.uv_bits  = 8;
+			quantise_options.uv_bits  = 10;
 			combined_mesh = combined_mesh->buildQuantisedMesh(quantise_options);
 
 			const std::string opt_mesh_path = path + "_opt"; // The final optimised mesh URL will be computed later.
@@ -1413,7 +1413,7 @@ void ChunkGenThread::doRun()
 
 				// Copy combined mesh and texture array files into resource system.
 
-				const int MESH_EPOCH = 5; // This can be bumped to punch through caches, in particular if the optimised mesh needs to be rebuilt.
+				const int MESH_EPOCH = 8; // This can be bumped to punch through caches, in particular if the optimised mesh needs to be rebuilt.
 				// Note that because we store mesh_url in the LodChunk object, which is sent to clients, they will automatically pick up a new epoch version if it's incremented.
 
 				URLString mesh_URL;
