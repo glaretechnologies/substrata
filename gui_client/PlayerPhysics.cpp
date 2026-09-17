@@ -525,9 +525,9 @@ void PlayerPhysics::zeroMoveDesiredVel()
 }
 
 
-void PlayerPhysics::OnContactAdded(const JPH::CharacterVirtual *inCharacter, const JPH::BodyID &inBodyID2, const JPH::SubShapeID &inSubShapeID2, JPH::RVec3Arg inContactPosition, JPH::Vec3Arg inContactNormal, JPH::CharacterContactSettings &ioSettings)
+void PlayerPhysics::OnContactAdded(const JPH::CharacterVirtual *inCharacter, const JPH::CharacterContact &inContact, JPH::CharacterContactSettings &ioSettings)
 {
-	JPH::BodyLockRead lock(physics_system->GetBodyLockInterface(), inBodyID2);
+	JPH::BodyLockRead lock(physics_system->GetBodyLockInterface(), inContact.mBodyB);
 	if(lock.Succeeded())
 	{
 		const JPH::Body& body = lock.GetBody();
@@ -535,7 +535,7 @@ void PlayerPhysics::OnContactAdded(const JPH::CharacterVirtual *inCharacter, con
 		if(user_data != 0)
 		{
 			PhysicsObject* physics_ob = (PhysicsObject*)user_data;
-			contacted_events.push_back(ContactedEvent({physics_ob, inSubShapeID2, toVec3f(inContactPosition)}));
+			contacted_events.push_back(ContactedEvent({physics_ob, inContact.mSubShapeIDB, toVec3f(inContact.mPosition)}));
 		}
 	}
 }

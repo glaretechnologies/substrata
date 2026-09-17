@@ -36,6 +36,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <Jolt/Core/Factory.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Core/JobSystemThreadPool.h>
+#include <Jolt/Core/UnorderedSet.h>
 //#include <Jolt/Core/JobSystemSingleThreaded.h>
 #include <Jolt/Core/StreamWrapper.h>
 #include <Jolt/Physics/PhysicsSettings.h>
