@@ -527,9 +527,9 @@ void ModelLoading::makeGLObjectForModelFile(
 		const Matrix4f ob_to_world_matrix = Matrix4f::uniformScaleMatrix(use_scale);
 
 		const int subsample_factor = 1;
-		PhysicsShape physics_shape;
+		PhysicsShape physics_shape; // not used
 		Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeModelForVoxelGroup(results_out.voxels, subsample_factor, ob_to_world_matrix, /*task_manager,*/ &vert_buf_allocator, /*do opengl stuff=*/do_opengl_stuff, 
-			/*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, allocator, physics_shape);
+			/*need_lightmap_uvs=*/false, mat_transparent, PhysicsObject::ShapeType_box, allocator, physics_shape);
 
 		results_out.ob_to_world = ob_to_world_matrix;
 
@@ -586,9 +586,9 @@ void ModelLoading::makeGLObjectForModelFile(
 		const Matrix4f ob_to_world_matrix = Matrix4f::uniformScaleMatrix(use_scale);
 
 		const int subsample_factor = 1;
-		PhysicsShape physics_shape;
+		PhysicsShape physics_shape; // not used
 		Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeModelForVoxelGroup(results_out.voxels, subsample_factor, ob_to_world_matrix, /*task_manager,*/ &vert_buf_allocator, /*do opengl stuff=*/do_opengl_stuff, 
-			/*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, allocator, physics_shape);
+			/*need_lightmap_uvs=*/false, mat_transparent, PhysicsObject::ShapeType_box, allocator, physics_shape);
 
 		results_out.ob_to_world = ob_to_world_matrix;
 
@@ -1105,7 +1105,7 @@ void ModelLoading::setMaterialTexPathsForLODLevel(GLObject& gl_ob, int ob_lod_le
 
 
 Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndPhysicsShape(const std::string& model_path, ArrayRef<uint8> model_data_buf, VertexBufferAllocator* vert_buf_allocator, 
-	bool skip_opengl_calls, bool build_physics_ob, bool build_dynamic_physics_ob, const js::Vector<bool>& create_physics_tris_for_mat,
+	bool skip_opengl_calls, bool build_physics_ob, PhysicsObject::ShapeType physics_shape_type, const js::Vector<bool>& create_physics_tris_for_mat,
 	glare::Allocator* mem_allocator, PhysicsShape& physics_shape_out)
 {
 	// Load mesh from disk:
@@ -1172,7 +1172,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndPhysicsShape(cons
 	Reference<OpenGLMeshRenderData> gl_meshdata = GLMeshBuilding::buildBatchedMesh(vert_buf_allocator, batched_mesh, /*skip opengl calls=*/skip_opengl_calls);
 
 	if(build_physics_ob)
-		physics_shape_out = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*is dynamic=*/build_dynamic_physics_ob, mem_allocator, &create_physics_tris_for_mat);
+		physics_shape_out = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, physics_shape_type, mem_allocator, &create_physics_tris_for_mat);
 
 	return gl_meshdata;
 }
@@ -1654,7 +1654,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 
 
 Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, int subsample_factor, const Matrix4f& ob_to_world, 
-	VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, bool need_lightmap_uvs, const js::Vector<bool, 16>& mats_transparent, bool build_dynamic_physics_ob, 
+	VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, bool need_lightmap_uvs, const js::Vector<bool, 16>& mats_transparent, PhysicsObject::ShapeType physics_shape_type, 
 	glare::Allocator* mem_allocator, PhysicsShape& physics_shape_out)
 {
 	ZoneScoped; // Tracy profiler
@@ -1683,7 +1683,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	// Convert Indigo mesh to opengl data
 	Reference<OpenGLMeshRenderData> mesh_data = buildVoxelOpenGLMeshData(*indigo_mesh, mem_allocator);
 
-	physics_shape_out = PhysicsWorld::createJoltShapeForIndigoMesh(*indigo_mesh, build_dynamic_physics_ob, mem_allocator);
+	physics_shape_out = PhysicsWorld::createJoltShapeForIndigoMesh(*indigo_mesh, physics_shape_type, mem_allocator);
 
 	// Load rendering data into GPU mem if requested.
 	if(do_opengl_stuff)
@@ -1761,7 +1761,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, PhysicsObject::ShapeType_box, /*mem_allocator=*/NULL, physics_shape);
 
 		testAssert(data->getNumVerts()    == 8); // Verts can be shared due to no lightmap UVs.
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8); // Physics mesh verts are always shared, regardless of lightmap UVs on rendering mesh.
@@ -1783,7 +1783,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, PhysicsObject::ShapeType_box, /*mem_allocator=*/NULL, physics_shape);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8); // Physics mesh verts are always shared, regardless of lightmap UVs on rendering mesh.
@@ -1806,7 +1806,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, PhysicsObject::ShapeType_box, /*mem_allocator=*/NULL, physics_shape);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
@@ -1829,7 +1829,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, PhysicsObject::ShapeType_box, /*mem_allocator=*/NULL, physics_shape);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
@@ -1854,7 +1854,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, PhysicsObject::ShapeType_box, /*mem_allocator=*/NULL, physics_shape);
 
 		testAssert(data->getNumVerts()    == 8);
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
@@ -1877,7 +1877,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, PhysicsObject::ShapeType_box, /*mem_allocator=*/NULL, physics_shape);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
@@ -1901,7 +1901,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL,
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false , mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false , mat_transparent, PhysicsObject::ShapeType_box, /*mem_allocator=*/NULL, physics_shape);
 
 		testEqual(data->getNumVerts(), (size_t)(4 * 3));
 		//testAssert(physics_shape->raymesh->getNumVerts() == 4 * 3);
@@ -1924,7 +1924,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, PhysicsObject::ShapeType_box, /*mem_allocator=*/NULL, physics_shape);
 
 		testEqual(data->getNumVerts(), (size_t)32); // verts half way along the sides of the cuboid can be shared.
 		//testAssert(physics_shape->raymesh->getNumVerts() == 4 * 3);
@@ -1947,7 +1947,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, PhysicsObject::ShapeType_box, /*mem_allocator=*/NULL, physics_shape);
 
 		testEqual(data->getNumVerts(), (size_t)16);
 		testEqual(data->getNumTris(), (size_t)(2 * 6 * 2)); // Each voxel should have 6 faces,  * 2 voxels, * 2 triangles/face
@@ -2022,7 +2022,7 @@ void ModelLoading::test()
 
 					PhysicsShape physics_shape;
 					makeModelForVoxelGroup(group, /*subsample factor=*/1, /*ob to world=*/Matrix4f::identity(),
-						/*vert buf allocator=*/NULL, /*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, /*mem_allocator=*/NULL, physics_shape);
+						/*vert buf allocator=*/NULL, /*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, PhysicsObject::ShapeType_box, /*mem_allocator=*/NULL, physics_shape);
 
 					conPrint("Meshing of " + toString(group.voxels.size()) + " voxels with subsample_factor=1 took " + timer.elapsedString());
 					//conPrint("Resulting num tris: " + toString(data->triangles.size()));

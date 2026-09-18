@@ -98,7 +98,7 @@ void BiomeManager::initTexturesAndModels(const std::string& resources_dir_path, 
 		create_tris_for_mat[1] = false; // Don't create physics triangles for leaves.
 
 		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeGLMeshDataAndPhysicsShape(model_path, model_buffer,
-			opengl_engine.vert_buf_allocator.ptr(), /*skip opengl calls=*/false, /*build_physics_ob=*/true, /*build_dynamic_physics_ob=*/false, create_tris_for_mat, 
+			opengl_engine.vert_buf_allocator.ptr(), /*skip opengl calls=*/false, /*build_physics_ob=*/true, PhysicsObject::ShapeType_tri_mesh, create_tris_for_mat, 
 			opengl_engine.mem_allocator.ptr(), physics_shape);
 
 		elm_tree_physics_shape = physics_shape;

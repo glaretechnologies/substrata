@@ -122,7 +122,7 @@ Reference<PhysicsShapeData> MeshManager::insertPhysicsShape(const MeshManagerPhy
 	auto res = physics_shape_map.find(key);
 	if(res == physics_shape_map.end())
 	{
-		Reference<PhysicsShapeData> shape_data = new PhysicsShapeData(key.URL, key.dynamic_physics_shape, physics_shape, /*mesh_manager=*/this);
+		Reference<PhysicsShapeData> shape_data = new PhysicsShapeData(key.URL, key.shape_type, physics_shape, /*mesh_manager=*/this);
 
 		physics_shape_map.insert(std::make_pair(key, shape_data));
 
@@ -188,7 +188,7 @@ void MeshManager::physicsShapeDataBecameUsed(const PhysicsShapeData* shape_data)
 
 	//conPrint("physicsShapeDataBecameUsed(): '" + shape_data->model_url + "'");
 
-	physics_shape_map.itemBecameUsed(MeshManagerPhysicsShapeKey(shape_data->model_url, shape_data->dynamic));
+	physics_shape_map.itemBecameUsed(MeshManagerPhysicsShapeKey(shape_data->model_url, shape_data->shape_type));
 }
 
 
@@ -198,7 +198,7 @@ void MeshManager::physicsShapeDataBecameUnused(const PhysicsShapeData* shape_dat
 
 	//conPrint("physicsShapeDataBecameUnused(): '" + shape_data->model_url + "'");
 
-	physics_shape_map.itemBecameUnused(MeshManagerPhysicsShapeKey(shape_data->model_url, shape_data->dynamic));
+	physics_shape_map.itemBecameUnused(MeshManagerPhysicsShapeKey(shape_data->model_url, shape_data->shape_type));
 }
 
 

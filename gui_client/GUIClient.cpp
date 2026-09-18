@@ -590,7 +590,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		}
 		mesh->endOfModel();
 
-		hypercard_quad_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);
+		hypercard_quad_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, PhysicsObject::ShapeType_box);
 	}
 
 	hypercard_quad_opengl_mesh = MeshPrimitiveBuilding::makeQuadMesh(*opengl_engine->vert_buf_allocator, Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0), /*vert_res=*/2);
@@ -609,7 +609,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 		}
 		mesh->endOfModel();
 
-		text_quad_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);
+		text_quad_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, PhysicsObject::ShapeType_box);
 	}
 
 	// Make spotlight meshes
@@ -653,11 +653,11 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 
 		PhysicsShape single_voxel_shape;
 		Reference<OpenGLMeshRenderData> single_voxel_mesh_opengl_data = ModelLoading::makeModelForVoxelGroup(voxel_group, /*subsample_factor=*/1, /*ob_to_world_matrix=*/Matrix4f::identity(), /*vert_buf_allocator=*/opengl_engine->vert_buf_allocator.ptr(), 
-			/*do_opengl_stuff=*/true, need_lightmap_uvs, mat_transparent, /*build_dynamic_physics_ob=*/false, worker_allocator.ptr(), /*physics shape out=*/single_voxel_shape);
+			/*do_opengl_stuff=*/true, need_lightmap_uvs, mat_transparent, PhysicsObject::ShapeType_box, worker_allocator.ptr(), /*physics shape out=*/single_voxel_shape);
 
 		single_voxel_meshdata = new MeshData(/*url=*/"single voxel meshdata", single_voxel_mesh_opengl_data, &mesh_manager);
 
-		single_voxel_shapedata = new PhysicsShapeData(/*url=*/"single voxel shapedata", /*dynamic=*/false, single_voxel_shape, &mesh_manager);
+		single_voxel_shapedata = new PhysicsShapeData(/*url=*/"single voxel shapedata", PhysicsObject::ShapeType_box, single_voxel_shape, &mesh_manager);
 	}
 
 
@@ -1175,9 +1175,9 @@ bool GUIClient::checkAddTextureToProcessingSet(const OpenGLTextureKey& path)
 }
 
 
-bool GUIClient::checkAddModelToProcessingSet(const URLString& url, bool dynamic_physics_shape)
+bool GUIClient::checkAddModelToProcessingSet(const URLString& url, PhysicsObject::ShapeType physics_shape_type)
 {
-	ModelProcessingKey key(url, dynamic_physics_shape);
+	ModelProcessingKey key(url, physics_shape_type);
 	auto res = models_processing.insert(key);
 	return res.second; // Was model inserted? (will be false if already present in set)
 }
@@ -1537,7 +1537,7 @@ bool GUIClient::isResourceCurrentlyNeededForObjectGivenIsDependency(const URLStr
 	else if(StringUtils::equalCaseInsensitive(extension, "sog"))
 	{
 		// Splat clouds are cached in splat_data_cache rather than mesh_manager, and are never dynamic.
-		if(models_processing.count(ModelProcessingKey(url, /*dynamic_physics_shape=*/false)) > 0)
+		if(models_processing.count(ModelProcessingKey(url, PhysicsObject::ShapeType_tri_mesh)) > 0)
 			return false;
 		if(splat_data_cache.count(url) > 0)
 			return false;
@@ -1546,7 +1546,9 @@ bool GUIClient::isResourceCurrentlyNeededForObjectGivenIsDependency(const URLStr
 	{
 		if(ModelLoading::isSupportedModelExtension(extension))
 		{
-			if(models_processing.count(ModelProcessingKey(url, ob->isDynamic())) > 0)
+			const PhysicsObject::ShapeType shape_type = getShapeTypeWantedForOb(*ob); // Work out what kind of physics shape to build.
+
+			if(models_processing.count(ModelProcessingKey(url, shape_type)) > 0)
 				return false;
 			if(mesh_manager.getMeshData(url))
 				return false;
@@ -1754,7 +1756,9 @@ void GUIClient::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_l
 					info.texture_params.use_mipmaps = false;
 				}
 
-				info.build_dynamic_physics_ob = ob->isDynamic();
+				const PhysicsObject::ShapeType shape_type = getShapeTypeWantedForOb(*ob); // Work out what kind of physics shape to build.
+
+				info.physics_shape_type = shape_type;
 				info.pos = ob->pos;
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->getAABBWSLongestLength(), /*importance_factor=*/1.f);
 				info.using_objects.using_object_uids.push_back(ob->uid);
@@ -1805,7 +1809,7 @@ void GUIClient::startDownloadingResourcesForAvatar(Avatar* avatar, int ob_lod_le
 
 				DownloadingResourceInfo info;
 				info.texture_params.use_sRGB = url_info.use_sRGB;
-				info.build_dynamic_physics_ob = false;
+				info.physics_shape_type = PhysicsObject::ShapeType_tri_mesh; // Shouldn't be used
 				info.pos = avatar->pos;
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(/*aabb_ws_longest_len=*/1.8f, our_avatar_importance_factor);
 				info.used_by_other = true;
@@ -2696,8 +2700,10 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				{
 					const URLString pseudo_lod_model_url = toURLString("__voxel__" + toString(hash) + "_" + toString(ob_model_lod_level));
 
+					const PhysicsObject::ShapeType shape_type = getShapeTypeWantedForOb(*ob); // Work out what kind of physics shape to build.
+
 					Reference<MeshData>         mesh_data          = mesh_manager.getMeshData(pseudo_lod_model_url);
-					Reference<PhysicsShapeData> physics_shape_data = mesh_manager.getPhysicsShapeData(MeshManagerPhysicsShapeKey(pseudo_lod_model_url, ob->isDynamic()));
+					Reference<PhysicsShapeData> physics_shape_data = mesh_manager.getPhysicsShapeData(MeshManagerPhysicsShapeKey(pseudo_lod_model_url, shape_type));
 				
 					if(mesh_data && physics_shape_data)
 					{
@@ -2712,7 +2718,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 					}
 					else // else if mesh data is not in mesh manager:
 					{
-						const bool just_added = this->checkAddModelToProcessingSet(pseudo_lod_model_url, /*dynamic_physics_shape=*/ob->isDynamic()); // Avoid making multiple LoadModelTasks for this mesh.
+						const bool just_added = this->checkAddModelToProcessingSet(pseudo_lod_model_url, shape_type); // Avoid making multiple LoadModelTasks for this mesh.
 						if(just_added)
 						{
 							//conPrint("Making LoadModelTask for voxel " + pseudo_lod_model_url);
@@ -2733,7 +2739,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 							load_model_task->ob_to_world_matrix = obToWorldMatrix(*ob);
 							load_model_task->mat_transparent = mat_transparent;
 							load_model_task->need_lightmap_uvs = !ob->lightmap_url.empty();
-							load_model_task->build_dynamic_physics_ob = ob->isDynamic();
+							load_model_task->physics_shape_type = shape_type;
 							load_model_task->worker_allocator = worker_allocator;
 							load_model_task->upload_thread = opengl_upload_thread;
 
@@ -2745,7 +2751,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 					// If the mesh wasn't loaded onto the GPU yet, add this object to the wait list, for when the mesh is loaded.
 					if(!added_opengl_ob)
-						this->loading_model_URL_to_world_ob_UID_map[ModelProcessingKey(pseudo_lod_model_url, ob->isDynamic())].insert(ob->uid);
+						this->loading_model_URL_to_world_ob_UID_map[ModelProcessingKey(pseudo_lod_model_url, shape_type)].insert(ob->uid);
 				}
 			}
 			else
@@ -2804,8 +2810,10 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 				// print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", lod_model_url: " + lod_model_url);
 
+				const PhysicsObject::ShapeType shape_type = getShapeTypeWantedForOb(*ob); // Work out what kind of physics shape to build.
+
 				Reference<MeshData> mesh_data = mesh_manager.getMeshData(lod_model_url);
-				Reference<PhysicsShapeData> physics_shape_data = mesh_manager.getPhysicsShapeData(MeshManagerPhysicsShapeKey(lod_model_url, ob->isDynamic()));
+				Reference<PhysicsShapeData> physics_shape_data = mesh_manager.getPhysicsShapeData(MeshManagerPhysicsShapeKey(lod_model_url, shape_type));
 				if(mesh_data.nonNull() && physics_shape_data.nonNull())
 				{
 					const bool is_meshdata_loaded_into_opengl = mesh_data->gl_meshdata->vbo_handle.valid();
@@ -2820,7 +2828,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				{
 					if(resource_manager->isFileForURLPresent(lod_model_url))
 					{
-						const bool just_added = this->checkAddModelToProcessingSet(lod_model_url, /*dynamic_physics_shape=*/ob->isDynamic()); // Avoid making multiple LoadModelTasks for this mesh.
+						const bool just_added = this->checkAddModelToProcessingSet(lod_model_url, shape_type); // Avoid making multiple LoadModelTasks for this mesh.
 						if(just_added)
 						{
 							// Do the model loading in a different thread
@@ -2832,7 +2840,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 							load_model_task->opengl_engine = this->opengl_engine;
 							load_model_task->result_msg_queue = &this->msg_queue;
 							load_model_task->resource_manager = resource_manager;
-							load_model_task->build_dynamic_physics_ob = ob->isDynamic();
+							load_model_task->physics_shape_type = shape_type;
 							load_model_task->worker_allocator = worker_allocator;
 							load_model_task->upload_thread = opengl_upload_thread;
 							load_model_task->ob_to_world_matrix = obToWorldMatrix(*ob);
@@ -2846,7 +2854,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 
 				// If the mesh wasn't loaded onto the GPU yet, add this object to the wait list, for when the mesh is loaded.
 				if(!added_opengl_ob)
-					this->loading_model_URL_to_world_ob_UID_map[ModelProcessingKey(lod_model_url, ob->isDynamic())].insert(ob->uid);
+					this->loading_model_URL_to_world_ob_UID_map[ModelProcessingKey(lod_model_url, shape_type)].insert(ob->uid);
 
 				load_placeholder = !added_opengl_ob;
 			}
@@ -2881,7 +2889,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				}
 				else if(resource_manager->isFileForURLPresent(ob->model_url))
 				{
-					const bool just_added = this->checkAddModelToProcessingSet(ob->model_url, /*dynamic_physics_shape=*/false); // Avoid making multiple LoadModelTasks for this cloud.
+					const bool just_added = this->checkAddModelToProcessingSet(ob->model_url, /*shape (shouldn't be used)=*/PhysicsObject::ShapeType_tri_mesh); // Avoid making multiple LoadModelTasks for this cloud.
 					if(just_added)
 					{
 						// Decode the .sog in a different thread
@@ -2893,7 +2901,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 						load_model_task->opengl_engine = this->opengl_engine;
 						load_model_task->result_msg_queue = &this->msg_queue;
 						load_model_task->resource_manager = resource_manager;
-						load_model_task->build_dynamic_physics_ob = false;
+						load_model_task->physics_shape_type = PhysicsObject::ShapeType_tri_mesh; // not used
 						load_model_task->worker_allocator = worker_allocator;
 						// NOTE: upload_thread is deliberately left null: splat data has no geometry to upload, so the task
 						// returns its result directly via result_msg_queue.
@@ -2908,8 +2916,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				// If the cloud isn't loaded yet, add this object to the wait list.
 				if(!added_opengl_ob)
 				{
-					// Splat objects are never dynamic, so the processing key always uses dynamic_physics_shape = false.
-					const ModelProcessingKey key(ob->model_url, /*dynamic_physics_shape=*/false);
+					const ModelProcessingKey key(ob->model_url, /*shape (shouldn't be used)=*/PhysicsObject::ShapeType_tri_mesh);
 					this->loading_model_URL_to_world_ob_UID_map[key].insert(ob->uid);
 				}
 			}
@@ -3376,7 +3383,7 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 			{
 				if(resource_manager->isFileForURLPresent(lod_model_url))
 				{
-					const bool just_added = this->checkAddModelToProcessingSet(lod_model_url, /*dynamic_physics_shape=*/false); // Avoid making multiple LoadModelTasks for this mesh.
+					const bool just_added = this->checkAddModelToProcessingSet(lod_model_url, /*shape (shouldn't be used)=*/PhysicsObject::ShapeType_tri_mesh); // Avoid making multiple LoadModelTasks for this mesh.
 					if(just_added)
 					{
 						// Do the model loading in a different thread
@@ -3447,7 +3454,7 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 			{
 				if(resource_manager->isFileForURLPresent(lod_model_url))
 				{
-					const bool just_added = this->checkAddModelToProcessingSet(lod_model_url, /*dynamic_physics_shape=*/false); // Avoid making multiple LoadModelTasks for this mesh.
+					const bool just_added = this->checkAddModelToProcessingSet(lod_model_url, /*shape (shouldn't be used)=*/PhysicsObject::ShapeType_tri_mesh); // Avoid making multiple LoadModelTasks for this mesh.
 					if(just_added)
 					{
 						js::Vector<bool, 16> mat_transparent(gear_item->materials.size());
@@ -4560,7 +4567,7 @@ struct CloserToCamComparator
 
 
 
-void GUIClient::handleUploadedMeshData(const URLString& lod_model_url, int loaded_model_lod_level, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, 
+void GUIClient::handleUploadedMeshData(const URLString& lod_model_url, int loaded_model_lod_level, PhysicsObject::ShapeType physics_shape_type, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, 
 	int voxel_subsample_factor)
 {
 	// conPrint("handleUploadedMeshData(): lod_model_url: " + lod_model_url);
@@ -4568,13 +4575,13 @@ void GUIClient::handleUploadedMeshData(const URLString& lod_model_url, int loade
 
 	// Now that this model is loaded, remove from models_processing set.
 	// If the model is unloaded, then this will allow it to be reprocessed and reloaded.
-	ModelProcessingKey key(lod_model_url, dynamic_physics_shape);
+	ModelProcessingKey key(lod_model_url, physics_shape_type);
 	models_processing.erase(key);
 
 
 	// Add meshes to mesh manager
 	Reference<MeshData> the_mesh_data					= mesh_manager.insertMesh(lod_model_url, mesh_data);
-	Reference<PhysicsShapeData> physics_shape_data		= mesh_manager.insertPhysicsShape(MeshManagerPhysicsShapeKey(lod_model_url, /*is dynamic=*/dynamic_physics_shape), physics_shape);
+	Reference<PhysicsShapeData> physics_shape_data		= mesh_manager.insertPhysicsShape(MeshManagerPhysicsShapeKey(lod_model_url, physics_shape_type), physics_shape);
 
 	the_mesh_data->voxel_subsample_factor = voxel_subsample_factor;
 
@@ -4582,7 +4589,7 @@ void GUIClient::handleUploadedMeshData(const URLString& lod_model_url, int loade
 	// Data is uploaded - assign the loaded model for any objects using waiting for this model:
 	WorldStateLock lock(this->world_state->mutex);
 
-	const ModelProcessingKey model_loading_key(lod_model_url, dynamic_physics_shape);
+	const ModelProcessingKey model_loading_key(lod_model_url, physics_shape_type);
 	auto res = this->loading_model_URL_to_world_ob_UID_map.find(model_loading_key);
 	if(res != this->loading_model_URL_to_world_ob_UID_map.end())
 	{
@@ -4606,8 +4613,10 @@ void GUIClient::handleUploadedMeshData(const URLString& lod_model_url, int loade
 					// loaded_model_lod_level may be -1 just because the model URL had no _lodN suffix, in which case the model is at the minimum LOD level for this object.
 					const int loaded_level = myMax(loaded_model_lod_level, ob->minModelLODLevel());
 
+					const PhysicsObject::ShapeType wanted_ob_shape_type = this->getShapeTypeWantedForOb(*ob);
+
 					// Check the object wants this particular LOD level model right now:
-					if((ob_model_lod_level == loaded_level) && (ob->isDynamic() == dynamic_physics_shape))
+					if((ob_model_lod_level == loaded_level) && (wanted_ob_shape_type == physics_shape_type))
 					{
 						try
 						{
@@ -4720,8 +4729,7 @@ void GUIClient::handleLoadedGaussianSplat(const URLString& lod_model_url, const 
 	ZoneScoped; // Tracy profiler
 
 	// Now that this model is loaded, remove from models_processing set, so it can be reprocessed if it is unloaded later.
-	// Splat objects are never dynamic, so the key always uses dynamic_physics_shape = false.  See startDownloadingResourcesForObject().
-	const ModelProcessingKey key(lod_model_url, /*dynamic_physics_shape=*/false);
+	const ModelProcessingKey key(lod_model_url, /*shape type (shouldn't be used)=*/PhysicsObject::ShapeType_tri_mesh);
 	models_processing.erase(key);
 
 	splat_data_cache[lod_model_url] = splat_data;
@@ -5075,6 +5083,35 @@ void GUIClient::setOnlyLoadMostImportantObs(bool only_load_most_important_obs_)
 }
 
 
+// Work out what kind of physics collision shape to build.
+PhysicsObject::ShapeType GUIClient::getShapeTypeWantedForOb(const WorldObject& ob) const
+{
+	PhysicsObject::ShapeType shape_type = PhysicsObject::ShapeType_tri_mesh;
+
+	switch(ob.getPhysicsShapeType())
+	{
+	case WorldObject::PhysicsShapeType_auto:
+		shape_type = PhysicsObject::ShapeType_tri_mesh;
+		break;
+	case WorldObject::PhysicsShapeType_tri_mesh:
+		shape_type = PhysicsObject::ShapeType_tri_mesh;
+		break;
+	case WorldObject::PhysicsShapeType_convex_hull:
+		shape_type = PhysicsObject::ShapeType_convex_hull;
+		break;
+	case WorldObject::PhysicsShapeType_box:
+		shape_type = PhysicsObject::ShapeType_box;
+		break;
+	}
+
+	// Dynamic objects in Jolt cannot use tri-mesh shapes, so use convex hulls instead.
+	if(ob.isDynamic() && (shape_type == PhysicsObject::ShapeType_tri_mesh))
+		shape_type = PhysicsObject::ShapeType_convex_hull;
+
+	return shape_type;
+}
+
+
 void GUIClient::processLoading(Timer& timer_event_timer)
 {
 	ZoneScoped; // Tracy profiler
@@ -5143,7 +5180,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 
 				if(mesh_data_loading_progress.done())
 				{
-					handleUploadedMeshData(cur_loading_lod_model_url, cur_loading_model_lod_level, cur_loading_dynamic_physics_shape, cur_loading_mesh_data, cur_loading_physics_shape, 
+					handleUploadedMeshData(cur_loading_lod_model_url, cur_loading_model_lod_level, cur_loading_physics_shape_type, cur_loading_mesh_data, cur_loading_physics_shape, 
 						cur_loading_voxel_subsample_factor);
 
 					cur_loading_mesh_data = NULL;
@@ -5211,7 +5248,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 							this->cur_loading_physics_shape          = message->physics_shape;
 							this->cur_loading_lod_model_url          = message->lod_model_url;
 							this->cur_loading_model_lod_level        = message->model_lod_level;
-							this->cur_loading_dynamic_physics_shape  = message->built_dynamic_physics_ob;
+							this->cur_loading_physics_shape_type     = message->built_physics_shape_type;
 							opengl_engine->initialiseMeshDataLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
 
 							//logMessage("Initialised loading of mesh '" + message->lod_model_url + "': " + mesh_data_loading_progress.summaryString());
@@ -5316,7 +5353,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 					try
 					{
 						// Process the finished upload (assign mesh to objects etc.)
-						handleUploadedMeshData(loading_info.lod_model_url, loading_info.ob_model_lod_level, loading_info.dynamic_physics_shape, temp_uploaded_geom_infos[i].meshdata, loading_info.physics_shape,
+						handleUploadedMeshData(loading_info.lod_model_url, loading_info.ob_model_lod_level, loading_info.physics_shape_type, temp_uploaded_geom_infos[i].meshdata, loading_info.physics_shape,
 							loading_info.voxel_subsample_factor);
 					}
 					catch(glare::Exception& e)
@@ -5442,7 +5479,7 @@ void GUIClient::processLoading(Timer& timer_event_timer)
 				Reference<AsyncGeometryUploading> uploading_info = new AsyncGeometryUploading();
 				uploading_info->lod_model_url = message->lod_model_url;
 				uploading_info->ob_model_lod_level = message->model_lod_level;
-				uploading_info->dynamic_physics_shape = message->built_dynamic_physics_ob;
+				uploading_info->physics_shape_type = message->built_physics_shape_type;
 				uploading_info->physics_shape = message->physics_shape;
 				uploading_info->voxel_subsample_factor = message->subsample_factor;
 
@@ -6113,7 +6150,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				const LoadModelTask* task = static_cast<const LoadModelTask*>(item.task.ptr());
 				if(!task->lod_model_url.empty()) // Will be empty for voxel models
 				{
-					ModelProcessingKey key(task->lod_model_url, task->build_dynamic_physics_ob);
+					ModelProcessingKey key(task->lod_model_url, task->physics_shape_type);
 					//assert(models_processing.count(key) > 0);
 					models_processing.erase(key);
 				}
@@ -8031,7 +8068,7 @@ void GUIClient::updateLODChunkGraphics()
 					load_model_task->result_msg_queue = &this->msg_queue;
 					load_model_task->resource_manager = resource_manager;
 					load_model_task->build_physics_ob = false;
-					load_model_task->build_dynamic_physics_ob = false;
+					load_model_task->physics_shape_type = PhysicsObject::ShapeType_tri_mesh; // not used
 					load_model_task->worker_allocator = worker_allocator;
 					load_model_task->upload_thread = opengl_upload_thread;
 
@@ -10026,7 +10063,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 								if(URL_set.count(DependencyURL(m->URL)) != 0)
 								{
 									downloading_info.texture_params.use_sRGB = true; // TEMP HACK
-									downloading_info.build_dynamic_physics_ob = ob->isDynamic();
+									downloading_info.physics_shape_type = getShapeTypeWantedForOb(*ob);
 									downloading_info.pos = ob->pos;
 									downloading_info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->getAABBWSLongestLength(), /*importance_factor=*/1.f);
 									downloading_info.using_objects.using_object_uids.push_back(ob->uid);
@@ -10170,7 +10207,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 									load_model_task->result_msg_queue = &this->msg_queue;
 									load_model_task->resource_manager = resource_manager;
 									load_model_task->build_physics_ob = info.build_physics_ob;
-									load_model_task->build_dynamic_physics_ob = info.build_dynamic_physics_ob;
+									load_model_task->physics_shape_type = info.physics_shape_type;
 									load_model_task->loaded_buffer = m->loaded_buffer;
 									load_model_task->worker_allocator = worker_allocator;
 									load_model_task->upload_thread = opengl_upload_thread;
@@ -10266,7 +10303,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				opengl_engine->vert_buf_allocator->getOrCreateAndAssignVAOForMesh(*m->meshdata, m->meshdata->vertex_spec);
 
 				// Process the finished upload (assign mesh to objects etc.)
-				handleUploadedMeshData(user_info->lod_model_url, user_info->model_lod_level, user_info->built_dynamic_physics_ob, m->meshdata, user_info->physics_shape,
+				handleUploadedMeshData(user_info->lod_model_url, user_info->model_lod_level, user_info->built_physics_shape_type, m->meshdata, user_info->physics_shape,
 					user_info->voxel_subsample_factor);
 			}
 			catch(glare::Exception& e)
@@ -12692,10 +12729,12 @@ void GUIClient::objectEdited()
 				for(size_t i=0; i<selected_ob->materials.size(); ++i)
 					mat_transparent[i] = selected_ob->materials[i]->opacity.val < 1.f;
 
+				const PhysicsObject::ShapeType shape_type = getShapeTypeWantedForOb(*selected_ob);
+
 				PhysicsShape physics_shape;
 				const int subsample_factor = 1;
 				Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(selected_ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world,
-					opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/selected_ob->isDynamic(),
+					opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, shape_type,
 					worker_allocator.ptr(), 
 					physics_shape);
 
@@ -12823,7 +12862,9 @@ void GUIClient::objectEdited()
 				assert(selected_ob->physics_object.isNull());
 				selected_ob->physics_object = new PhysicsObject(/*collidable=*/selected_ob->isCollidable());
 
-				PhysicsShape use_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*results.batched_mesh, selected_ob->isDynamic(), worker_allocator.ptr());
+				const PhysicsObject::ShapeType shape_type = getShapeTypeWantedForOb(*selected_ob);
+
+				PhysicsShape use_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*results.batched_mesh, shape_type, worker_allocator.ptr());
 				if(selected_ob->centre_of_mass_offset_os != Vec3f(0.f))
 					use_shape = PhysicsWorld::createCOMOffsetShapeForShape(use_shape, selected_ob->centre_of_mass_offset_os.toVec4fVector());
 
@@ -14405,11 +14446,13 @@ void GUIClient::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob
 		for(size_t i=0; i<ob->materials.size(); ++i)
 			mat_transparent[i] = ob->materials[i]->opacity.val < 1.f;
 
+		const PhysicsObject::ShapeType shape_type = getShapeTypeWantedForOb(*selected_ob);
+
 		// Add updated model!
 		PhysicsShape physics_shape;
 		const int subsample_factor = 1;
 		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world,
-			opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/ob->isDynamic(),
+			opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, shape_type,
 			worker_allocator.ptr(),
 			physics_shape);
 

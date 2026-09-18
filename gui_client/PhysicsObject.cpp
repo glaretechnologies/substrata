@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include "PhysicsWorld.h"
+#include "JoltUtils.h"
 #include <simpleraytracer/ray.h>
 #include <utils/StringUtils.h>
 #include <utils/ConPrint.h>
@@ -14,10 +15,10 @@ Copyright Glare Technologies Limited 2022 -
 
 js::AABBox PhysicsShape::getAABBOS() const
 {
-	JPH::AABox aabb = jolt_shape->GetLocalBounds();
+	const JPH::AABox aabb = jolt_shape->GetLocalBounds();
 	return js::AABBox(
-		Vec4f(aabb.mMin.GetX(), aabb.mMin.GetY(), aabb.mMin.GetZ(), 1),
-		Vec4f(aabb.mMax.GetX(), aabb.mMax.GetY(), aabb.mMax.GetZ(), 1)
+		toVec4fPos(aabb.mMin),
+		toVec4fPos(aabb.mMax)
 	);
 }
 

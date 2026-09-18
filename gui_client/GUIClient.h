@@ -120,12 +120,12 @@ struct ResourceUserList
 
 struct DownloadingResourceInfo
 {
-	DownloadingResourceInfo() : build_physics_ob(true), build_dynamic_physics_ob(false), used_by_terrain(false), used_by_other(false) {}
+	DownloadingResourceInfo() : build_physics_ob(true), physics_shape_type(PhysicsObject::ShapeType_tri_mesh), used_by_terrain(false), used_by_other(false) {}
 
 	TextureParams texture_params; // For downloading textures.  We keep track of this so we can load e.g. metallic-roughness textures into the OpenGL engine without sRGB.
 
 	bool build_physics_ob; // For downloading meshes.  Will be set to false for LODChunks.
-	bool build_dynamic_physics_ob; // For downloading meshes.  Once the mesh is downloaded we need to know if we want to build the dynamic or static physics shape for it.
+	PhysicsObject::ShapeType physics_shape_type; // For downloading meshes.  Once the mesh is downloaded we need to know if we want to build the dynamic or static physics shape for it.
 
 	Vec3d pos; // Position of object using the resource
 	float size_factor;
@@ -368,7 +368,7 @@ public:
 	bool clampObjectPositionToParcelForNewTransform(const WorldObject& ob, const Vec3d& old_ob_pos,
 		const Matrix4f& tentative_to_world_matrix, js::Vector<EdgeMarker, 16>& edge_markers_out, Vec3d& new_ob_pos_out);
 	bool checkAddTextureToProcessingSet(const OpenGLTextureKey& path); // returns true if was not in processed set (and hence this call added it), false if it was.
-	bool checkAddModelToProcessingSet(const URLString& url, bool dynamic_physics_shape); // returns true if was not in processed set (and hence this call added it), false if it was.
+	bool checkAddModelToProcessingSet(const URLString& url, PhysicsObject::ShapeType physics_shape_type); // returns true if was not in processed set (and hence this call added it), false if it was.
 	bool checkAddAudioToProcessingSet(const URLString& url); // returns true if was not in processed set (and hence this call added it), false if it was.
 	bool checkAddScriptToProcessingSet(const std::string& script_content); // returns true if was not in processed set (and hence this call added it), false if it was.
 
@@ -461,7 +461,7 @@ public:
 
 	void assignLoadedOpenGLTexturesToMats(WorldObject* ob);
 
-	void handleUploadedMeshData(const URLString& lod_model_url, int loaded_model_lod_level, bool dynamic_physics_shape, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, 
+	void handleUploadedMeshData(const URLString& lod_model_url, int loaded_model_lod_level, PhysicsObject::ShapeType physics_shape_type, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, 
 		int voxel_subsample_factor);
 	void handleUploadedTexture(const OpenGLTextureKey& path, const URLString& URL, const OpenGLTextureRef& opengl_tex, const TextureDataRef& tex_data, const Map2DRef& terrain_map);
 
@@ -474,6 +474,8 @@ public:
 	void setObjectLoadDistance(float new_dist);
 
 	void setOnlyLoadMostImportantObs(bool only_load_most_important_obs);
+
+	PhysicsObject::ShapeType getShapeTypeWantedForOb(const WorldObject& ob) const;
 
 	//----------------------- LuaScriptOutputHandler interface -----------------------
 	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;
@@ -678,10 +680,10 @@ public:
 	// We build a different physics mesh for dynamic objects, so we need to keep track of which mesh we are building.
 	struct ModelProcessingKey
 	{
-		ModelProcessingKey(const URLString& URL_, const bool dynamic_physics_shape_) : URL(URL_), dynamic_physics_shape(dynamic_physics_shape_) {}
+		ModelProcessingKey(const URLString& URL_, PhysicsObject::ShapeType physics_shape_type_) : URL(URL_), physics_shape_type(physics_shape_type_) {}
 
 		URLString URL;
-		bool dynamic_physics_shape;
+		PhysicsObject::ShapeType physics_shape_type;
 
 		bool operator < (const ModelProcessingKey& other) const
 		{
@@ -690,9 +692,9 @@ public:
 			else if(URL > other.URL)
 				return false;
 			else
-				return !dynamic_physics_shape && other.dynamic_physics_shape;
+				return physics_shape_type < other.physics_shape_type;
 		}
-		bool operator == (const ModelProcessingKey& other) const { return URL == other.URL && dynamic_physics_shape == other.dynamic_physics_shape; }
+		bool operator == (const ModelProcessingKey& other) const { return URL == other.URL && physics_shape_type == other.physics_shape_type; }
 	};
 	struct ModelProcessingKeyHasher
 	{
@@ -793,7 +795,7 @@ public:
 	Reference<OpenGLMeshRenderData> cur_loading_mesh_data;
 	URLString cur_loading_lod_model_url;
 	int cur_loading_model_lod_level;
-	bool cur_loading_dynamic_physics_shape;
+	PhysicsObject::ShapeType cur_loading_physics_shape_type;
 	int cur_loading_voxel_subsample_factor;
 	PhysicsShape cur_loading_physics_shape;
 
@@ -927,7 +929,7 @@ public:
 	{
 		URLString lod_model_url;
 		int ob_model_lod_level;
-		bool dynamic_physics_shape;
+		PhysicsObject::ShapeType physics_shape_type;
 		PhysicsShape physics_shape;
 		int voxel_subsample_factor;
 	};

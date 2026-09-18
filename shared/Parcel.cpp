@@ -487,7 +487,7 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(PhysicsShape& unit_cube_shape
 
 		mesh->buildTrisFromQuads();
 
-		new_physics_object->shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh->toIndigoMesh(), /*build_dynamic_physics_ob=*/false);
+		new_physics_object->shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh->toIndigoMesh(), PhysicsObject::ShapeType_tri_mesh);
 
 		new_physics_object->pos = Vec4f(0,0,0,1);
 		new_physics_object->rot = Quatf::identity();

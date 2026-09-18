@@ -145,7 +145,7 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeImageCube(VertexBufferAlloca
 
 	MeshBuildingResults results;
 	results.opengl_mesh_data = image_cube_opengl_mesh;
-	results.physics_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);
+	results.physics_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, PhysicsObject::ShapeType_box);
 	results.indigo_mesh = mesh;
 	return results;
 }
@@ -351,7 +351,7 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSeatMesh(VertexBufferAllocat
 
 	MeshBuildingResults results;
 	results.opengl_mesh_data = seat_opengl_mesh;
-	results.physics_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);
+	results.physics_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, PhysicsObject::ShapeType_tri_mesh);
 	results.indigo_mesh = mesh;
 	return results;
 }
@@ -371,7 +371,7 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(const std::s
 
 	MeshBuildingResults results;
 	results.opengl_mesh_data = spotlight_opengl_mesh;
-	results.physics_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*is dynamic=*/false);
+	results.physics_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, PhysicsObject::ShapeType_convex_hull);
 	return results;
 }
 
@@ -390,7 +390,7 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makePortalMeshes(const std::stri
 
 	js::Vector<bool> create_tris_for_mat(4, true);
 	create_tris_for_mat[3] = false; // Material with index 3 is the blue portal shader material that shouldn't be collidable.
-	PhysicsShape arch_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*build_dynamic_physics_ob=*/false, /*mem allocator=*/nullptr, &create_tris_for_mat);
+	PhysicsShape arch_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, PhysicsObject::ShapeType_tri_mesh, /*mem allocator=*/nullptr, &create_tris_for_mat);
 
 
 	JPH::Ref<JPH::StaticCompoundShapeSettings> compound_settings = new JPH::StaticCompoundShapeSettings();
@@ -571,7 +571,7 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeConeMesh(const std::string& 
 
 	MeshBuildingResults results;
 	results.opengl_mesh_data = opengl_mesh;
-	results.physics_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);
+	results.physics_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, PhysicsObject::ShapeType_convex_hull);
 	results.indigo_mesh = mesh;
 	return results;
 }
@@ -641,7 +641,7 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeWedgeMesh(const std::string&
 
 	MeshBuildingResults results;
 	results.opengl_mesh_data = opengl_mesh;
-	results.physics_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);
+	results.physics_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, PhysicsObject::ShapeType_convex_hull);
 	results.indigo_mesh = mesh;
 	return results;
 }
@@ -739,7 +739,7 @@ PhysicsShape MeshBuilding::makeUnitCubePhysicsShape(VertexBufferAllocator& alloc
 	Indigo::MeshRef mesh = makeUnitCubeIndigoMesh();
 
 	PhysicsShape physics_shape;
-	physics_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);
+	physics_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, PhysicsObject::ShapeType_box);
 	return physics_shape;
 }
 

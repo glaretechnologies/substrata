@@ -74,6 +74,14 @@ public:
 	inline bool isDynamic()   const { return motion_type == MotionType_dynamic; }
 	inline bool isKinematic() const { return motion_type == MotionType_kinematic; }
 
+
+	enum ShapeType
+	{
+		ShapeType_tri_mesh,
+		ShapeType_convex_hull,
+		ShapeType_box
+	};
+
 public:
 	PhysicsShape shape; // This has a ref to the undecorated shape, actual shape used may be a ScaledShape.
 

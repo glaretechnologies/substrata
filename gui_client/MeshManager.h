@@ -67,7 +67,8 @@ struct MeshData
 
 struct PhysicsShapeData
 {
-	PhysicsShapeData(const URLString& model_URL_, bool dynamic_, PhysicsShape physics_shape_, MeshManager* mesh_manager_) : model_url(model_URL_), dynamic(dynamic_), physics_shape(physics_shape_), refcount(0), mesh_manager(mesh_manager_) {}
+	PhysicsShapeData(const URLString& model_URL_, PhysicsObject::ShapeType shape_type_, PhysicsShape physics_shape_, MeshManager* mesh_manager_) 
+	:	model_url(model_URL_), shape_type(shape_type_), physics_shape(physics_shape_), refcount(0), mesh_manager(mesh_manager_) {}
 
 	//------------------- Custom ReferenceCounted stuff, so we can call shapeDataBecameUnused() ---------------------
 	/// Increment reference count
@@ -103,7 +104,7 @@ struct PhysicsShapeData
 
 
 	URLString model_url;
-	bool dynamic; // Is the physics shape built for a dynamic physics object?  If so it will be a convex hull.
+	PhysicsObject::ShapeType shape_type; // Was the shape built as a tri mesh, convex hull, or box>
 
 	PhysicsShape physics_shape;
 
@@ -113,15 +114,15 @@ struct PhysicsShapeData
 };
 
 
-// We build a different physics mesh for dynamic objects, so we need to keep track of which mesh we are building.
+// We build a different physics mesh depending on the shape type, e.g. for dynamic objects.
 // NOTE: copied from MainWindow::ModelProcessingKey
 struct MeshManagerPhysicsShapeKey
 {
 	MeshManagerPhysicsShapeKey() {}
-	MeshManagerPhysicsShapeKey(const URLString& URL_, const bool dynamic_physics_shape_) : URL(URL_), dynamic_physics_shape(dynamic_physics_shape_) {}
+	MeshManagerPhysicsShapeKey(const URLString& URL_, PhysicsObject::ShapeType shape_type_) : URL(URL_), shape_type(shape_type_) {}
 
 	URLString URL;
-	bool dynamic_physics_shape;
+	PhysicsObject::ShapeType shape_type;
 
 	bool operator < (const MeshManagerPhysicsShapeKey& other) const
 	{
@@ -130,9 +131,9 @@ struct MeshManagerPhysicsShapeKey
 		else if(URL > other.URL)
 			return false;
 		else
-			return !dynamic_physics_shape && other.dynamic_physics_shape;
+			return shape_type < other.shape_type;
 	}
-	bool operator == (const MeshManagerPhysicsShapeKey& other) const { return URL == other.URL && dynamic_physics_shape == other.dynamic_physics_shape; }
+	bool operator == (const MeshManagerPhysicsShapeKey& other) const { return URL == other.URL && shape_type == other.shape_type; }
 };
 struct MeshManagerPhysicsShapeKeyHasher
 {

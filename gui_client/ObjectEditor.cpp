@@ -54,6 +54,12 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	//this->scaleYDoubleSpinBox->setMinimum(0.00001);
 	//this->scaleZDoubleSpinBox->setMinimum(0.00001);
 
+	// NOTE: order needs to match WorldObject::PhysicsShapeType enum.
+	physicsShapeTypeComboBox->addItem("Automatically choose");
+	physicsShapeTypeComboBox->addItem("Triangle mesh");
+	physicsShapeTypeComboBox->addItem("Convex hull");
+	physicsShapeTypeComboBox->addItem("Box");
+
 	SignalBlocker::setChecked(show3DControlsCheckBox, true); // On by default.
 
 	connect(this->matEditor,				SIGNAL(materialChanged()),			this, SIGNAL(objectChanged()));
@@ -84,6 +90,8 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->collidableCheckBox,		SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
 	connect(this->dynamicCheckBox,			SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
 	connect(this->sensorCheckBox,			SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
+
+	connect(this->physicsShapeTypeComboBox,		SIGNAL(currentIndexChanged(int)),	this, SIGNAL(objectChanged()));
 
 	connect(this->massDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->frictionDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
@@ -246,6 +254,8 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_,
 	SignalBlocker::setChecked(this->collidableCheckBox, ob.isCollidable());
 	SignalBlocker::setChecked(this->dynamicCheckBox, ob.isDynamic());
 	SignalBlocker::setChecked(this->sensorCheckBox, ob.isSensor());
+
+	SignalBlocker::setCurrentIndex(this->physicsShapeTypeComboBox, (int)ob.getPhysicsShapeType());
 	
 	SignalBlocker::setValue(this->massDoubleSpinBox,		ob.mass);
 	SignalBlocker::setValue(this->frictionDoubleSpinBox,	ob.friction);
@@ -526,6 +536,12 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	if(new_is_sensor != ob_out.isSensor())
 		ob_out.changed_flags |= WorldObject::PHYSICS_VALUE_CHANGED;
 	ob_out.setIsSensor(new_is_sensor);
+
+	const WorldObject::PhysicsShapeType new_physics_shape_type = (WorldObject::PhysicsShapeType)this->physicsShapeTypeComboBox->currentIndex();
+	if(new_physics_shape_type != ob_out.getPhysicsShapeType())
+		ob_out.changed_flags |= WorldObject::PHYSICS_VALUE_CHANGED;
+	ob_out.setPhysicsShapeType(new_physics_shape_type);
+
 
 	const float new_mass		= (float)this->massDoubleSpinBox->value();
 	const float new_friction	= (float)this->frictionDoubleSpinBox->value();

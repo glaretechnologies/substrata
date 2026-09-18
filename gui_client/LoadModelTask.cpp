@@ -29,7 +29,7 @@ ModelLoadedThreadMessage::~ModelLoadedThreadMessage()
 
 LoadModelTask::LoadModelTask()
 :	build_physics_ob(true),
-	build_dynamic_physics_ob(false),
+	physics_shape_type(PhysicsObject::ShapeType_tri_mesh),
 	model_lod_level(-1),
 	need_lightmap_uvs(false)
 {}
@@ -72,7 +72,7 @@ void LoadModelTask::run(size_t thread_index)
 				// conPrint("Loading vox model for ob with UID " + voxel_ob->uid.toString() + " for LOD level " + toString(use_model_lod_level) + ", using subsample_factor " + toString(subsample_factor) + ", " + toString(voxel_group.voxels.size()) + " voxels");
 
 				gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, subsample_factor, ob_to_world_matrix, /*vert_buf_allocator=*/NULL, /*do_opengl_stuff=*/false, 
-					need_lightmap_uvs, mat_transparent, build_dynamic_physics_ob, worker_allocator.ptr(), /*physics shape out=*/physics_shape);
+					need_lightmap_uvs, mat_transparent, physics_shape_type, worker_allocator.ptr(), /*physics shape out=*/physics_shape);
 			}
 			else // Else not voxel ob, just loading a model:
 			{
@@ -121,7 +121,7 @@ void LoadModelTask::run(size_t thread_index)
 					msg->splat_data = splat_data;
 					msg->lod_model_url = lod_model_url;
 					msg->model_lod_level = model_lod_level;
-					msg->built_dynamic_physics_ob = false;
+					msg->built_physics_shape_type = PhysicsObject::ShapeType_tri_mesh;
 					msg->subsample_factor = 1;
 					msg->index_data_src_offset_B = 0;
 					msg->total_geom_size_B = 0;
@@ -148,7 +148,7 @@ void LoadModelTask::run(size_t thread_index)
 
 
 					gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, subsample_factor, ob_to_world_matrix, /*vert_buf_allocator=*/NULL, /*do_opengl_stuff=*/false, 
-						need_lightmap_uvs, mat_transparent, build_dynamic_physics_ob, worker_allocator.ptr(), /*physics shape out=*/physics_shape);
+						need_lightmap_uvs, mat_transparent, physics_shape_type, worker_allocator.ptr(), /*physics shape out=*/physics_shape);
 				}
 				else
 				{
@@ -159,7 +159,7 @@ void LoadModelTask::run(size_t thread_index)
 						/*vert_buf_allocator=*/NULL, 
 						true, // skip_opengl_calls - we need to do these on the main thread.
 						build_physics_ob,
-						build_dynamic_physics_ob,
+						physics_shape_type,
 						create_tris_for_mat,
 						worker_allocator.ptr(),
 						/*physics shape out=*/physics_shape);
@@ -175,7 +175,7 @@ void LoadModelTask::run(size_t thread_index)
 				user_info->physics_shape = physics_shape;
 				user_info->lod_model_url = lod_model_url;
 				user_info->model_lod_level = model_lod_level;
-				user_info->built_dynamic_physics_ob = this->build_dynamic_physics_ob;
+				user_info->built_physics_shape_type = this->physics_shape_type;
 				user_info->voxel_subsample_factor = subsample_factor;
 
 				upload_msg->user_info = user_info;
@@ -202,7 +202,7 @@ void LoadModelTask::run(size_t thread_index)
 				msg->lod_model_url = lod_model_url;
 				msg->model_lod_level = model_lod_level;
 				msg->subsample_factor = subsample_factor;
-				msg->built_dynamic_physics_ob = this->build_dynamic_physics_ob;
+				msg->built_physics_shape_type = this->physics_shape_type;
 				msg->index_data_src_offset_B = index_data_src_offset_B;
 				msg->total_geom_size_B = total_geom_size_B;
 				msg->vert_data_size_B = vert_data.size();

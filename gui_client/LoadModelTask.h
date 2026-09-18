@@ -39,7 +39,7 @@ public:
 
 	URLString lod_model_url; // URL of the model we loaded.  Empty when loaded voxel object.
 	int model_lod_level; // LOD level of the model we loaded.
-	bool built_dynamic_physics_ob;
+	PhysicsObject::ShapeType built_physics_shape_type; // Or PhysicsObject::ShapeType_tri_mesh if no physics shape was built.
 
 	int subsample_factor; // Computed when loading voxels.
 
@@ -56,7 +56,7 @@ struct LoadModelTaskUploadingUserInfo : public UploadingUserInfo
 	PhysicsShape physics_shape;
 	URLString lod_model_url; // URL of the model we loaded.  Empty when loaded voxel object.
 	int model_lod_level; // LOD level of the model we loaded.
-	bool built_dynamic_physics_ob;
+	PhysicsObject::ShapeType built_physics_shape_type;
 
 	int voxel_subsample_factor; // Computed when loading voxels.
 };
@@ -91,7 +91,7 @@ public:
 	int model_lod_level; // The model LOD level of the object
 	ResourceRef resource;
 	bool build_physics_ob;
-	bool build_dynamic_physics_ob; // If true, build a convex hull shape instead of a mesh physics shape.
+	PhysicsObject::ShapeType physics_shape_type; // Type of shape to build: tri-mesh, convex hull, box.
 	
 	Reference<glare::SharedImmutableArray<uint8> > compressed_voxels;
 	js::Vector<bool> mat_transparent;

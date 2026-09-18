@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2016 -
 #pragma once
 
 
+#include "PhysicsObject.h"
 #include "../shared/WorldMaterial.h"
 #include "../shared/WorldObject.h"
 #include <opengl/OpenGLEngine.h>
@@ -93,14 +94,15 @@ public:
 
 
 	// Build OpenGLMeshRenderData and Physics shape from a mesh on disk identified by lod_model_path.
-	static Reference<OpenGLMeshRenderData> makeGLMeshDataAndPhysicsShape(const std::string& lod_model_path, ArrayRef<uint8> model_data_buf, VertexBufferAllocator* vert_buf_allocator, bool skip_opengl_calls, bool build_physics_ob, bool build_dynamic_physics_ob, 
+	static Reference<OpenGLMeshRenderData> makeGLMeshDataAndPhysicsShape(const std::string& lod_model_path, ArrayRef<uint8> model_data_buf, VertexBufferAllocator* vert_buf_allocator, 
+		bool skip_opengl_calls, bool build_physics_ob, PhysicsObject::ShapeType physics_shape_type, 
 		const js::Vector<bool>& create_physics_tris_for_mat,
 		glare::Allocator* mem_allocator,
 		PhysicsShape& physics_shape_out);
 
 	// Build OpenGLMeshRenderData from voxel data.  Also return a reference to a physics shape.
 	static Reference<OpenGLMeshRenderData> makeModelForVoxelGroup(const VoxelGroup& voxel_group, int subsample_factor, const Matrix4f& ob_to_world, 
-		VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, bool need_lightmap_uvs, const js::Vector<bool, 16>& mats_transparent, bool build_dynamic_physics_ob,
+		VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, bool need_lightmap_uvs, const js::Vector<bool, 16>& mats_transparent, PhysicsObject::ShapeType physics_shape_type,
 		glare::Allocator* mem_allocator,
 		PhysicsShape& physics_shape_out);
 

@@ -733,7 +733,24 @@ size_t PhysicsWorld::computeSizeBForShape(JPH::Ref<JPH::Shape> jolt_shape)
 }
 
 
-PhysicsShape PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh, bool build_dynamic_physics_ob, glare::Allocator* mem_allocator)
+static PhysicsShape createBoxShapeForAABBOS(const js::AABBox& aabb_os)
+{
+	assert(!aabb_os.isEmpty());
+
+	const Vec4f half_extent = aabb_os.span() * 0.5f;
+
+	JPH::BoxShape* box_shape = new JPH::BoxShape(/*half extent=*/toJoltVec3(half_extent));
+
+	JPH::RotatedTranslatedShape* rotated_trans_shape = new JPH::RotatedTranslatedShape(/*position=*/toJoltVec3(aabb_os.centroid()), /*rotation=*/JPH::Quat::sIdentity(), box_shape);
+
+	PhysicsShape physics_shape;
+	physics_shape.jolt_shape = rotated_trans_shape;
+	physics_shape.size_B = 160; // Measured in Jolt 5.6.0 in RelWithDebInfo mode. // computeSizeBForShape(shape);
+	return physics_shape;
+}
+
+
+PhysicsShape PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh, PhysicsObject::ShapeType physics_shape_type, glare::Allocator* mem_allocator)
 {
 	ZoneScoped; // Tracy profiler
 
@@ -744,7 +761,7 @@ PhysicsShape PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh
 	const size_t verts_size = verts.size();
 	const size_t final_num_tris_size = tris.size() + quads.size() * 2;
 	
-	if(build_dynamic_physics_ob)
+	if(physics_shape_type == PhysicsObject::ShapeType_convex_hull)
 	{
 		// Jolt doesn't support dynamic triangles mesh shapes, so we need to convert it to a convex hull shape.
 		glare::AllocatorVector<JPH::Vec3> points(verts_size, mem_allocator);
@@ -768,7 +785,7 @@ PhysicsShape PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh
 		shape.size_B = computeSizeBForShape(jolt_shape);
 		return shape;
 	}
-	else
+	else if(physics_shape_type == PhysicsObject::ShapeType_tri_mesh)
 	{
 		JPH::VertexList vertex_list(verts_size); // size_B = sizeof(JPH::Float3) * verts_size = sizeof(float) * 3 * verts_size
 		JPH::IndexedTriangleList tri_list(final_num_tris_size);// size_B = sizeof(JPH::IndexedTriangle) * final_num_tris_size = sizeof(uint32) * 5 * final_num_tris_size
@@ -808,6 +825,18 @@ PhysicsShape PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh
 		shape.jolt_shape = jolt_shape;
 		shape.size_B = computeSizeBForShape(jolt_shape);
 		return shape;
+	}
+	else
+	{
+		assert(physics_shape_type == PhysicsObject::ShapeType_box);
+
+		assert(!mesh.aabb_os.isNull()); // Check built
+		const js::AABBox aabb(
+			Vec4f(mesh.aabb_os.bound[0].x, mesh.aabb_os.bound[0].y, mesh.aabb_os.bound[0].z, 1.f),
+			Vec4f(mesh.aabb_os.bound[1].x, mesh.aabb_os.bound[1].y, mesh.aabb_os.bound[1].z, 1.f)
+		);
+
+		return createBoxShapeForAABBOS(aabb);
 	}
 }
 
@@ -869,7 +898,7 @@ inline static Vec4f transformSkinnedVertex(const Vec4f vert_pos, size_t joint_of
 
 
 
-PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh, bool build_dynamic_physics_ob, glare::Allocator* mem_allocator, 
+PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh, PhysicsObject::ShapeType physics_shape_type, glare::Allocator* mem_allocator, 
 		const js::Vector<bool>* create_tris_for_mat) // Should physics triangles be created for this material?  If null, triangles will be created.
 {
 	ZoneScoped; // Tracy profiler
@@ -952,7 +981,7 @@ PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh
 	const bool pos_is_float = pos_attr->component_type == BatchedMesh::ComponentType_Float;
 	const Vec4f dequantisation_scale = div(mesh.aabb_os.span(), Vec4f(65535.f));
 
-	if(build_dynamic_physics_ob)
+	if(physics_shape_type == PhysicsObject::ShapeType_convex_hull)
 	{
 		// Jolt doesn't support dynamic triangles mesh shapes, so we need to convert it to a convex hull shape.
 		JPH::Array<JPH::Vec3> points(num_verts);
@@ -990,7 +1019,7 @@ PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh
 		shape.size_B = computeSizeBForShape(jolt_shape);
 		return shape;
 	}
-	else
+	else if(physics_shape_type == PhysicsObject::ShapeType_tri_mesh)
 	{
 		JPH::VertexList vertex_list(num_verts);
 		JPH::IndexedTriangleList tri_list(num_tris);
@@ -1080,6 +1109,12 @@ PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh
 		shape.jolt_shape = jolt_shape;
 		shape.size_B = computeSizeBForShape(jolt_shape);
 		return shape;
+	}
+	else
+	{
+		assert(physics_shape_type == PhysicsObject::ShapeType_box);
+
+		return createBoxShapeForAABBOS(mesh.aabb_os);
 	}
 }
 
@@ -1761,13 +1796,15 @@ void PhysicsWorld::test()
 	try
 	{
 
+		//BatchedMeshRef mesh = BatchedMesh::readFromFile(TestUtils::getTestReposDir() + "/testfiles/bmesh/venus_de_milo.bmesh", nullptr);
+		BatchedMeshRef mesh = BatchedMesh::readFromFile(TestUtils::getTestReposDir() + "/testfiles/bmesh/Fox_glb_3500729461392160556.bmesh", nullptr);
 		
 		//BatchedMesh::readFromFile(TestUtils::getTestReposDir() + "/testfiles/gltf/concept_bike.glb", mesh);
 		//GLTFLoadedData data;
 		//BatchedMeshRef mesh = FormatDecoderGLTF::loadGLBFile(TestUtils::getTestReposDir() + "/testfiles/gltf/concept_bike.glb", data);
 		//BatchedMeshRef mesh = FormatDecoderGLTF::loadGLBFile(TestUtils::getTestReposDir() + "/testfiles/gltf/2CylinderEngine.glb", data);
 		//BatchedMeshRef mesh = BatchedMesh::readFromFile("C:\\Users\\nick\\AppData\\Roaming\\Cyberspace\\resources\\mausoleum_glb_2010952405149410706_lod1.bmesh", nullptr);
-		BatchedMeshRef mesh = BatchedMesh::readFromFile("C:\\Users\\nick\\AppData\\Roaming\\Cyberspace/resources/SUB_TRACK3_glb_16841937726500498382.bmesh", nullptr);
+		//BatchedMeshRef mesh = BatchedMesh::readFromFile("C:\\Users\\nick\\AppData\\Roaming\\Cyberspace/resources/SUB_TRACK3_glb_16841937726500498382.bmesh", nullptr);
 
 
 		glare::TaskManager task_manager(0);
@@ -1797,25 +1834,26 @@ void PhysicsWorld::test()
 		printVar(mesh->numVerts());
 		printVar(mesh->numIndices());
 
-		Reference<glare::LimitedAllocator> allocator = new glare::LimitedAllocator(mesh->numIndices() * 110);
+		Reference<glare::LimitedAllocator> allocator = new glare::LimitedAllocator(100000000);//mesh->numIndices() * 110);
 
 
 		double min_time = 1.0e10;
-		for(int i=0; i<1; ++i)
+		for(int i=0; i<10; ++i)
 		{
 			Timer timer;
 			//const uint64 initial_num_jolt_allocs = ::num_jolt_allocs_done;
 			//const uint64 initial_total_alloced = jolt_total_alloced;
 
-			PhysicsShape shape = createJoltShapeForBatchedMesh(*mesh, /*is dynamic=*/false, allocator.ptr());
+			PhysicsShape shape = createJoltShapeForBatchedMesh(*mesh, PhysicsObject::ShapeType_tri_mesh, nullptr); // allocator.ptr());
 
 			//const uint64 num_allocs = ::num_jolt_allocs_done - initial_num_jolt_allocs;
 			//const uint64 amount_alloced = jolt_total_alloced - initial_total_alloced;
 			min_time = myMin(min_time, timer.elapsed());
-			//conPrint("createJoltShapeForBatchedMesh took " + timer.elapsedStringNPlaces(4) + ", num_allocs: " + toString(num_allocs) + ", min time so far: " + doubleToStringNDecimalPlaces(min_time * 1.0e3, 4) + " ms");
+			conPrint("createJoltShapeForBatchedMesh took " + doubleToStringNDecimalPlaces(timer.elapsed() * 1.0e3, 4) + " ms");
 			//printVar(amount_alloced);
 			//printVar(jolt_high_watermark);
 		}
+		conPrint("createJoltShapeForBatchedMesh took: " + doubleToStringNDecimalPlaces(min_time * 1.0e3, 4) + " ms");
 	}
 	catch(glare::Exception& e)
 	{

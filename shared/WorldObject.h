@@ -216,6 +216,18 @@ public:
 	inline bool isSensor() const;
 	inline void setIsSensor(bool c);
 
+	enum PhysicsShapeType
+	{
+		PhysicsShapeType_auto, // Automatically choose a good collision shape type for the object.  Currently always picks tri-mesh. (apart from dynamic objects which use convex-hull)
+		PhysicsShapeType_tri_mesh,
+		PhysicsShapeType_convex_hull,
+		PhysicsShapeType_box // object-space axis-aligned bounding box.
+	};
+
+	inline PhysicsShapeType getPhysicsShapeType() const;
+	inline void setPhysicsShapeType(PhysicsShapeType t);
+
+
 	size_t getTotalMemUsage() const;
 
 	static int getLightMapSideResForAABBWS(const js::AABBox& aabb_ws);
@@ -348,20 +360,22 @@ public:
 	float angle;
 	Vec3f scale;
 
-	static const uint32 COLLIDABLE_FLAG                         = 1; // Is this object solid from the point of view of the physics engine?
-	static const uint32 LIGHTMAP_NEEDS_COMPUTING_FLAG           = 2; // Does the lightmap for this object need to be built or rebuilt?
-	static const uint32 HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG = 4; // Does a high-quality lightmap for this object need to be built or rebuilt?
-	static const uint32 DYNAMIC_FLAG                            = 8; // Is this object a dynamic object (moving object) from the point of view of the physics engine?
-	static const uint32 SUMMONED_FLAG                           = 16; // Is this object a vehicle object that was summoned by a user?
-	static const uint32 VIDEO_AUTOPLAY                          = 32; // For video objects, should the video auto-play?
-	static const uint32 VIDEO_LOOP                              = 64; // For video objects, should the video loop?
-	static const uint32 VIDEO_MUTED                             = 128; // For video objects, should the video be initially muted?
-	static const uint32 IS_SENSOR_FLAG                          = 256; // Is this a physics sensor?
-	static const uint32 EXCLUDE_FROM_LOD_CHUNK_MESH             = 512; // Should this object be excluded from LOD Chunk meshes? (for e.g. moving objects)
-	static const uint32 AUDIO_AUTOPLAY                          = 1024; // For objects that play audio, should the audio auto-play?
-	static const uint32 AUDIO_LOOP                              = 2048; // For objects that play audio, should the audio loop?
-	static const uint32 CREATED_VIA_MCP                         = 4096; // Was this object created via the Model Context Protocol (MCP) API?
-	static const uint32 MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1       = 8192; // Is the minimum model lod level for this object -1, instead of 0?
+	static const uint32 COLLIDABLE_FLAG                         = 1 << 0; // Is this object solid from the point of view of the physics engine?
+	static const uint32 LIGHTMAP_NEEDS_COMPUTING_FLAG           = 1 << 1; // Does the lightmap for this object need to be built or rebuilt?
+	static const uint32 HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG = 1 << 2; // Does a high-quality lightmap for this object need to be built or rebuilt?
+	static const uint32 DYNAMIC_FLAG                            = 1 << 3; // Is this object a dynamic object (moving object) from the point of view of the physics engine?
+	static const uint32 SUMMONED_FLAG                           = 1 << 4; // Is this object a vehicle object that was summoned by a user?
+	static const uint32 VIDEO_AUTOPLAY                          = 1 << 5; // For video objects, should the video auto-play?
+	static const uint32 VIDEO_LOOP                              = 1 << 6; // For video objects, should the video loop?
+	static const uint32 VIDEO_MUTED                             = 1 << 7; // For video objects, should the video be initially muted?
+	static const uint32 IS_SENSOR_FLAG                          = 1 << 8; // Is this a physics sensor?
+	static const uint32 EXCLUDE_FROM_LOD_CHUNK_MESH             = 1 << 9; // Should this object be excluded from LOD Chunk meshes? (for e.g. moving objects)
+	static const uint32 AUDIO_AUTOPLAY                          = 1 << 10; // For objects that play audio, should the audio auto-play?
+	static const uint32 AUDIO_LOOP                              = 1 << 11; // For objects that play audio, should the audio loop?
+	static const uint32 CREATED_VIA_MCP                         = 1 << 12; // Was this object created via the Model Context Protocol (MCP) API?
+	static const uint32 MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1       = 1 << 13; // Is the minimum model lod level for this object -1, instead of 0?
+	// bits 14 and 15 store the physics shape type
+
 	uint32 flags;
 
 	TimeStamp created_time;
@@ -642,6 +656,18 @@ void WorldObject::setIsSensor(bool c)
 		flags |= IS_SENSOR_FLAG;
 	else
 		flags &= ~IS_SENSOR_FLAG;
+}
+
+
+WorldObject::PhysicsShapeType WorldObject::getPhysicsShapeType() const
+{
+	return static_cast<PhysicsShapeType>((flags >> 14) & 3); // Physics shape type is stored in bits 14 and 15 of flags.
+}
+
+
+void WorldObject::setPhysicsShapeType(PhysicsShapeType t)
+{
+	flags = (flags & ~(3u << 14)) | (((uint32)t & 3u) << 14);  // Physics shape type is stored in bits 14 and 15 of flags.
 }
 
 
