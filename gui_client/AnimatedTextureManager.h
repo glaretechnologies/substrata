@@ -34,9 +34,12 @@ struct CreateWMFVideoReaderTask;
 struct CreateWMFVideoReaderTaskInFlightCounter;
 
 
-// Use a Windows Media Foundation (WMF)-based player on Windows, and a Chromium Embedded Framework (CEF)-based player on other systems.
+// NEW: Don't use WMF.
+// WMF for video decoding seems to intrinsically cause stutters in GPU rendering in the same process.
+// Claude suggests using libavformat and libavcodec from FFmpeg to parse and extract compressed video data, and decoding the extracted video data with DirectX Video Acceleration (DXVA).
+// OLD: Use a Windows Media Foundation (WMF)-based player on Windows, and a Chromium Embedded Framework (CEF)-based player on other systems.
 #ifdef _WIN32
-#define WMF_MP4_PLAYBACK_SUPPORT 1
+#define WMF_MP4_PLAYBACK_SUPPORT 0
 #endif
 
 
