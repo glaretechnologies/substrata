@@ -402,12 +402,14 @@ void GlWidget::initializeGL()
 	bool use_MSAA = true;
 	bool bloom = true;
 	bool use_SSAO = false;
+	bool volumetric_clouds = false;
 	if(settings)
 	{
 		shadows  = settings->value(MainOptionsDialog::shadowsKey(),	/*default val=*/true).toBool();
 		use_MSAA = settings->value(MainOptionsDialog::MSAAKey(),	/*default val=*/true).toBool();
 		bloom    = settings->value(MainOptionsDialog::BloomKey(),	/*default val=*/true).toBool();
 		use_SSAO = settings->value(MainOptionsDialog::SSAOKey(),    /*default val=*/default_use_SSAO).toBool();
+		volumetric_clouds = settings->value(MainOptionsDialog::volumetricCloudsKey(), /*default val=*/false).toBool();
 	}
 
 	// Enable debug output (glDebugMessageCallback) in Debug and RelWithDebugInfo mode, e.g. when BUILD_TESTS is 1.
@@ -431,6 +433,8 @@ void GlWidget::initializeGL()
 	engine_settings.allow_bindless_textures = this->allow_bindless_textures;
 	engine_settings.ssao = use_SSAO;
 	engine_settings.irradiance_probes_support = false;
+	engine_settings.shadow_mapping_detail = OpenGLEngineSettings::ShadowMappingDetail_high;
+	engine_settings.volumetric_clouds_support = volumetric_clouds;
 
 #ifdef OSX
 	// Force SSAO to false for now on Mac, as when it's enabled, the number of texture units exceeds the max (16) for the terrain shader.
@@ -499,6 +503,7 @@ void GlWidget::initializeGL()
 			opengl_engine->getCurrentScene()->bloom_strength = 0.3f;
 
 		opengl_engine->getCurrentScene()->draw_aurora = true;
+		opengl_engine->getCurrentScene()->draw_volumetric_clouds = volumetric_clouds;
 	}
 }
 

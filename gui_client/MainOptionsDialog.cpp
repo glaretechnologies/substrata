@@ -174,6 +174,7 @@ MainOptionsDialog::MainOptionsDialog(QSettings* settings_, bool only_load_most_i
 	SignalBlocker::setChecked(this->MSAACheckBox,					settings->value(MSAAKey(),					/*default val=*/true).toBool());
 	SignalBlocker::setChecked(this->SSAOCheckBox,					settings->value(SSAOKey(),					/*default val=*/true).toBool());
 	SignalBlocker::setChecked(this->bloomCheckBox,					settings->value(BloomKey(),					/*default val=*/true).toBool());
+	SignalBlocker::setChecked(this->volumetricCloudsCheckBox,		settings->value(volumetricCloudsKey(),		/*default val=*/false).toBool());
 	const bool dark_mode_default = systemPrefersDarkTheme();
 	SignalBlocker::setChecked(this->darkModeCheckBox,					settings->value(darkModeKey(), dark_mode_default).toBool());
 	
@@ -224,6 +225,7 @@ void MainOptionsDialog::accepted()
 	settings->setValue(MSAAKey(),									this->MSAACheckBox->isChecked());
 	settings->setValue(SSAOKey(),									this->SSAOCheckBox->isChecked());
 	settings->setValue(BloomKey(),									this->bloomCheckBox->isChecked());
+	settings->setValue(volumetricCloudsKey(),						this->volumetricCloudsCheckBox->isChecked());
 	settings->setValue(darkModeKey(),									this->darkModeCheckBox->isChecked());
 	settings->setValue(limitFPSKey(),								this->limitFPSCheckBox->isChecked());
 	settings->setValue(FPSLimitKey(),								this->FPSLimitSpinBox->value());

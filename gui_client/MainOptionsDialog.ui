@@ -103,6 +103,13 @@
        </widget>
       </item>
       <item>
+       <widget class="QCheckBox" name="volumetricCloudsCheckBox">
+        <property name="text">
+         <string>Volumetric Clouds</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QWidget" name="widget" native="true">
         <layout class="QFormLayout" name="formLayout">
          <property name="leftMargin">

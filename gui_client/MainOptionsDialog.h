@@ -36,6 +36,8 @@ public:
 
 	static const QString BloomKey() { return "setting/bloom"; }
 
+	static const QString volumetricCloudsKey() { return "setting/volumetric_clouds"; }
+
 	static const QString limitFPSKey() { return "setting/limit_FPS"; }
 
 	static const QString FPSLimitKey() { return "setting/FPS_limit"; }
