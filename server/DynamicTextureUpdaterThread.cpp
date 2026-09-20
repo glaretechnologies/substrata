@@ -247,9 +247,7 @@ static void checkDynamicTexture(const ObWithDynamicTexture& ob_with_dyn_tex, Ser
 						world_state->world_states[ob_with_dyn_tex.world_name]->getDirtyFromRemoteObjects(lock).insert(ob);
 
 						// Send a message to MeshLODGenThread to generate LOD textures for this new texture (if not already generated)
-						CheckGenResourcesForObject* msg = new CheckGenResourcesForObject();
-						msg->ob_uid = ob_with_dyn_tex.ob_uid;
-						server->enqueueMsgForLodGenThread(msg);
+						server->enqueueMsgForLodGenThread(new CheckGenResourcesForObject(ob_with_dyn_tex.ob_uid));
 					}
 					else
 						conPrint("\tDynamicTextureUpdaterThread: Texture is the same as existing texture on object.");

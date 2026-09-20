@@ -867,6 +867,10 @@ int main(int argc, char *argv[])
 				}
 			}
 
+			// UIDs of objects created since the last iteration.  A new object may use resources that are already present on the server (e.g. a summoned vehicle model), in which
+			// case there is no resource upload to trigger generation of the optimised/LOD meshes and basis textures for it, so we need to trigger it here.
+			std::vector<UID> new_ob_UIDs;
+
 			{ // Begin scope for world_state->mutex lock
 
 				WorldStateLock lock(server.world_state->mutex);
@@ -986,6 +990,8 @@ int main(int argc, char *argv[])
 								ob->state = WorldObject::State_Alive;
 								ob->from_remote_other_dirty = false;
 								server.world_state->markAsChanged();
+
+								new_ob_UIDs.push_back(ob->uid);
 							}
 							else if(ob->state == WorldObject::State_Dead)
 							{
@@ -1159,6 +1165,10 @@ int main(int argc, char *argv[])
 				}
 
 			} // End scope for world_state->mutex lock
+
+			// Get the MeshLODGenThread to check if the new objects need optimised/LOD meshes or basis textures generated for them.
+			for(size_t i=0; i<new_ob_UIDs.size(); ++i)
+				server.enqueueMsgForLodGenThread(new CheckGenResourcesForObject(new_ob_UIDs[i]));
 
 			// Enqueue packets to worker threads to send
 			// For each connected client, get packets for the world the client is connected to, and send to them.

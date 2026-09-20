@@ -17,6 +17,7 @@ class ServerAllWorldsState;
 class CheckGenResourcesForObject : public ThreadMessage
 {
 public:
+	CheckGenResourcesForObject(const UID ob_uid_) : ob_uid(ob_uid_) {}
 	UID ob_uid;
 };
 
