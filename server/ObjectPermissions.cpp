@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2026 -
 #include "ServerWorldState.h"
 #include "../shared/WorldObject.h"
 #include "../shared/Parcel.h"
+#include "../shared/VehiclesShared.h"
 #include <BitUtils.h>
 
 
@@ -78,11 +79,11 @@ bool userCanCreateSummonedObject(const WorldObject& ob, const UserID& user_id)
 {
 	if(BitUtils::isBitSet(ob.flags, WorldObject::SUMMONED_FLAG))
 	{
-		if(ob.model_url == "deLorean2_0_glb_5923323464955550713.bmesh" || // car
-			ob.model_url == "optimized_dressed_fix7_offset4_glb_4474648345850208925.bmesh" || // bike
-			ob.model_url == "peugot_closed_glb_2887717763908023194.bmesh" || // hovercar
-			ob.model_url == "poweryacht3_2_glb_17116251394697619807.bmesh" || // boat
-			ob.model_url == "Jet_Ski_obj_3200017390617214853.bmesh") // jetski
+		if(ob.model_url == VehiclesShared::carModelURL() || // car
+			ob.model_url == VehiclesShared::bikeModelURL() || // bike
+			ob.model_url == VehiclesShared::hovercarModelURL() || // hovercar
+			ob.model_url == VehiclesShared::boatModelURL() || // boat
+			ob.model_url == VehiclesShared::jetSkiModelURL()) // jetski
 			return true;
 		else
 			return false;

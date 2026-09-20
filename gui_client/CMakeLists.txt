@@ -549,6 +549,7 @@ SET(shared_files
 ../shared/GestureSettings.h
 ../shared/GearItem.cpp
 ../shared/GearItem.h
+../shared/VehiclesShared.h
 )
 
 SET(client_indigo_files

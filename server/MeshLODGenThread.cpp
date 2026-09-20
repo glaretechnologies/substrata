@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "../shared/LODGeneration.h"
 #include "../shared/ImageDecoding.h"
 #include "../shared/Protocol.h"
+#include "../shared/VehiclesShared.h"
 #include <ConPrint.h>
 #include <Exception.h>
 #include <Lock.h>
@@ -259,7 +260,7 @@ static void checkForLODAndOptimisedMeshesToGenerate(ServerAllWorldsState* world_
 }
 
 
-static void checkForOptimisedMeshToGenerateForURL(const URLString& URL, ResourceManager* resource_manager, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered, std::vector<LODMeshToGen>& meshes_to_gen)
+static void checkForOptimisedMeshToGenerateForURL(const URLString& URL, int max_lod_lvl, ResourceManager* resource_manager, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered, std::vector<LODMeshToGen>& meshes_to_gen)
 {
 	try
 	{
@@ -271,29 +272,31 @@ static void checkForOptimisedMeshToGenerateForURL(const URLString& URL, Resource
 				const std::string base_model_abs_path = resource_manager->getLocalAbsPathForResource(*base_resource);
 
 				const int min_model_lod_lvl = 0;
-				const int lvl = 0;
 
-				WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/true, Protocol::OPTIMISED_MESH_VERSION);
-
-				const URLString lod_URL = WorldObject::getLODModelURLForLevel(URL, min_model_lod_lvl, lvl, options);
-
-				if(lod_URLs_considered.count(lod_URL) == 0)
+				for(int lvl = 0; lvl <= max_lod_lvl; ++lvl)
 				{
-					lod_URLs_considered.insert(lod_URL);
+					WorldObject::GetLODModelURLOptions options(/*get_optimised_mesh=*/true, Protocol::OPTIMISED_MESH_VERSION);
 
-					if(!resource_manager->isFileForURLPresent(lod_URL))
+					const URLString lod_URL = WorldObject::getLODModelURLForLevel(URL, min_model_lod_lvl, lvl, options);
+
+					if(lod_URLs_considered.count(lod_URL) == 0)
 					{
-						const std::string lod_abs_path = toStdString(WorldObject::getLODModelURLForLevel(toURLString(base_model_abs_path), min_model_lod_lvl, lvl, options));
+						lod_URLs_considered.insert(lod_URL);
 
-						// Add to list of models to generate
-						LODMeshToGen mesh_to_gen;
-						mesh_to_gen.min_lod_level = min_model_lod_lvl;
-						mesh_to_gen.lod_level = lvl;
-						mesh_to_gen.model_abs_path = base_model_abs_path;
-						mesh_to_gen.LOD_model_abs_path = lod_abs_path;
-						mesh_to_gen.lod_URL = lod_URL;
-						mesh_to_gen.owner_id = base_resource->owner_id;
-						meshes_to_gen.push_back(mesh_to_gen);
+						if(!resource_manager->isFileForURLPresent(lod_URL))
+						{
+							const std::string lod_abs_path = toStdString(WorldObject::getLODModelURLForLevel(toURLString(base_model_abs_path), min_model_lod_lvl, lvl, options));
+
+							// Add to list of models to generate
+							LODMeshToGen mesh_to_gen;
+							mesh_to_gen.min_lod_level = min_model_lod_lvl;
+							mesh_to_gen.lod_level = lvl;
+							mesh_to_gen.model_abs_path = base_model_abs_path;
+							mesh_to_gen.LOD_model_abs_path = lod_abs_path;
+							mesh_to_gen.lod_URL = lod_URL;
+							mesh_to_gen.owner_id = base_resource->owner_id;
+							meshes_to_gen.push_back(mesh_to_gen);
+						}
 					}
 				}
 			}
@@ -826,7 +829,7 @@ void MeshLODGenThread::doRun()
 						for(auto it = world->getChatBots(lock).begin(); it != world->getChatBots(lock).end(); ++it)
 						{
 							const ChatBot* chatbot = it->second.ptr();
-							checkForOptimisedMeshToGenerateForURL(chatbot->avatar_settings.model_url, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
+							checkForOptimisedMeshToGenerateForURL(chatbot->avatar_settings.model_url, /*max_lod_lvl=*/0, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
 
 							checkForBasisTexturesToGenerateForMaterials(world_state, chatbot->avatar_settings.materials, lod_URLs_considered, basis_textures_to_gen);
 						}
@@ -836,9 +839,18 @@ void MeshLODGenThread::doRun()
 					for(auto it = world_state->user_id_to_users.begin(); it != world_state->user_id_to_users.end(); ++it)
 					{
 						const User* user = it->second.ptr();
-						checkForOptimisedMeshToGenerateForURL(user->avatar_settings.model_url, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
+						checkForOptimisedMeshToGenerateForURL(user->avatar_settings.model_url, /*max_lod_lvl=*/0, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
 
 						checkForBasisTexturesToGenerateForMaterials(world_state, user->avatar_settings.materials, lod_URLs_considered, basis_textures_to_gen);
+					}
+
+					// Check vehicle meshes
+					{
+						checkForOptimisedMeshToGenerateForURL(URLString(VehiclesShared::bikeModelURL()),     /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
+						checkForOptimisedMeshToGenerateForURL(URLString(VehiclesShared::boatModelURL()),     /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
+						checkForOptimisedMeshToGenerateForURL(URLString(VehiclesShared::carModelURL()),      /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
+						checkForOptimisedMeshToGenerateForURL(URLString(VehiclesShared::hovercarModelURL()), /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
+						checkForOptimisedMeshToGenerateForURL(URLString(VehiclesShared::jetSkiModelURL()),   /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
 					}
 				}
 				
@@ -878,7 +890,7 @@ void MeshLODGenThread::doRun()
 				{
 					const URLString URL_to_check = *it;
 					checkForBasisTexturesToGenerateForURL(URL_to_check, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
-					checkForOptimisedMeshToGenerateForURL(URL_to_check, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
+					checkForOptimisedMeshToGenerateForURL(URL_to_check, /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
 				}
 			}
 

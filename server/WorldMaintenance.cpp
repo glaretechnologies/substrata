@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "WorldMaintenance.h"
 
 
+#include "../shared/VehiclesShared.h"
 #include <graphics/Map2D.h>
 #include <graphics/PNGDecoder.h>
 #include <PCG32.h>
@@ -195,35 +196,35 @@ void WorldMaintenance::removeOldVehicles(Reference<ServerAllWorldsState> all_wor
 			{
 				bool delete_ob = false;
 
-				if((object->model_url == "optimized_dressed_fix7_offset4_glb_4474648345850208925.bmesh") && areMatsDefaultBikeMats(object)) // From GUIClient::summonBike()
+				if((object->model_url == VehiclesShared::bikeModelURL()) && areMatsDefaultBikeMats(object)) // From GUIClient::summonBike()
 				{
 					conPrint("WorldMaintenance::removeOldVehicles(): Removing bike with UID: " + object->uid.toString() + ". (Last modified: " + object->last_modified_time.timeAgoDescription() + ")");
 					num_bikes_deleted++;
 					delete_ob = true;
 				}
 
-				if((object->model_url == "peugot_closed_glb_2887717763908023194.bmesh") && areMatsDefaultHovercarMats(object)) // From GUIClient::summonHovercar()
+				if((object->model_url == VehiclesShared::hovercarModelURL()) && areMatsDefaultHovercarMats(object)) // From GUIClient::summonHovercar()
 				{
 					conPrint("WorldMaintenance::removeOldVehicles(): Removing hovercar with UID: " + object->uid.toString() + ". (Last modified: " + object->last_modified_time.timeAgoDescription() + ")");
 					num_hovercars_deleted++;
 					delete_ob = true;
 				}
 
-				if((object->model_url == "poweryacht3_2_glb_17116251394697619807.bmesh") && areMatsDefaultBoatMats(object)) // From GUIClient::summonBoat()
+				if((object->model_url == VehiclesShared::boatModelURL()) && areMatsDefaultBoatMats(object)) // From GUIClient::summonBoat()
 				{
 					conPrint("WorldMaintenance::removeOldVehicles(): Removing boat with UID: " + object->uid.toString() + ". (Last modified: " + object->last_modified_time.timeAgoDescription() + ")");
 					num_boats_deleted++;
 					delete_ob = true;
 				}
 
-				if((object->model_url == "deLorean2_0_glb_5923323464955550713.bmesh") && areMatsDefaultCarMats(object)) // From GUIClient::summonCar()
+				if((object->model_url == VehiclesShared::carModelURL()) && areMatsDefaultCarMats(object)) // From GUIClient::summonCar()
 				{
 					conPrint("WorldMaintenance::removeOldVehicles(): Removing car with UID: " + object->uid.toString() + ". (Last modified: " + object->last_modified_time.timeAgoDescription() + ")");
 					num_cars_deleted++;
 					delete_ob = true;
 				}
 
-				if((object->model_url == "Jet_Ski_obj_3200017390617214853.bmesh") && areMatsDefaultJetSkiMats(object)) // From GUIClient::summonJetSki()
+				if((object->model_url == VehiclesShared::jetSkiModelURL()) && areMatsDefaultJetSkiMats(object)) // From GUIClient::summonJetSki()
 				{
 					conPrint("WorldMaintenance::removeOldVehicles(): Removing jet ski with UID: " + object->uid.toString() + ". (Last modified: " + object->last_modified_time.timeAgoDescription() + ")");
 					num_jetskis_deleted++;

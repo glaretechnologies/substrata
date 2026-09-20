@@ -47,6 +47,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "PhotoModeUI.h"
 #include "ImGUIDrawing.h"
 #include "BuilderAIUI.h"
+#include "../shared/VehiclesShared.h"
 #include "../shared/ProtocolStructs.h"
 #include "GearInventoryUI.h"
 #include "CEF.h"
@@ -12113,7 +12114,7 @@ void GUIClient::summonBike()
 
 	WorldObjectRef new_world_object = new WorldObject();
 
-	new_world_object->model_url = "optimized_dressed_fix7_offset4_glb_4474648345850208925.bmesh";
+	new_world_object->model_url = VehiclesShared::bikeModelURL();
 	new_world_object->max_model_lod_level = 2;
 
 	new_world_object->flags = WorldObject::COLLIDABLE_FLAG | WorldObject::DYNAMIC_FLAG | WorldObject::SUMMONED_FLAG | WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH;
@@ -12235,7 +12236,7 @@ void GUIClient::summonHovercar()
 
 	WorldObjectRef new_world_object = new WorldObject();
 
-	new_world_object->model_url = "peugot_closed_glb_2887717763908023194.bmesh";
+	new_world_object->model_url = VehiclesShared::hovercarModelURL();
 	new_world_object->max_model_lod_level = 2;
 
 	new_world_object->flags = WorldObject::COLLIDABLE_FLAG | WorldObject::DYNAMIC_FLAG | WorldObject::SUMMONED_FLAG | WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH;
@@ -12285,7 +12286,7 @@ void GUIClient::summonBoat()
 	float angle;
 	(to_face_camera_rot * rot).toAxisAndAngle(axis, angle);
 
-	const URLString boat_model_URL = "poweryacht3_2_glb_17116251394697619807.bmesh";
+	const URLString boat_model_URL = URLString(VehiclesShared::boatModelURL());
 
 	// Search for existing summoned boat, if we find it, move it to in front of user.
 	{
@@ -12390,7 +12391,7 @@ void GUIClient::summonJetSki()
 	float angle;
 	(to_face_camera_rot * rot).toAxisAndAngle(axis, angle);
 
-	const URLString jetski_model_URL = "Jet_Ski_obj_3200017390617214853.bmesh";
+	const URLString jetski_model_URL = URLString(VehiclesShared::jetSkiModelURL());
 
 	// Search for existing summoned jet ski, if we find it, move it to in front of user.
 	{
@@ -12546,7 +12547,7 @@ void GUIClient::summonCar()
 
 	WorldObjectRef new_world_object = new WorldObject();
 
-	new_world_object->model_url = "deLorean2_0_glb_5923323464955550713.bmesh";
+	new_world_object->model_url = VehiclesShared::carModelURL();
 	new_world_object->max_model_lod_level = 2;
 
 	new_world_object->flags = WorldObject::COLLIDABLE_FLAG | WorldObject::DYNAMIC_FLAG | WorldObject::SUMMONED_FLAG | WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH;
