@@ -985,8 +985,11 @@ void WorldObject::writeToNetworkStream(RandomAccessOutStream& stream) const // W
 }
 
 
-void WorldObject::copyNetworkStateFrom(const WorldObject& other)
+// restrict_changes: restrict changes to stuff clients are allowed to change.  Clients are not allowed to change creator_id etc.
+void WorldObject::copyNetworkStateFrom(const WorldObject& other, bool restrict_changes)
 {
+	const bool allow_all_changes = !restrict_changes;
+
 	// NOTE: The data in here needs to match that in readFromNetworkStreamGivenUID()
 	object_type = other.object_type;
 	model_url = other.model_url;
@@ -1006,13 +1009,16 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other)
 
 	scale = other.scale;
 
-	created_time = other.created_time;
+	if(allow_all_changes)
+		created_time = other.created_time;
 	last_modified_time = other.last_modified_time;
-	creator_id = other.creator_id;
+	if(allow_all_changes)
+		creator_id = other.creator_id;
 
 	flags = other.flags;
 
-	creator_name = other.creator_name;
+	if(allow_all_changes)
+		creator_name = other.creator_name;
 
 	compressed_voxels = other.compressed_voxels;
 

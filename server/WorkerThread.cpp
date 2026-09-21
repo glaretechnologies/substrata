@@ -2097,7 +2097,7 @@ void WorkerThread::doRun()
 										{
 											resources_changed = objectResourcesDiffer(*ob, temp_ob); // Compute before we copy the new object state over the old state.
 
-											ob->copyNetworkStateFrom(temp_ob);
+											ob->copyNetworkStateFrom(temp_ob, /*restrict_changes=*/true);
 											
 											// Clamp volume to the max allowed level
 											ob->audio_volume = myClamp(ob->audio_volume, 0.f, maxAudioVolumeForObject(*ob, client_user_id, *cur_world_state));
@@ -2179,6 +2179,8 @@ void WorkerThread::doRun()
 							const UID object_uid = readUIDFromStream(msg_buffer);
 							const std::string new_lightmap_url = msg_buffer.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 
+							bool send_must_be_owner_msg = false;
+
 							// Look up existing object in world state
 							{
 								WorldStateLock lock(world_state->mutex);
@@ -2189,17 +2191,28 @@ void WorkerThread::doRun()
 
 									if(!world_state->isInReadOnlyMode())
 									{
-										ob->lightmap_url = new_lightmap_url;
-										ob->last_modified_time = TimeStamp::currentTime();
+										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms, lock))
+										{
+											send_must_be_owner_msg = true;
+										}
+										else
+										{
+											ob->lightmap_url = new_lightmap_url;
+											ob->last_modified_time = TimeStamp::currentTime();
 
-										ob->from_remote_lightmap_url_dirty = true;
-										cur_world_state->addWorldObjectAsDBDirty(ob, lock);
-										cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
+											ob->from_remote_lightmap_url_dirty = true;
+											cur_world_state->addWorldObjectAsDBDirty(ob, lock);
+											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
-										world_state->markAsChanged();
+											world_state->markAsChanged();
+										}
 									}
 								}
 							}
+
+							if(send_must_be_owner_msg)
+								writeErrorMessageToClient(socket, "You must be the owner of this object or lightmapper bot to change it.");
+
 							break;
 						}
 					case Protocol::ObjectModelURLChanged:
@@ -2208,8 +2221,10 @@ void WorkerThread::doRun()
 							const UID object_uid = readUIDFromStream(msg_buffer);
 							const std::string new_model_url = msg_buffer.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
 
-							// Look up existing object in world state
 							bool model_url_changed = false;
+							bool send_must_be_owner_msg = false;
+
+							// Look up existing object in world state
 							{
 								WorldStateLock lock(world_state->mutex);
 								auto res = cur_world_state->getObjects(lock).find(object_uid);
@@ -2219,21 +2234,31 @@ void WorkerThread::doRun()
 
 									if(!world_state->isInReadOnlyMode())
 									{
-										model_url_changed = ob->model_url != toURLString(new_model_url);
+										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms, lock))
+										{
+											send_must_be_owner_msg = true;
+										}
+										else
+										{
+											model_url_changed = ob->model_url != toURLString(new_model_url);
 
-										ob->model_url = new_model_url;
-										ob->last_modified_time = TimeStamp::currentTime();
+											ob->model_url = new_model_url;
+											ob->last_modified_time = TimeStamp::currentTime();
 
-										ob->from_remote_model_url_dirty = true;
-										cur_world_state->addWorldObjectAsDBDirty(ob, lock);
-										cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
+											ob->from_remote_model_url_dirty = true;
+											cur_world_state->addWorldObjectAsDBDirty(ob, lock);
+											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
-										markLODChunkAsNeedsRebuildForChangedObject(cur_world_state.ptr(), ob, lock);
+											markLODChunkAsNeedsRebuildForChangedObject(cur_world_state.ptr(), ob, lock);
 
-										world_state->markAsChanged();
+											world_state->markAsChanged();
+										}
 									}
 								}
 							}
+
+							if(send_must_be_owner_msg)
+								writeErrorMessageToClient(socket, "You must be the owner of this object or to change it.");
 
 							// If the object now uses a different model, send a message to the MeshLodGenThread to generate LOD levels and optimised meshes for it if needed.
 							// The model may already be present on the server, in which case there is no upload to trigger the generation.
@@ -2248,6 +2273,8 @@ void WorkerThread::doRun()
 							const UID object_uid = readUIDFromStream(msg_buffer);
 							const uint32 flags = msg_buffer.readUInt32();
 
+							bool send_must_be_owner_msg = false;
+
 							// Look up existing object in world state
 							{
 								WorldStateLock lock(world_state->mutex);
@@ -2258,19 +2285,30 @@ void WorkerThread::doRun()
 
 									if(!world_state->isInReadOnlyMode())
 									{
-										ob->flags = flags; // Copy flags
-										ob->last_modified_time = TimeStamp::currentTime();
+										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms, lock))
+										{
+											send_must_be_owner_msg = true;
+										}
+										else
+										{
+											ob->flags = flags; // Copy flags
+											ob->last_modified_time = TimeStamp::currentTime();
 
-										ob->from_remote_flags_dirty = true;
-										cur_world_state->addWorldObjectAsDBDirty(ob, lock);
-										cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
+											ob->from_remote_flags_dirty = true;
+											cur_world_state->addWorldObjectAsDBDirty(ob, lock);
+											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
-										markLODChunkAsNeedsRebuildForChangedObject(cur_world_state.ptr(), ob, lock);
+											markLODChunkAsNeedsRebuildForChangedObject(cur_world_state.ptr(), ob, lock);
 
-										world_state->markAsChanged();
+											world_state->markAsChanged();
+										}
 									}
 								}
 							}
+
+							if(send_must_be_owner_msg)
+								writeErrorMessageToClient(socket, "You must be the owner of this object or to change it.");
+
 							break;
 						}
 					case Protocol::ObjectPhysicsOwnershipTaken:

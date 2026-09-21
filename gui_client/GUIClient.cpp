@@ -11695,7 +11695,7 @@ void GUIClient::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 					voxels_different = !voxels_same;
 				}
 
-				in_world_ob->copyNetworkStateFrom(*restored_ob);
+				in_world_ob->copyNetworkStateFrom(*restored_ob, /*restrict_changes=*/false);
 
 				in_world_ob->decompressVoxels();
 			}

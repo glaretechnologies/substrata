@@ -252,7 +252,8 @@ public:
 	void writeToStream(RandomAccessOutStream& stream) const;
 	void writeToNetworkStream(RandomAccessOutStream& stream) const; // Write without version
 
-	void copyNetworkStateFrom(const WorldObject& other);
+	// restrict_changes: restrict changes to stuff clients are allowed to change.  Clients are not allowed to change creator_id etc.
+	void copyNetworkStateFrom(const WorldObject& other, bool restrict_changes);
 
 	std::string serialiseToXML(int tab_depth) const;
 	static Reference<WorldObject> loadFromXMLElem(const std::string& object_file_path, bool convert_rel_paths_to_abs_disk_paths, pugi::xml_node elem); // object_file_path is used for converting relative paths to absolute.
