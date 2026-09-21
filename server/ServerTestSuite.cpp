@@ -116,7 +116,6 @@ void ServerTestSuite::test()
 	runTest([&]() { web::Escaping::test();												});
 	runTest([&]() { WorkerThreadTests::test();											});
 	runTest([&]() { glare::testArray();													});
-	runTest([&]() { BasisDecoder::test();												}, /*mem leak allowed=*/true); // Basis code seems to leak
 	runTest([&]() { WorldObject::test();												});
 	runTest([&]() { testLRUCache();														});
 	runTest([&]() { TimeStamp::test();													});
@@ -149,10 +148,11 @@ void ServerTestSuite::test()
 	runTest([&]() { Signing::test();													});
 	runTest([&]() { AccountHandlers::test();											});
 	runTest([&]() { HTTPClient::test();													}, /*mem leak allowed=*/true); // Leaks due to libtls allocating globals
+	runTest([&]() { web::WebWorkerThreadTests::test();									});
+	runTest([&]() { BasisDecoder::test();												}, /*mem leak allowed=*/true); // Basis code seems to leak
 	
 	// runTest([&]() { BatchedMeshTests::test();										}); // Uses some Indigo files
 	// runTest([&]() { Infura::test();													}); // Don't hit up Infura API usually
-	runTest([&]() { web::WebWorkerThreadTests::test();									}); // Doesn't return
 
 	conPrint("========== Successfully completed Substrata server unit tests (Elapsed: " + timer.elapsedStringNPlaces(3) + ") ==========");
 

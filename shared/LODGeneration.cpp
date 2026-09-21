@@ -655,6 +655,7 @@ void LODGeneration::test()
 				Making basis file with dimensions 2048 * 2048 for LOD level -1
 		Basisu compression and writing of KTX file took 1.48 s
 		*/
+		if(false)
 		for(int i=0; i<10; ++i)
 		{
 			generateBasisTexture(/*src tex path=*/"C:\\Users\\nick\\AppData\\Roaming\\Substrata\\server_data\\server_resources\\QueenPalmTree_BaseColor_png_9712663273203237448.png",
