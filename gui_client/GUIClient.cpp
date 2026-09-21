@@ -335,8 +335,6 @@ void GUIClient::preConnectInitialise(const std::string& cache_dir_, const Refere
 	client_tls_config = tls_config_new();
 	if(!client_tls_config)
 		throw glare::Exception("Failed to initialise TLS (tls_config_new failed)");
-	tls_config_insecure_noverifycert(client_tls_config); // TODO: Fix this, check cert etc..
-	tls_config_insecure_noverifyname(client_tls_config);
 #endif
 }
 
@@ -13481,6 +13479,10 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 {
 	ui_interface->clientDisconnectingFromServer();
 
+	// Destroying photo mode also waits for photo uploads, which use client_tls_config.
+	if(photo_mode_ui)
+		setPhotoModeEnabled(false);
+
 	udp_socket = NULL;
 
 	load_item_queue.clear();
@@ -13840,6 +13842,16 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 	world_state = new WorldState();
 
 	TracyMessageL("Creating ClientThread");
+
+#if !defined(EMSCRIPTEN)
+	// Previous connections have stopped. Reset verification so the localhost exception cannot carry over to another server.
+	tls_config_verify(client_tls_config);
+	if(server_hostname == "localhost")
+	{
+		tls_config_insecure_noverifycert(client_tls_config);
+		tls_config_insecure_noverifyname(client_tls_config);
+	}
+#endif
 
 	client_thread = new ClientThread(&msg_queue, server_hostname, server_port, server_worldname, this->client_tls_config, this->world_ob_pool_allocator, this->world_state);
 	client_thread_manager.addThread(client_thread);
