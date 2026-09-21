@@ -2095,6 +2095,7 @@ void WorkerThread::doRun()
 							{
 								// Look up existing object in world state
 								bool send_must_be_owner_msg = false;
+								bool send_must_be_script_creator_msg = false;
 								bool resources_changed = false;
 								{
 									WorldStateLock lock(world_state->mutex);
@@ -2107,6 +2108,11 @@ void WorkerThread::doRun()
 										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms, lock))
 										{
 											send_must_be_owner_msg = true;
+										}
+										else if((temp_ob.script != ob->script) && (client_user_id != ob->creator_id))
+										{
+											// Scripts execute with the creator's permissions, so object edit permissions alone are not sufficient.
+											send_must_be_script_creator_msg = true;
 										}
 										else
 										{
@@ -2185,6 +2191,8 @@ void WorkerThread::doRun()
 
 								if(send_must_be_owner_msg)
 									writeErrorMessageToClient(socket, "You must be the owner of this object to change it.");
+								else if(send_must_be_script_creator_msg)
+									writeErrorMessageToClient(socket, "You must be the creator of this object to change its script.");
 							}
 							break;
 						}
