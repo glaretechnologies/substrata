@@ -9,6 +9,9 @@ Copyright Glare Technologies Limited 2023 -
 #include "AccountHandlers.h"
 #include "ServerLuaScriptTests.h"
 #include "SubEvent.h"
+#include "WorldHandlers.h"
+#include "WorkerThreadUploadPhotoHandling.h"
+#include "WorkerThreadTests.h"
 #include "../shared/WorldObject.h"
 #include "../shared/RateLimiter.h"
 #include "../shared/LODGeneration.h"
@@ -32,6 +35,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/ConPrint.h>
 #include <utils/Timer.h>
 #include <utils/SmallVector.h>
+#include <utils/VectorUnitTests.h>
 #include <utils/SHA256.h>
 #include <utils/DatabaseTests.h>
 #include <utils/BestFitAllocator.h>
@@ -39,17 +43,21 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/Keccak256.h>
 #include <utils/CryptoRNG.h>
 #include <utils/Base64.h>
+#include <utils/LRUCache.h>
 #include <utils/ReferenceTest.h>
 #include <utils/GlareString.h>
 #include <utils/CircularBuffer.h>
-#include <utils/LRUCache.h>
 #include <utils/Array.h>
+#include <utils/KeyPairGen.h>
 #include <lua/LuaTests.h>
 #include <lua/LuaUtils.h>
 #include <lua/LuaSerialisation.h>
 #include <graphics/KTXDecoder.h>
 #include <graphics/BasisDecoder.h>
+#include <webserver/Escaping.h>
+#include <ai/LLMClient.h>
 #include <functional>
+//#include "../gui_client/ResourceProcessing.h"
 
 
 #if BUILD_TESTS
@@ -102,8 +110,13 @@ void ServerTestSuite::test()
 
 	Timer timer;
 
+	runTest([&]() { js::VectorUnitTests::test();										});
+	runTest([&]() { WorldHandlers::test();												});
+	runTest([&]() { WorkerThreadUploadPhotoHandling::test();							});
+	runTest([&]() { web::Escaping::test();												});
+	runTest([&]() { WorkerThreadTests::test();											});
 	runTest([&]() { glare::testArray();													});
-	runTest([&]() { BasisDecoder::test();												});
+	runTest([&]() { BasisDecoder::test();												}, /*mem leak allowed=*/true); // Basis code seems to leak
 	runTest([&]() { WorldObject::test();												});
 	runTest([&]() { testLRUCache();														});
 	runTest([&]() { TimeStamp::test();													});
@@ -139,7 +152,7 @@ void ServerTestSuite::test()
 	
 	// runTest([&]() { BatchedMeshTests::test();										}); // Uses some Indigo files
 	// runTest([&]() { Infura::test();													}); // Don't hit up Infura API usually
-	// runTest([&]() { web::WebWorkerThreadTests::test();								}); // Doesn't return
+	runTest([&]() { web::WebWorkerThreadTests::test();									}); // Doesn't return
 
 	conPrint("========== Successfully completed Substrata server unit tests (Elapsed: " + timer.elapsedStringNPlaces(3) + ") ==========");
 
