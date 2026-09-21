@@ -56,7 +56,7 @@ void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* serv
 		{
 			Lock lock(server->world_state->mutex);
 
-			const std::string client_ip = socket->getOtherEndIPAddress().toString();
+			const IPAddress client_ip = socket->getOtherEndIPAddress();
 
 			if(server->world_state->tooManyRecentFailedLogins(client_ip))
 			{

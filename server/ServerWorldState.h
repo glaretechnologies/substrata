@@ -29,6 +29,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "ChatBot.h"
 #include "SubEthTransaction.h"
 #include "../shared/RateLimiter.h"
+#include <networking/IPAddress.h>
 #include <ThreadSafeRefCounted.h>
 #include <Platform.h>
 #include <Mutex.h>
@@ -356,8 +357,8 @@ public:
 	// used as a password-guessing oracle.  Only failures are counted, so a user who logs in successfully is never limited.
 	// Callers should check tooManyRecentFailedLogins() before checking credentials, and call recordFailedLoginAttempt() when the
 	// check fails.
-	bool tooManyRecentFailedLogins(const std::string& client_ip) REQUIRES(mutex);
-	void recordFailedLoginAttempt(const std::string& client_ip) REQUIRES(mutex);
+	bool tooManyRecentFailedLogins(const IPAddress& client_ip) REQUIRES(mutex);
+	void recordFailedLoginAttempt(const IPAddress& client_ip) REQUIRES(mutex);
 
 	void clearAndReset(); // Just for fuzzing
 
@@ -445,10 +446,10 @@ public:
 	std::unordered_map<UserID, Reference<RateLimiter>, UserIDHasher> mcp_rate_limiters GUARDED_BY(mutex);
 
 	// Ephemeral state: per-client-IP rate limiters for failed authentication attempts on the MCP endpoint.  Created lazily.  See MCPHandlers.
-	std::map<std::string, Reference<RateLimiter>> mcp_failed_auth_rate_limiters GUARDED_BY(mutex);
+	std::map<IPAddress, Reference<RateLimiter>> mcp_failed_auth_rate_limiters GUARDED_BY(mutex);
 
 	// Ephemeral state: per-client-IP rate limiters for failed login attempts.  Created lazily.  See tooManyRecentFailedLogins().
-	std::map<std::string, Reference<RateLimiter>> failed_login_rate_limiters GUARDED_BY(mutex);
+	std::map<IPAddress, Reference<RateLimiter>> failed_login_rate_limiters GUARDED_BY(mutex);
 
 	// Ephemeral state: A cache of object-space AABBs for models, used by the MCP endpoint for object creation.
 	std::map<URLString, js::AABBox> mesh_URL_to_aabb_os GUARDED_BY(mutex);

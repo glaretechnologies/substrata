@@ -120,7 +120,7 @@ static const size_t MAX_NUM_FAILED_AUTH_RATE_LIMITERS          = 10000;
 
 
 // Record a failed authentication attempt from the given client IP, creating the rate limiter for the IP lazily.
-static void recordFailedAuthAttempt(ServerAllWorldsState& world_state, const std::string& client_ip, WorldStateLock& /*lock*/) REQUIRES(world_state.mutex)
+static void recordFailedAuthAttempt(ServerAllWorldsState& world_state, const IPAddress& client_ip, WorldStateLock& /*lock*/) REQUIRES(world_state.mutex)
 {
 	if(!world_state.server_config.do_mcp_rate_limiting)
 		return;
@@ -1254,7 +1254,7 @@ void handleMCPRequest(ServerAllWorldsState& world_state, const web::RequestInfo&
 	}
 
 	// Check API key exists, and lookup user from API key, or use username and password passed with Substrata-Login auth scheme.
-	const std::string client_ip = request.client_ip_address.toString();
+	const IPAddress client_ip = request.client_ip_address;
 	UserID user_id;
 	std::string user_name;
 	{
@@ -1266,7 +1266,7 @@ void handleMCPRequest(ServerAllWorldsState& world_state, const web::RequestInfo&
 			const auto res = world_state.mcp_failed_auth_rate_limiters.find(client_ip);
 			if((res != world_state.mcp_failed_auth_rate_limiters.end()) && res->second->isAtLimit(Clock::getCurTimeRealSec()))
 			{
-				conPrint("MCP: failed-auth rate limit exceeded for IP " + client_ip);
+				conPrint("MCP: failed-auth rate limit exceeded for IP " + client_ip.toString());
 				writeHTTP429Response(reply_info, "Too many failed authentication attempts.  Try again later.", /*retry_after_s=*/(int)MCP_FAILED_AUTH_RATE_LIMIT_PERIOD_S);
 				return;
 			}

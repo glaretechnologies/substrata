@@ -196,7 +196,7 @@ void WorkerThread::handleResourceUploadConnection()
 		{
 			Lock lock(server->world_state->mutex);
 
-			const std::string client_ip = socket->getOtherEndIPAddress().toString();
+			const IPAddress client_ip = socket->getOtherEndIPAddress();
 
 			if(server->world_state->tooManyRecentFailedLogins(client_ip))
 			{
@@ -3098,7 +3098,7 @@ void WorkerThread::doRun()
 							{
 								WorldStateLock lock(world_state->mutex);
 
-								const std::string client_ip = socket->getOtherEndIPAddress().toString();
+								const IPAddress client_ip = socket->getOtherEndIPAddress();
 
 								if(world_state->tooManyRecentFailedLogins(client_ip))
 								{

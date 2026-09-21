@@ -918,14 +918,14 @@ static const size_t FAILED_LOGIN_RATE_LIMIT_MAX_IN_PERIOD	= 100;   // Max failed
 static const size_t MAX_NUM_FAILED_LOGIN_RATE_LIMITERS		= 10000;
 
 
-bool ServerAllWorldsState::tooManyRecentFailedLogins(const std::string& client_ip)
+bool ServerAllWorldsState::tooManyRecentFailedLogins(const IPAddress& client_ip)
 {
 	const auto res = failed_login_rate_limiters.find(client_ip);
 	return (res != failed_login_rate_limiters.end()) && res->second->isAtLimit(Clock::getCurTimeRealSec());
 }
 
 
-void ServerAllWorldsState::recordFailedLoginAttempt(const std::string& client_ip)
+void ServerAllWorldsState::recordFailedLoginAttempt(const IPAddress& client_ip)
 {
 	RateLimiter* rate_limiter;
 	const auto res = failed_login_rate_limiters.find(client_ip);

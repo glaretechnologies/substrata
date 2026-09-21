@@ -211,7 +211,7 @@ void handleLoginPost(ServerAllWorldsState& world_state, const web::RequestInfo& 
 
 			Lock lock(world_state.mutex);
 
-			const std::string client_ip = request_info.client_ip_address.toString();
+			const IPAddress client_ip = request_info.client_ip_address;
 
 			if(world_state.tooManyRecentFailedLogins(client_ip))
 			{
