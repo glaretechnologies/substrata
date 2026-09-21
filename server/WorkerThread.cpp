@@ -1492,7 +1492,8 @@ void WorkerThread::doRun()
 					case Protocol::AvatarTransformUpdate:
 						{
 							//conPrint("AvatarTransformUpdate");
-							const UID avatar_uid = readUIDFromStream(msg_buffer);
+							readUIDFromStream(msg_buffer); // Ignore the UID in the message: a client may only act on its own avatar.
+							const UID avatar_uid = client_avatar_uid;
 							const Vec3d pos = readVec3FromStream<double>(msg_buffer);
 							const Vec3f rotation = readVec3FromStream<float>(msg_buffer);
 							const uint32 anim_state = msg_buffer.readUInt32();
@@ -1518,7 +1519,8 @@ void WorkerThread::doRun()
 					case Protocol::AvatarPerformGesture:
 						{
 							//conPrint("AvatarPerformGesture");
-							const UID avatar_uid = readUIDFromStream(msg_buffer);
+							readUIDFromStream(msg_buffer); // Ignore the UID in the message: a client may only act on its own avatar.
+							const UID avatar_uid = client_avatar_uid;
 							const std::string gesture_name = msg_buffer.readStringLengthFirst(10000);
 
 							URLString gesture_URL;
@@ -1574,7 +1576,8 @@ void WorkerThread::doRun()
 					case Protocol::AvatarStopGesture:
 						{
 							//conPrint("AvatarStopGesture");
-							const UID avatar_uid = readUIDFromStream(msg_buffer);
+							readUIDFromStream(msg_buffer); // Ignore the UID in the message: a client may only act on its own avatar.
+							const UID avatar_uid = client_avatar_uid;
 
 							// Mark the avatar as not performing the gesture any more
 							{
@@ -1610,6 +1613,11 @@ void WorkerThread::doRun()
 
 							Avatar temp_avatar;
 							readAvatarFromNetworkStream(msg_buffer, temp_avatar); // Read message data before grabbing lock
+
+							// A client may only update its own avatar, and the displayed name comes from the user account, so
+							// override both with the values the server knows.  (Matches Protocol::CreateAvatar.)
+							temp_avatar.uid = client_avatar_uid;
+							temp_avatar.name = client_user_id.valid() ? client_user_name : "Anonymous";
 
 							// Look up existing avatar in world state
 							{
@@ -1723,7 +1731,8 @@ void WorkerThread::doRun()
 					case Protocol::AvatarDestroyed:
 						{
 							conPrintIfNotFuzzing("AvatarDestroyed");
-							const UID avatar_uid = readUIDFromStream(msg_buffer);
+							readUIDFromStream(msg_buffer); // Ignore the UID in the message: a client may only act on its own avatar.
+							const UID avatar_uid = client_avatar_uid;
 
 							// Mark avatar as dead
 							{
@@ -1743,7 +1752,8 @@ void WorkerThread::doRun()
 						{
 							conPrintIfNotFuzzing("AvatarEnteredVehicle");
 
-							const UID avatar_uid = readUIDFromStream(msg_buffer);
+							readUIDFromStream(msg_buffer); // Ignore the UID in the message: a client may only act on its own avatar.
+							const UID avatar_uid = client_avatar_uid;
 							const UID vehicle_ob_uid = readUIDFromStream(msg_buffer);
 							const uint32 seat_index = msg_buffer.readUInt32();
 							const uint32 flags = msg_buffer.readUInt32();
@@ -1787,7 +1797,8 @@ void WorkerThread::doRun()
 						{
 							conPrintIfNotFuzzing("AvatarSatOnSeat");
 
-							const UID avatar_uid = readUIDFromStream(msg_buffer);
+							readUIDFromStream(msg_buffer); // Ignore the UID in the message: a client may only act on its own avatar.
+							const UID avatar_uid = client_avatar_uid;
 							const UID seat_ob_uid = readUIDFromStream(msg_buffer);
 
 							// Mark avatar as on seat
@@ -1815,7 +1826,8 @@ void WorkerThread::doRun()
 						{
 							conPrintIfNotFuzzing("AvatarGotUpFromSeat");
 
-							const UID avatar_uid = readUIDFromStream(msg_buffer);
+							readUIDFromStream(msg_buffer); // Ignore the UID in the message: a client may only act on its own avatar.
+							const UID avatar_uid = client_avatar_uid;
 
 							// Mark avatar as not sitting on seat
 							{
@@ -1841,7 +1853,8 @@ void WorkerThread::doRun()
 						{
 							conPrintIfNotFuzzing("AvatarExitedVehicle");
 
-							const UID avatar_uid = readUIDFromStream(msg_buffer);
+							readUIDFromStream(msg_buffer); // Ignore the UID in the message: a client may only act on its own avatar.
+							const UID avatar_uid = client_avatar_uid;
 
 							// Mark avatar as not in vehicle and execute any onUserExitedVehicle event handlers.
 							{
