@@ -51,18 +51,33 @@ void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* serv
 
 		UserID client_user_id = UserID::invalidUserID();
 		std::string client_user_name;
+		bool login_rate_limited = false;
+		if(!username.empty()) // A client logging in with a session cookie sends an empty username, so don't treat that as a login attempt.
 		{
 			Lock lock(server->world_state->mutex);
-			auto res = server->world_state->name_to_users.find(username);
-			if(res != server->world_state->name_to_users.end())
+
+			const std::string client_ip = socket->getOtherEndIPAddress().toString();
+
+			if(server->world_state->tooManyRecentFailedLogins(client_ip))
 			{
-				User* user = res->second.getPointer();
-				if(user->isPasswordValid(password))
+				login_rate_limited = true;
+			}
+			else
+			{
+				auto res = server->world_state->name_to_users.find(username);
+				if(res != server->world_state->name_to_users.end())
 				{
-					// Password is valid, log user in.
-					client_user_id = user->id;
-					client_user_name = user->name;
+					User* user = res->second.getPointer();
+					if(user->isPasswordValid(password))
+					{
+						// Password is valid, log user in.
+						client_user_id = user->id;
+						client_user_name = user->name;
+					}
 				}
+
+				if(!client_user_id.valid())
+					server->world_state->recordFailedLoginAttempt(client_ip);
 			}
 		}
 
@@ -87,7 +102,7 @@ void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* serv
 		{
 			conPrint("\tLogin failed.");
 			socket->writeUInt32(Protocol::LogInFailure); // Note that this is not a framed message.
-			socket->writeStringLengthFirst("Login failed.");
+			socket->writeStringLengthFirst(login_rate_limited ? "Too many failed login attempts.  Please try again later." : "Login failed.");
 
 			socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 			socket->flush();

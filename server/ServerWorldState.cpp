@@ -906,6 +906,45 @@ bool ServerAllWorldsState::isInReadOnlyMode()
 }
 
 
+// The budget is deliberately generous, so that normal use never reaches it.  Note that a client sends its saved credentials on
+// every resource upload connection (see UploadResourceThread), and auto-logs-in on every connect, so a user whose saved password
+// has gone stale can produce a burst of failures without doing anything unusual - uploading one object with several textures is
+// enough.  It is also shared with interactive logins, so a tight budget would lock such a user out of logging in to fix it.
+// Several users behind one NAT share the budget too.
+static const double FAILED_LOGIN_RATE_LIMIT_PERIOD_S		= 300.0; // Sliding-window length, in seconds.
+static const size_t FAILED_LOGIN_RATE_LIMIT_MAX_IN_PERIOD	= 100;   // Max failed login attempts allowed per IP within the window.
+
+// Cap on the number of per-IP rate limiters, to bound memory use when an attacker connects from many IPs.
+static const size_t MAX_NUM_FAILED_LOGIN_RATE_LIMITERS		= 10000;
+
+
+bool ServerAllWorldsState::tooManyRecentFailedLogins(const std::string& client_ip)
+{
+	const auto res = failed_login_rate_limiters.find(client_ip);
+	return (res != failed_login_rate_limiters.end()) && res->second->isAtLimit(Clock::getCurTimeRealSec());
+}
+
+
+void ServerAllWorldsState::recordFailedLoginAttempt(const std::string& client_ip)
+{
+	RateLimiter* rate_limiter;
+	const auto res = failed_login_rate_limiters.find(client_ip);
+	if(res == failed_login_rate_limiters.end())
+	{
+		// Bound the number of per-IP rate limiters.  Clearing forgets recent failures, but bounds memory use.
+		if(failed_login_rate_limiters.size() >= MAX_NUM_FAILED_LOGIN_RATE_LIMITERS)
+			failed_login_rate_limiters.clear();
+
+		rate_limiter = new RateLimiter(FAILED_LOGIN_RATE_LIMIT_PERIOD_S, FAILED_LOGIN_RATE_LIMIT_MAX_IN_PERIOD);
+		failed_login_rate_limiters.insert(std::make_pair(client_ip, Reference<RateLimiter>(rate_limiter)));
+	}
+	else
+		rate_limiter = res->second.ptr();
+
+	rate_limiter->checkAddEvent(Clock::getCurTimeRealSec());
+}
+
+
 void ServerAllWorldsState::clearAndReset() // Just for fuzzing
 {
 	Lock lock(mutex);

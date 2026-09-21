@@ -164,7 +164,31 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 
 void WorkerThreadTests::test()
 {
-	
+	conPrint("WorkerThreadTests::test()");
+
+	// Test failed-login rate limiting.  See ServerAllWorldsState::tooManyRecentFailedLogins().
+	{
+		Reference<ServerAllWorldsState> world_state = new ServerAllWorldsState();
+
+		WorldStateLock lock(world_state->mutex);
+
+		testAssert(!world_state->tooManyRecentFailedLogins("1.2.3.4")); // No failures recorded yet.
+
+		// Record failures until the IP reaches the limit.  Bounded, so a limiter that never trips fails the test rather than looping forever.
+		int num_recorded = 0;
+		while(!world_state->tooManyRecentFailedLogins("1.2.3.4") && (num_recorded < 1000))
+		{
+			world_state->recordFailedLoginAttempt("1.2.3.4");
+			num_recorded++;
+		}
+
+		testAssert(world_state->tooManyRecentFailedLogins("1.2.3.4"));
+		testAssert(num_recorded > 1); // A user mistyping their password once should not lock them out.
+
+		testAssert(!world_state->tooManyRecentFailedLogins("5.6.7.8")); // Limiting is per-IP, so another IP is unaffected.
+	}
+
+	conPrint("WorkerThreadTests::test() done");
 }
 
 

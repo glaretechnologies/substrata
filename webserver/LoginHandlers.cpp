@@ -45,6 +45,35 @@ site-b cookie currently stores session ID.
 */
 
 
+// The return URL comes from a form field, and ends up in the Location header of the redirect sent after a successful login or
+// signup.  Only allow a path on this site, so it can't redirect to another site or inject anything into the header.
+// Returns "/" for anything that doesn't qualify.
+// NOTE: "/\" is rejected as well as "//", since browsers normalise the backslash to a forward slash.
+// NOTE: a relative URL in a Location header is valid, see RFC 7231, 7.1.2.
+static const std::string safeReturnURL(const web::UnsafeString& raw_return_URL)
+{
+	const std::string s = raw_return_URL.str();
+
+	if(s.empty() || (s.size() > 1000))
+		return "/";
+
+	if(s[0] != '/') // Must be relative to the site root.
+		return "/";
+
+	if((s.size() >= 2) && ((s[1] == '/') || (s[1] == '\\'))) // Must not be protocol-relative, e.g. "//evil.com".
+		return "/";
+
+	for(size_t i=0; i<s.size(); ++i)
+	{
+		const unsigned char c = (unsigned char)s[i];
+		if(c < 0x20 || c == 0x7f) // No control characters, in particular CR and LF.
+			return "/";
+	}
+
+	return s;
+}
+
+
 bool isLoggedIn(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::UnsafeString& logged_in_username_out, bool& is_user_admin_out)
 {
 	Lock lock(world_state.mutex);
@@ -173,47 +202,49 @@ void handleLoginPost(ServerAllWorldsState& world_state, const web::RequestInfo& 
 		//conPrint("password: '" + password.str() + "'");
 		//conPrint("raw_return_URL: '" + raw_return_URL.str() + "'");
 
-		std::string return_URL = raw_return_URL.str();
-		if(return_URL.empty())
-			return_URL = "/";
-		else
-		{
-			// Prefix the return URL with the current site hostname, to prevent redirects to dodgy sites.
-			const std::string hostname = request_info.getHostHeader(); // Find the hostname the request was sent to
-			if(hostname.empty())
-				return_URL = "/";
-			else
-				return_URL = std::string(request_info.tls_connection ? "https://" : "http://") + hostname + return_URL;
-		}
+		const std::string return_URL = safeReturnURL(raw_return_URL);
 
 		bool valid_username_and_credentials = false;
+		bool rate_limited = false;
 		std::string session_id;
 		{ // Lock scope
 
 			Lock lock(world_state.mutex);
 
-			// Lookup user by username
-			const auto res = world_state.name_to_users.find(username.str());
-			if(res != world_state.name_to_users.end())
+			const std::string client_ip = request_info.client_ip_address.toString();
+
+			if(world_state.tooManyRecentFailedLogins(client_ip))
 			{
-				// Found user for username
-				const User& user = *(res->second);
-				if(user.isPasswordValid(password.str()))
+				rate_limited = true;
+			}
+			else
+			{
+				// Lookup user by username
+				const auto res = world_state.name_to_users.find(username.str());
+				if(res != world_state.name_to_users.end())
 				{
-					valid_username_and_credentials = true;
+					// Found user for username
+					const User& user = *(res->second);
+					if(user.isPasswordValid(password.str()))
+					{
+						valid_username_and_credentials = true;
 
-					UserWebSessionRef session = new UserWebSession();
-					session->id = UserWebSession::generateRandomKey();
-					session->user_id = user.id;
-					session->created_time = TimeStamp::currentTime();
-					
-					world_state.addUserWebSessionAsDBDirty(session);
+						UserWebSessionRef session = new UserWebSession();
+						session->id = UserWebSession::generateRandomKey();
+						session->user_id = user.id;
+						session->created_time = TimeStamp::currentTime();
 
-					world_state.user_web_sessions[session->id] = session;
-					world_state.markAsChanged();
+						world_state.addUserWebSessionAsDBDirty(session);
 
-					session_id = session->id;
+						world_state.user_web_sessions[session->id] = session;
+						world_state.markAsChanged();
+
+						session_id = session->id;
+					}
 				}
+
+				if(!valid_username_and_credentials)
+					world_state.recordFailedLoginAttempt(client_ip);
 			}
 		} // End lock scope
 
@@ -221,17 +252,21 @@ void handleLoginPost(ServerAllWorldsState& world_state, const web::RequestInfo& 
 		if(valid_username_and_credentials)
 		{
 			// Valid credentials.
-			web::ResponseUtils::writeRawString(reply_info, "HTTP/1.1 302 Redirect" + CRLF);
-			web::ResponseUtils::writeRawString(reply_info, "Location: " + return_URL + CRLF);
-			web::ResponseUtils::writeRawString(reply_info, "Set-Cookie: site-b=" + session_id + "; Path=/; Max-Age=7776000; HttpOnly" + CRLF); // Max-Age is 90 days.
+			std::string reply;
+			reply += "HTTP/1.1 302 Redirect" + CRLF;
+			reply += "Location: " + return_URL + CRLF;
+			reply += "Set-Cookie: site-b=" + session_id + "; Path=/; Max-Age=7776000; HttpOnly" + CRLF; // Max-Age is 90 days.
 			// HttpOnly forbids JavaScript from accessing the cookie (https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie)
-			web::ResponseUtils::writeRawString(reply_info, "Content-Length: 0" + CRLF); // NOTE: not sure if content-length is needed for 302 redirect.
-			web::ResponseUtils::writeRawString(reply_info, CRLF);
+			reply += "Content-Length: 0" + CRLF; // NOTE: not sure if content-length is needed for 302 redirect.
+			reply += CRLF;
+
+			web::ResponseUtils::writeRawString(reply_info, reply);
 		}
 		else
 		{
 			// Invalid credentials or some other problem
-			web::ResponseUtils::writeRedirectTo(reply_info, "/login?msg=" + web::Escaping::URLEscape("Invalid username or password, please try again."));
+			web::ResponseUtils::writeRedirectTo(reply_info, "/login?msg=" + web::Escaping::URLEscape(rate_limited ?
+				"Too many failed login attempts.  Please try again later." : "Invalid username or password, please try again."));
 		}
 	}
 	catch(glare::Exception& e)
@@ -332,18 +367,7 @@ void handleSignUpPost(ServerAllWorldsState& world_state, const web::RequestInfo&
 		if(password.str().size() < 6)
 			throw InvalidCredentialsExcep("Password is too short, must have at least 6 characters");
 
-		std::string return_URL = raw_return_URL.str();
-		if(return_URL.empty())
-			return_URL = "/";
-		else
-		{
-			// Prefix the return URL with the current site hostname, to prevent redirects to dodgy sites.
-			const std::string hostname = request_info.getHostHeader(); // Find the hostname the request was sent to
-			if(hostname.empty())
-				return_URL = "/";
-			else
-				return_URL = std::string(request_info.tls_connection ? "https://" : "http://") + hostname + return_URL;
-		}
+		const std::string return_URL = safeReturnURL(raw_return_URL);
 
 		std::string reply;
 
@@ -396,7 +420,7 @@ void handleSignUpPost(ServerAllWorldsState& world_state, const web::RequestInfo&
 	}
 	catch(InvalidCredentialsExcep& e)
 	{
-		web::ResponseUtils::writeRedirectTo(reply_info, "/signup?return=" + web::Escaping::HTMLEscape(request_info.getURLParam("return").str()) + "&msg=" + web::Escaping::URLEscape(e.what()));
+		web::ResponseUtils::writeRedirectTo(reply_info, "/signup?return=" + web::Escaping::URLEscape(request_info.getURLParam("return").str()) + "&msg=" + web::Escaping::URLEscape(e.what()));
 	}
 	catch(glare::Exception& e)
 	{
@@ -514,7 +538,7 @@ void handleResetPasswordPost(ServerAllWorldsState& world_state, const web::Reque
 	}
 	catch(InvalidCredentialsExcep& e)
 	{
-		web::ResponseUtils::writeRedirectTo(reply_info, "/signup?return=" + web::Escaping::HTMLEscape(request_info.getURLParam("return").str()) + "&msg=" + web::Escaping::URLEscape(e.what()));
+		web::ResponseUtils::writeRedirectTo(reply_info, "/signup?return=" + web::Escaping::URLEscape(request_info.getURLParam("return").str()) + "&msg=" + web::Escaping::URLEscape(e.what()));
 	}
 	catch(glare::Exception& e)
 	{
@@ -587,7 +611,7 @@ void renderResetPasswordFromEmailPage(ServerAllWorldsState& world_state, const w
 	}
 	catch(InvalidCredentialsExcep& e)
 	{
-		web::ResponseUtils::writeRedirectTo(reply_info, "/signup?return=" + web::Escaping::HTMLEscape(request_info.getURLParam("return").str()) + "&msg=" + web::Escaping::URLEscape(e.what()));
+		web::ResponseUtils::writeRedirectTo(reply_info, "/signup?return=" + web::Escaping::URLEscape(request_info.getURLParam("return").str()) + "&msg=" + web::Escaping::URLEscape(e.what()));
 	}
 	catch(glare::Exception& e)
 	{

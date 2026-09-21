@@ -352,6 +352,13 @@ public:
 
 	bool isInReadOnlyMode();
 
+	// Failed login attempts are rate-limited per client IP, so that any endpoint that checks a username and password can't be
+	// used as a password-guessing oracle.  Only failures are counted, so a user who logs in successfully is never limited.
+	// Callers should check tooManyRecentFailedLogins() before checking credentials, and call recordFailedLoginAttempt() when the
+	// check fails.
+	bool tooManyRecentFailedLogins(const std::string& client_ip) REQUIRES(mutex);
+	void recordFailedLoginAttempt(const std::string& client_ip) REQUIRES(mutex);
+
 	void clearAndReset(); // Just for fuzzing
 
 	void addPersonalWorldForUser(const UserRef user, WorldStateLock& lock) REQUIRES(mutex);
@@ -439,6 +446,9 @@ public:
 
 	// Ephemeral state: per-client-IP rate limiters for failed authentication attempts on the MCP endpoint.  Created lazily.  See MCPHandlers.
 	std::map<std::string, Reference<RateLimiter>> mcp_failed_auth_rate_limiters GUARDED_BY(mutex);
+
+	// Ephemeral state: per-client-IP rate limiters for failed login attempts.  Created lazily.  See tooManyRecentFailedLogins().
+	std::map<std::string, Reference<RateLimiter>> failed_login_rate_limiters GUARDED_BY(mutex);
 
 	// Ephemeral state: A cache of object-space AABBs for models, used by the MCP endpoint for object creation.
 	std::map<URLString, js::AABBox> mesh_URL_to_aabb_os GUARDED_BY(mutex);

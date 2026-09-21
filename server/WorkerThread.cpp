@@ -191,18 +191,33 @@ void WorkerThread::handleResourceUploadConnection()
 
 		UserID client_user_id = UserID::invalidUserID();
 		std::string client_user_name;
+		bool login_rate_limited = false;
+		if(!username.empty()) // A client logging in with a session cookie sends an empty username, so don't treat that as a login attempt.
 		{
 			Lock lock(server->world_state->mutex);
-			auto res = server->world_state->name_to_users.find(username);
-			if(res != server->world_state->name_to_users.end())
+
+			const std::string client_ip = socket->getOtherEndIPAddress().toString();
+
+			if(server->world_state->tooManyRecentFailedLogins(client_ip))
 			{
-				User* user = res->second.getPointer();
-				if(user->isPasswordValid(password))
+				login_rate_limited = true;
+			}
+			else
+			{
+				auto res = server->world_state->name_to_users.find(username);
+				if(res != server->world_state->name_to_users.end())
 				{
-					// Password is valid, log user in.
-					client_user_id = user->id;
-					client_user_name = user->name;
+					User* user = res->second.getPointer();
+					if(user->isPasswordValid(password))
+					{
+						// Password is valid, log user in.
+						client_user_id = user->id;
+						client_user_name = user->name;
+					}
 				}
+
+				if(!client_user_id.valid())
+					server->world_state->recordFailedLoginAttempt(client_ip);
 			}
 		}
 
@@ -224,7 +239,7 @@ void WorkerThread::handleResourceUploadConnection()
 		{
 			conPrintIfNotFuzzing("handleResourceUploadConnection: Login failed.");
 			socket->writeUInt32(Protocol::LogInFailure); // Note that this is not a framed message.
-			socket->writeStringLengthFirst("Login failed.");
+			socket->writeStringLengthFirst(login_rate_limited ? "Too many failed login attempts.  Please try again later." : "Login failed.");
 
 			socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 			socket->flush();
@@ -3079,26 +3094,40 @@ void WorkerThread::doRun()
 							conPrintIfNotFuzzing("username: '" + username + "'");
 						
 							bool logged_in = false;
+							bool rate_limited = false;
 							{
 								WorldStateLock lock(world_state->mutex);
-								auto res = world_state->name_to_users.find(username);
-								if(res != world_state->name_to_users.end())
-								{
-									User* user = res->second.getPointer();
-									const bool password_valid = user->isPasswordValid(password);
-									conPrintIfNotFuzzing("password_valid: " + boolToString(password_valid));
-									if(password_valid)
-									{
-										// Password is valid, log user in.
-										client_user_id = user->id;
-										client_user_name = user->name;
-										client_user_avatar_settings = user->avatar_settings;
-										client_user_flags = user->flags;
-										client_gesture_settings = user->gesture_settings;
-										getEquippedGearForUser(*user, world_state, lock, /*gear items out=*/client_equipped_gear); // Set client_equipped_gear
 
-										logged_in = true;
+								const std::string client_ip = socket->getOtherEndIPAddress().toString();
+
+								if(world_state->tooManyRecentFailedLogins(client_ip))
+								{
+									rate_limited = true;
+								}
+								else
+								{
+									auto res = world_state->name_to_users.find(username);
+									if(res != world_state->name_to_users.end())
+									{
+										User* user = res->second.getPointer();
+										const bool password_valid = user->isPasswordValid(password);
+										conPrintIfNotFuzzing("password_valid: " + boolToString(password_valid));
+										if(password_valid)
+										{
+											// Password is valid, log user in.
+											client_user_id = user->id;
+											client_user_name = user->name;
+											client_user_avatar_settings = user->avatar_settings;
+											client_user_flags = user->flags;
+											client_gesture_settings = user->gesture_settings;
+											getEquippedGearForUser(*user, world_state, lock, /*gear items out=*/client_equipped_gear); // Set client_equipped_gear
+
+											logged_in = true;
+										}
 									}
+
+									if(!logged_in)
+										world_state->recordFailedLoginAttempt(client_ip);
 								}
 							}
 
@@ -3125,7 +3154,8 @@ void WorkerThread::doRun()
 							{
 								// Login failed.  Send error message back to client
 								MessageUtils::initPacket(scratch_packet, Protocol::ErrorMessageID);
-								scratch_packet.writeStringLengthFirst("Login failed: username or password incorrect.");
+								scratch_packet.writeStringLengthFirst(rate_limited ? "Too many failed login attempts.  Please try again later." :
+									"Login failed: username or password incorrect.");
 								MessageUtils::updatePacketLengthField(scratch_packet);
 
 								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
