@@ -1063,7 +1063,7 @@ static int getMaterial(lua_State* state)
 	
 	// Get object UID
 	const UID ob_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
-	const size_t index = (size_t)LuaUtils::getDoubleArg(state, /*index=*/2);
+	const double value = (size_t)LuaUtils::getDoubleArg(state, /*index=*/2);
 
 	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
 
@@ -1072,7 +1072,11 @@ static int getMaterial(lua_State* state)
 
 	WorldObject* ob = getWorldObjectForUID(script_evaluator, ob_uid);
 
-	if(index > ob->materials.size())
+	if(!isFinite(value) || !(value >= 0.0 && value < (double)ob->materials.size()))
+		throw glare::Exception("Invalid material index");
+	const size_t index = (size_t)value;
+
+	if(index >= ob->materials.size())
 		throw glare::Exception("Invalid material index" + errorContextString(state));
 
 	// Make a material table with object UID and material index
@@ -1805,7 +1809,7 @@ static int worldMaterialClassIndexMetaMethod(lua_State* state)
 
 	WorldObject* ob = getWorldObjectForUID(script_evaluator, uid);
 
-	if(mat_index > ob->materials.size())
+	if(mat_index >= ob->materials.size())
 		throw glare::Exception("Invalid material index" + errorContextString(state));
 
 	WorldMaterial* mat = ob->materials[mat_index].ptr();
@@ -1906,7 +1910,7 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 		throw glare::Exception("Script does not have permissions to modifiy object (ob UID: " + uid.toString() + ")" + errorContextString(state));
 
 
-	if(mat_index > ob->materials.size())
+	if(mat_index >= ob->materials.size())
 		throw glare::Exception("Invalid material index" + errorContextString(state));
 
 	WorldMaterial* mat = ob->materials[mat_index].ptr();
