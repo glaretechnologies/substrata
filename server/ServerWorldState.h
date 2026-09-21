@@ -360,6 +360,11 @@ public:
 	bool tooManyRecentFailedLogins(const IPAddress& client_ip) REQUIRES(mutex);
 	void recordFailedLoginAttempt(const IPAddress& client_ip) REQUIRES(mutex);
 
+	// Deletes all web sessions belonging to the user, so that logins made with them stop working.  Call when the user's password
+	// changes, so that a session obtained with the old password doesn't outlive it.
+	// except_session_id: a session to keep, or an empty string to delete all of them.
+	void deleteAllWebSessionsForUser(const UserID& user_id, const std::string& except_session_id) REQUIRES(mutex);
+
 	void clearAndReset(); // Just for fuzzing
 
 	void addPersonalWorldForUser(const UserRef user, WorldStateLock& lock) REQUIRES(mutex);

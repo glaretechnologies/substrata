@@ -945,6 +945,31 @@ void ServerAllWorldsState::recordFailedLoginAttempt(const IPAddress& client_ip)
 }
 
 
+void ServerAllWorldsState::deleteAllWebSessionsForUser(const UserID& user_id, const std::string& except_session_id)
+{
+	for(auto it = user_web_sessions.begin(); it != user_web_sessions.end(); )
+	{
+		const UserWebSessionRef session = it->second;
+
+		if((session->user_id == user_id) && (session->id != except_session_id))
+		{
+			if(session->database_key.valid())
+				db_records_to_delete.insert(session->database_key);
+
+			// A session that hasn't been written to the database yet has no key to delete, and would be written out by the
+			// pending update if we left it in the dirty set.
+			db_dirty_userwebsessions.erase(session);
+
+			it = user_web_sessions.erase(it);
+		}
+		else
+			++it;
+	}
+
+	changed = 1;
+}
+
+
 void ServerAllWorldsState::clearAndReset() // Just for fuzzing
 {
 	Lock lock(mutex);

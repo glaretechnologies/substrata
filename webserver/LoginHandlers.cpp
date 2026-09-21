@@ -140,6 +140,17 @@ User* getLoggedInUser(ServerAllWorldsState& world_state, const web::RequestInfo&
 }
 
 
+// Returns the session ID the request was made with, or an empty string if it wasn't made with one.
+static const std::string getSessionIDForRequest(const web::RequestInfo& request_info)
+{
+	for(size_t i=0; i<request_info.cookies.size(); ++i)
+		if(request_info.cookies[i].key == "site-b")
+			return request_info.cookies[i].value;
+
+	return std::string();
+}
+
+
 void setUserWebMessageForLoggedInUser(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, const std::string& message)
 {
 	Lock lock(world_state.mutex);
@@ -657,6 +668,10 @@ void handleSetNewPasswordPost(ServerAllWorldsState& world_state, const web::Requ
 					password_reset = user->resetPasswordWithTokenHash(token_hash, new_password);
 					if(password_reset)
 					{
+						// The user is not logged in during a password reset, so delete all their sessions: any that exist were
+						// made with the old password.
+						world_state.deleteAllWebSessionsForUser(user->id, /*except_session_id=*/std::string());
+
 						world_state.addUserAsDBDirty(user);
 						break;
 					}
@@ -766,6 +781,11 @@ void handleChangePasswordPost(ServerAllWorldsState& world_state, const web::Requ
 			if(user->isPasswordValid(current_password))
 			{
 				user->setNewPasswordAndSalt(new_password);
+
+				// Delete the user's other sessions, so that any made with the old password stop working.  Keep the session this
+				// request was made with, so the user isn't logged out of the browser they just changed their password in.
+				world_state.deleteAllWebSessionsForUser(user->id, /*except_session_id=*/getSessionIDForRequest(request_info));
+
 				world_state.addUserAsDBDirty(user);
 				password_changed = true;
 			}

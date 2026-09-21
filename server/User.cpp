@@ -118,8 +118,9 @@ bool User::resetPasswordWithTokenHash(const std::array<uint8, 32>& reset_token_h
 				// Valid reset token - apply password reset
 				this->hashed_password = computePasswordHash(new_password, this->password_hash_salt);
 
-				// Remove this reset token
-				password_resets.erase(password_resets.begin() + i);
+				// Remove all outstanding reset tokens, not just the one that was used: the others were issued against the old
+				// password, and anyone holding one could use it to set the password again.
+				password_resets.clear();
 				return true;
 			}
 		}

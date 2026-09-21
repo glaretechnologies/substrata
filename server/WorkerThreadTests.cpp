@@ -191,6 +191,48 @@ void WorkerThreadTests::test()
 		testAssert(!world_state->tooManyRecentFailedLogins(ip_b)); // Limiting is per-IP, so another IP is unaffected.
 	}
 
+	// Test deleting a user's web sessions.  See ServerAllWorldsState::deleteAllWebSessionsForUser().
+	{
+		Reference<ServerAllWorldsState> world_state = new ServerAllWorldsState();
+
+		WorldStateLock lock(world_state->mutex);
+
+		const UserID user_a(1);
+		const UserID user_b(2);
+
+		// Make two sessions for user_a and one for user_b.
+		UserWebSessionRef session_a1 = new UserWebSession(); session_a1->id = "a1"; session_a1->user_id = user_a;
+		UserWebSessionRef session_a2 = new UserWebSession(); session_a2->id = "a2"; session_a2->user_id = user_a;
+		UserWebSessionRef session_b1 = new UserWebSession(); session_b1->id = "b1"; session_b1->user_id = user_b;
+
+		world_state->user_web_sessions[session_a1->id] = session_a1;
+		world_state->user_web_sessions[session_a2->id] = session_a2;
+		world_state->user_web_sessions[session_b1->id] = session_b1;
+
+		world_state->addUserWebSessionAsDBDirty(session_a1);
+		world_state->addUserWebSessionAsDBDirty(session_a2);
+		world_state->addUserWebSessionAsDBDirty(session_b1);
+
+		// Delete user_a's sessions apart from a1.
+		world_state->deleteAllWebSessionsForUser(user_a, /*except_session_id=*/"a1");
+
+		testAssert(world_state->user_web_sessions.count("a1") == 1); // Kept.
+		testAssert(world_state->user_web_sessions.count("a2") == 0); // Deleted.
+		testAssert(world_state->user_web_sessions.count("b1") == 1); // Another user's session is untouched.
+
+		// A deleted session must not be left in the dirty set, or the pending database update would write it back out.
+		testAssert(world_state->db_dirty_userwebsessions.count(session_a2) == 0);
+		testAssert(world_state->db_dirty_userwebsessions.count(session_a1) == 1);
+		testAssert(world_state->db_dirty_userwebsessions.count(session_b1) == 1);
+
+		// Now delete all of user_a's sessions.
+		world_state->deleteAllWebSessionsForUser(user_a, /*except_session_id=*/std::string());
+
+		testAssert(world_state->user_web_sessions.count("a1") == 0);
+		testAssert(world_state->user_web_sessions.count("b1") == 1);
+		testAssert(world_state->db_dirty_userwebsessions.count(session_a1) == 0);
+	}
+
 	conPrint("WorkerThreadTests::test() done");
 }
 
