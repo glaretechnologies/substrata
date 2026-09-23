@@ -124,35 +124,33 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 		}
 		auction_html += "</div>\n";
 
-		// If no auctions on substrata site were shown, show OpenSea auctions, if any.
+		// Show OpenSea listings by the Substrata account, if any.
 		int opensea_num_shown = 0;
-		if(num_auctions_shown == 0)
+		auction_html += "<div class=\"root-auction-list-container\">\n";
+		for(auto it = world_state.opensea_parcel_listings.begin(); (it != world_state.opensea_parcel_listings.end()) && (opensea_num_shown < MAX_NUM_AUCTIONS_TO_SHOW); ++it)
 		{
-			auction_html += "<div class=\"root-auction-list-container\">\n";
-			for(auto it = world_state.opensea_parcel_listings.begin(); (it != world_state.opensea_parcel_listings.end()) && (opensea_num_shown < 3); ++it)
+			const OpenSeaParcelListing& listing = *it;
+
+			auto parcel_res = root_world->getParcels(lock).find(listing.parcel_id); // Look up parcel
+			if(parcel_res != root_world->getParcels(lock).end())
 			{
-				const OpenSeaParcelListing& listing = *it;
+				const Parcel* parcel = parcel_res->second.ptr();
 
-				auto parcel_res = root_world->getParcels(lock).find(listing.parcel_id); // Look up parcel
-				if(parcel_res != root_world->getParcels(lock).end())
+				if(parcel->screenshot_ids.size() >= 1)
 				{
-					const Parcel* parcel = parcel_res->second.ptr();
+					const uint64 shot_id = parcel->screenshot_ids[0]; // Close-in screenshot
 
-					if(parcel->screenshot_ids.size() >= 1)
-					{
-						const uint64 shot_id = parcel->screenshot_ids[0]; // Close-in screenshot
+					const std::string opensea_url = "https://opensea.io/assets/ethereum/0xa4535f84e8d746462f9774319e75b25bc151ba1d/" + listing.parcel_id.toString();
 
-						const std::string opensea_url = "https://opensea.io/assets/ethereum/0xa4535f84e8d746462f9774319e75b25bc151ba1d/" + listing.parcel_id.toString();
+					auction_html += "<div class=\"root-auction-div\"><a href=\"/parcel/" + parcel->id.toString() + "\"><img src=\"/screenshot/" + toString(shot_id) + "\" class=\"root-auction-thumbnail\" alt=\"screenshot\" /></a>  <br/>"
+						"<a href=\"" + opensea_url + "\">View&nbsp;on&nbsp;OpenSea</a></div>";
 
-						auction_html += "<div class=\"root-auction-div\"><a href=\"/parcel/" + parcel->id.toString() + "\"><img src=\"/screenshot/" + toString(shot_id) + "\" class=\"root-auction-thumbnail\" alt=\"screenshot\" /></a>  <br/>"
-							"<a href=\"/parcel/" + parcel->id.toString() + "\">Parcel " + parcel->id.toString() + "</a> <a href=\"" + opensea_url + "\">View&nbsp;on&nbsp;OpenSea</a></div>";
-					}
-
-					opensea_num_shown++;
 				}
+
+				opensea_num_shown++;
 			}
-			auction_html += "</div>\n";
 		}
+		auction_html += "</div>\n";
 
 		if(num_auctions_shown == 0 && opensea_num_shown == 0)
 			auction_html += "<p>Sorry, there are no parcels for sale here right now.  Please check back later!</p>";
