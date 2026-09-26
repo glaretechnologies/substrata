@@ -509,6 +509,7 @@ std::string WorldObject::objectTypeString(ObjectType t)
 	case ObjectType_Seat: return "seat";
 	case ObjectType_GearItem: return "gear item";
 	case ObjectType_Splat: return "splat";
+	case ObjectType_Group: return "group";
 	default: return "Unknown";
 	}
 }
@@ -526,11 +527,12 @@ WorldObject::ObjectType WorldObject::objectTypeForString(const std::string& ob_t
 	if(ob_type_string == "seat") return ObjectType_Seat;
 	if(ob_type_string == "gear item") return ObjectType_GearItem;
 	if(ob_type_string == "splat") return ObjectType_Splat;
+	if(ob_type_string == "group") return ObjectType_Group;
 	throw glare::Exception("Unknown object type '" + ob_type_string + "'");
 }
 
 
-static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 22;
+static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 23; // Version used for serialising to the database.
 /*
 Version history:
 9: introduced voxels
@@ -547,6 +549,7 @@ Version history:
 20: Added centre_of_mass_offset_os
 21: Added chunk_batch0_start etc.
 22: Added per-type data (length-prefixed)
+23: Added group_id.
 */
 
 
@@ -713,6 +716,9 @@ void WorldObject::writeToStream(RandomAccessOutStream& stream) const
 
 	// New in v22:
 	writeWorldObjectPerTypeData(stream, *this);
+
+	// New in v23:
+	::writeToStream(group_id, stream);
 }
 
 
@@ -907,6 +913,11 @@ void readWorldObjectFromStream(RandomAccessInStream& stream, WorldObject& ob)
 	else
 		setWorldObjectPerTypeDataDefaults(ob);
 
+	if(v >= 23)
+		ob.group_id = readUIDFromStream(stream);
+	else
+		ob.group_id = UID::invalidUID();
+
 	// Set ephemeral state
 	ob.state = WorldObject::State_Alive;
 }
@@ -982,6 +993,9 @@ void WorldObject::writeToNetworkStream(RandomAccessOutStream& stream) const // W
 
 	// New in v22:
 	writeWorldObjectPerTypeData(stream, *this);
+
+	// New in v23:
+	::writeToStream(group_id, stream);
 }
 
 
@@ -1023,6 +1037,8 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other, bool restrict_c
 	compressed_voxels = other.compressed_voxels;
 
 	aabb_os = other.aabb_os;
+
+	group_id = other.group_id;
 
 	max_model_lod_level = other.max_model_lod_level;
 
@@ -1086,6 +1102,8 @@ std::string WorldObject::serialiseToXML(int tab_depth) const
 
 	XMLWriteUtils::writeVec3ToXML(s, "aabb_os_min", Vec3f(aabb_os.min_), tab_depth + 1);
 	XMLWriteUtils::writeVec3ToXML(s, "aabb_os_max", Vec3f(aabb_os.max_), tab_depth + 1);
+
+	XMLWriteUtils::writeUInt64ToXML(s, "group_id", group_id.value(), tab_depth + 1);
 
 	XMLWriteUtils::writeInt32ToXML(s, "max_model_lod_level", max_model_lod_level, tab_depth + 1);
 
@@ -1157,6 +1175,8 @@ std::string WorldObject::serialiseToJSON() const
 	JSONWriteUtils::writeVec3ToJSON(s, "aabb_os_min", Vec3f(aabb_os.min_));
 	JSONWriteUtils::writeVec3ToJSON(s, "aabb_os_max", Vec3f(aabb_os.max_));
 
+	JSONWriteUtils::writeUInt64ToJSON(s, "group_id", group_id.value());
+
 	JSONWriteUtils::writeInt32ToJSON(s, "max_model_lod_level", max_model_lod_level);
 
 	if(object_type == WorldObject::ObjectType_VoxelGroup)
@@ -1225,6 +1245,8 @@ Reference<WorldObject> WorldObject::loadFromXMLElem(const std::string& object_fi
 
 	ob->aabb_os.min_ = XMLParseUtils::parseVec3fWithDefault(elem, "aabb_os_min", Vec3f(0,0,0)).toVec4fPoint();
 	ob->aabb_os.max_ = XMLParseUtils::parseVec3fWithDefault(elem, "aabb_os_max", Vec3f(0,0,0)).toVec4fPoint();
+
+	ob->group_id = UID(XMLParseUtils::parseUInt64WithDefault(elem, "group_id", UID::invalidUID().value()));
 
 	ob->max_model_lod_level = XMLParseUtils::parseIntWithDefault(elem, "max_model_lod_level", 0);
 
@@ -1394,6 +1416,11 @@ void readWorldObjectFromNetworkStreamGivenUID(RandomAccessInStream& stream, Worl
 		readWorldObjectPerTypeData(stream, ob);
 	else
 		setWorldObjectPerTypeDataDefaults(ob);
+
+	if(!stream.endOfStream())
+		ob.group_id = readUIDFromStream(stream);
+	else
+		ob.group_id = UID::invalidUID();
 
 	// Set ephemeral state
 	//ob.state = WorldObject::State_Alive;
@@ -1928,6 +1955,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 
 static void testObjectsEqual(WorldObject& ob1, WorldObject& ob2)
 {
+	testAssert(ob1.script == ob2.script);
+	testAssert(ob1.content == ob2.content);
+	testAssert(ob1.group_id == ob2.group_id);
+
 	testAssert(ob1.getCompressedVoxels().nonNull() == ob2.getCompressedVoxels().nonNull());
 	if(ob1.getCompressedVoxels().nonNull())
 		testAssert(*ob1.getCompressedVoxels() == *ob2.getCompressedVoxels());
@@ -2068,6 +2099,7 @@ void WorldObject::test()
 			ob.materials.push_back(new WorldMaterial());
 
 			ob.script = "abc";
+			ob.group_id = UID(1234); // So the round-trips below exercise group_id.
 
 			BufferOutStream buf;
 			ob.writeToStream(buf);

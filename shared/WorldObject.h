@@ -297,10 +297,11 @@ public:
 		ObjectType_Seat = 8, // A seat that users can sit on
 		ObjectType_GearItem = 9, // An in-world pickup representing a GearItem (NFT) that can be picked up into a user's gear inventory.
 		// For ObjectType_GearItem, target_url holds the gear item name, content holds the description, and type_data.gear_item_data.gear_item_id holds the GearItem UID.
-		ObjectType_Splat = 10 // A Gaussian splat cloud.  model_url points at a .sog file, which decodes to GaussianSplatData rather than a BatchedMesh.
+		ObjectType_Splat = 10, // A Gaussian splat cloud.  model_url points at a .sog file, which decodes to GaussianSplatData rather than a BatchedMesh.
 		// ObjectType_Splat objects have no materials, always have max_model_lod_level 0, and are rendered by GaussianSplatRenderer, not via opengl_engine_ob (which is null for them).
+		ObjectType_Group = 11
 	};
-	static const uint64 NUM_OBJECT_TYPES = 11;
+	static const uint64 NUM_OBJECT_TYPES = 12;
 
 	static std::string objectTypeString(ObjectType t);
 	static ObjectType objectTypeForString(const std::string& ob_type_string);
@@ -353,7 +354,7 @@ public:
 	URLString lightmap_url;       // Max length MAX_URL_SIZE
 	std::string script;           // Winter or Luau or XML script.  Max length MAX_SCRIPT_SIZE
 	std::string content;          // For ObjectType_Hypercard, ObjectType_Text.  Max length MAX_CONTENT_SIZE
-	std::string target_url;       // For ObjectType_Portal, determines portal destination.  For ObjectType_WebView, determines the URL being viewed.  
+	std::string target_url;       // For ObjectType_Portal, determines portal destination.  For ObjectType_WebView, determines the URL being viewed.
 	// For other object types, makes them open a web-page or teleport to a substrata URL when used.  Max length MAX_URL_SIZE
 
 	Vec3d pos;
@@ -384,6 +385,8 @@ public:
 	UserID creator_id;
 
 	std::string creator_name; // This is 'denormalised' data that is not saved on disk, but set on load from disk or creation.  It is transferred across the network though.
+
+	UID group_id; // UID of the group that this object is a member of, invalidUID() if not a member of any group.
 
 	int max_model_lod_level; // maximum LOD level for model.  0 for models that don't have lower LOD versions.
 

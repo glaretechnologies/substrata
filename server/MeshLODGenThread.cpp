@@ -157,6 +157,11 @@ static void checkObjectSpaceAABB(ServerAllWorldsState* world_state, ServerWorldS
 				aabb_os = batched_mesh->aabb_os;
 			}
 		}
+		else if(ob->object_type == WorldObject::ObjectType_Group)
+		{
+			// Nothing to do.
+			return;
+		}
 		else
 			throw glare::Exception("invalid object type.");
 
