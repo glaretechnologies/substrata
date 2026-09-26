@@ -591,139 +591,146 @@ static void positionGroupObject(BuildScriptContext* context, size_t group_index,
 
 static int createObject(lua_State* state)
 {
-	// Expected args:
-	// Arg 1: ob_params : Table
-
-	BuildScriptContext* context = getContext(state);
-
-	if(!lua_istable(state, 1))
-		throw glare::Exception("createObject(): arg 1 (ob_params) was not a table.\n" + LuaUtils::getCallStackAsString(state));
-
-	// Checked before the work below so a script that loops without bound stops here rather than on some later failure.
-	if(context->num_objects_created >= context->max_objects)
-		throw glare::Exception("createObject(): this script has reached the limit of " + toString(context->max_objects) + " objects.");
-
-	const int table_index = 1;
-
-	WorldObjectRef ob = new WorldObject();
-
-	ob->model_url = getCheckedURLField(state, table_index, "model_url");
-	if(ob->model_url.empty())
-		throw glare::Exception("createObject(): 'model_url' is required.");
-
-	ob->pos   = LuaUtils::getTableVec3dField(state, table_index, "pos");
-	ob->axis  = LuaUtils::getTableVec3fFieldWithDefault(state, table_index, "axis", Vec3f(0,0,1));
-	ob->angle = (float)LuaUtils::getTableNumberFieldWithDefault(state, table_index, "angle", 0.0);
-	ob->scale = LuaUtils::getTableVec3fFieldWithDefault(state, table_index, "scale", Vec3f(1,1,1));
-
-	checkTransformOK(ob->pos, ob->axis, ob->angle, ob->scale); // Throws on non-finite or degenerate values.
-
-	ob->setCollidable(LuaUtils::getTableBoolFieldWithDefault(state, table_index, "collidable", ob->isCollidable()));
-	ob->setDynamic   (LuaUtils::getTableBoolFieldWithDefault(state, table_index, "dynamic",    ob->isDynamic()));
-
-	// Keeps the client from selecting each object as it arrives, which it does for objects the user has just made by hand.
-	ob->flags |= WorldObject::CREATED_VIA_MCP;
-
-	ob->content = LuaUtils::getTableStringFieldWithEmptyDefault(state, table_index, "content");
-	if(ob->content.size() > WorldObject::MAX_CONTENT_SIZE)
-		throw glare::Exception("createObject(): 'content' is longer than the maximum of " + toString(WorldObject::MAX_CONTENT_SIZE) + " characters.");
-
-	ob->script = LuaUtils::getTableStringFieldWithEmptyDefault(state, table_index, "script");
-	if(ob->script.size() > WorldObject::MAX_SCRIPT_SIZE)
-		throw glare::Exception("createObject(): 'script' is longer than the maximum of " + toString(WorldObject::MAX_SCRIPT_SIZE) + " characters.");
-
-	ob->target_url = getCheckedURLField(state, table_index, "target_url");
-
-	// The group the object goes in, if any.  Read with lua_rawgetfield rather than a default value, so that a group_id that isn't a
-	// group is an error instead of quietly making an object that belongs to nothing.  The group_id itself is set further down, since a
-	// group that has nothing in it yet takes this object's position, and making its group object needs a connection.
-	size_t group_index = std::numeric_limits<size_t>::max(); // max() if the object isn't going in a group.
+	try
 	{
-		const int group_value_type = lua_rawgetfield(state, table_index, "group_id"); // Pushes the field value onto the stack.
-		if(group_value_type == LUA_TNIL)
-			lua_pop(state, 1); // Pop the nil value
-		else
+		// Expected args:
+		// Arg 1: ob_params : Table
+
+		BuildScriptContext* context = getContext(state);
+
+		if(!lua_istable(state, 1))
+			throw glare::Exception("createObject(): arg 1 (ob_params) was not a table.");
+
+		// Checked before the work below so a script that loops without bound stops here rather than on some later failure.
+		if(context->num_objects_created >= context->max_objects)
+			throw glare::Exception("createObject(): this script has reached the limit of " + toString(context->max_objects) + " objects.");
+
+		const int table_index = 1;
+
+		WorldObjectRef ob = new WorldObject();
+
+		ob->model_url = getCheckedURLField(state, table_index, "model_url");
+		if(ob->model_url.empty())
+			throw glare::Exception("createObject(): 'model_url' is required.");
+
+		ob->pos   = LuaUtils::getTableVec3dField(state, table_index, "pos");
+		ob->axis  = LuaUtils::getTableVec3fFieldWithDefault(state, table_index, "axis", Vec3f(0,0,1));
+		ob->angle = (float)LuaUtils::getTableNumberFieldWithDefault(state, table_index, "angle", 0.0);
+		ob->scale = LuaUtils::getTableVec3fFieldWithDefault(state, table_index, "scale", Vec3f(1,1,1));
+
+		checkTransformOK(ob->pos, ob->axis, ob->angle, ob->scale); // Throws on non-finite or degenerate values.
+
+		ob->setCollidable(LuaUtils::getTableBoolFieldWithDefault(state, table_index, "collidable", ob->isCollidable()));
+		ob->setDynamic   (LuaUtils::getTableBoolFieldWithDefault(state, table_index, "dynamic",    ob->isDynamic()));
+
+		// Keeps the client from selecting each object as it arrives, which it does for objects the user has just made by hand.
+		ob->flags |= WorldObject::CREATED_VIA_MCP;
+
+		ob->content = LuaUtils::getTableStringFieldWithEmptyDefault(state, table_index, "content");
+		if(ob->content.size() > WorldObject::MAX_CONTENT_SIZE)
+			throw glare::Exception("createObject(): 'content' is longer than the maximum of " + toString(WorldObject::MAX_CONTENT_SIZE) + " characters.");
+
+		ob->script = LuaUtils::getTableStringFieldWithEmptyDefault(state, table_index, "script");
+		if(ob->script.size() > WorldObject::MAX_SCRIPT_SIZE)
+			throw glare::Exception("createObject(): 'script' is longer than the maximum of " + toString(WorldObject::MAX_SCRIPT_SIZE) + " characters.");
+
+		ob->target_url = getCheckedURLField(state, table_index, "target_url");
+
+		// The group the object goes in, if any.  Read with lua_rawgetfield rather than a default value, so that a group_id that isn't a
+		// group is an error instead of quietly making an object that belongs to nothing.  The group_id itself is set further down, since a
+		// group that has nothing in it yet takes this object's position, and making its group object needs a connection.
+		size_t group_index = std::numeric_limits<size_t>::max(); // max() if the object isn't going in a group.
 		{
-			if(group_value_type != LUA_TNUMBER)
-			{
-				lua_pop(state, 1); // Pop the group_id value
-				throw glare::Exception("createObject(): 'group_id' must be the group that getOrCreateGroup() returned.");
-			}
-
-			const double group_val = lua_tonumber(state, -1);
-			lua_pop(state, 1); // Pop the group_id value
-
-			group_index = getGroupIndexFromHandle(context, group_val, "createObject()");
-		}
-	}
-
-	// Materials
-	const int value_type = lua_rawgetfield(state, table_index, "materials"); // Pushes the field value onto the stack.
-	if(value_type == LUA_TTABLE)
-	{
-		const int max_num_mats = 100;
-		for(int i=1; i<=max_num_mats; ++i)
-		{
-			runtimeCheck(lua_istable(state, -1)); // The materials table should still be on top of the stack
-
-			const int mat_type = lua_rawgeti(state, /*table index=*/-1, i);
-			if(mat_type == LUA_TTABLE)
-			{
-				ob->materials.push_back(getTableWorldMaterial(state, -1));
-
-				lua_pop(state, 1); // Pop the material value
-			}
+			const int group_value_type = lua_rawgetfield(state, table_index, "group_id"); // Pushes the field value onto the stack.
+			if(group_value_type == LUA_TNIL)
+				lua_pop(state, 1); // Pop the nil value
 			else
 			{
-				lua_pop(state, 1); // Pop the nil value
-				break;
+				if(group_value_type != LUA_TNUMBER)
+				{
+					lua_pop(state, 1); // Pop the group_id value
+					throw glare::Exception("createObject(): 'group_id' must be the group that getOrCreateGroup() returned.");
+				}
+
+				const double group_val = lua_tonumber(state, -1);
+				lua_pop(state, 1); // Pop the group_id value
+
+				group_index = getGroupIndexFromHandle(context, group_val, "createObject()");
 			}
 		}
+
+		// Materials
+		const int value_type = lua_rawgetfield(state, table_index, "materials"); // Pushes the field value onto the stack.
+		if(value_type == LUA_TTABLE)
+		{
+			const int max_num_mats = 100;
+			for(int i=1; i<=max_num_mats; ++i)
+			{
+				runtimeCheck(lua_istable(state, -1)); // The materials table should still be on top of the stack
+
+				const int mat_type = lua_rawgeti(state, /*table index=*/-1, i);
+				if(mat_type == LUA_TTABLE)
+				{
+					ob->materials.push_back(getTableWorldMaterial(state, -1));
+
+					lua_pop(state, 1); // Pop the material value
+				}
+				else
+				{
+					lua_pop(state, 1); // Pop the nil value
+					break;
+				}
+			}
+		}
+		lua_pop(state, 1); // Pop the materials value
+
+		// NOTE: GUIClient::createObject() calls setMaterialFlagsForObject() here.  That only inspects colour textures given as local
+		// file paths, and build scripts give URLs, so there is nothing for it to do.
+
+		// Checked after the arguments have been read, so a malformed call is reported as such whether or not there is a connection.
+		if(!context->gui_client || context->gui_client->client_thread.isNull() || !context->builder_state)
+			throw glare::Exception("createObject(): not connected to a server.");
+
+		const BuildModelInfo& model_info = getModelInfo(context, ob->model_url);
+
+		ob->setAABBOS(model_info.aabb_os);
+		ob->max_model_lod_level = (model_info.num_verts <= 4 * 6) ? 0 : 2; // Don't generate LOD versions of a very small model.
+		BitUtils::setOrZeroBit(ob->flags, WorldObject::MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1, model_info.num_tris > WorldObject::MIN_MODEL_LOD_LEVEL_NEG_1_TRI_THRESHOLD);
+
+		// The group object of a group with nothing in it goes at this object's position.  Done after the checks above, so a call that fails
+		// doesn't leave a group object behind at a position nothing ended up at.
+		if(group_index != std::numeric_limits<size_t>::max())
+		{
+			if(context->groups[group_index].needs_positioning)
+				positionGroupObject(context, group_index, ob->pos);
+
+			ob->group_id = context->groups[group_index].uid;
+		}
+
+		// The server assigns the UID, creator and timestamps, and checks the user may create here.  The UID field of the message
+		// instead carries a token the server echoes back, which is how we find out whether it accepted the object.
+		// See Protocol::CreateObjectResponse.
+		const uint64 create_token = context->builder_state->makeToken();
+		ob->uid = UID(create_token);
+
+		MessageUtils::initPacket(context->packet, Protocol::CreateObject);
+		ob->writeToNetworkStream(context->packet);
+		MessageUtils::updatePacketLengthField(context->packet);
+
+		context->gui_client->client_thread->enqueueDataToSend(context->packet.buf);
+
+		if(context->first_create_token == 0)
+			context->first_create_token = create_token;
+		context->end_create_token = create_token + 1;
+
+		context->num_objects_created++;
+
+		return 0; // Number of results
 	}
-	lua_pop(state, 1); // Pop the materials value
-
-	// NOTE: GUIClient::createObject() calls setMaterialFlagsForObject() here.  That only inspects colour textures given as local
-	// file paths, and build scripts give URLs, so there is nothing for it to do.
-
-	// Checked after the arguments have been read, so a malformed call is reported as such whether or not there is a connection.
-	if(!context->gui_client || context->gui_client->client_thread.isNull() || !context->builder_state)
-		throw glare::Exception("createObject(): not connected to a server.");
-
-	const BuildModelInfo& model_info = getModelInfo(context, ob->model_url);
-
-	ob->setAABBOS(model_info.aabb_os);
-	ob->max_model_lod_level = (model_info.num_verts <= 4 * 6) ? 0 : 2; // Don't generate LOD versions of a very small model.
-	BitUtils::setOrZeroBit(ob->flags, WorldObject::MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1, model_info.num_tris > WorldObject::MIN_MODEL_LOD_LEVEL_NEG_1_TRI_THRESHOLD);
-
-	// The group object of a group with nothing in it goes at this object's position.  Done after the checks above, so a call that fails
-	// doesn't leave a group object behind at a position nothing ended up at.
-	if(group_index != std::numeric_limits<size_t>::max())
+	catch(glare::Exception& e)
 	{
-		if(context->groups[group_index].needs_positioning)
-			positionGroupObject(context, group_index, ob->pos);
-
-		ob->group_id = context->groups[group_index].uid;
+		luaL_error(state, "%s", e.what().c_str()); // Throws a lua_exception, with the script location of the call put in front of the message.
 	}
-
-	// The server assigns the UID, creator and timestamps, and checks the user may create here.  The UID field of the message
-	// instead carries a token the server echoes back, which is how we find out whether it accepted the object.
-	// See Protocol::CreateObjectResponse.
-	const uint64 create_token = context->builder_state->makeToken();
-	ob->uid = UID(create_token);
-
-	MessageUtils::initPacket(context->packet, Protocol::CreateObject);
-	ob->writeToNetworkStream(context->packet);
-	MessageUtils::updatePacketLengthField(context->packet);
-
-	context->gui_client->client_thread->enqueueDataToSend(context->packet.buf);
-
-	if(context->first_create_token == 0)
-		context->first_create_token = create_token;
-	context->end_create_token = create_token + 1;
-
-	context->num_objects_created++;
-
-	return 0; // Number of results
 }
 
 
@@ -751,26 +758,33 @@ static const Vec4f getPointArg(lua_State* state, int index)
 // mesh:addBox(centre, size [, axis, angle])
 static int mesh_addBox(lua_State* state)
 {
-	BuildScriptContext* context = getContext(state);
-	BuildMeshBuilder& builder = getMeshBuilderForSelf(state, context);
-
-	const Vec4f centre = getPointArg(state, 2);
-	const Vec3f size = LuaUtils::getVec3f(state, 3);
-
-	Vec4f axis(0, 0, 1, 0);
-	float angle = 0;
-	if(lua_gettop(state) >= 4)
+	try
 	{
-		const Vec3f axis_v = LuaUtils::getVec3f(state, 4);
-		if(axis_v.length() < 1.0e-9f)
-			throw glare::Exception("addBox(): axis is zero-length.");
-		axis = Vec4f(axis_v.x, axis_v.y, axis_v.z, 0);
-		angle = (float)LuaUtils::getDoubleArg(state, 5);
+		BuildScriptContext* context = getContext(state);
+		BuildMeshBuilder& builder = getMeshBuilderForSelf(state, context);
+
+		const Vec4f centre = getPointArg(state, 2);
+		const Vec3f size = LuaUtils::getVec3f(state, 3);
+
+		Vec4f axis(0, 0, 1, 0);
+		float angle = 0;
+		if(lua_gettop(state) >= 4)
+		{
+			const Vec3f axis_v = LuaUtils::getVec3f(state, 4);
+			if(axis_v.length() < 1.0e-9f)
+				throw glare::Exception("addBox(): axis is zero-length.");
+			axis = Vec4f(axis_v.x, axis_v.y, axis_v.z, 0);
+			angle = (float)LuaUtils::getDoubleArg(state, 5);
+		}
+
+		builder.addBox(centre, Vec4f(size.x, size.y, size.z, 0), axis, angle);
+
+		return 0; // Number of results
 	}
-
-	builder.addBox(centre, Vec4f(size.x, size.y, size.z, 0), axis, angle);
-
-	return 0; // Number of results
+	catch(glare::Exception& e)
+	{
+		luaL_error(state, "%s", e.what().c_str()); // Throws a lua_exception, with the script location of the call put in front of the message.
+	}
 }
 
 
@@ -823,75 +837,89 @@ normals is optional, three per vertex; uvs is optional, two per vertex; indices 
 */
 static int mesh_addTriangles(lua_State* state)
 {
-	BuildScriptContext* context = getContext(state);
-	BuildMeshBuilder& builder = getMeshBuilderForSelf(state, context);
-
-	if(!lua_istable(state, 2))
-		throw glare::Exception("addTriangles(): expected a table of arrays.");
-
-	const size_t max_floats = BuildMeshBuilder::MAX_NUM_VERTS * 3;
-
-	std::vector<float> positions, normals, uvs, index_floats;
-	readNumberArrayField(state, 2, "positions", max_floats, positions);
-	readNumberArrayField(state, 2, "normals",   max_floats, normals);
-	readNumberArrayField(state, 2, "uvs",       max_floats, uvs);
-	readNumberArrayField(state, 2, "indices",   max_floats, index_floats);
-
-	if(positions.empty())
-		throw glare::Exception("addTriangles(): 'positions' is required.");
-	if((positions.size() % 3) != 0)
-		throw glare::Exception("addTriangles(): 'positions' has " + toString(positions.size()) + " numbers, which is not a whole number of x,y,z triples.");
-
-	const size_t num_verts = positions.size() / 3;
-
-	if(!normals.empty() && (normals.size() != positions.size()))
-		throw glare::Exception("addTriangles(): 'normals' has " + toString(normals.size() / 3) + " entries but 'positions' has " + toString(num_verts) + ".");
-	if(!uvs.empty() && (uvs.size() != num_verts * 2))
-		throw glare::Exception("addTriangles(): 'uvs' has " + toString(uvs.size() / 2) + " entries but 'positions' has " + toString(num_verts) + ".");
-
-	// Without indices the vertices are taken in threes as triangles.
-	std::vector<uint32> indices;
-	if(index_floats.empty())
+	try
 	{
-		if((num_verts % 3) != 0)
-			throw glare::Exception("addTriangles(): with no 'indices', 'positions' must hold whole triangles, but it has " + toString(num_verts) + " vertices.");
+		BuildScriptContext* context = getContext(state);
+		BuildMeshBuilder& builder = getMeshBuilderForSelf(state, context);
 
-		indices.resize(num_verts);
-		for(size_t i=0; i<num_verts; ++i)
-			indices[i] = (uint32)i;
-	}
-	else
-	{
-		if((index_floats.size() % 3) != 0)
-			throw glare::Exception("addTriangles(): 'indices' has " + toString(index_floats.size()) + " entries, which is not a whole number of triangles.");
+		if(!lua_istable(state, 2))
+			throw glare::Exception("addTriangles(): expected a table of arrays.");
 
-		indices.resize(index_floats.size());
-		for(size_t i=0; i<index_floats.size(); ++i)
+		const size_t max_floats = BuildMeshBuilder::MAX_NUM_VERTS * 3;
+
+		std::vector<float> positions, normals, uvs, index_floats;
+		readNumberArrayField(state, 2, "positions", max_floats, positions);
+		readNumberArrayField(state, 2, "normals",   max_floats, normals);
+		readNumberArrayField(state, 2, "uvs",       max_floats, uvs);
+		readNumberArrayField(state, 2, "indices",   max_floats, index_floats);
+
+		if(positions.empty())
+			throw glare::Exception("addTriangles(): 'positions' is required.");
+		if((positions.size() % 3) != 0)
+			throw glare::Exception("addTriangles(): 'positions' has " + toString(positions.size()) + " numbers, which is not a whole number of x,y,z triples.");
+
+		const size_t num_verts = positions.size() / 3;
+
+		if(!normals.empty() && (normals.size() != positions.size()))
+			throw glare::Exception("addTriangles(): 'normals' has " + toString(normals.size() / 3) + " entries but 'positions' has " + toString(num_verts) + ".");
+		if(!uvs.empty() && (uvs.size() != num_verts * 2))
+			throw glare::Exception("addTriangles(): 'uvs' has " + toString(uvs.size() / 2) + " entries but 'positions' has " + toString(num_verts) + ".");
+
+		// Without indices the vertices are taken in threes as triangles.
+		std::vector<uint32> indices;
+		if(index_floats.empty())
 		{
-			const float index = index_floats[i];
-			if(!(index >= 1) || (index > (float)num_verts))
-				throw glare::Exception("addTriangles(): index " + toString(index) + " at position " + toString(i + 1) + " is out of range: indices are 1-based, "
-					"so they run from 1 to " + toString(num_verts) + " here.");
+			if((num_verts % 3) != 0)
+				throw glare::Exception("addTriangles(): with no 'indices', 'positions' must hold whole triangles, but it has " + toString(num_verts) + " vertices.");
 
-			indices[i] = (uint32)index - 1;
+			indices.resize(num_verts);
+			for(size_t i=0; i<num_verts; ++i)
+				indices[i] = (uint32)i;
 		}
+		else
+		{
+			if((index_floats.size() % 3) != 0)
+				throw glare::Exception("addTriangles(): 'indices' has " + toString(index_floats.size()) + " entries, which is not a whole number of triangles.");
+
+			indices.resize(index_floats.size());
+			for(size_t i=0; i<index_floats.size(); ++i)
+			{
+				const float index = index_floats[i];
+				if(!(index >= 1) || (index > (float)num_verts))
+					throw glare::Exception("addTriangles(): index " + toString(index) + " at position " + toString(i + 1) + " is out of range: indices are 1-based, "
+						"so they run from 1 to " + toString(num_verts) + " here.");
+
+				indices[i] = (uint32)index - 1;
+			}
+		}
+
+		builder.addTriangles(positions, normals, uvs, indices);
+
+		return 0; // Number of results
 	}
-
-	builder.addTriangles(positions, normals, uvs, indices);
-
-	return 0; // Number of results
+	catch(glare::Exception& e)
+	{
+		luaL_error(state, "%s", e.what().c_str()); // Throws a lua_exception, with the script location of the call put in front of the message.
+	}
 }
 
 
 // mesh:addQuad(v0, v1, v2, v3), wound counter-clockwise seen from the visible side.
 static int mesh_addQuad(lua_State* state)
 {
-	BuildScriptContext* context = getContext(state);
-	BuildMeshBuilder& builder = getMeshBuilderForSelf(state, context);
+	try
+	{
+		BuildScriptContext* context = getContext(state);
+		BuildMeshBuilder& builder = getMeshBuilderForSelf(state, context);
 
-	builder.addQuad(getPointArg(state, 2), getPointArg(state, 3), getPointArg(state, 4), getPointArg(state, 5));
+		builder.addQuad(getPointArg(state, 2), getPointArg(state, 3), getPointArg(state, 4), getPointArg(state, 5));
 
-	return 0; // Number of results
+		return 0; // Number of results
+	}
+	catch(glare::Exception& e)
+	{
+		luaL_error(state, "%s", e.what().c_str()); // Throws a lua_exception, with the script location of the call put in front of the message.
+	}
 }
 
 
@@ -899,68 +927,89 @@ static int mesh_addQuad(lua_State* state)
 // materials array passed to createObject.
 static int mesh_setMaterial(lua_State* state)
 {
-	BuildScriptContext* context = getContext(state);
-	BuildMeshBuilder& builder = getMeshBuilderForSelf(state, context);
+	try
+	{
+		BuildScriptContext* context = getContext(state);
+		BuildMeshBuilder& builder = getMeshBuilderForSelf(state, context);
 
-	const double mat_index = LuaUtils::getDoubleArg(state, 2);
-	if(!(mat_index >= 1) || (mat_index > 100))
-		throw glare::Exception("setMaterial(): material index must be between 1 and 100.");
+		const double mat_index = LuaUtils::getDoubleArg(state, 2);
+		if(!(mat_index >= 1) || (mat_index > 100))
+			throw glare::Exception("setMaterial(): material index must be between 1 and 100.");
 
-	builder.cur_material_index = (uint32)mat_index - 1;
+		builder.cur_material_index = (uint32)mat_index - 1;
 
-	return 0; // Number of results
+		return 0; // Number of results
+	}
+	catch(glare::Exception& e)
+	{
+		luaL_error(state, "%s", e.what().c_str()); // Throws a lua_exception, with the script location of the call put in front of the message.
+	}
 }
 
 
 // mesh:upload([name]) - writes the mesh out and returns a model_url to pass to createObject.
 static int mesh_upload(lua_State* state)
 {
-	BuildScriptContext* context = getContext(state);
-	BuildMeshBuilder& builder = getMeshBuilderForSelf(state, context);
+	try
+	{
+		BuildScriptContext* context = getContext(state);
+		BuildMeshBuilder& builder = getMeshBuilderForSelf(state, context);
 
-	std::string name = "build_mesh";
-	if(lua_gettop(state) >= 2)
-		name = LuaUtils::getStringArg(state, 2);
+		std::string name = "build_mesh";
+		if(lua_gettop(state) >= 2)
+			name = LuaUtils::getStringArg(state, 2);
 
-	if(!context->gui_client)
-		throw glare::Exception("upload(): not connected to a server.");
+		if(!context->gui_client)
+			throw glare::Exception("upload(): not connected to a server.");
 
-	BatchedMeshRef mesh = builder.build();
+		BatchedMeshRef mesh = builder.build();
 
-	const URLString mesh_url = context->gui_client->writeMeshToResourceDirGetURL(mesh, name);
+		const URLString mesh_url = context->gui_client->writeMeshToResourceDirGetURL(mesh, name);
 
-	// Remember what createObject needs, so it doesn't read back the file we just wrote.
-	BuildModelInfo info;
-	info.aabb_os   = mesh->aabb_os;
-	info.num_verts = mesh->numVerts();
-	info.num_tris  = mesh->numIndices() / 3;
-	context->model_info_cache[mesh_url] = info;
+		// Remember what createObject needs, so it doesn't read back the file we just wrote.
+		BuildModelInfo info;
+		info.aabb_os   = mesh->aabb_os;
+		info.num_verts = mesh->numVerts();
+		info.num_tris  = mesh->numIndices() / 3;
+		context->model_info_cache[mesh_url] = info;
 
-	LuaUtils::pushString(state, toStdString(mesh_url));
-	return 1; // Number of results
+		LuaUtils::pushString(state, toStdString(mesh_url));
+		return 1; // Number of results
+	}
+	catch(glare::Exception& e)
+	{
+		luaL_error(state, "%s", e.what().c_str()); // Throws a lua_exception, with the script location of the call put in front of the message.
+	}
 }
 
 
 // createMesh() - returns a mesh to add geometry to, for building one object out of many pieces rather than many objects.
 static int createMesh(lua_State* state)
 {
-	BuildScriptContext* context = getContext(state);
+	try
+	{
+		BuildScriptContext* context = getContext(state);
 
-	if(context->mesh_builders.size() >= MAX_MESHES_PER_RUN)
-		throw glare::Exception("This script has made the maximum of " + toString(MAX_MESHES_PER_RUN) + " meshes.");
+		if(context->mesh_builders.size() >= MAX_MESHES_PER_RUN)
+			throw glare::Exception("This script has made the maximum of " + toString(MAX_MESHES_PER_RUN) + " meshes.");
 
-	const size_t id = context->mesh_builders.size();
-	context->mesh_builders.push_back(BuildMeshBuilder());
+		const size_t id = context->mesh_builders.size();
+		context->mesh_builders.push_back(BuildMeshBuilder());
 
-	lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/6);
-	LuaUtils::setNumberAsTableField(state, "id", (double)id);
-	LuaUtils::setCFunctionAsTableField(state, mesh_addBox,      /*debugname=*/"mesh_addBox",      /*key=*/"addBox");
-	LuaUtils::setCFunctionAsTableField(state, mesh_addQuad,     /*debugname=*/"mesh_addQuad",     /*key=*/"addQuad");
-	LuaUtils::setCFunctionAsTableField(state, mesh_addTriangles, /*debugname=*/"mesh_addTriangles", /*key=*/"addTriangles");
-	LuaUtils::setCFunctionAsTableField(state, mesh_setMaterial, /*debugname=*/"mesh_setMaterial", /*key=*/"setMaterial");
-	LuaUtils::setCFunctionAsTableField(state, mesh_upload,      /*debugname=*/"mesh_upload",      /*key=*/"upload");
+		lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/6);
+		LuaUtils::setNumberAsTableField(state, "id", (double)id);
+		LuaUtils::setCFunctionAsTableField(state, mesh_addBox,      /*debugname=*/"mesh_addBox",      /*key=*/"addBox");
+		LuaUtils::setCFunctionAsTableField(state, mesh_addQuad,     /*debugname=*/"mesh_addQuad",     /*key=*/"addQuad");
+		LuaUtils::setCFunctionAsTableField(state, mesh_addTriangles, /*debugname=*/"mesh_addTriangles", /*key=*/"addTriangles");
+		LuaUtils::setCFunctionAsTableField(state, mesh_setMaterial, /*debugname=*/"mesh_setMaterial", /*key=*/"setMaterial");
+		LuaUtils::setCFunctionAsTableField(state, mesh_upload,      /*debugname=*/"mesh_upload",      /*key=*/"upload");
 
-	return 1; // Number of results
+		return 1; // Number of results
+	}
+	catch(glare::Exception& e)
+	{
+		luaL_error(state, "%s", e.what().c_str()); // Throws a lua_exception, with the script location of the call put in front of the message.
+	}
 }
 
 
@@ -975,56 +1024,63 @@ static const size_t MAX_GROUPS_PER_RUN = 64;
 // and creates nothing on the server: see positionGroupObject().
 static int getOrCreateGroup(lua_State* state)
 {
-	BuildScriptContext* context = getContext(state);
-
-	const std::string name = LuaUtils::getStringArg(state, /*index=*/1);
-	if(name.empty())
-		throw glare::Exception("getOrCreateGroup(): the group name can't be empty.");
-	if(name.size() > WorldObject::MAX_CONTENT_SIZE)
-		throw glare::Exception("getOrCreateGroup(): the group name is longer than the maximum of " + toString(WorldObject::MAX_CONTENT_SIZE) + " characters.");
-
-	// Checked after the arguments have been read, so a malformed call is reported as such whether or not there is a connection.
-	if(!context->gui_client || context->gui_client->client_thread.isNull() || context->gui_client->world_state.isNull() || !context->builder_state)
-		throw glare::Exception("getOrCreateGroup(): not connected to a server.");
-
-	GUIClient* gui_client = context->gui_client;
-
-	// A group this run has already asked for, which the world state can't answer for: its group object may not have been made yet, and
-	// if it has, the server hasn't necessarily sent it back to us.
-	for(size_t i=0; i<context->groups.size(); ++i)
-		if(context->groups[i].name == name)
-		{
-			lua_pushnumber(state, (double)(i + 1)); // 1-based, as arrays are in Lua.
-			return 1; // Number of results
-		}
-
-	if(context->groups.size() >= MAX_GROUPS_PER_RUN)
-		throw glare::Exception("getOrCreateGroup(): this script has asked for the maximum of " + toString(MAX_GROUPS_PER_RUN) + " groups.");
-
-	BuildScriptContext::BuildGroup group;
-	group.name = name;
-
-	// Look for a group of this user's with this name, from an earlier run.  Groups are matched per-user, so two users' "dock" groups are
-	// different groups.  Lowest UID wins, so a name that has somehow ended up on two group objects gives the same answer each run.
+	try
 	{
-		Lock lock(gui_client->world_state->mutex);
+		BuildScriptContext* context = getContext(state);
 
-		for(auto it = gui_client->world_state->objects.valuesBegin(); it != gui_client->world_state->objects.valuesEnd(); ++it)
+		const std::string name = LuaUtils::getStringArg(state, /*index=*/1);
+		if(name.empty())
+			throw glare::Exception("getOrCreateGroup(): the group name can't be empty.");
+		if(name.size() > WorldObject::MAX_CONTENT_SIZE)
+			throw glare::Exception("getOrCreateGroup(): the group name is longer than the maximum of " + toString(WorldObject::MAX_CONTENT_SIZE) + " characters.");
+
+		// Checked after the arguments have been read, so a malformed call is reported as such whether or not there is a connection.
+		if(!context->gui_client || context->gui_client->client_thread.isNull() || context->gui_client->world_state.isNull() || !context->builder_state)
+			throw glare::Exception("getOrCreateGroup(): not connected to a server.");
+
+		GUIClient* gui_client = context->gui_client;
+
+		// A group this run has already asked for, which the world state can't answer for: its group object may not have been made yet, and
+		// if it has, the server hasn't necessarily sent it back to us.
+		for(size_t i=0; i<context->groups.size(); ++i)
+			if(context->groups[i].name == name)
+			{
+				lua_pushnumber(state, (double)(i + 1)); // 1-based, as arrays are in Lua.
+				return 1; // Number of results
+			}
+
+		if(context->groups.size() >= MAX_GROUPS_PER_RUN)
+			throw glare::Exception("getOrCreateGroup(): this script has asked for the maximum of " + toString(MAX_GROUPS_PER_RUN) + " groups.");
+
+		BuildScriptContext::BuildGroup group;
+		group.name = name;
+
+		// Look for a group of this user's with this name, from an earlier run.  Groups are matched per-user, so two users' "dock" groups are
+		// different groups.  Lowest UID wins, so a name that has somehow ended up on two group objects gives the same answer each run.
 		{
-			const WorldObject* ob = it.getValue().ptr();
-			if((ob->object_type == WorldObject::ObjectType_Group) && (ob->creator_id == gui_client->logged_in_user_id) && (ob->content == name))
-				if(ob->uid < group.uid)
-					group.uid = ob->uid;
+			Lock lock(gui_client->world_state->mutex);
+
+			for(auto it = gui_client->world_state->objects.valuesBegin(); it != gui_client->world_state->objects.valuesEnd(); ++it)
+			{
+				const WorldObject* ob = it.getValue().ptr();
+				if((ob->object_type == WorldObject::ObjectType_Group) && (ob->creator_id == gui_client->logged_in_user_id) && (ob->content == name))
+					if(ob->uid < group.uid)
+						group.uid = ob->uid;
+			}
 		}
+
+		// A group that didn't exist has nothing in it, so the first object added to it decides where its group object goes.
+		group.needs_positioning = !group.uid.valid();
+
+		context->groups.push_back(group);
+
+		lua_pushnumber(state, (double)context->groups.size()); // 1-based, as arrays are in Lua.
+		return 1; // Number of results
 	}
-
-	// A group that didn't exist has nothing in it, so the first object added to it decides where its group object goes.
-	group.needs_positioning = !group.uid.valid();
-
-	context->groups.push_back(group);
-
-	lua_pushnumber(state, (double)context->groups.size()); // 1-based, as arrays are in Lua.
-	return 1; // Number of results
+	catch(glare::Exception& e)
+	{
+		luaL_error(state, "%s", e.what().c_str()); // Throws a lua_exception, with the script location of the call put in front of the message.
+	}
 }
 
 
@@ -1039,76 +1095,83 @@ static int getOrCreateGroup(lua_State* state)
 // Only finds objects the client has been sent, which for the world around the camera is all of them.
 static int deleteObjectsInGroup(lua_State* state)
 {
-	BuildScriptContext* context = getContext(state);
-
-	const size_t group_index = getGroupIndexFromHandle(context, LuaUtils::getDoubleArg(state, /*index=*/1), "deleteObjectsInGroup()");
-
-	if(!context->gui_client || context->gui_client->client_thread.isNull() || context->gui_client->world_state.isNull())
-		throw glare::Exception("deleteObjectsInGroup(): not connected to a server.");
-
-	GUIClient* gui_client = context->gui_client;
-
-	// The group is emptied, so the next object put in it decides where its group object goes.  Noted here rather than looked up later,
-	// because the objects destroyed below are still in the world state until the server has dealt with the messages sent at the end.
-	context->groups[group_index].needs_positioning = true;
-
-	const UID group_uid = context->groups[group_index].uid;
-	if(!group_uid.valid())
+	try
 	{
-		lua_pushnumber(state, 0.0); // The group has no group object yet, so nothing can be in it.
-		return 1; // Number of results
-	}
+		BuildScriptContext* context = getContext(state);
 
-	// Collect the UIDs under the lock, then send the messages without holding it.
-	std::vector<UID> uids;
-	{
-		Lock lock(gui_client->world_state->mutex);
+		const size_t group_index = getGroupIndexFromHandle(context, LuaUtils::getDoubleArg(state, /*index=*/1), "deleteObjectsInGroup()");
 
-		// A scan per group, taking in each group found on the way.  Builds nest a handful of groups at most, so a scan each is fine.
-		std::vector<UID> groups_to_scan(1, group_uid);
+		if(!context->gui_client || context->gui_client->client_thread.isNull() || context->gui_client->world_state.isNull())
+			throw glare::Exception("deleteObjectsInGroup(): not connected to a server.");
 
-		for(size_t g=0; g<groups_to_scan.size(); ++g) // NOTE: groups_to_scan grows as sub-groups are found.
+		GUIClient* gui_client = context->gui_client;
+
+		// The group is emptied, so the next object put in it decides where its group object goes.  Noted here rather than looked up later,
+		// because the objects destroyed below are still in the world state until the server has dealt with the messages sent at the end.
+		context->groups[group_index].needs_positioning = true;
+
+		const UID group_uid = context->groups[group_index].uid;
+		if(!group_uid.valid())
 		{
-			const UID cur_group_uid = groups_to_scan[g];
-			runtimeCheck(cur_group_uid.valid());
+			lua_pushnumber(state, 0.0); // The group has no group object yet, so nothing can be in it.
+			return 1; // Number of results
+		}
 
-			for(auto it = gui_client->world_state->objects.valuesBegin(); it != gui_client->world_state->objects.valuesEnd(); ++it)
+		// Collect the UIDs under the lock, then send the messages without holding it.
+		std::vector<UID> uids;
+		{
+			Lock lock(gui_client->world_state->mutex);
+
+			// A scan per group, taking in each group found on the way.  Builds nest a handful of groups at most, so a scan each is fine.
+			std::vector<UID> groups_to_scan(1, group_uid);
+
+			for(size_t g=0; g<groups_to_scan.size(); ++g) // NOTE: groups_to_scan grows as sub-groups are found.
 			{
-				const WorldObject* ob = it.getValue().ptr();
-				if((ob->group_id == cur_group_uid) && (ob->creator_id == gui_client->logged_in_user_id))
+				const UID cur_group_uid = groups_to_scan[g];
+				runtimeCheck(cur_group_uid.valid());
+
+				for(auto it = gui_client->world_state->objects.valuesBegin(); it != gui_client->world_state->objects.valuesEnd(); ++it)
 				{
-					uids.push_back(ob->uid);
-
-					if(ob->object_type == WorldObject::ObjectType_Group)
+					const WorldObject* ob = it.getValue().ptr();
+					if((ob->group_id == cur_group_uid) && (ob->creator_id == gui_client->logged_in_user_id))
 					{
-						// Scan a group only once, or a cycle of groups would send this round forever.  The group we started from is
-						// already in the list, so a group that is somehow a member of itself is covered as well.
-						bool already_listed = false;
-						for(size_t i=0; i<groups_to_scan.size(); ++i)
-							if(groups_to_scan[i] == ob->uid)
-								already_listed = true;
+						uids.push_back(ob->uid);
 
-						if(!already_listed)
-							groups_to_scan.push_back(ob->uid);
+						if(ob->object_type == WorldObject::ObjectType_Group)
+						{
+							// Scan a group only once, or a cycle of groups would send this round forever.  The group we started from is
+							// already in the list, so a group that is somehow a member of itself is covered as well.
+							bool already_listed = false;
+							for(size_t i=0; i<groups_to_scan.size(); ++i)
+								if(groups_to_scan[i] == ob->uid)
+									already_listed = true;
+
+							if(!already_listed)
+								groups_to_scan.push_back(ob->uid);
+						}
 					}
 				}
 			}
 		}
-	}
 
-	for(size_t i=0; i<uids.size(); ++i)
+		for(size_t i=0; i<uids.size(); ++i)
+		{
+			MessageUtils::initPacket(context->packet, Protocol::DestroyObject);
+			writeToStream(uids[i], context->packet);
+			MessageUtils::updatePacketLengthField(context->packet);
+
+			gui_client->client_thread->enqueueDataToSend(context->packet.buf);
+		}
+
+		context->num_objects_deleted += uids.size();
+
+		lua_pushnumber(state, (double)uids.size());
+		return 1; // Number of results
+	}
+	catch(glare::Exception& e)
 	{
-		MessageUtils::initPacket(context->packet, Protocol::DestroyObject);
-		writeToStream(uids[i], context->packet);
-		MessageUtils::updatePacketLengthField(context->packet);
-
-		gui_client->client_thread->enqueueDataToSend(context->packet.buf);
+		luaL_error(state, "%s", e.what().c_str()); // Throws a lua_exception, with the script location of the call put in front of the message.
 	}
-
-	context->num_objects_deleted += uids.size();
-
-	lua_pushnumber(state, (double)uids.size());
-	return 1; // Number of results
 }
 
 
@@ -1418,6 +1481,38 @@ void LuaBuildScript::test()
 
 		testAssert(!results.success);
 		testAssert(!results.error_msg.empty());
+	}
+
+	// Test that an error thrown by one of our functions reports the script line that called it.
+	{
+		LuaBuildScriptResults results;
+		LuaBuildScript::run(/*gui_client=*/NULL, /*builder_state=*/NULL, "local x = 1\ncreateObject({ pos = Vec3d(0,0,0) })", LuaBuildScriptOptions(), results);
+
+		testAssert(!results.success);
+		testAssert(StringUtils::containsString(results.error_msg, ":2: createObject(): 'model_url' is required"));
+	}
+
+	// The same for a mesh method, in a named script: a zero-height box has degenerate faces.
+	{
+		LuaBuildScriptOptions options;
+		options.script_name = "C:/builds/island.lua";
+
+		LuaBuildScriptResults results;
+		LuaBuildScript::run(/*gui_client=*/NULL, /*builder_state=*/NULL, "local m = createMesh()\n\nm:addBox(Vec3f(0,0,0), Vec3f(1,1,0))", options, results);
+
+		testAssert(!results.success);
+		testAssert(StringUtils::containsString(results.error_msg, "C:/builds/island.lua:3: Quad is degenerate"));
+	}
+
+	// Test that a build script can catch an error from one of the build functions with pcall, since they raise errors with luaL_error.
+	// Per-object script functions throw glare::Exception instead, which pcall doesn't catch.
+	{
+		LuaBuildScriptResults results;
+		LuaBuildScript::run(/*gui_client=*/NULL, /*builder_state=*/NULL, "local ok, msg = pcall(createObject, 42)\nprint(ok, msg)", LuaBuildScriptOptions(), results);
+
+		testAssert(results.success);
+		testAssert(::hasPrefix(results.output, "false\t"));
+		testAssert(StringUtils::containsString(results.output, "was not a table"));
 	}
 
 	// Test that the globals that need a LuaScriptEvaluator are absent, rather than present and reading a BuildScriptContext as one.
