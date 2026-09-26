@@ -149,8 +149,9 @@ MCPClientRequestHandler::MCPClientRequestHandler(MainWindow* main_window_, const
 
 static bool isLoopbackAddress(const IPAddress& addr)
 {
+	// The listening socket is dual-stack, so a client connecting over IPv4 shows up as the IPv4-mapped address ::ffff:127.0.0.1.
 	const std::string s = addr.toString();
-	return s == "127.0.0.1" || s == "::1";
+	return s == "127.0.0.1" || s == "::ffff:127.0.0.1" || s == "::1";
 }
 
 
