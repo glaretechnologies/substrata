@@ -1002,6 +1002,16 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			}
 			break;
 		}
+	case Protocol::CreateObjectResponse:
+		{
+			const uint32 result = msg_buffer.readUInt32();
+			const uint64 client_token = msg_buffer.readUInt64();
+			const UID object_uid = readUIDFromStream(msg_buffer);
+			const std::string error_msg = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+
+			out_msg_queue->enqueue(new CreateObjectResponseMessage(result, client_token, object_uid, error_msg));
+			break;
+		}
 	case Protocol::ObjectInitialSend:
 		{
 			handleObjectInitialSend(msg_buffer);

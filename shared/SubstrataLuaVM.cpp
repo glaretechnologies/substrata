@@ -574,6 +574,12 @@ static int showMessageToUser(lua_State* state)
 
 #if GUI_CLIENT
 	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+
+	// showScriptMessage() makes a GLUITextView and adds it to the widget list, so it needs the main thread.  Build scripts run on
+	// an MCP handler thread.
+	if(sub_lua_vm->is_build_vm)
+		return 0;
+
 	if(av_uid == sub_lua_vm->gui_client->client_avatar_uid)
 	{
 		// We want to send to ourselves
@@ -1063,7 +1069,7 @@ static int getMaterial(lua_State* state)
 	
 	// Get object UID
 	const UID ob_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
-	const double value = (size_t)LuaUtils::getDoubleArg(state, /*index=*/2);
+	const double value = LuaUtils::getDoubleArg(state, /*index=*/2);
 
 	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
 
@@ -2268,14 +2274,25 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 :	metatable_uid_to_ref_map(std::numeric_limits<uint32>::max()),
 #if GUI_CLIENT
 	gui_client(args.gui_client),
-	player_physics(args.player_physics)
+	player_physics(args.player_physics),
+	is_build_vm(args.is_build_vm)
 #endif
 #if SERVER
 	server(args.server)
 #endif
 {
-	lua_vm.set(new LuaVM());
+	LuaVMOptions vm_options;
+#if GUI_CLIENT
+	vm_options.c_funcs = args.vm_c_funcs;
+#endif
+
+	lua_vm.set(new LuaVM(vm_options));
+
 	lua_vm->max_total_mem_allowed = 16 * 1024 * 1024;
+#if GUI_CLIENT
+	if(is_build_vm)
+		lua_vm->max_total_mem_allowed = 1024 * 1024 * 1024;
+#endif
 
 	lua_callbacks(lua_vm->state)->userdata = this;
 	lua_callbacks(lua_vm->state)->useratom = glareLuaUserAtom;
@@ -2283,13 +2300,24 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 
 	metatable_uid_to_ref_map.insert(std::make_pair(Vec3d_metatable_UID, lua_vm->Vec3dMetaTable_ref));
 
+	// Functions that reach the LuaScriptEvaluator in LuaScript::userdata are only valid for per-object scripts.  A build-script VM
+	// stores a BuildScriptContext there instead, so those functions are left unregistered on it.  See LuaBuildScript.
+#if GUI_CLIENT
+	const bool register_object_script_funcs = !args.is_build_vm;
+#else
+	const bool register_object_script_funcs = true;
+#endif
+
 
 	// Set some global functions
 //TEMP DISABLED	lua_pushcfunction(lua_vm->state, createObject, /*debugname=*/"createObject");
 //	lua_setglobal(lua_vm->state, "createObject"); // Pops a value from the stack and sets it as the new value of global name.
-	
-	lua_pushcfunction(lua_vm->state, luaGetWorldObjectForUID, /*debugname=*/"getObjectForUID");
-	lua_setglobal(lua_vm->state, "getObjectForUID");
+
+	if(register_object_script_funcs)
+	{
+		lua_pushcfunction(lua_vm->state, luaGetWorldObjectForUID, /*debugname=*/"getObjectForUID");
+		lua_setglobal(lua_vm->state, "getObjectForUID");
+	}
 	
 	lua_pushcfunction(lua_vm->state, getCurrentTime, /*debugname=*/"getCurrentTime");
 	lua_setglobal(lua_vm->state, "getCurrentTime");
@@ -2297,32 +2325,38 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 	lua_pushcfunction(lua_vm->state, showMessageToUser, /*debugname=*/"showMessageToUser");
 	lua_setglobal(lua_vm->state, "showMessageToUser");
 
-	lua_pushcfunction(lua_vm->state, createTimer, /*debugname=*/"createTimer");
-	lua_setglobal(lua_vm->state, "createTimer");
+	if(register_object_script_funcs)
+	{
+		lua_pushcfunction(lua_vm->state, createTimer, /*debugname=*/"createTimer");
+		lua_setglobal(lua_vm->state, "createTimer");
 	
-	lua_pushcfunction(lua_vm->state, destroyTimer, /*debugname=*/"destroyTimer");
-	lua_setglobal(lua_vm->state, "destroyTimer");
+		lua_pushcfunction(lua_vm->state, destroyTimer, /*debugname=*/"destroyTimer");
+		lua_setglobal(lua_vm->state, "destroyTimer");
 	
-	lua_pushcfunction(lua_vm->state, luaAddEventListener, /*debugname=*/"addEventListener");
-	lua_setglobal(lua_vm->state, "addEventListener");
+		lua_pushcfunction(lua_vm->state, luaAddEventListener, /*debugname=*/"addEventListener");
+		lua_setglobal(lua_vm->state, "addEventListener");
 	
-	lua_pushcfunction(lua_vm->state, doHTTPGetRequestAsync, /*debugname=*/"doHTTPGetRequestAsync");
-	lua_setglobal(lua_vm->state, "doHTTPGetRequestAsync");
+		lua_pushcfunction(lua_vm->state, doHTTPGetRequestAsync, /*debugname=*/"doHTTPGetRequestAsync");
+		lua_setglobal(lua_vm->state, "doHTTPGetRequestAsync");
 	
-	lua_pushcfunction(lua_vm->state, doHTTPPostRequestAsync, /*debugname=*/"doHTTPPostRequestAsync");
-	lua_setglobal(lua_vm->state, "doHTTPPostRequestAsync");
+		lua_pushcfunction(lua_vm->state, doHTTPPostRequestAsync, /*debugname=*/"doHTTPPostRequestAsync");
+		lua_setglobal(lua_vm->state, "doHTTPPostRequestAsync");
 
 
-	lua_pushcfunction(lua_vm->state, getSecret, /*debugname=*/"getSecret");
-	lua_setglobal(lua_vm->state, "getSecret");
+		lua_pushcfunction(lua_vm->state, getSecret, /*debugname=*/"getSecret");
+		lua_setglobal(lua_vm->state, "getSecret");
+	}
 
 	lua_pushcfunction(lua_vm->state, parseJSON, /*debugname=*/"parseJSON");
 	lua_setglobal(lua_vm->state, "parseJSON");
 
-	lua_createtable(lua_vm->state, /*narr=*/0, /*nrec=*/2);
-	lua_vm->setCFunctionAsTableField(objectStorageGetItem, /*debugname=*/"objectStorageGetItem", /*key=*/"getItem");
-	lua_vm->setCFunctionAsTableField(objectStorageSetItem, /*debugname=*/"objectStorageSetItem", /*key=*/"setItem");
-	lua_setglobal(lua_vm->state, "objectstorage"); // Set table as global name table 'objectstorage'
+	if(register_object_script_funcs)
+	{
+		lua_createtable(lua_vm->state, /*narr=*/0, /*nrec=*/2);
+		lua_vm->setCFunctionAsTableField(objectStorageGetItem, /*debugname=*/"objectStorageGetItem", /*key=*/"getItem");
+		lua_vm->setCFunctionAsTableField(objectStorageSetItem, /*debugname=*/"objectStorageSetItem", /*key=*/"setItem");
+		lua_setglobal(lua_vm->state, "objectstorage"); // Set table as global name table 'objectstorage'
+	}
 
 
 	//--------------------------- Create metatables for our classes ---------------------------

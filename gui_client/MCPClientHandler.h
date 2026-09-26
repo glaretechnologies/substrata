@@ -22,9 +22,11 @@ Serves an MCP (Model Context Protocol) endpoint over local HTTP from the
 gui_client, so an AI agent (e.g. Claude Code) can drive building in the
 connected world.
 
-The 'render_view' tool is handled locally (by rendering the connected world from
-a given camera - see MainWindow::enqueueMCPRenderRequest).  All other MCP methods
-and tool calls are forwarded transparently to the /mcp endpoint of the Substrata
+Two tools are handled locally:
+'render_view', by rendering the connected world from a given camera - see MainWindow::enqueueMCPRenderRequest.
+'run_lua_build_script', by running a Luau build script in this client - see LuaBuildScript.
+
+All other MCP methods and tool calls are forwarded transparently to the /mcp endpoint of the Substrata
 server the client is currently connected to, authenticated with the user's saved login credentials for that server.
 
 NOTE: only loopback (localhost) requests are served.
@@ -43,6 +45,7 @@ public:
 
 private:
 	void handleRenderView(const JSONParser& parser, const JSONNode& root, web::ReplyInfo& reply_info);
+	void handleRunLuaBuildScript(const JSONParser& parser, const JSONNode& root, web::ReplyInfo& reply_info);
 	std::string forwardToServer(const std::string& request_body); // Throws glare::Exception on failure.
 
 	MainWindow* main_window;

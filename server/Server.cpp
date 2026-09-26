@@ -210,6 +210,7 @@ int main(int argc, char *argv[])
 	PlatformUtils::ignoreUnixSignals();
 	TLSSocket::initTLS();
 	BasisDecoder::init();
+	LuaVM::staticInit();
 
 	// Listen for SIGTERM and SIGINT on Linux and Mac.
 	// Upon receiving SIGTERM or SIGINT, save dirty data to database, then try and shut down gracefully.

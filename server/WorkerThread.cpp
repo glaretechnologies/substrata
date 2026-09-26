@@ -169,6 +169,23 @@ static void writeErrorMessageToClient(SocketInterfaceRef& socket, const std::str
 }
 
 
+// Tells the client what happened to the object it asked for.  The client matches these to its CreateObject messages in order, so
+// one has to be sent for every such message.  See Protocol::CreateObjectResponse.
+static void writeCreateObjectResponseToClient(SocketInterfaceRef& socket, uint32 result, uint64 client_token, UID created_ob_uid, const std::string& error_msg)
+{
+	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+	MessageUtils::initPacket(packet, Protocol::CreateObjectResponse);
+	packet.writeUInt32(result);
+	packet.writeUInt64(client_token);
+	writeToStream(created_ob_uid, packet);
+	packet.writeStringLengthFirst(error_msg);
+	MessageUtils::updatePacketLengthField(packet);
+
+	socket->writeData(packet.buf.data(), packet.buf.size());
+	socket->flush();
+}
+
+
 // Enqueues packet to all WorkerThreads connected to the same world.
 void WorkerThread::enqueuePacketToBroadcast(const SocketBufferOutStream& packet_buffer)
 {
@@ -2389,24 +2406,29 @@ void WorkerThread::doRun()
 							conPrintIfNotFuzzing("CreateObject");
 
 							WorldObjectRef new_ob = new WorldObject();
-							new_ob->uid = readUIDFromStream(msg_buffer); // Read dummy UID
+							new_ob->uid = readUIDFromStream(msg_buffer); // The UID field is not a UID here: it carries the client's token, which we echo back in the response.
 							readWorldObjectFromNetworkStreamGivenUID(msg_buffer, *new_ob);
 
+							const uint64 client_token = new_ob->uid.value();
+
 							conPrintIfNotFuzzing("model_url: '" + toStdString(new_ob->model_url) + "', pos: " + new_ob->pos.toString());
+
+							// The outcome, reported to the client once at the end of this case.
+							UID created_ob_uid = UID::invalidUID();
+							uint32 create_result = Protocol::CreateObjectResult_Success;
+							std::string create_error_msg;
 
 							// If client is not logged in, refuse object creation.
 							if(!client_user_id.valid())
 							{
 								conPrintIfNotFuzzing("Creation denied, user was not logged in.");
-								MessageUtils::initPacket(scratch_packet, Protocol::ErrorMessageID);
-								scratch_packet.writeStringLengthFirst("You must be logged in to create an object.");
-								MessageUtils::updatePacketLengthField(scratch_packet);
-								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
-								socket->flush();
+								create_result = Protocol::CreateObjectResult_NotLoggedIn;
+								create_error_msg = "You must be logged in to create an object.";
 							}
 							else if(world_state->isInReadOnlyMode())
 							{
-								writeErrorMessageToClient(socket, "Server is in read-only mode, you can't create an object right now.");
+								create_result = Protocol::CreateObjectResult_ServerReadOnly;
+								create_error_msg = "Server is in read-only mode, you can't create an object right now.";
 							}
 							else
 							{
@@ -2447,12 +2469,26 @@ void WorkerThread::doRun()
 
 										world_state->markAsChanged();
 									}
+
+									created_ob_uid = new_ob->uid;
 								}
 								else // else if user doesn't have permissions to create objects:
 								{
-									writeErrorMessageToClient(socket, "You do not have the permissions to create the object with this position.");
+									create_result = Protocol::CreateObjectResult_NoPermission;
+									create_error_msg = "You do not have the permissions to create the object with this position.";
 								}
 							}
+
+							// Respond once for every CreateObject message, whether or not the object was created: the client pairs
+							// these up with the objects it asked for in order.
+							if(client_protocol_version >= 55)
+							{
+								// The failure reason travels in the response, so the client decides how to show it.  A client
+								// creating many objects at once would otherwise get an error notification per refused object.
+								writeCreateObjectResponseToClient(socket, create_result, client_token, created_ob_uid, create_error_msg);
+							}
+							else if(create_result != Protocol::CreateObjectResult_Success)
+								writeErrorMessageToClient(socket, create_error_msg);
 
 							break;
 						}

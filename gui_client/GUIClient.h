@@ -91,6 +91,7 @@ class TextRendererFontFace;
 class Resource;
 class AsyncTextureLoader;
 class SubstrataLuaVM;
+class LuaBuilderState;
 struct LoadedBuffer;
 struct AsyncUploadedGeometryInfo;
 struct PBOAsyncUploadedTextureInfo;
@@ -559,6 +560,14 @@ public:
 	ParcelRef selected_parcel;
 
 	Reference<ResourceManager> resource_manager;
+
+	// Writes a mesh into the local resource dir under a content-hashed URL, and returns that URL.  The server asks for the file
+	// once an object referencing it is created.  Threadsafe: Lua build scripts call this from an MCP handler thread.
+	URLString writeMeshToResourceDirGetURL(const BatchedMeshRef& mesh, const std::string& name);
+
+	// What the server said about objects Lua build scripts asked it to create.  Lives here because the responses arrive in this
+	// object's message queue, and is read by the MCP handler thread that runs the scripts.
+	Reference<LuaBuilderState> lua_builder_state;
 
 
 	// NOTE: these object sets need to be cleared in connectToServer(), also when removing a dead object in ob->state == WorldObject::State_Dead case in timerEvent, the object needs to be removed

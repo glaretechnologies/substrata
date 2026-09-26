@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2026 -
 
 #include "MainWindow.h"
 #include "MCPRenderRequest.h"
+#include "LuaBuildScript.h"
 #include <webserver/RequestInfo.h>
 #include <webserver/ResponseUtils.h>
 #include <webserver/Escaping.h>
@@ -17,14 +18,16 @@ Copyright Glare Technologies Limited 2026 -
 #include <maths/vec3.h>
 #include <utils/JSONParser.h>
 #include <utils/Base64.h>
+#include <utils/FileUtils.h>
 #include <utils/BufferOutStream.h>
 #include <utils/StringUtils.h>
 #include <utils/ConPrint.h>
 #include <utils/Lock.h>
 #include <utils/Exception.h>
+#include <cstring>
 
 
-// The render_view tool definition, appended to the server's tools/list response (see spliceRenderViewIntoToolsList).
+// The tool definitions for the tools this client handles itself, appended to the server's tools/list response (see spliceLocalToolsIntoToolsList).
 static const char* RENDER_VIEW_TOOL_JSON =
 	"{"
 		"\"name\":\"render_view\","
@@ -37,6 +40,97 @@ static const char* RENDER_VIEW_TOOL_JSON =
 			"\"width\":{\"type\":\"number\",\"description\":\"Image width in pixels (default 1024).\"},"
 			"\"height\":{\"type\":\"number\",\"description\":\"Image height in pixels (default 768).\"}"
 		"},\"required\":[\"cam_pos\",\"cam_angles\"]}"
+	"}";
+
+
+static const char* RUN_LUA_BUILD_SCRIPT_TOOL_JSON =
+	"{"
+		"\"name\":\"run_lua_build_script\","
+		"\"description\":\"Run a Luau build script in the connected client and return what it printed. "
+			"The script runs once, from top to bottom, and is not attached to a world object, so it cannot define event handlers "
+			"such as onUserTouchedObject. "
+			"The language is Luau (as used by Roblox), but none of the Roblox API exists here: there is no Instance, Vector3, "
+			"CFrame, task or game. Available globals are createObject(), createMesh(), getOrCreateGroup(), deleteObjectsInGroup(), print(), "
+			"getCurrentTime(), parseJSON(), Vec3d(x,y,z) and Vec3f(x,y,z). Indexes are 1-based, as in all Lua. "
+			"Vec3d and Vec3f are different types and are NOT interchangeable: positions are Vec3d, everything else below is Vec3f. "
+			"Distances are in metres and z is up, so a person is about 1.8 high and a doorway about 2.1. "
+			"createObject takes one table: model_url (required; must be a model present in the connected world, since the "
+			"client reads it to work out the object's bounds), pos (Vec3d, required), axis (Vec3f, default Vec3f(0,0,1)), angle "
+			"(radians, default 0), scale (Vec3f, default Vec3f(1,1,1)), collidable, dynamic, content, script, target_url, and "
+			"materials (an array of material tables taking colour (Vec3f, non-linear sRGB in 0-1), colour_texture_url, emission_rgb "
+			"(Vec3f), emission_texture_url, normal_map_url, roughness_val, roughness_texture_url, metallic_fraction_val, opacity_val, "
+			"tex_matrix, emission_lum_flux_or_lum, hologram, double_sided). "
+			"These built-in meshes are the usual building blocks, and their object-space sizes differ, so check the size before "
+			"working out a scale: "
+			"cube = \\\"Cube_obj_12971581758459554602.bmesh\\\", a 1x1x1 cube centred on the origin; "
+			"sphere = \\\"Icosahedron_obj_17649497764207890525.bmesh\\\", diameter 1, centred; "
+			"cylinder = \\\"Cylinder_obj_8542616007088785005.bmesh\\\", radius 0.25 and height 1, centred, axis along z - note the "
+			"radius, so a cylinder of radius r needs scale x and y of 4*r; "
+			"cone = \\\"cone_igmesh_9525996822499707335.bmesh\\\", base radius 0.5 and height 1, and unlike the others it is NOT "
+			"centred on z: its base sits at z = 0 and it points towards +z, so pos is the centre of the base; "
+			"wedge = \\\"wedge_igmesh_4446548145440212638.bmesh\\\", a 1x1x1 box with the thin edge at -x, sloping up towards +x. "
+			"If one of these reports that the client does not have it on disk, create a single object with the matching "
+			"create_cube/create_sphere/create_cylinder/create_cone/create_wedge tool first, which fetches the mesh, then the build "
+			"script can use it. "
+			"For anything made of many pieces, build ONE mesh instead of one object per piece: a dock of 24 planks is far better as "
+			"one mesh with 24 boxes than as 24 objects. m = createMesh() gives you a mesh, and local url = m:upload(\\\"name\\\") "
+			"returns a model_url to pass to createObject. Mesh coordinates are Vec3f and are relative to the object's pos, so "
+			"build around the origin and place the object where you want it. "
+			"Add geometry with any of: "
+			"m:addBox(centre, size [, axis, angle]); "
+			"m:addQuad(v0, v1, v2, v3), corners counter-clockwise seen from the visible side; "
+			"or m:addTriangles{positions = {...}, normals = {...}, uvs = {...}, indices = {...}} to hand over a whole mesh at once, "
+			"which is much faster than a call per face if you are generating geometry from a formula. In addTriangles, positions is "
+			"required and holds x,y,z per vertex; normals (x,y,z per vertex) and uvs (u,v per vertex) are optional; indices holds 3 "
+			"per triangle and is 1-BASED, like every other array in Lua, so the first vertex is 1 and not 0. With indices omitted the "
+			"vertices are taken in threes. With normals omitted each triangle gets a flat normal, which splits any shared vertices. "
+			"m:setMaterial(i) puts following geometry on the i'th material of the object, 1-based to match the materials array. "
+			"Boxes and quads get UVs measured in metres, so textures keep their scale across faces of different sizes. "
+			"Put the objects you create in a group, and start the script by emptying it, or running a script twice leaves two copies of "
+			"everything. local g = getOrCreateGroup(\\\"dock\\\") gives you the group named \\\"dock\\\", making one if this is the first "
+			"run, and deleteObjectsInGroup(g) then removes what the previous run put in it and returns how many objects it removed. Pass "
+			"group_id = g to createObject to put an object in the group. A group is a handle the user can grab to move everything in it "
+			"at once, and it places itself on the first object you put in it, so no position is needed. Groups belong to the user whose "
+			"client is running the script, so a group only ever holds, and deleteObjectsInGroup only ever removes, objects you created. "
+			"A group can hold another group, and emptying the outer one empties the inner ones too. "
+			"Objects are sent to the server as the script runs, and the server checks separately that you may build at that position. "
+			"The result says how many it accepted and how many it refused, with the reason for the first refusal - so if objects are "
+			"reported as REFUSED, the build did not land and the position or your permission to build there is the thing to fix. "
+			"Errors are returned as text: compile errors carry a line and column, runtime errors carry the line they were raised on. "
+			"\\n\\nHere is the shape a build should take - one object, one mesh, two materials, and a group so that re-running replaces "
+			"what it made last time:\\n"
+			"\\n"
+			"local g = getOrCreateGroup(\\\"dock\\\")\\n"
+			"deleteObjectsInGroup(g)\\n"
+			"\\n"
+			"local m = createMesh()\\n"
+			"m:setMaterial(1) -- planks\\n"
+			"for i = 0, 23 do\\n"
+			"  m:addBox(Vec3f(0, i * 0.32, 0), Vec3f(2.4, 0.30, 0.06))\\n"
+			"end\\n"
+			"m:setMaterial(2) -- posts\\n"
+			"for i = 0, 3 do\\n"
+			"  m:addBox(Vec3f(-1.1, i * 2.2, -0.6), Vec3f(0.18, 0.18, 1.2))\\n"
+			"end\\n"
+			"\\n"
+			"createObject({\\n"
+			"  model_url = m:upload(\\\"dock\\\"),\\n"
+			"  pos = Vec3d(120, 600, 0),\\n"
+			"  group_id = g,\\n"
+			"  materials = {\\n"
+			"    { colour = Vec3f(0.55, 0.40, 0.25), roughness_val = 0.8 },\\n"
+			"    { colour = Vec3f(0.35, 0.33, 0.30), roughness_val = 0.9 },\\n"
+			"  },\\n"
+			"})\\n"
+			"\\n"
+			"That is 28 planks and posts as one object. As 28 separate objects it would be slower to load, slower to re-run, and "
+			"harder to move.\","
+		"\"inputSchema\":{\"type\":\"object\",\"properties\":{"
+			"\"script_path\":{\"type\":\"string\",\"description\":\"Absolute path to a file holding the Luau source, on the machine running the Substrata client. "
+				"Prefer this over 'script': keeping the build in a file lets you edit a line and re-run instead of resending the whole thing, and errors refer to a file you can open.\"},"
+			"\"script\":{\"type\":\"string\",\"description\":\"The Luau source itself, for a one-off you don't want to keep. Provide either this or script_path, not both. "
+				"Does not need the --lua prefix that object scripts use.\"}"
+		"}}"
 	"}";
 
 
@@ -88,9 +182,31 @@ static void writeJSONRPCResult(web::ReplyInfo& reply_info, const std::string& id
 }
 
 
-// Insert the render_view tool into a server tools/list response's "tools" array.
-static const std::string spliceRenderViewIntoToolsList(const std::string& response)
+// The tool JSON above is hand-written inside C++ string literals, where an escaping mistake is easy to make, invisible to read,
+// and would break tools/list entirely rather than just spoiling one description.  So check it parses before we send it.
+static void checkToolJSONValid(const char* tool_json)
 {
+	try
+	{
+		JSONParser parser;
+		parser.parseBuffer(tool_json, std::strlen(tool_json));
+
+		assert(!parser.nodes.empty() && (parser.nodes[0].type == JSONNode::Type_Object));
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("Tool JSON is not valid JSON: " + std::string(e.what()));
+		assert(0);
+	}
+}
+
+
+// Insert the locally-handled tools into a server tools/list response's "tools" array.
+static const std::string spliceLocalToolsIntoToolsList(const std::string& response)
+{
+	checkToolJSONValid(RENDER_VIEW_TOOL_JSON);
+	checkToolJSONValid(RUN_LUA_BUILD_SCRIPT_TOOL_JSON);
+
 	const std::string marker = "\"tools\":[";
 	const size_t pos = response.find(marker);
 	if(pos == std::string::npos)
@@ -104,7 +220,7 @@ static const std::string spliceRenderViewIntoToolsList(const std::string& respon
 		k++;
 	const bool empty_array = (k < response.size()) && (response[k] == ']');
 
-	std::string insertion = std::string(RENDER_VIEW_TOOL_JSON);
+	std::string insertion = std::string(RENDER_VIEW_TOOL_JSON) + "," + std::string(RUN_LUA_BUILD_SCRIPT_TOOL_JSON);
 	if(!empty_array)
 		insertion += ",";
 
@@ -219,6 +335,89 @@ void MCPClientRequestHandler::handleRenderView(const JSONParser& parser, const J
 }
 
 
+void MCPClientRequestHandler::handleRunLuaBuildScript(const JSONParser& parser, const JSONNode& root, web::ReplyInfo& reply_info)
+{
+	const std::string id_json = extractIdJSON(parser, root);
+
+	try
+	{
+		const JSONNode& params = root.getChildObject(parser, "params");
+		if(!params.hasChild("arguments"))
+			throw glare::Exception("run_lua_build_script requires 'arguments'.");
+		const JSONNode& args = params.getChildObject(parser, "arguments");
+
+		const bool has_script      = args.hasChild("script");
+		const bool has_script_path = args.hasChild("script_path");
+		if(has_script == has_script_path)
+			throw glare::Exception("Provide exactly one of 'script' or 'script_path'.");
+
+		std::string script_src;
+		std::string script_desc; // Echoed in the result, so the caller can tell which source was run.
+		LuaBuildScriptOptions build_options;
+		if(has_script_path)
+		{
+			const std::string script_path = args.getChildStringValue(parser, "script_path");
+
+			// The agent's working directory and this client's are unrelated, so a relative path would resolve somewhere the
+			// caller didn't mean.
+			if(!FileUtils::isPathAbsolute(script_path))
+				throw glare::Exception("'script_path' must be an absolute path.");
+			if(!FileUtils::fileExists(script_path))
+				throw glare::Exception("No such file: '" + script_path + "'.");
+
+			script_src = FileUtils::readEntireFileTextMode(script_path); // Throws FileUtilsExcep on failure.
+			script_desc = "Ran " + script_path + " (" + toString(script_src.size()) + " bytes).\n";
+			build_options.script_name = script_path; // So errors name the file, not just a line number.
+		}
+		else
+			script_src = args.getChildStringValue(parser, "script");
+
+		// Build scripts read world state (e.g. getCurrentTime), so require a connected world.
+		if(main_window->gui_client.world_state.isNull())
+			throw glare::Exception("Not connected to a world.");
+
+		main_window->gui_client.msg_queue.enqueue(new InfoMessage("Running MCP Lua build script..."));
+
+		LuaBuildScriptResults results;
+		LuaBuildScript::run(&main_window->gui_client, main_window->gui_client.lua_builder_state.ptr(), script_src, build_options, results);
+
+		// Report the run as text: what the script printed, then how it finished.  Agents fix what they can read, so the error text
+		// (which carries source locations) goes in the result rather than just the log.
+		std::string text = script_desc + results.output;
+		if(results.output_truncated)
+			text += "\n[output truncated]";
+
+		std::string obs_created = toString(results.num_objects_created) + " object(s) sent to the server, " +
+			toString(results.num_objects_deleted) + " removed";
+
+		if(results.num_objects_created > 0)
+		{
+			if(results.num_creates_refused > 0)
+				obs_created += ", " + toString(results.num_creates_refused) + " REFUSED by the server: " + results.first_refusal_msg;
+			else if(results.num_creates_answered < results.num_objects_created)
+				obs_created += ", " + toString(results.num_creates_answered) + " confirmed before we stopped waiting for the server";
+			else
+				obs_created += ", all confirmed created";
+		}
+
+		if(results.success)
+			text += "\nScript completed in " + doubleToStringNSigFigs(results.elapsed_s, 3) + " s, " + obs_created + ".";
+		else
+			text += "\nScript failed after " + doubleToStringNSigFigs(results.elapsed_s, 3) + " s, " + obs_created + " before it failed:\n" + results.error_msg;
+
+		const std::string result = "{\"content\":[{\"type\":\"text\",\"text\":\"" + web::Escaping::JSONEscape(text) + "\"}],\"isError\":" +
+			(results.success ? "false" : "true") + "}";
+		writeJSONRPCResult(reply_info, id_json, result);
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("MCP client: run_lua_build_script failed: " + e.what());
+		const std::string result = "{\"content\":[{\"type\":\"text\",\"text\":\"" + web::Escaping::JSONEscape(e.what()) + "\"}],\"isError\":true}";
+		writeJSONRPCResult(reply_info, id_json, result);
+	}
+}
+
+
 void MCPClientRequestHandler::handleRequest(const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
 	// Only serve local requests.
@@ -246,10 +445,19 @@ void MCPClientRequestHandler::handleRequest(const web::RequestInfo& request_info
 		if(method == "tools/call" && root.hasChild("params"))
 		{
 			const JSONNode& params = root.getChildObject(parser, "params");
-			if(params.hasChild("name") && (params.getChildStringValue(parser, "name") == "render_view"))
+			if(params.hasChild("name"))
 			{
-				handleRenderView(parser, root, reply_info);
-				return;
+				const std::string tool_name = params.getChildStringValue(parser, "name");
+				if(tool_name == "render_view")
+				{
+					handleRenderView(parser, root, reply_info);
+					return;
+				}
+				else if(tool_name == "run_lua_build_script")
+				{
+					handleRunLuaBuildScript(parser, root, reply_info);
+					return;
+				}
 			}
 		}
 	}
@@ -265,8 +473,8 @@ void MCPClientRequestHandler::handleRequest(const web::RequestInfo& request_info
 
 		std::string response = forwardToServer(body);
 
-		if(method == "tools/list") // Advertise our local render_view tool alongside the server's tools.
-			response = spliceRenderViewIntoToolsList(response);
+		if(method == "tools/list") // Advertise our local tools alongside the server's tools.
+			response = spliceLocalToolsIntoToolsList(response);
 
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, response.data(), response.size(), /*content type=*/"application/json");
 	}

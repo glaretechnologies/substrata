@@ -149,6 +149,20 @@ public:
 };
 
 
+// The server's reply to one of our CreateObject messages.  See Protocol::CreateObjectResponse.
+class CreateObjectResponseMessage : public ThreadMessage
+{
+public:
+	CreateObjectResponseMessage(uint32 result_, uint64 client_token_, const UID& object_uid_, const std::string& error_msg_)
+	:	ThreadMessage(Msg_CreateObjectResponseMessage), result(result_), client_token(client_token_), object_uid(object_uid_), error_msg(error_msg_) {}
+
+	uint32 result; // One of Protocol::CreateObjectResult_*.
+	uint64 client_token; // The value we put in the UID field of the CreateObject message.  See GUIClient::registerPendingObjectCreation().
+	UID object_uid; // Valid only when result is CreateObjectResult_Success.
+	std::string error_msg; // Empty when result is CreateObjectResult_Success.
+};
+
+
 class ClientConnectedToServerMessage : public ThreadMessage
 {
 public:

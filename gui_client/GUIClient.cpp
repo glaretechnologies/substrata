@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "GUIClient.h"
 #include <settings/SettingsStore.h>
 #include "ClientThread.h"
+#include "LuaBuildScript.h"
 #include "ModelLoading.h"
 #include "MeshBuilding.h"
 #include "ThreadMessages.h"
@@ -79,6 +80,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../utils/StringUtils.h"
 #include "../utils/FileUtils.h"
 #include "../utils/FileChecksum.h"
+#include "../utils/AtomicInt.h"
 #include "../utils/Parser.h"
 #include "../utils/OpenSSL.h"
 #include "../utils/CryptoRNG.h"
@@ -218,6 +220,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 
 	imgui_drawing = new ImGUIDrawing(this);
 
+	lua_builder_state = new LuaBuilderState();
+
 	SubstrataLuaVM::SubstrataLuaVMArgs lua_vm_args;
 	lua_vm_args.gui_client = this;
 	lua_vm_args.player_physics = &this->player_physics;
@@ -290,6 +294,7 @@ void GUIClient::staticInit()
 #endif
 	PlatformUtils::ignoreUnixSignals();
 	BasisDecoder::init();
+	LuaVM::staticInit();
 }
 
 
@@ -2919,6 +2924,10 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 					this->loading_model_URL_to_world_ob_UID_map[key].insert(ob->uid);
 				}
 			}
+		}
+		else if(ob->object_type == WorldObject::ObjectType_Group)
+		{
+			// Nothing to load for a group
 		}
 		else
 		{
@@ -9979,6 +9988,20 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			}
 		}
 		break;
+		case Msg_CreateObjectResponseMessage:
+		{
+			// The server sends one of these for every CreateObject message we send, and no longer sends a separate error message
+			// for a create it refused, so this is where the user finds out an object they made wasn't created.
+			const CreateObjectResponseMessage* m = checkedDowncastPtr<const CreateObjectResponseMessage>(msg);
+
+			// A build script reports the outcome of its own objects, so don't also show the user an error for each one: a build
+			// aimed somewhere it may not write would otherwise raise a notification per object.
+			const bool handled_by_build_script = lua_builder_state->handleCreateObjectResponse(m->result, m->client_token, m->object_uid, m->error_msg);
+
+			if(!handled_by_build_script && (m->result != Protocol::CreateObjectResult_Success))
+				showErrorNotification(m->error_msg);
+		}
+		break;
 		case Msg_GetFileMessage:
 		{
 			// When the server wants a file from the client, it will send the client a GetFile protocol message.
@@ -11195,6 +11218,34 @@ void GUIClient::setMaterialFlagsForObject(WorldObject* ob)
 // Generate referenced texture LODs.
 // Send CreateObject message to server
 // Throws glare::Exception on failure.
+URLString GUIClient::writeMeshToResourceDirGetURL(const BatchedMeshRef& mesh, const std::string& name)
+{
+	// Give each write its own temp file: build scripts run on an MCP handler thread, so more than one mesh can be in flight.
+	static glare::AtomicInt next_temp_mesh_index(0);
+	const std::string temp_path = PlatformUtils::getTempDirPath() + "/substrata_mesh_" + toString((int64)next_temp_mesh_index.increment()) + ".bmesh";
+
+	BatchedMesh::WriteOptions write_options;
+	write_options.compression_level = 9; // The mesh is encoded once here and then read many times.
+	mesh->writeToFile(temp_path, write_options);
+
+	const uint64 mesh_hash = FileChecksum::fileChecksum(temp_path);
+	const URLString mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(name, "bmesh", mesh_hash);
+
+	// An identical mesh from an earlier run hashes to the same URL, in which case there is nothing to do.
+	if(!resource_manager->isFileForURLPresent(mesh_URL))
+		resource_manager->copyLocalFileToResourceDir(temp_path, mesh_URL);
+
+	try
+	{
+		FileUtils::deleteFile(temp_path);
+	}
+	catch(glare::Exception&)
+	{} // Leaving a temp file behind isn't worth failing the build for.
+
+	return mesh_URL;
+}
+
+
 void GUIClient::createObject(const std::string& mesh_path, BatchedMeshRef loaded_mesh, bool loaded_mesh_is_image_cube,
 	const glare::AllocatorVector<Voxel, 16>& decompressed_voxels, const Vec3d& ob_pos, const Vec3f& scale, const Vec3f& axis, float angle, const std::vector<WorldMaterialRef>& materials)
 {

@@ -50,13 +50,14 @@ CyberspaceProtocolVersion
 52: Added PickUpGearItem, DropGearItem and CloneGearItemInInventory messages.
 53: Added ObjectMoveTo and ObjectRotateTo messages (for scripted moveTo/rotateTo).
 54: Added the Builder AI messages.
+55: Added CreateObjectResponse message, sent to a client for each CreateObject message it sends.
 */
 namespace Protocol
 {
 
 const uint32 CyberspaceHello = 1357924680;
 
-const uint32 CyberspaceProtocolVersion = 54;
+const uint32 CyberspaceProtocolVersion = 55;
 
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
@@ -130,6 +131,22 @@ const uint32 MoveTo_EasingSmoothstep	= 1; // Ease in and out.
 
 const uint32 CreateObject			= 3004; // Client wants to create an object.
 const uint32 DestroyObject			= 3005; // Client wants to destroy an object.
+
+// Sent to a client for each CreateObject message it sends, so it can tell what happened to each object it asked for.  Holds a
+// uint32 CreateObjectResult_* code, then the client token (see below), then the UID assigned to the new object
+// (UID::invalidUID() unless the result is Success), then an error message for the user (empty unless the object was refused).
+//
+// The client token is the value the client put in the UID field of its CreateObject message, which the server otherwise ignores;
+// the server just echoes it back.  A client that wants to know what became of an object it created puts a distinctive value there
+// and keeps a map from it to what it wants to do; a client that doesn't care leaves the field as it is and ignores the response.
+// New in protocol version 55.
+const uint32 CreateObjectResponse	= 3006;
+
+// Result codes for CreateObjectResponse.
+const uint32 CreateObjectResult_Success			= 0;
+const uint32 CreateObjectResult_NotLoggedIn		= 1;
+const uint32 CreateObjectResult_ServerReadOnly	= 2;
+const uint32 CreateObjectResult_NoPermission	= 3;
 
 const uint32 QueryObjects			= 3020; // Client wants to query objects in certain grid cells
 const uint32 ObjectInitialSend		= 3021;

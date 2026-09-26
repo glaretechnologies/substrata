@@ -197,6 +197,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/LoadScriptTask.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/LoadScriptTask.h
 ${CMAKE_SOURCE_DIR}/gui_client/LoadTextureTask.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/LoadTextureTask.h
+${CMAKE_SOURCE_DIR}/gui_client/LuaBuildScript.cpp
+${CMAKE_SOURCE_DIR}/gui_client/LuaBuildScript.h
 ${CMAKE_SOURCE_DIR}/gui_client/MakeHypercardTextureTask.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/MakeHypercardTextureTask.h
 ${CMAKE_SOURCE_DIR}/gui_client/MeshBuilding.cpp

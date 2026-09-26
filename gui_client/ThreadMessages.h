@@ -42,6 +42,7 @@ enum GuiClientThreadMessages
 	Msg_MapTilesResultReceivedMessage,
 	Msg_UserSelectedObjectMessage,
 	Msg_UserDeselectedObjectMessage,
+	Msg_CreateObjectResponseMessage,
 	Msg_GetFileMessage,
 	Msg_NewResourceOnServerMessage,
 	Msg_ResourceDownloadedMessage,
