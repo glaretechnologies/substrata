@@ -105,6 +105,22 @@ void LuaBuilderState::getCreatedUIDsForRange(uint64 begin_token, uint64 end_toke
 }
 
 
+void LuaBuilderState::addBuiltObjectUIDs(const std::vector<UID>& uids)
+{
+	Lock lock(mutex);
+
+	built_object_uids.insert(uids.begin(), uids.end());
+}
+
+
+void LuaBuilderState::getBuiltObjectUIDs(std::vector<UID>& uids_out) const
+{
+	Lock lock(mutex);
+
+	uids_out.assign(built_object_uids.begin(), built_object_uids.end());
+}
+
+
 void LuaBuilderState::forgetRange(uint64 begin_token, uint64 end_token)
 {
 	Lock lock(mutex);
@@ -1630,6 +1646,8 @@ void LuaBuildScript::run(GUIClient* gui_client, LuaBuilderState* builder_state, 
 		{
 			std::vector<UID> created_uids;
 			builder_state->getCreatedUIDsForRange(context.first_create_token, context.end_create_token, created_uids);
+
+			builder_state->addBuiltObjectUIDs(created_uids);
 
 			while(wait_timer.elapsed() <= wait_timeout_s)
 			{

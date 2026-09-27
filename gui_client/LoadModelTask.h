@@ -51,6 +51,21 @@ public:
 };
 
 
+// Sent instead of a ModelLoadedThreadMessage when a LoadModelTask fails, so the main thread can stop treating the model as being processed,
+// and deal with the objects waiting for it.
+class ModelLoadFailedThreadMessage : public ThreadMessage
+{
+public:
+	ModelLoadFailedThreadMessage() : ThreadMessage(Msg_ModelLoadFailedThreadMessage) {}
+
+	URLString lod_model_url; // As LoadModelTask::lod_model_url.  A pseudo-URL for a voxel object.
+	int model_lod_level;
+	PhysicsObject::ShapeType physics_shape_type;
+	bool out_of_memory; // True if the load failed for lack of memory, which may not happen next time, rather than because of the model itself.
+	std::string error_msg;
+};
+
+
 struct LoadModelTaskUploadingUserInfo : public UploadingUserInfo
 {
 	PhysicsShape physics_shape;
@@ -86,6 +101,8 @@ public:
 	virtual ~LoadModelTask();
 
 	virtual void run(size_t thread_index);
+
+	void sendLoadFailedMessage(bool out_of_memory, const std::string& error_msg);
 
 	URLString lod_model_url; // The URL of a model with a specific LOD level to load.  Empty when loading voxel object.
 	int model_lod_level; // The model LOD level of the object

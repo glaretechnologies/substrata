@@ -230,6 +230,7 @@ void LoadModelTask::run(size_t thread_index)
 			//conPrint("LoadModelTask: excep: " + e.what());
 			const std::string model_URL = compressed_voxels ? "[voxel_ob]" : toStdString(this->lod_model_url);
 			result_msg_queue->enqueue(new LogMessage("Error while loading model '" + model_URL + "': " + e.what()));
+			//sendLoadFailedMessage(/*out_of_memory=*/false, "Error while loading model '" + model_URL + "': " + e.what());
 			return;
 		}
 		catch(std::bad_alloc&)
@@ -237,11 +238,25 @@ void LoadModelTask::run(size_t thread_index)
 			//conPrint("LoadModelTask: excep: " + e.what());
 			const std::string model_URL = compressed_voxels ? "[voxel_ob]" : toStdString(this->lod_model_url);
 			result_msg_queue->enqueue(new LogMessage("Error while loading model '" + model_URL + "': failed to allocate mem (bad_alloc)"));
+			//sendLoadFailedMessage(/*out_of_memory=*/true, "Error while loading model '" + model_URL + "': failed to allocate mem (bad_alloc)");
 			return;
 		}
 	}
 
 	// We tried N times but each time we got an LimitedAllocatorAllocFailed exception.
 	const std::string model_URL = compressed_voxels ? "[voxel_ob]" : toStdString(this->lod_model_url);
-	result_msg_queue->enqueue(new LogMessage("Failed to load model '" + model_URL + "': failed after multiple LimitedAllocatorAllocFailed"));
+	result_msg_queue->enqueue(new LogMessage("Error while loading model '" + model_URL + "': failed after multiple LimitedAllocatorAllocFailed"));
+	//sendLoadFailedMessage(/*out_of_memory=*/true, "Failed to load model '" + model_URL + "': failed after multiple LimitedAllocatorAllocFailed");
+}
+
+
+void LoadModelTask::sendLoadFailedMessage(bool out_of_memory, const std::string& error_msg)
+{
+	Reference<ModelLoadFailedThreadMessage> msg = new ModelLoadFailedThreadMessage();
+	msg->lod_model_url = lod_model_url;
+	msg->model_lod_level = model_lod_level;
+	msg->physics_shape_type = physics_shape_type;
+	msg->out_of_memory = out_of_memory;
+	msg->error_msg = error_msg;
+	result_msg_queue->enqueue(msg);
 }

@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2026 -
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 class GUIClient;
 
 
@@ -94,10 +95,15 @@ public:
 
 	void forgetRange(uint64 begin_token, uint64 end_token);
 
+	// The objects build scripts have created this session.  render_view waits for these to show their models before rendering.
+	void addBuiltObjectUIDs(const std::vector<UID>& uids);
+	void getBuiltObjectUIDs(std::vector<UID>& uids_out) const;
+
 private:
 	mutable Mutex mutex;
 	uint64 next_token   GUARDED_BY(mutex);
 	std::map<uint64, Outcome> outcomes  GUARDED_BY(mutex);
+	std::set<UID> built_object_uids  GUARDED_BY(mutex);
 };
 typedef Reference<LuaBuilderState> LuaBuilderStateRef;
 

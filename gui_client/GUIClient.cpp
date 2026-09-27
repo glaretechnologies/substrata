@@ -4116,6 +4116,54 @@ bool GUIClient::isSceneFullyLoaded()
 }
 
 
+// Counts the objects that build scripts created this session, and that are in load proximity but aren't showing their model yet: they
+// have no OpenGL object (or splat cloud), or are still showing a placeholder.  Only object types whose models load asynchronously are
+// counted.
+// An object can be waiting for its model without isSceneFullyLoaded() showing it, for example while the server is still generating the
+// optimised mesh it needs.  Only objects built by scripts are counted, so that an object elsewhere whose model can't be loaded doesn't
+// hold up every MCP render.
+size_t GUIClient::numBuiltObjectsInProximityWithoutModel()
+{
+	if(world_state.isNull() || lua_builder_state.isNull())
+		return 0;
+
+	std::vector<UID> built_uids;
+	lua_builder_state->getBuiltObjectUIDs(built_uids);
+
+	WorldStateLock lock(world_state->mutex);
+
+	size_t num = 0;
+	for(size_t i=0; i<built_uids.size(); ++i)
+	{
+		auto res = world_state->objects.find(built_uids[i]);
+		if(res != world_state->objects.end()) // The object may have been deleted since.
+		{
+			const WorldObject* ob = res.getValue().ptr();
+			if(ob->in_proximity)
+			{
+				if(ob->object_type == WorldObject::ObjectType_Generic || ob->object_type == WorldObject::ObjectType_GearItem)
+				{
+					if(!ob->model_url.empty() && (ob->opengl_engine_ob.isNull() || ob->using_placeholder_model))
+						num++;
+				}
+				else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
+				{
+					if(ob->opengl_engine_ob.isNull() || ob->using_placeholder_model)
+						num++;
+				}
+				else if(ob->object_type == WorldObject::ObjectType_Splat)
+				{
+					if(!ob->model_url.empty() && (ob->splat_handle == GaussianSplatRenderer::invalid_handle))
+						num++;
+				}
+				// Other object types build their graphics as soon as they are loaded.
+			}
+		}
+	}
+	return num;
+}
+
+
 // Similar to objectModificationAllowed() above, but also shows error notifications if modification is not allowed
 bool GUIClient::objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action)
 {

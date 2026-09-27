@@ -3444,8 +3444,9 @@ void MainWindow::processMCPRenderRequests()
 		return; // Let streaming happen over subsequent frames.
 	}
 
-	// Wait for the scene to finish loading for this camera position.
-	const bool loaded = gui_client.isSceneFullyLoaded();
+	// Wait for the scene to finish loading for this camera position, including the models of objects that build scripts made, which may be
+	// waiting for the server to generate a mesh, which isSceneFullyLoaded() doesn't count.
+	const bool loaded = gui_client.isSceneFullyLoaded() && (gui_client.numBuiltObjectsInProximityWithoutModel() == 0);
 	if(loaded && !req->became_loaded)
 	{
 		req->became_loaded = true;
