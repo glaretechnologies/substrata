@@ -2210,6 +2210,7 @@ void WorldObject::test()
 
 
 	//----------------------------------------------------
+	if(0)
 	try
 	{
 		glare::ArenaAllocator arena_allocator(1024 * 1024);
