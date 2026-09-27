@@ -26,6 +26,8 @@ public:
 
 	virtual void doRun();
 
+	static void test();
+
 private:
 	Server* server;
 	ServerAllWorldsState* all_worlds_state;

@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2023 -
 
 
 #include "AccountHandlers.h"
+#include "ChunkGenThread.h"
 #include "ServerLuaScriptTests.h"
 #include "SubEvent.h"
 #include "WorldHandlers.h"
@@ -138,6 +139,7 @@ void ServerTestSuite::test()
 	runTest([&]() { Keccak256::test();													});
 	runTest([&]() { WorldMaterial::test();												});
 	runTest([&]() { LODGeneration::test();												});
+	runTest([&]() { ChunkGenThread::test();												});
 	runTest([&]() { WebSocketTests::test();												});
 	runTest([&]() { GIFDecoder::test();													}, /*mem leak allowed=*/true); // NOTE: leaks mem due to https://sourceforge.net/p/giflib/bugs/165/
 	runTest([&]() { PNGDecoder::test(".");												});

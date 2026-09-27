@@ -483,7 +483,15 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 	{
 		ObInfo& ob_info = ob_infos[ob_i];
 
+		results.ob_batch_ranges[ob_i].ob_uid = ob_info.ob_uid;
+		results.ob_batch_ranges[ob_i].batch0_start = 0;
+		results.ob_batch_ranges[ob_i].batch0_end = 0;
+		results.ob_batch_ranges[ob_i].batch1_start = 0;
+		results.ob_batch_ranges[ob_i].batch1_end = 0;
+
 		const size_t initial_combined_mesh_vert_data_size = combined_mesh->vertex_data.size();
+		const size_t initial_combined_opaque_indices_size = combined_opaque_indices.size();
+		const size_t initial_combined_trans_indices_size  = combined_trans_indices.size();
 
 		try
 		{
@@ -604,8 +612,6 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 				//------------------------------------------ Copy vert indices ------------------------------------------
 				const uint32 vert_offset = (uint32)(write_i_B / combined_mesh_vert_size);
 
-
-				results.ob_batch_ranges[ob_i].ob_uid = ob_info.ob_uid;
 				results.ob_batch_ranges[ob_i].batch0_start = (uint32)combined_opaque_indices.size();
 				results.ob_batch_ranges[ob_i].batch1_start = (uint32)combined_trans_indices.size();
 
@@ -844,6 +850,13 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 
 			// If an exception was thrown after space was allocated for the mesh verts, we want to trim that off.
 			combined_mesh->vertex_data.resize(initial_combined_mesh_vert_data_size);
+			combined_opaque_indices.resize(initial_combined_opaque_indices_size);
+			combined_trans_indices.resize(initial_combined_trans_indices_size);
+
+			results.ob_batch_ranges[ob_i].batch0_start = 0;
+			results.ob_batch_ranges[ob_i].batch0_end = 0;
+			results.ob_batch_ranges[ob_i].batch1_start = 0;
+			results.ob_batch_ranges[ob_i].batch1_end = 0;
 		}
 	} // End for each ob
 
@@ -855,6 +868,13 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 	{
 		results.ob_batch_ranges[z].batch1_start += (uint32)combined_opaque_indices.size();
 		results.ob_batch_ranges[z].batch1_end   += (uint32)combined_opaque_indices.size();
+	}
+
+	// Check combined indices are in-bounds
+	{
+		const size_t combined_num_verts = combined_mesh->numVerts();
+		for(size_t i=0; i<combined_indices.size(); ++i)
+			runtimeCheck(combined_indices[i] < combined_num_verts);
 	}
 
 	if(!combined_indices.empty())
@@ -1322,12 +1342,12 @@ void ChunkGenThread::doRun()
 		{
 			WorldStateLock lock(all_worlds_state->mutex);
 			//Reference<ServerWorldState> world_state = all_worlds_state->getRootWorldState();
-			Reference<ServerWorldState> world_state = all_worlds_state->world_states["joblank"];
+			Reference<ServerWorldState> world_state = all_worlds_state->world_states[""];//joblank"];
 			
 			//for(int x=-10; x<10; ++x)
 			//for(int y=-10; y<10; ++y)
-			int x = 0;
-			int y = -2;
+			int x = 1;
+			int y = 4;
 			{
 				if(all_worlds_state->getRootWorldState()->getLODChunks(lock).count(Vec3i(x, y, 0)) != 0)
 				{
@@ -1522,3 +1542,602 @@ void ChunkGenThread::doRun()
 		conPrint(std::string("ChunkGenThread: Caught std::exception: ") + e.what());
 	}
 }
+
+
+#if BUILD_TESTS
+
+
+#include <utils/TestUtils.h>
+
+
+namespace ChunkGenThreadTests
+{
+
+static const float test_cube_half_w = 5.f; // Large enough that removeSmallComponents() and mesh simplification leave the cube intact.
+
+
+struct TestCubeSpec
+{
+	TestCubeSpec() : index_type(BatchedMesh::ComponentType_UInt16), have_normals(true), normal_type(BatchedMesh::ComponentType_PackedNormal), have_uv0(true), uv0_type(BatchedMesh::ComponentType_Float), num_mats(1), quantise(false),
+		skinned(false), joints_type(BatchedMesh::ComponentType_UInt8), weights_type(BatchedMesh::ComponentType_UInt8) {}
+
+	BatchedMesh::ComponentType index_type; // ComponentType_UInt16 or ComponentType_UInt32
+	bool have_normals;
+	BatchedMesh::ComponentType normal_type;
+	bool have_uv0;
+	BatchedMesh::ComponentType uv0_type;
+	int num_mats; // Faces are split between materials in contiguous batches.
+	bool quantise; // Write the mesh quantised with buildQuantisedMesh() (uint16 positions, oct16 normals, uint16 UVs), as used for optimised meshes.
+
+	// If skinned, all verts are fully weighted to a single joint, whose bind-pose transform is test_skin_offset.
+	bool skinned;
+	BatchedMesh::ComponentType joints_type; // ComponentType_UInt8 or ComponentType_UInt16
+	BatchedMesh::ComponentType weights_type; // ComponentType_UInt8, ComponentType_UInt16 or ComponentType_Float
+};
+
+
+// Translation applied by the skin of skinned test cubes: a root node translating by (0, 0, 10), with a child joint node translating by (0, 10, 0).
+static const Vec4f test_skin_offset(0, 10, 10, 0);
+
+
+static size_t roundUpTo4(size_t x) { return (x + 3) & ~(size_t)3; }
+
+
+// Makes a cube with 4 verts per face, centred on the origin, and writes it to a bmesh file in the temp dir.  Returns the file path.
+static std::string writeTestCubeMesh(const std::string& name, const TestCubeSpec& spec)
+{
+	try
+	{
+		BatchedMeshRef mesh = new BatchedMesh();
+
+		size_t offset = 0;
+		mesh->vert_attributes.push_back(BatchedMesh::VertAttribute(BatchedMesh::VertAttribute_Position, BatchedMesh::ComponentType_Float, offset));
+		offset = roundUpTo4(offset + BatchedMesh::vertAttributeSize(mesh->vert_attributes.back()));
+
+		size_t normal_offset = 0;
+		if(spec.have_normals)
+		{
+			normal_offset = offset;
+			mesh->vert_attributes.push_back(BatchedMesh::VertAttribute(BatchedMesh::VertAttribute_Normal, spec.normal_type, offset));
+			offset = roundUpTo4(offset + BatchedMesh::vertAttributeSize(mesh->vert_attributes.back()));
+		}
+
+		size_t uv0_offset = 0;
+		if(spec.have_uv0)
+		{
+			uv0_offset = offset;
+			mesh->vert_attributes.push_back(BatchedMesh::VertAttribute(BatchedMesh::VertAttribute_UV_0, spec.uv0_type, offset));
+			offset = roundUpTo4(offset + BatchedMesh::vertAttributeSize(mesh->vert_attributes.back()));
+		}
+
+		size_t weights_offset = 0;
+		if(spec.skinned)
+		{
+			mesh->vert_attributes.push_back(BatchedMesh::VertAttribute(BatchedMesh::VertAttribute_Joints, spec.joints_type, offset));
+			offset = roundUpTo4(offset + BatchedMesh::vertAttributeSize(mesh->vert_attributes.back()));
+
+			weights_offset = offset;
+			mesh->vert_attributes.push_back(BatchedMesh::VertAttribute(BatchedMesh::VertAttribute_Weights, spec.weights_type, offset));
+			offset = roundUpTo4(offset + BatchedMesh::vertAttributeSize(mesh->vert_attributes.back()));
+
+			AnimationNodeData root_node;
+			root_node.inverse_bind_matrix = Matrix4f::identity();
+			root_node.trans = Vec4f(0, 0, 10, 0);
+			root_node.rot = Quatf::identity();
+			root_node.scale = Vec4f(1, 1, 1, 0);
+			root_node.name = "root";
+			root_node.parent_index = -1;
+
+			AnimationNodeData joint_node = root_node;
+			joint_node.trans = Vec4f(0, 10, 0, 0);
+			joint_node.name = "joint";
+			joint_node.parent_index = 0;
+
+			mesh->animation_data.nodes.push_back(root_node);
+			mesh->animation_data.nodes.push_back(joint_node);
+			mesh->animation_data.sorted_nodes = { 0, 1 };
+			mesh->animation_data.joint_nodes = { 1 }; // Joint index 0 in vertex data refers to node 1.
+		}
+
+		const size_t vert_size = offset;
+		testAssert(mesh->vertexSize() == vert_size);
+
+		const size_t num_verts = 24;
+		mesh->vertex_data.resize(num_verts * vert_size);
+		std::memset(mesh->vertex_data.data(), 0, mesh->vertex_data.size()); // Oct16 normals and UInt16 UVs are left zeroed, their values don't matter.  Joint indices are left as zero.
+
+		const float corner_u[4] = { -1, 1, 1, -1 };
+		const float corner_w[4] = { -1, -1, 1, 1 };
+
+		js::Vector<uint32, 16> indices;
+		size_t v = 0;
+		for(int axis=0; axis<3; ++axis)
+		for(int s=-1; s<=1; s+=2)
+		{
+			const Vec4f n((axis == 0) ? (float)s : 0.f, (axis == 1) ? (float)s : 0.f, (axis == 2) ? (float)s : 0.f, 0);
+			Vec4f u((axis == 2) ? 1.f : 0.f, (axis == 0) ? 1.f : 0.f, (axis == 1) ? 1.f : 0.f, 0); // Next axis after 'axis'
+			Vec4f w((axis == 1) ? 1.f : 0.f, (axis == 2) ? 1.f : 0.f, (axis == 0) ? 1.f : 0.f, 0); // Axis after that
+			if(s < 0)
+				std::swap(u, w); // Keep cross(u, w) = n, so triangles are wound counter-clockwise when seen from outside.
+
+			const uint32 face_first_vert = (uint32)v;
+			for(int c=0; c<4; ++c)
+			{
+				uint8* const vert = &mesh->vertex_data[v * vert_size];
+
+				const Vec4f pos = (n + u * corner_u[c] + w * corner_w[c]) * test_cube_half_w;
+				const Vec3f pos3(pos[0], pos[1], pos[2]);
+				std::memcpy(vert, &pos3, sizeof(Vec3f));
+
+				if(spec.have_normals)
+				{
+					if(spec.normal_type == BatchedMesh::ComponentType_PackedNormal)
+					{
+						const uint32 packed = batchedMeshPackNormal(n);
+						std::memcpy(vert + normal_offset, &packed, sizeof(uint32));
+					}
+					else if(spec.normal_type == BatchedMesh::ComponentType_Float)
+					{
+						const Vec3f n3(n[0], n[1], n[2]);
+						std::memcpy(vert + normal_offset, &n3, sizeof(Vec3f));
+					}
+				}
+
+				if(spec.have_uv0)
+				{
+					const float uv_x = corner_u[c] * 0.5f + 0.5f;
+					const float uv_y = corner_w[c] * 0.5f + 0.5f;
+					if(spec.uv0_type == BatchedMesh::ComponentType_Float)
+					{
+						const Vec2f uv(uv_x, uv_y);
+						std::memcpy(vert + uv0_offset, &uv, sizeof(Vec2f));
+					}
+					else if(spec.uv0_type == BatchedMesh::ComponentType_Half)
+					{
+						const half uv[2] = { half(uv_x), half(uv_y) };
+						std::memcpy(vert + uv0_offset, uv, sizeof(half) * 2);
+					}
+				}
+
+				if(spec.skinned)
+				{
+					// Put full weight on the first joint slot, which references joint 0.
+					if(spec.weights_type == BatchedMesh::ComponentType_UInt8)
+					{
+						const uint8 weight = 255;
+						std::memcpy(vert + weights_offset, &weight, sizeof(uint8));
+					}
+					else if(spec.weights_type == BatchedMesh::ComponentType_UInt16)
+					{
+						const uint16 weight = 65535;
+						std::memcpy(vert + weights_offset, &weight, sizeof(uint16));
+					}
+					else
+					{
+						testAssert(spec.weights_type == BatchedMesh::ComponentType_Float);
+						const float weight = 1.f;
+						std::memcpy(vert + weights_offset, &weight, sizeof(float));
+					}
+				}
+
+				v++;
+			}
+
+			indices.push_back(face_first_vert + 0); indices.push_back(face_first_vert + 1); indices.push_back(face_first_vert + 2);
+			indices.push_back(face_first_vert + 0); indices.push_back(face_first_vert + 2); indices.push_back(face_first_vert + 3);
+		}
+		testAssert(v == num_verts);
+
+		if(spec.index_type == BatchedMesh::ComponentType_UInt32)
+		{
+			// setIndexDataFromIndices() would pick uint16 indices for this few verts, so set uint32 indices directly.
+			mesh->index_type = BatchedMesh::ComponentType_UInt32;
+			mesh->index_data.resize(indices.size() * sizeof(uint32));
+			std::memcpy(mesh->index_data.data(), indices.data(), indices.size() * sizeof(uint32));
+		}
+		else
+		{
+			mesh->setIndexDataFromIndices(indices, num_verts);
+			testAssert(mesh->index_type == spec.index_type);
+		}
+
+		const uint32 num_indices_per_face = 6;
+		uint32 face_i = 0;
+		for(int m=0; m<spec.num_mats; ++m)
+		{
+			const uint32 end_face = (uint32)(6 * (m + 1) / spec.num_mats);
+			BatchedMesh::IndicesBatch batch;
+			batch.indices_start = face_i * num_indices_per_face;
+			batch.num_indices = (end_face - face_i) * num_indices_per_face;
+			batch.material_index = (uint32)m;
+			mesh->batches.push_back(batch);
+			face_i = end_face;
+		}
+
+		mesh->aabb_os = mesh->computeAABB();
+
+		if(spec.quantise)
+			mesh = mesh->buildQuantisedMesh(BatchedMesh::QuantiseOptions());
+
+		// Use meshopt, which compresses the interleaved vertex data, so that attributes smaller than 4 bytes (e.g. Oct16 normals) can be written.
+		BatchedMesh::WriteOptions write_options;
+		write_options.use_meshopt = true;
+
+		const std::string path = PlatformUtils::getTempDirPath() + "/chunkgen_test_" + name + ".bmesh";
+		mesh->writeToFile(path, write_options);
+		return path;
+	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
+		return nullptr;
+	}
+}
+
+
+static ObInfo makeObInfo(const std::string& model_path, uint64 uid, float pos_x, const std::vector<float>& mat_opacities)
+{
+	ObInfo ob_info;
+	ob_info.ob_to_world = Matrix4f::translationMatrix(pos_x, 0, 0);
+	ob_info.aabb_ws = js::AABBox(Vec4f(pos_x - test_cube_half_w, -test_cube_half_w, -test_cube_half_w, 1), Vec4f(pos_x + test_cube_half_w, test_cube_half_w, test_cube_half_w, 1));
+	ob_info.model_path = model_path;
+	ob_info.object_type = WorldObject::ObjectType_Generic;
+	ob_info.ob_to_world_scale = 1.f;
+	ob_info.ob_uid = UID(uid);
+
+	for(size_t i=0; i<mat_opacities.size(); ++i)
+	{
+		MatInfo mat;
+		mat.tex_matrix = Matrix2f::identity();
+		mat.emission_lum_flux_or_lum = 0;
+		mat.roughness = 0.5f;
+		mat.metallic = 0;
+		mat.colour_rgb = Colour3f(0.5f);
+		mat.opacity = mat_opacities[i];
+		ob_info.mat_info.push_back(mat);
+	}
+	return ob_info;
+}
+
+
+struct TestOb
+{
+	ObInfo ob_info;
+	bool expect_included; // Should the object's geometry end up in the chunk mesh?
+	int num_mesh_mats; // Number of materials the object's mesh references.
+	Vec4f expected_offset = Vec4f(0, 0, 0, 0); // Offset of the cube from the object position in the chunk mesh, e.g. from skinning.
+};
+
+
+static bool rangesOverlap(uint32 a_start, uint32 a_end, uint32 b_start, uint32 b_end)
+{
+	return (a_start < a_end) && (b_start < b_end) && (a_start < b_end) && (b_start < a_end);
+}
+
+
+// Builds a chunk from the given objects and checks that:
+// * Objects expected to fail have empty index ranges, and still have their UID set.
+// * Included objects have non-empty index ranges, which only reference that object's geometry.
+// * The written chunk mesh is valid (all indices in bounds), and only has materials from included objects.
+static void testBuildChunk(const std::string& test_name, const std::vector<TestOb>& test_obs, glare::TaskManager& task_manager, int chunk_x)
+{
+	conPrint("ChunkGenThread test: " + test_name);
+
+	std::vector<ObInfo> ob_infos;
+	for(size_t i=0; i<test_obs.size(); ++i)
+		ob_infos.push_back(test_obs[i].ob_info);
+
+	ChunkBuildResults results;
+	try
+	{
+		results = buildChunkForObInfo(ob_infos, chunk_x, /*chunk_y=*/-1000, task_manager);
+	}
+	catch(glare::Exception& e)
+	{
+		failTest(test_name + ": buildChunkForObInfo() threw: " + e.what());
+	}
+
+	testAssert(results.ob_batch_ranges.size() == test_obs.size());
+
+	size_t num_included = 0;
+	size_t expected_num_mats = 0;
+	for(size_t i=0; i<test_obs.size(); ++i)
+	{
+		const ObjectBatchRanges& ranges = results.ob_batch_ranges[i];
+		testAssert(ranges.ob_uid == test_obs[i].ob_info.ob_uid);
+		testAssert(ranges.batch0_start <= ranges.batch0_end);
+		testAssert(ranges.batch1_start <= ranges.batch1_end);
+
+		const uint32 num_ob_indices = (ranges.batch0_end - ranges.batch0_start) + (ranges.batch1_end - ranges.batch1_start);
+		if(test_obs[i].expect_included)
+		{
+			testAssert(num_ob_indices > 0);
+			num_included++;
+			expected_num_mats += test_obs[i].num_mesh_mats;
+		}
+		else
+			testAssert(num_ob_indices == 0);
+	}
+
+	if(num_included == 0)
+	{
+		testAssert(results.combined_mesh_path.empty());
+		testAssert(results.output_mat_infos.empty());
+		return;
+	}
+
+	testAssert(!results.combined_mesh_path.empty());
+
+	BatchedMeshRef chunk_mesh = BatchedMesh::readFromFile(results.combined_mesh_path, /*mem allocator=*/NULL);
+	chunk_mesh->checkValidAndSanitiseMesh(); // Throws if any index is out of bounds.
+
+	testAssert(chunk_mesh->numVerts() > 0);
+	testAssert(chunk_mesh->numVerts() <= 24 * num_included);
+	testAssert(results.output_mat_infos.size() == expected_num_mats);
+
+	// Check every vertex references one of the output materials.
+	const BatchedMesh::VertAttribute& mat_index_attr = chunk_mesh->getAttribute(BatchedMesh::VertAttribute_MatIndex);
+	testAssert(mat_index_attr.component_type == BatchedMesh::ComponentType_UInt32);
+	for(size_t v=0; v<chunk_mesh->numVerts(); ++v)
+	{
+		uint32 mat_i;
+		std::memcpy(&mat_i, &chunk_mesh->vertex_data[chunk_mesh->vertexSize() * v + mat_index_attr.offset_B], sizeof(uint32));
+		testAssert(mat_i < results.output_mat_infos.size());
+	}
+
+	// Check each object's index ranges are in bounds, don't overlap with other objects' ranges, and only reference verts of that object's cube.
+	const float pos_tolerance = 0.1f; // Chunk mesh positions are quantised.
+	for(size_t i=0; i<test_obs.size(); ++i)
+	{
+		const ObjectBatchRanges& ranges = results.ob_batch_ranges[i];
+		testAssert(ranges.batch0_end <= chunk_mesh->numIndices());
+		testAssert(ranges.batch1_end <= chunk_mesh->numIndices());
+
+		for(size_t z=0; z<test_obs.size(); ++z)
+			if(z != i)
+			{
+				const ObjectBatchRanges& other = results.ob_batch_ranges[z];
+				testAssert(!rangesOverlap(ranges.batch0_start, ranges.batch0_end, other.batch0_start, other.batch0_end));
+				testAssert(!rangesOverlap(ranges.batch1_start, ranges.batch1_end, other.batch1_start, other.batch1_end));
+				testAssert(!rangesOverlap(ranges.batch0_start, ranges.batch0_end, other.batch1_start, other.batch1_end));
+			}
+
+		const Vec4f cube_centre = test_obs[i].ob_info.ob_to_world.getColumn(3) + test_obs[i].expected_offset;
+		const uint32 range_starts[2] = { ranges.batch0_start, ranges.batch1_start };
+		const uint32 range_ends[2]   = { ranges.batch0_end,   ranges.batch1_end };
+		for(int r=0; r<2; ++r)
+			for(uint32 z=range_starts[r]; z<range_ends[r]; ++z)
+			{
+				const Vec4f pos = chunk_mesh->getVertexPosition(chunk_mesh->getIndexAsUInt32(z));
+				for(int c=0; c<3; ++c)
+					testAssert(std::fabs(pos[c] - cube_centre[c]) <= test_cube_half_w + pos_tolerance);
+			}
+	}
+
+	FileUtils::deleteFile(results.combined_mesh_path);
+	FileUtils::deleteFile(results.optimised_mesh_path);
+}
+
+
+static void test()
+{
+	conPrint("ChunkGenThread::test()");
+
+	glare::TaskManager task_manager;
+
+	TestCubeSpec good_spec; // PackedNormal normals, float UVs
+
+	TestCubeSpec good_no_normals_spec;
+	good_no_normals_spec.have_normals = false;
+	good_no_normals_spec.uv0_type = BatchedMesh::ComponentType_Half;
+
+	TestCubeSpec good_no_uvs_spec;
+	good_no_uvs_spec.have_uv0 = false;
+
+	TestCubeSpec good_two_mats_spec;
+	good_two_mats_spec.num_mats = 2;
+
+	// Unsupported normal types.  These throw after the object's indices have been appended to the combined index lists.
+	TestCubeSpec float_normals_spec;
+	float_normals_spec.normal_type = BatchedMesh::ComponentType_Float;
+
+	TestCubeSpec oct16_normals_spec;
+	oct16_normals_spec.normal_type = BatchedMesh::ComponentType_Oct16;
+
+	// Unsupported UV type.  Throws after normals have been written as well.
+	TestCubeSpec uint16_uvs_spec;
+	uint16_uvs_spec.uv0_type = BatchedMesh::ComponentType_UInt16;
+
+	// Unsupported UV type, after geometric normals have been computed from the combined vertex data.
+	TestCubeSpec no_normals_uint16_uvs_spec;
+	no_normals_uint16_uvs_spec.have_normals = false;
+	no_normals_uint16_uvs_spec.uv0_type = BatchedMesh::ComponentType_UInt16;
+
+	// Unsupported UV type, with an opaque and a transparent batch, so both combined index lists have indices appended.
+	TestCubeSpec two_mats_uint16_uvs_spec;
+	two_mats_uint16_uvs_spec.num_mats = 2;
+	two_mats_uint16_uvs_spec.uv0_type = BatchedMesh::ComponentType_UInt16;
+
+	const std::string good_path						= writeTestCubeMesh("good", good_spec);
+	const std::string good_no_normals_path			= writeTestCubeMesh("good_no_normals", good_no_normals_spec);
+	const std::string good_no_uvs_path				= writeTestCubeMesh("good_no_uvs", good_no_uvs_spec);
+	const std::string good_two_mats_path			= writeTestCubeMesh("good_two_mats", good_two_mats_spec);
+	const std::string float_normals_path			= writeTestCubeMesh("float_normals", float_normals_spec);
+	const std::string oct16_normals_path			= writeTestCubeMesh("oct16_normals", oct16_normals_spec);
+	const std::string uint16_uvs_path				= writeTestCubeMesh("uint16_uvs", uint16_uvs_spec);
+	const std::string no_normals_uint16_uvs_path	= writeTestCubeMesh("no_normals_uint16_uvs", no_normals_uint16_uvs_spec);
+	const std::string two_mats_uint16_uvs_path		= writeTestCubeMesh("two_mats_uint16_uvs", two_mats_uint16_uvs_spec);
+	const std::string missing_path					= PlatformUtils::getTempDirPath() + "/chunkgen_test_nonexistent_file.bmesh";
+
+	TestCubeSpec uint32_indices_spec;
+	uint32_indices_spec.index_type = BatchedMesh::ComponentType_UInt32;
+	uint32_indices_spec.num_mats = 2;
+
+	TestCubeSpec uint32_indices_float_normals_spec;
+	uint32_indices_float_normals_spec.index_type = BatchedMesh::ComponentType_UInt32;
+	uint32_indices_float_normals_spec.normal_type = BatchedMesh::ComponentType_Float;
+
+	const std::string uint32_indices_path				= writeTestCubeMesh("uint32_indices", uint32_indices_spec);
+	const std::string uint32_indices_float_normals_path	= writeTestCubeMesh("uint32_indices_float_normals", uint32_indices_float_normals_spec);
+
+	TestCubeSpec quantised_spec;
+	quantised_spec.quantise = true;
+
+	const std::string quantised_path = writeTestCubeMesh("quantised", quantised_spec);
+	testAssert(LODGeneration::loadModel(quantised_path)->getAttribute(BatchedMesh::VertAttribute_Position).component_type == BatchedMesh::ComponentType_UInt16);
+
+	TestCubeSpec skinned_uint8_spec;
+	skinned_uint8_spec.skinned = true;
+
+	TestCubeSpec skinned_uint16_spec;
+	skinned_uint16_spec.skinned = true;
+	skinned_uint16_spec.joints_type = BatchedMesh::ComponentType_UInt16;
+	skinned_uint16_spec.weights_type = BatchedMesh::ComponentType_UInt16;
+
+	TestCubeSpec skinned_float_weights_spec;
+	skinned_float_weights_spec.skinned = true;
+	skinned_float_weights_spec.weights_type = BatchedMesh::ComponentType_Float;
+	skinned_float_weights_spec.num_mats = 2;
+
+	TestCubeSpec skinned_float_normals_spec;
+	skinned_float_normals_spec.skinned = true;
+	skinned_float_normals_spec.normal_type = BatchedMesh::ComponentType_Float;
+
+	const std::string skinned_uint8_path			= writeTestCubeMesh("skinned_uint8", skinned_uint8_spec);
+	const std::string skinned_uint16_path			= writeTestCubeMesh("skinned_uint16", skinned_uint16_spec);
+	const std::string skinned_float_weights_path	= writeTestCubeMesh("skinned_float_weights", skinned_float_weights_spec);
+	const std::string skinned_float_normals_path	= writeTestCubeMesh("skinned_float_normals", skinned_float_normals_spec);
+
+	// Check the skin data survives writing and loading, so that the skinning code in buildChunkForObInfo() is what gets tested.
+	{
+		BatchedMeshRef mesh = LODGeneration::loadModel(skinned_uint16_path);
+		testAssert(mesh->animation_data.joint_nodes.size() == 1);
+		testAssert(mesh->getAttribute(BatchedMesh::VertAttribute_Joints).component_type == BatchedMesh::ComponentType_UInt16);
+		testAssert(mesh->getAttribute(BatchedMesh::VertAttribute_Weights).component_type == BatchedMesh::ComponentType_UInt16);
+	}
+
+	// Check the uint32 index type survives loading and simplification, so that the uint32 index branch in buildChunkForObInfo() is what gets tested.
+	{
+		LRUCache<std::string, BatchedMeshRef> mesh_cache;
+		Matrix4f voxel_scale_matrix;
+		BatchedMeshRef mesh = loadAndSimplifyGeometry(makeObInfo(uint32_indices_path, 1, 0, {}), mesh_cache, voxel_scale_matrix);
+		testAssert(mesh.nonNull() && (mesh->index_type == BatchedMesh::ComponentType_UInt32));
+
+		mesh = loadAndSimplifyGeometry(makeObInfo(good_path, 1, 0, {}), mesh_cache, voxel_scale_matrix);
+		testAssert(mesh.nonNull() && (mesh->index_type == BatchedMesh::ComponentType_UInt16));
+	}
+
+	const std::vector<float> opaque{ 1.f };
+	const std::vector<float> transparent{ 0.5f };
+	const std::vector<float> opaque_and_transparent{ 1.f, 0.5f };
+
+	int chunk_x = -1000; // Use a different chunk for each test so the output files don't collide.
+
+	testBuildChunk("All objects valid, with various supported attribute types", {
+		{ makeObInfo(good_path,				1, 0,  opaque),			true,  1 },
+		{ makeObInfo(good_no_normals_path,	2, 20, opaque),			true,  1 },
+		{ makeObInfo(good_no_uvs_path,		3, 40, transparent),	true,  1 },
+		{ makeObInfo(good_two_mats_path,	4, 60, opaque),			true,  2 }, // Fewer materials than the mesh references, so a dummy material gets added.
+	}, task_manager, chunk_x++);
+
+	testBuildChunk("Unsupported float normals between valid objects", {
+		{ makeObInfo(good_path,				1, 0,  opaque), true,  1 },
+		{ makeObInfo(float_normals_path,	2, 20, opaque), false, 1 },
+		{ makeObInfo(good_path,				3, 40, opaque), true,  1 },
+	}, task_manager, chunk_x++);
+
+	testBuildChunk("Unsupported oct16 normals on a transparent object", {
+		{ makeObInfo(good_path,				1, 0,  opaque),			true,  1 },
+		{ makeObInfo(oct16_normals_path,	2, 20, transparent),	false, 1 },
+		{ makeObInfo(good_path,				3, 40, transparent),	true,  1 },
+	}, task_manager, chunk_x++);
+
+	testBuildChunk("Unsupported UVs", {
+		{ makeObInfo(good_path,				1, 0,  opaque), true,  1 },
+		{ makeObInfo(uint16_uvs_path,		2, 20, opaque), false, 1 },
+		{ makeObInfo(good_path,				3, 40, opaque), true,  1 },
+	}, task_manager, chunk_x++);
+
+	testBuildChunk("Unsupported UVs after computing geometric normals", {
+		{ makeObInfo(no_normals_uint16_uvs_path,	1, 0,  opaque), false, 1 },
+		{ makeObInfo(good_no_normals_path,			2, 20, opaque), true,  1 },
+	}, task_manager, chunk_x++);
+
+	testBuildChunk("Unsupported UVs on an object with opaque and transparent batches", {
+		{ makeObInfo(good_path,					1, 0,  transparent),			true,  1 },
+		{ makeObInfo(two_mats_uint16_uvs_path,	2, 20, opaque_and_transparent),	false, 2 },
+		{ makeObInfo(good_path,					3, 40, opaque),					true,  1 },
+		{ makeObInfo(good_two_mats_path,		4, 60, opaque_and_transparent),	true,  2 },
+	}, task_manager, chunk_x++);
+
+	testBuildChunk("Failing objects first and last, sharing a cached mesh", {
+		{ makeObInfo(float_normals_path,	1, 0,  opaque), false, 1 },
+		{ makeObInfo(good_path,				2, 20, opaque), true,  1 },
+		{ makeObInfo(float_normals_path,	3, 40, opaque), false, 1 },
+	}, task_manager, chunk_x++);
+
+	testBuildChunk("Model file fails to load", {
+		{ makeObInfo(good_path,		1, 0,  opaque), true,  1 },
+		{ makeObInfo(missing_path,	2, 20, opaque), false, 1 },
+		{ makeObInfo(good_path,		3, 40, opaque), true,  1 },
+	}, task_manager, chunk_x++);
+
+	testBuildChunk("All objects fail", {
+		{ makeObInfo(float_normals_path,	1, 0,  opaque),			false, 1 },
+		{ makeObInfo(uint16_uvs_path,		2, 20, transparent),	false, 1 },
+		{ makeObInfo(missing_path,			3, 40, opaque),			false, 1 },
+	}, task_manager, chunk_x++);
+
+	testBuildChunk("UInt32 indices", {
+		{ makeObInfo(uint32_indices_path,	1, 0,  opaque_and_transparent),	true,  2 },
+		{ makeObInfo(good_path,				2, 20, opaque),					true,  1 },
+		{ makeObInfo(uint32_indices_path,	3, 40, opaque),					true,  2 }, // Second material is a dummy (transparent) material.
+	}, task_manager, chunk_x++);
+
+	testBuildChunk("UInt32 indices, failing object last", {
+		{ makeObInfo(good_path,							1, 0,  opaque),	true,  1 },
+		{ makeObInfo(uint32_indices_path,				2, 20, opaque),	true,  2 },
+		{ makeObInfo(uint32_indices_float_normals_path,	3, 40, opaque),	false, 1 },
+	}, task_manager, chunk_x++);
+
+	testBuildChunk("Non-float positions", {
+		{ makeObInfo(good_path,			1, 0,  opaque),			true,  1 },
+		{ makeObInfo(quantised_path,	2, 20, transparent),	false, 1 },
+		{ makeObInfo(good_path,			3, 40, transparent),	true,  1 },
+		{ makeObInfo(quantised_path,	4, 60, opaque),			false, 1 },
+	}, task_manager, chunk_x++);
+
+	// Skinned cubes should end up offset by the skin's bind-pose transform.
+	testBuildChunk("Skinned meshes", {
+		{ makeObInfo(good_path,					1, 0,  opaque),					true,  1 },
+		{ makeObInfo(skinned_uint8_path,		2, 20, opaque),					true,  1, test_skin_offset },
+		{ makeObInfo(skinned_uint16_path,		3, 40, transparent),			true,  1, test_skin_offset },
+		{ makeObInfo(skinned_float_weights_path,4, 60, opaque_and_transparent),	true,  2, test_skin_offset },
+	}, task_manager, chunk_x++);
+
+	testBuildChunk("Skinned meshes, failing object last", {
+		{ makeObInfo(skinned_uint8_path,			1, 0,  opaque),	true,  1, test_skin_offset },
+		{ makeObInfo(good_path,						2, 20, opaque),	true,  1 },
+		{ makeObInfo(skinned_float_normals_path,	3, 40, opaque),	false, 1 },
+	}, task_manager, chunk_x++);
+
+	const std::string paths[] = { good_path, good_no_normals_path, good_no_uvs_path, good_two_mats_path, float_normals_path, oct16_normals_path, uint16_uvs_path,
+		no_normals_uint16_uvs_path, two_mats_uint16_uvs_path, uint32_indices_path, uint32_indices_float_normals_path, quantised_path,
+		skinned_uint8_path, skinned_uint16_path, skinned_float_weights_path, skinned_float_normals_path };
+	for(size_t i=0; i<staticArrayNumElems(paths); ++i)
+		FileUtils::deleteFile(paths[i]);
+
+	conPrint("ChunkGenThread::test() done.");
+}
+
+
+} // end namespace ChunkGenThreadTests
+
+
+void ChunkGenThread::test()
+{
+	ChunkGenThreadTests::test();
+}
+
+
+#endif // BUILD_TESTS
