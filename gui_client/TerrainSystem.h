@@ -189,6 +189,10 @@ public:
 	float evalTreeMask(float p_x, float p_y) const; // Return value >= 0.5: tree allowed
 	float evalTerrainHeight(float p_x, float p_y, float quad_w) const;
 
+	// Returns false if the maps evalTerrainHeight() reads at (p_x, p_y) are specified but haven't been loaded yet, in which case it would
+	// return the default terrain height, or a height without the mask-based detail, rather than the height the terrain will have.
+	bool areHeightMapsLoadedAt(float p_x, float p_y) const;
+
 private:
 	void makeTerrainChunkMesh(float chunk_x, float chunk_y, float chunk_w, bool build_physics_ob, TerrainChunkData& chunk_data_out) const;
 	void updateSubtree(TerrainNode* node, const Vec3d& campos);

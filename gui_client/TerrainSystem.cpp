@@ -784,6 +784,25 @@ float TerrainSystem::evalTreeMask(float p_x, float p_y) const
 
 
 // p_x, p_y are world space coordinates.
+bool TerrainSystem::areHeightMapsLoadedAt(float p_x, float p_y) const
+{
+	// Same section lookup as evalTerrainHeight().
+	const float nx = p_x * terrain_scale_factor + 0.5f;
+	const float ny = p_y * terrain_scale_factor + 0.5f;
+
+	const int section_x = Maths::floorToInt(nx) + TERRAIN_SECTION_OFFSET;
+	const int section_y = Maths::floorToInt(ny) + TERRAIN_SECTION_OFFSET;
+	if(section_x < 0 || section_x >= 8 || section_y < 0 || section_y >= 8)
+		return true; // Outside the terrain sections, where the height is the default terrain height.
+
+	const TerrainDataSection& section = terrain_data_sections[section_x + section_y*TERRAIN_DATA_SECTION_RES];
+
+	const bool heightmap_loaded = section.heightmap_path.empty() || section.heightmap.nonNull();
+	const bool maskmap_loaded   = section.mask_map_path.empty()  || section.maskmap.nonNull();
+	return heightmap_loaded && maskmap_loaded;
+}
+
+
 float TerrainSystem::evalTerrainHeight(float p_x, float p_y, float quad_w) const
 {
 #if 1

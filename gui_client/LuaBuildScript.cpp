@@ -788,6 +788,30 @@ static int mesh_addBox(lua_State* state)
 }
 
 
+// Reads the flat array of numbers in the table at 'table_index' into 'floats_out'.  'name' is what error messages call the array.
+static void readNumberArray(lua_State* state, int table_index, const char* name, size_t max_num, std::vector<float>& floats_out)
+{
+	table_index = lua_absindex(state, table_index); // So the index stays valid as elements are pushed.
+
+	const size_t num = (size_t)lua_objlen(state, table_index);
+	if(num > max_num)
+		throw glare::Exception(std::string(name) + " has " + toString(num) + " entries, more than the maximum of " + toString(max_num) + ".");
+
+	floats_out.resize(num);
+	for(size_t i=0; i<num; ++i)
+	{
+		const int elem_type = lua_rawgeti(state, table_index, (int)(i + 1)); // Lua arrays are 1-based.
+		if(elem_type != LUA_TNUMBER)
+		{
+			lua_pop(state, 1);
+			throw glare::Exception(std::string(name) + " has a value at position " + toString(i + 1) + " that is not a number.");
+		}
+		floats_out[i] = (float)lua_tonumber(state, -1);
+		lua_pop(state, 1);
+	}
+}
+
+
 // Reads a field holding a flat array of numbers into 'floats_out'.  An absent field gives an empty array.
 static void readNumberArrayField(lua_State* state, int table_index, const char* key, size_t max_num, std::vector<float>& floats_out)
 {
@@ -805,25 +829,7 @@ static void readNumberArrayField(lua_State* state, int table_index, const char* 
 		throw glare::Exception(std::string(key) + " must be an array of numbers.");
 	}
 
-	const size_t num = (size_t)lua_objlen(state, -1);
-	if(num > max_num)
-	{
-		lua_pop(state, 1);
-		throw glare::Exception(std::string(key) + " has " + toString(num) + " entries, more than the maximum of " + toString(max_num) + ".");
-	}
-
-	floats_out.resize(num);
-	for(size_t i=0; i<num; ++i)
-	{
-		const int elem_type = lua_rawgeti(state, /*table index=*/-1, (int)(i + 1)); // Lua arrays are 1-based.
-		if(elem_type != LUA_TNUMBER)
-		{
-			lua_pop(state, 2);
-			throw glare::Exception(std::string(key) + " has a value at position " + toString(i + 1) + " that is not a number.");
-		}
-		floats_out[i] = (float)lua_tonumber(state, -1);
-		lua_pop(state, 1);
-	}
+	readNumberArray(state, /*table index=*/-1, key, max_num, floats_out);
 
 	lua_pop(state, 1); // Pop the field value
 }
@@ -1175,6 +1181,104 @@ static int deleteObjectsInGroup(lua_State* state)
 }
 
 
+static const size_t MAX_TERRAIN_QUERY_POINTS = 100000;
+
+
+// Gets the terrain heights at 'points' from the main thread, which owns the terrain, and waits for the answer.  Each call waits for the
+// main thread to get to the message, which is why getTerrainHeights() exists to ask about many points at once.
+static void queryTerrainHeights(BuildScriptContext* context, const std::vector<Vec2f>& points, const char* func_name, std::vector<float>& heights_out)
+{
+	if(!context->gui_client)
+		throw glare::Exception(std::string(func_name) + ": not connected to a server.");
+
+	TerrainHeightQueryRef query = new TerrainHeightQuery();
+	query->points = points;
+
+	context->gui_client->msg_queue.enqueue(new TerrainQueriesToProcessMessage(query));
+
+	const double timeout_s = 10;
+	Timer wait_timer;
+
+	Lock lock(query->mutex);
+	while(!query->done)
+	{
+		const double remaining_s = timeout_s - wait_timer.elapsed();
+		if(remaining_s <= 0)
+			throw glare::Exception(std::string(func_name) + ": the client didn't answer within " + toString((int)timeout_s) + " s.");
+
+		query->condition.waitWithTimeout(query->mutex, remaining_s);
+	}
+
+	if(!query->error_msg.empty())
+		throw glare::Exception(std::string(func_name) + ": " + query->error_msg);
+
+	heights_out = query->heights;
+}
+
+
+// getTerrainHeight(x, y) - the height of the terrain surface at (x, y).
+static int getTerrainHeight(lua_State* state)
+{
+	try
+	{
+		BuildScriptContext* context = getContext(state);
+
+		const double x = LuaUtils::getDoubleArg(state, 1);
+		const double y = LuaUtils::getDoubleArg(state, 2);
+
+		const std::vector<Vec2f> points(1, Vec2f((float)x, (float)y));
+		std::vector<float> heights;
+		queryTerrainHeights(context, points, "getTerrainHeight()", heights);
+
+		lua_pushnumber(state, heights[0]);
+		return 1; // Number of results
+	}
+	catch(glare::Exception& e)
+	{
+		luaL_error(state, "%s", e.what().c_str()); // Throws a lua_exception, with the script location of the call put in front of the message.
+	}
+}
+
+
+// getTerrainHeights{x1, y1, x2, y2, ...} - the terrain heights at many points, as {z1, z2, ...}.  A flat array like the ones addTriangles
+// takes.
+static int getTerrainHeights(lua_State* state)
+{
+	try
+	{
+		BuildScriptContext* context = getContext(state);
+
+		if(!lua_istable(state, 1))
+			throw glare::Exception("getTerrainHeights(): expected an array of numbers, x1, y1, x2, y2, ...");
+
+		std::vector<float> xy;
+		readNumberArray(state, /*table index=*/1, "getTerrainHeights()", MAX_TERRAIN_QUERY_POINTS * 2, xy);
+		if((xy.size() % 2) != 0)
+			throw glare::Exception("getTerrainHeights(): the array has " + toString(xy.size()) + " numbers, which is not a whole number of x, y pairs.");
+
+		std::vector<Vec2f> points(xy.size() / 2);
+		for(size_t i=0; i<points.size(); ++i)
+			points[i] = Vec2f(xy[i*2 + 0], xy[i*2 + 1]);
+
+		std::vector<float> heights;
+		if(!points.empty())
+			queryTerrainHeights(context, points, "getTerrainHeights()", heights);
+
+		lua_createtable(state, /*num array elems=*/(int)heights.size(), /*num non-array elems=*/0);
+		for(size_t i=0; i<heights.size(); ++i)
+		{
+			lua_pushnumber(state, heights[i]);
+			lua_rawseti(state, /*table index=*/-2, (int)(i + 1)); // Lua arrays are 1-based.
+		}
+		return 1; // Number of results
+	}
+	catch(glare::Exception& e)
+	{
+		luaL_error(state, "%s", e.what().c_str()); // Throws a lua_exception, with the script location of the call put in front of the message.
+	}
+}
+
+
 // Build scripts print via build_print, so this handler just catches output from anything else that writes through the script output
 // handler.  It must not assume LuaScript::userdata is a LuaScriptEvaluator, unlike GUIClient's handler.
 class BuildScriptOutputHandler : public LuaScriptOutputHandler
@@ -1233,6 +1337,8 @@ void LuaBuildScript::run(GUIClient* gui_client, LuaBuilderState* builder_state, 
 		script_options.c_funcs.push_back(LuaCFunction(getOrCreateGroup, "getOrCreateGroup"));
 		script_options.c_funcs.push_back(LuaCFunction(deleteObjectsInGroup, "deleteObjectsInGroup"));
 		script_options.c_funcs.push_back(LuaCFunction(createMesh, "createMesh"));
+		script_options.c_funcs.push_back(LuaCFunction(getTerrainHeight, "getTerrainHeight"));
+		script_options.c_funcs.push_back(LuaCFunction(getTerrainHeights, "getTerrainHeights"));
 
 		// NOTE: declared after substrata_lua_vm so it is destroyed first: the script holds a thread on the VM's lua_State.
 		LuaScript script(substrata_lua_vm->lua_vm.ptr(), script_options, script_src);

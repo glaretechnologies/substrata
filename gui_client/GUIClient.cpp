@@ -10002,6 +10002,40 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				showErrorNotification(m->error_msg);
 		}
 		break;
+		case Msg_TerrainQueriesToProcessMessage:
+		{
+			// A build script, running on an MCP handler thread, wants terrain heights.  Answered here since the terrain belongs to this thread.
+			const TerrainQueriesToProcessMessage* m = checkedDowncastPtr<const TerrainQueriesToProcessMessage>(msg);
+			TerrainHeightQuery* query = m->query.ptr();
+
+			std::vector<float> heights;
+			std::string error_msg;
+			if(terrain_system.isNull())
+				error_msg = "There is no terrain loaded yet.";
+			else
+			{
+				heights.resize(query->points.size());
+				for(size_t i=0; i<query->points.size(); ++i)
+				{
+					const Vec2f p = query->points[i];
+					if(!terrain_system->areHeightMapsLoadedAt(p.x, p.y))
+					{
+						error_msg = "The terrain around (" + doubleToStringNSigFigs(p.x, 6) + ", " + doubleToStringNSigFigs(p.y, 6) + ") hasn't loaded yet.";
+						break;
+					}
+					heights[i] = terrain_system->evalTerrainHeight(p.x, p.y, /*quad_w=*/1.f);
+				}
+			}
+
+			{
+				Lock lock(query->mutex);
+				query->heights.swap(heights);
+				query->error_msg = error_msg;
+				query->done = true;
+				query->condition.notifyAll();
+			}
+		}
+		break;
 		case Msg_GetFileMessage:
 		{
 			// When the server wants a file from the client, it will send the client a GetFile protocol message.

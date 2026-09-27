@@ -6,13 +6,48 @@ Copyright Glare Technologies Limited 2026 -
 #pragma once
 
 
+#include "ThreadMessages.h"
 #include "../shared/UID.h"
+#include <maths/vec2.h>
 #include <utils/ThreadSafeRefCounted.h>
 #include <utils/Reference.h>
 #include <utils/Mutex.h>
+#include <utils/Condition.h>
 #include <string>
+#include <vector>
 #include <map>
 class GUIClient;
+
+
+/*=====================================================================
+TerrainHeightQuery
+------------------
+Terrain heights a build script wants.  The terrain belongs to the main thread,
+so the build script's thread sends the query to GUIClient in a
+TerrainQueriesToProcessMessage and waits on 'condition' until 'done'.
+=====================================================================*/
+class TerrainHeightQuery : public ThreadSafeRefCounted
+{
+public:
+	TerrainHeightQuery() : done(false) {}
+
+	std::vector<Vec2f> points; // Input, set before the query is sent.
+
+	Mutex mutex;
+	Condition condition;
+	bool done                     GUARDED_BY(mutex);
+	std::vector<float> heights    GUARDED_BY(mutex); // One per point.  Valid when done and error_msg is empty.
+	std::string error_msg         GUARDED_BY(mutex);
+};
+typedef Reference<TerrainHeightQuery> TerrainHeightQueryRef;
+
+
+class TerrainQueriesToProcessMessage : public ThreadMessage
+{
+public:
+	TerrainQueriesToProcessMessage(const TerrainHeightQueryRef& query_) : ThreadMessage(Msg_TerrainQueriesToProcessMessage), query(query_) {}
+	TerrainHeightQueryRef query;
+};
 
 
 /*=====================================================================
