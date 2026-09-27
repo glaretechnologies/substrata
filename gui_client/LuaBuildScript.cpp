@@ -243,6 +243,146 @@ public:
 		addQuad(c[3], c[0], c[4], c[7]); // -x
 	}
 
+
+	/*
+	A cylinder, or a cone or tapered cylinder when the radii differ, from 'bottom' to 'top'.  A radius of zero makes that end a point.
+
+	The sides have smooth normals, tilted along the axis when the radii differ, following MeshBuilding::makeConeMesh().  Each end with a
+	non-zero radius gets a flat cap.
+
+	UVs are in metres: around the sides by arc length at the mean radius, so both rows of a side quad agree, and along the slant; and
+	across the caps by a planar projection, so a texture has the same scale on the caps as on the sides.
+	*/
+	void addCylinder(const Vec4f& bottom, const Vec4f& top, float bottom_radius, float top_radius, int segments)
+	{
+		const Vec4f axis = top - bottom;
+		const float len = axis.length();
+		if(len < 1.0e-6f)
+			throw glare::Exception("the bottom and top are the same point.");
+
+		const Vec4f dir = axis * (1 / len);
+
+		// An orthonormal basis (basis_i, basis_j, dir).  For a vertical cylinder, basis_i is +x and basis_j is +y.
+		const Vec4f helper = (std::fabs(dir[2]) > 0.9f) ? Vec4f(0,1,0,0) : Vec4f(0,0,1,0);
+		const Vec4f basis_i = normalise(crossProduct(helper, dir));
+		const Vec4f basis_j = crossProduct(dir, basis_i);
+
+		const size_t num_new_verts = 2 * (segments + 1) + ((bottom_radius > 0) ? (segments + 1) : 0) + ((top_radius > 0) ? (segments + 1) : 0);
+		if(numVerts() + num_new_verts > MAX_NUM_VERTS)
+			throw glare::Exception("Mesh would have more than the maximum of " + toString(MAX_NUM_VERTS) + " vertices.");
+
+		js::Vector<uint32, 16>& indices = indices_for_material[cur_material_index];
+
+		const float slant_len = std::sqrt(len * len + (bottom_radius - top_radius) * (bottom_radius - top_radius));
+		const float mean_radius = (bottom_radius + top_radius) * 0.5f;
+
+		// Sides.  A column of two vertices per segment edge, with the first column repeated at the end so the UVs can wrap.
+		const uint32 side_first = (uint32)numVerts();
+		for(int k=0; k<=segments; ++k)
+		{
+			const float angle = k * Maths::get2Pi<float>() / segments;
+			const Vec4f radial = basis_i * std::cos(angle) + basis_j * std::sin(angle);
+
+			// Tilted along the axis by the change in radius, so a cone's normals are perpendicular to its surface.
+			const Vec4f normal = normalise(radial * len + dir * (bottom_radius - top_radius));
+
+			const float u = angle * mean_radius;
+			addVert(bottom + radial * bottom_radius, normal, u, 0);
+			addVert(top    + radial * top_radius,    normal, u, slant_len);
+		}
+		for(int k=0; k<segments; ++k)
+		{
+			const uint32 b0 = side_first + k*2, t0 = b0 + 1, b1 = b0 + 2, t1 = b0 + 3;
+
+			// Leave out the triangle that would be degenerate at an end that is a point.
+			if(bottom_radius > 0)
+			{
+				indices.push_back(b0); indices.push_back(b1); indices.push_back(t1);
+			}
+			if(top_radius > 0)
+			{
+				indices.push_back(b0); indices.push_back(t1); indices.push_back(t0);
+			}
+		}
+
+		// Caps: a centre vertex and a ring, facing out along the axis.
+		for(int end=0; end<2; ++end)
+		{
+			const bool is_top = (end == 1);
+			const float radius = is_top ? top_radius : bottom_radius;
+			if(radius <= 0)
+				continue;
+
+			const Vec4f centre = is_top ? top : bottom;
+			const Vec4f normal = is_top ? dir : -dir;
+			const float u_sign = is_top ? 1.f : -1.f; // Mirror the bottom cap's u, so a texture isn't reversed seen from below.
+
+			const uint32 centre_i = (uint32)numVerts();
+			addVert(centre, normal, 0, 0);
+			for(int k=0; k<segments; ++k)
+			{
+				const float angle = k * Maths::get2Pi<float>() / segments;
+				const float x = std::cos(angle) * radius;
+				const float y = std::sin(angle) * radius;
+				addVert(centre + basis_i * x + basis_j * y, normal, u_sign * x, y);
+			}
+			for(int k=0; k<segments; ++k)
+			{
+				const uint32 ring_a = centre_i + 1 + k;
+				const uint32 ring_b = centre_i + 1 + (k + 1) % segments;
+				indices.push_back(centre_i);
+				indices.push_back(is_top ? ring_a : ring_b);
+				indices.push_back(is_top ? ring_b : ring_a);
+			}
+		}
+	}
+
+
+	// A sphere with smooth normals, 'segments' around and half as many from pole to pole.  UVs are longitude and latitude times the
+	// radius, so they are in metres at the equator.
+	void addSphere(const Vec4f& centre, float radius, int segments)
+	{
+		const int rings = myMax(2, segments / 2);
+
+		const size_t num_new_verts = (size_t)(rings + 1) * (segments + 1);
+		if(numVerts() + num_new_verts > MAX_NUM_VERTS)
+			throw glare::Exception("Mesh would have more than the maximum of " + toString(MAX_NUM_VERTS) + " vertices.");
+
+		// Rows of vertices from the +z pole down, each with the first column repeated at the end so the UVs can wrap.
+		const uint32 first = (uint32)numVerts();
+		for(int j=0; j<=rings; ++j)
+		{
+			const float theta = j * Maths::pi<float>() / rings; // Angle from +z.
+			for(int k=0; k<=segments; ++k)
+			{
+				const float phi = k * Maths::get2Pi<float>() / segments;
+				const Vec4f n(std::sin(theta) * std::cos(phi), std::sin(theta) * std::sin(phi), std::cos(theta), 0);
+				addVert(centre + n * radius, n, phi * radius, (Maths::pi<float>() - theta) * radius);
+			}
+		}
+
+		js::Vector<uint32, 16>& indices = indices_for_material[cur_material_index];
+		const uint32 row_len = (uint32)segments + 1;
+		for(int j=0; j<rings; ++j)
+		for(int k=0; k<segments; ++k)
+		{
+			const uint32 a = first + j*row_len + k; // Upper row
+			const uint32 b = a + 1;
+			const uint32 d = a + row_len;         // Lower row
+			const uint32 c = d + 1;
+
+			// Leave out the triangle that would be degenerate at each pole.
+			if(j != rings - 1)
+			{
+				indices.push_back(a); indices.push_back(d); indices.push_back(c);
+			}
+			if(j != 0)
+			{
+				indices.push_back(a); indices.push_back(c); indices.push_back(b);
+			}
+		}
+	}
+
 	BatchedMeshRef build() const
 	{
 		if(verts.empty())
@@ -930,6 +1070,89 @@ static int mesh_addTriangles(lua_State* state)
 }
 
 
+// Reads an optional segment count, defaulting to 32.
+static int getSegmentsArg(lua_State* state, int index, int min_segments, const char* func_name)
+{
+	if(lua_isnoneornil(state, index))
+		return 32;
+
+	const double segments = LuaUtils::getDoubleArg(state, index);
+	if(!(segments >= min_segments && segments <= 256) || ((double)(int)segments != segments))
+		throw glare::Exception(std::string(func_name) + ": segments must be a whole number from " + toString(min_segments) + " to 256.");
+	return (int)segments;
+}
+
+
+static float getRadiusArg(lua_State* state, int index, const char* func_name)
+{
+	const double radius = LuaUtils::getDoubleArg(state, index);
+	if(!(radius >= 0 && radius < 1.0e6))
+		throw glare::Exception(std::string(func_name) + ": radius must be zero or more.");
+	return (float)radius;
+}
+
+
+// mesh:addCylinder(bottom, top, radius [, top_radius, segments])
+static int mesh_addCylinder(lua_State* state)
+{
+	try
+	{
+		BuildScriptContext* context = getContext(state);
+		BuildMeshBuilder& builder = getMeshBuilderForSelf(state, context);
+
+		const Vec4f bottom = getPointArg(state, 2);
+		const Vec4f top    = getPointArg(state, 3);
+		const float bottom_radius = getRadiusArg(state, 4, "addCylinder()");
+		const float top_radius = lua_isnoneornil(state, 5) ? bottom_radius : getRadiusArg(state, 5, "addCylinder()");
+		const int segments = getSegmentsArg(state, 6, /*min segments=*/3, "addCylinder()");
+
+		if(bottom_radius == 0 && top_radius == 0)
+			throw glare::Exception("addCylinder(): at least one of the radii must be more than zero.");
+
+		try
+		{
+			builder.addCylinder(bottom, top, bottom_radius, top_radius, segments);
+		}
+		catch(glare::Exception& e)
+		{
+			throw glare::Exception("addCylinder(): " + e.what());
+		}
+
+		return 0; // Number of results
+	}
+	catch(glare::Exception& e)
+	{
+		luaL_error(state, "%s", e.what().c_str()); // Throws a lua_exception, with the script location of the call put in front of the message.
+	}
+}
+
+
+// mesh:addSphere(centre, radius [, segments])
+static int mesh_addSphere(lua_State* state)
+{
+	try
+	{
+		BuildScriptContext* context = getContext(state);
+		BuildMeshBuilder& builder = getMeshBuilderForSelf(state, context);
+
+		const Vec4f centre = getPointArg(state, 2);
+		const float radius = getRadiusArg(state, 3, "addSphere()");
+		const int segments = getSegmentsArg(state, 4, /*min segments=*/4, "addSphere()");
+
+		if(radius == 0)
+			throw glare::Exception("addSphere(): radius must be more than zero.");
+
+		builder.addSphere(centre, radius, segments);
+
+		return 0; // Number of results
+	}
+	catch(glare::Exception& e)
+	{
+		luaL_error(state, "%s", e.what().c_str()); // Throws a lua_exception, with the script location of the call put in front of the message.
+	}
+}
+
+
 // mesh:addQuad(v0, v1, v2, v3), wound counter-clockwise seen from the visible side.
 static int mesh_addQuad(lua_State* state)
 {
@@ -1022,9 +1245,11 @@ static int createMesh(lua_State* state)
 		const size_t id = context->mesh_builders.size();
 		context->mesh_builders.push_back(BuildMeshBuilder());
 
-		lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/6);
+		lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/8);
 		LuaUtils::setNumberAsTableField(state, "id", (double)id);
 		LuaUtils::setCFunctionAsTableField(state, mesh_addBox,      /*debugname=*/"mesh_addBox",      /*key=*/"addBox");
+		LuaUtils::setCFunctionAsTableField(state, mesh_addCylinder, /*debugname=*/"mesh_addCylinder", /*key=*/"addCylinder");
+		LuaUtils::setCFunctionAsTableField(state, mesh_addSphere,   /*debugname=*/"mesh_addSphere",   /*key=*/"addSphere");
 		LuaUtils::setCFunctionAsTableField(state, mesh_addQuad,     /*debugname=*/"mesh_addQuad",     /*key=*/"addQuad");
 		LuaUtils::setCFunctionAsTableField(state, mesh_addTriangles, /*debugname=*/"mesh_addTriangles", /*key=*/"addTriangles");
 		LuaUtils::setCFunctionAsTableField(state, mesh_setMaterial, /*debugname=*/"mesh_setMaterial", /*key=*/"setMaterial");
