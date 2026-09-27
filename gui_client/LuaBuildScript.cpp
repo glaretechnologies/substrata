@@ -311,7 +311,7 @@ build VM (see SubstrataLuaVMArgs::is_build_vm).
 class BuildScriptContext
 {
 public:
-	BuildScriptContext() : gui_client(NULL), builder_state(NULL), first_create_token(0), end_create_token(0), max_output_size(0), output_truncated(false), max_objects(0), num_objects_created(0), num_objects_deleted(0) {}
+	BuildScriptContext() : gui_client(NULL), builder_state(NULL), first_create_token(0), end_create_token(0), max_output_size(0), output_truncated(false), max_objects(0), num_objects_created(0), num_group_objects_created(0), num_objects_deleted(0), num_tris_created(0), num_verts_created(0) {}
 
 	void appendOutput(const char* s, size_t len)
 	{
@@ -344,8 +344,13 @@ public:
 	bool output_truncated;
 
 	size_t max_objects;
-	size_t num_objects_created;
+	size_t num_objects_created; // Including group objects.
+	size_t num_group_objects_created;
 	size_t num_objects_deleted;
+
+	// Summed over the objects createObject() sent, counting a model once per object that uses it.
+	size_t num_tris_created;
+	size_t num_verts_created;
 
 	// Our own packet buffer: GUIClient::scratch_packet belongs to the main thread.
 	SocketBufferOutStream packet;
@@ -565,6 +570,7 @@ static void positionGroupObject(BuildScriptContext* context, size_t group_index,
 	context->end_create_token = create_token + 1;
 
 	context->num_objects_created++;
+	context->num_group_objects_created++;
 
 	// Wait for the server's response: without the UID it assigned, the objects in the group have nothing to refer to.  The response is
 	// handled on the main thread, which is not this one, hence the poll.
@@ -724,6 +730,8 @@ static int createObject(lua_State* state)
 		context->end_create_token = create_token + 1;
 
 		context->num_objects_created++;
+		context->num_tris_created  += model_info.num_tris;
+		context->num_verts_created += model_info.num_verts;
 
 		return 0; // Number of results
 	}
@@ -1384,7 +1392,10 @@ void LuaBuildScript::run(GUIClient* gui_client, LuaBuilderState* builder_state, 
 	results_out.output = context.output;
 	results_out.output_truncated = context.output_truncated;
 	results_out.num_objects_created = context.num_objects_created;
+	results_out.num_group_objects_created = context.num_group_objects_created;
 	results_out.num_objects_deleted = context.num_objects_deleted;
+	results_out.num_tris_created = context.num_tris_created;
+	results_out.num_verts_created = context.num_verts_created;
 	results_out.elapsed_s = timer.elapsed();
 }
 

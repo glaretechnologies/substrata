@@ -129,14 +129,18 @@ struct LuaBuildScriptOptions
 
 struct LuaBuildScriptResults
 {
-	LuaBuildScriptResults() : success(false), output_truncated(false), num_objects_created(0), num_objects_deleted(0), elapsed_s(0), num_creates_answered(0), num_creates_refused(0) {}
+	LuaBuildScriptResults() : success(false), output_truncated(false), num_objects_created(0), num_group_objects_created(0), num_objects_deleted(0), num_tris_created(0), num_verts_created(0), elapsed_s(0),
+		num_creates_answered(0), num_creates_refused(0) {}
 
 	bool success;
 	std::string output; // Text the script printed with print().
 	bool output_truncated;
 	std::string error_msg; // Valid when !success.  Has source locations for compile errors.
-	size_t num_objects_created; // Objects sent to the server.  Also counted for a run that then failed.
+	size_t num_objects_created; // Objects sent to the server, including group objects.  Also counted for a run that then failed.
+	size_t num_group_objects_created; // How many of num_objects_created were group objects made for new groups.
 	size_t num_objects_deleted; // Objects deleteObjectsInGroup() asked the server to destroy.
+	size_t num_tris_created; // Triangles in the models of the objects sent, counting a model once per object that uses it.
+	size_t num_verts_created; // Vertices, counted the same way.
 	double elapsed_s;
 
 	// What the server made of the objects, from the responses that arrived before we stopped waiting.

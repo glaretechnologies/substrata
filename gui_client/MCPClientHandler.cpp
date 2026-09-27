@@ -99,7 +99,8 @@ static const char* RUN_LUA_BUILD_SCRIPT_TOOL_JSON =
 			"client is running the script, so a group only ever holds, and deleteObjectsInGroup only ever removes, objects you created. "
 			"A group can hold another group, and emptying the outer one empties the inner ones too. "
 			"Objects are sent to the server as the script runs, and the server checks separately that you may build at that position. "
-			"The result says how many it accepted and how many it refused, with the reason for the first refusal - so if objects are "
+			"The result gives the total triangle and vertex count of what was sent, and says how many objects the server accepted and how "
+			"many it refused, with the reason for the first refusal - so if objects are "
 			"reported as REFUSED, the build did not land and the position or your permission to build there is the thing to fix. "
 			"Errors are returned as text: compile errors carry a line and column, runtime errors carry the line they were raised on. "
 			"\\n\\nHere is the shape a build should take - one object, one mesh, two materials, and a group so that re-running replaces "
@@ -393,8 +394,14 @@ void MCPClientRequestHandler::handleRunLuaBuildScript(const JSONParser& parser, 
 		if(results.output_truncated)
 			text += "\n[output truncated]";
 
-		std::string obs_created = toString(results.num_objects_created) + " object(s) sent to the server, " +
-			toString(results.num_objects_deleted) + " removed";
+		// A new group's group object is counted separately, so a script that makes one object doesn't appear to have made two.
+		std::string obs_created = toString(results.num_objects_created - results.num_group_objects_created) + " object(s)";
+		if(results.num_group_objects_created > 0)
+			obs_created += " and " + toString(results.num_group_objects_created) + " new group object(s)";
+		obs_created += " sent to the server";
+		if(results.num_objects_created > 0)
+			obs_created += " (" + toString(results.num_tris_created) + " triangles, " + toString(results.num_verts_created) + " vertices)";
+		obs_created += ", " + toString(results.num_objects_deleted) + " removed";
 
 		if(results.num_objects_created > 0)
 		{
