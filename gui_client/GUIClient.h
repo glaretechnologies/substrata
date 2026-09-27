@@ -567,6 +567,8 @@ public:
 
 	// What the server said about objects Lua build scripts asked it to create.  Lives here because the responses arrive in this
 	// object's message queue, and is read by the MCP handler thread that runs the scripts.
+	// Null until the local MCP endpoint is first started (see MainWindow::startMCPClientServerIfEnabled), and kept after it is stopped,
+	// since responses to a script's creates can arrive after that.
 	Reference<LuaBuilderState> lua_builder_state;
 
 

@@ -80,6 +80,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../utils/BufferOutStream.h"
 #include "../utils/IndigoXMLDoc.h"
 #include "MCPClientHandler.h"
+#include "LuaBuildScript.h"
 #include <webserver/WebListenerThread.h>
 #include "../utils/LimitedAllocator.h"
 #include "../networking/MySocket.h"
@@ -3504,6 +3505,10 @@ void MainWindow::startMCPClientServerIfEnabled()
 		showErrorNotification("MCP server is enabled but there is no saved login for server '" + gui_client.server_hostname + "'; not starting the local MCP endpoint.  Log in with 'remember me' enabled first.");
 		return;
 	}
+
+	// Created here, before the listener thread starts, so the MCP handler threads never see it change.
+	if(gui_client.lua_builder_state.isNull())
+		gui_client.lua_builder_state = new LuaBuilderState();
 
 	try
 	{

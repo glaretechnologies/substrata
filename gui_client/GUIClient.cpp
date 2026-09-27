@@ -220,8 +220,6 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 
 	imgui_drawing = new ImGUIDrawing(this);
 
-	lua_builder_state = new LuaBuilderState();
-
 	SubstrataLuaVM::SubstrataLuaVMArgs lua_vm_args;
 	lua_vm_args.gui_client = this;
 	lua_vm_args.player_physics = &this->player_physics;
@@ -9996,7 +9994,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			// A build script reports the outcome of its own objects, so don't also show the user an error for each one: a build
 			// aimed somewhere it may not write would otherwise raise a notification per object.
-			const bool handled_by_build_script = lua_builder_state->handleCreateObjectResponse(m->result, m->client_token, m->object_uid, m->error_msg);
+			const bool handled_by_build_script = lua_builder_state.nonNull() && lua_builder_state->handleCreateObjectResponse(m->result, m->client_token, m->object_uid, m->error_msg);
 
 			if(!handled_by_build_script && (m->result != Protocol::CreateObjectResult_Success))
 				showErrorNotification(m->error_msg);

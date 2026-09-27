@@ -54,8 +54,8 @@ public:
 LuaBuilderState
 ---------------
 What the server said about the objects build scripts asked it to create.
-Owned by MainWindow, because the responses arrive after the script that made
-the objects has finished running.
+Owned by GUIClient, because the responses arrive in its message queue, and
+can do so after the script that made the objects has finished running.
 
 A script puts a token in the UID field of each CreateObject message, which the
 server echoes back in its CreateObjectResponse (see Protocol.h).  Tokens are
