@@ -162,8 +162,9 @@ public:
 	// Render the current world scene (from the current camera) to an offscreen buffer at the given resolution, and return the
 	// image (3-channel RGB).  The caller is responsible for having positioned the camera and waited for the scene to finish
 	// loading for that position (see GUIClient::isSceneFullyLoaded), since objects stream in based on camera position.
+	// horizontal_fov is the horizontal field of view in radians, or 0 to use the camera's current lens.
 	// NOTE: MUST be called on the GUI (GL) thread, as it makes the GL context current and issues draw calls.
-	ImageMapUInt8Ref renderCurrentViewToImageMap(int viewport_w, int viewport_h);
+	ImageMapUInt8Ref renderCurrentViewToImageMap(int viewport_w, int viewport_h, float horizontal_fov);
 
 	// Enqueue a render request from another thread (e.g. an MCP handler thread).  Thread-safe.  The request is processed on
 	// the GUI thread by processMCPRenderRequests(); the caller waits on req->condition for req->done.

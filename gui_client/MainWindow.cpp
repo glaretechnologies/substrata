@@ -3346,7 +3346,7 @@ void MainWindow::on_actionTake_Screenshot_triggered()
 }
 
 
-ImageMapUInt8Ref MainWindow::renderCurrentViewToImageMap(int viewport_w, int viewport_h)
+ImageMapUInt8Ref MainWindow::renderCurrentViewToImageMap(int viewport_w, int viewport_h, float horizontal_fov)
 {
 	ui->glWidget->makeCurrent();
 
@@ -3364,8 +3364,9 @@ ImageMapUInt8Ref MainWindow::renderCurrentViewToImageMap(int viewport_w, int vie
 		Matrix4f world_to_camera;
 		gui_client.cam_controller.getWorldToCameraMatrix(world_to_camera);
 
+		// The sensor width is horizontal, so a horizontal field of view fov needs tan(fov/2) = (sensor_width/2) / lens_sensor_dist.
 		const float sensor_width     = GlWidget::defaultSensorWidth();
-		const float lens_sensor_dist = (float)gui_client.cam_controller.lens_sensor_dist;
+		const float lens_sensor_dist = (horizontal_fov > 0) ? (sensor_width * 0.5f / std::tan(horizontal_fov * 0.5f)) : (float)gui_client.cam_controller.lens_sensor_dist;
 		const float render_aspect    = (float)viewport_w / (float)viewport_h;
 
 		scene->draw_overlay_objects = false; // Don't draw the player's UI overlays into the render.
@@ -3426,6 +3427,11 @@ void MainWindow::processMCPRenderRequests()
 	// camera position, so this must happen before we wait for loading to settle.
 	if(!req->started)
 	{
+		// Render from first person, so the camera is at cam_pos and our avatar isn't drawn in front of what the caller wants to see.
+		// Left in first person afterwards.
+		if(gui_client.cam_controller.thirdPersonEnabled())
+			enableFirstPersonCamera();
+
 		gui_client.cam_controller.setAngles(req->cam_angles);
 		gui_client.cam_controller.setFirstAndThirdPersonPositions(req->cam_pos);
 		gui_client.player_physics.setEyePosition(req->cam_pos);
@@ -3459,7 +3465,7 @@ void MainWindow::processMCPRenderRequests()
 	std::string error_msg;
 	try
 	{
-		image = renderCurrentViewToImageMap(req->width, req->height);
+		image = renderCurrentViewToImageMap(req->width, req->height, req->horizontal_fov);
 	}
 	catch(glare::Exception& e)
 	{

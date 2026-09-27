@@ -35,8 +35,12 @@ static const char* RENDER_VIEW_TOOL_JSON =
 			"Use this to see what the world looks like, e.g. to check what you have built. Rendering moves the streaming camera "
 			"and waits for the world to finish loading around it, so this can take a few seconds.\","
 		"\"inputSchema\":{\"type\":\"object\",\"properties\":{"
-			"\"cam_pos\":{\"type\":\"object\",\"description\":\"Camera position as {x,y,z} in metres (z is up).\"},"
-			"\"cam_angles\":{\"type\":\"object\",\"description\":\"Camera orientation as {heading,pitch,roll} in radians. heading rotates in the x-y plane from +x towards +y (0 looks along +x, pi/2 looks along +y). pitch is a POLAR angle from the +z (up) axis: 0 looks straight up, pi/2 (~1.571) is level/horizontal, pi (~3.14) looks straight down. roll is usually 0.\"},"
+			"\"cam_pos\":{\"type\":\"object\",\"description\":\"Camera position as {x,y,z} in metres (z is up). The view is rendered from "
+				"exactly this point, in first person, so the user's avatar is not in the picture.\"},"
+			"\"cam_angles\":{\"type\":\"object\",\"description\":\"Camera orientation as {heading,pitch,roll} in radians. heading rotates in the x-y plane from +x towards +y (0 looks along +x, pi/2 looks along +y). pitch is a POLAR angle from the +z (up) axis: 0 looks straight up, pi/2 (~1.571) is level/horizontal, pi (~3.14) looks straight down. roll is usually 0. "
+				"The top of the image is towards the heading, so looking straight down with heading 0, image-up is +x and image-right is -y.\"},"
+			"\"fov\":{\"type\":\"number\",\"description\":\"Horizontal field of view in radians, from 0.05 to 3.0. Defaults to the client camera's "
+				"current lens, normally about 1.22 (70 degrees). Use a wide view for establishing shots and a narrow one for detail.\"},"
 			"\"width\":{\"type\":\"number\",\"description\":\"Image width in pixels (default 1024).\"},"
 			"\"height\":{\"type\":\"number\",\"description\":\"Image height in pixels (default 768).\"}"
 		"},\"required\":[\"cam_pos\",\"cam_angles\"]}"
@@ -298,6 +302,10 @@ void MCPClientRequestHandler::handleRenderView(const JSONParser& parser, const J
 		if(width < 16 || width > 4096 || height < 16 || height > 4096)
 			throw glare::Exception("width/height out of range [16, 4096].");
 
+		const double fov = args.getChildDoubleValueWithDefaultVal(parser, "fov", /*default=*/0.0); // 0 means use the camera's current lens.
+		if(args.hasChild("fov") && !(fov >= 0.05 && fov <= 3.0))
+			throw glare::Exception("fov out of range [0.05, 3.0] radians.");
+
 		main_window->gui_client.msg_queue.enqueue(new InfoMessage("Doing MCP render..."));
 
 		// Hand the render off to the GUI thread and wait for it.
@@ -306,6 +314,7 @@ void MCPClientRequestHandler::handleRenderView(const JSONParser& parser, const J
 		req->cam_angles = cam_angles;
 		req->width = width;
 		req->height = height;
+		req->horizontal_fov = (float)fov;
 
 		main_window->enqueueMCPRenderRequest(req);
 

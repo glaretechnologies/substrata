@@ -30,12 +30,13 @@ See MainWindow::processMCPRenderRequests().
 class MCPRenderRequest : public ThreadSafeRefCounted
 {
 public:
-	MCPRenderRequest() : width(1024), height(768), started(false), became_loaded(false), done(false), success(false) {}
+	MCPRenderRequest() : width(1024), height(768), horizontal_fov(0), started(false), became_loaded(false), done(false), success(false) {}
 
 	// Inputs (set by the requesting thread before enqueuing):
 	Vec3d cam_pos;
 	Vec3d cam_angles; // (heading, pitch, roll), radians.  See CameraController.
 	int width, height;
+	float horizontal_fov; // Horizontal field of view in radians, or 0 to use the camera's current lens.
 
 	// GUI-thread-only driver state:
 	bool started;        // Has the streaming camera been positioned yet?
