@@ -89,6 +89,9 @@ public:
 	// Counts the responses that have arrived for tokens in [begin_token, end_token), and gives the first refusal message.
 	void getOutcomesForRange(uint64 begin_token, uint64 end_token, size_t& num_responses_out, size_t& num_refused_out, std::string& first_error_out) const;
 
+	// Gets the UIDs the server gave the objects it created for tokens in [begin_token, end_token), from the responses that have arrived.
+	void getCreatedUIDsForRange(uint64 begin_token, uint64 end_token, std::vector<UID>& uids_out) const;
+
 	void forgetRange(uint64 begin_token, uint64 end_token);
 
 private:

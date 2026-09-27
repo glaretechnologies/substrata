@@ -93,6 +93,18 @@ void LuaBuilderState::getOutcomesForRange(uint64 begin_token, uint64 end_token, 
 }
 
 
+void LuaBuilderState::getCreatedUIDsForRange(uint64 begin_token, uint64 end_token, std::vector<UID>& uids_out) const
+{
+	Lock lock(mutex);
+
+	uids_out.clear();
+
+	for(auto it = outcomes.lower_bound(begin_token); it != outcomes.end() && it->first < end_token; ++it)
+		if((it->second.result == Protocol::CreateObjectResult_Success) && it->second.created_ob_uid.valid())
+			uids_out.push_back(it->second.created_ob_uid);
+}
+
+
 void LuaBuilderState::forgetRange(uint64 begin_token, uint64 end_token)
 {
 	Lock lock(mutex);
@@ -1384,6 +1396,34 @@ void LuaBuildScript::run(GUIClient* gui_client, LuaBuilderState* builder_state, 
 				break;
 
 			PlatformUtils::Sleep(10);
+		}
+
+		// Then wait for the created objects to arrive in the world state, which happens when the server's broadcast of them does, a little
+		// after its responses.  A run finds a group and its members by looking in the world state, so a run started straight after this
+		// one would otherwise not see what this one made, and would make a second group rather than emptying this one.
+		if(gui_client && gui_client->world_state.nonNull())
+		{
+			std::vector<UID> created_uids;
+			builder_state->getCreatedUIDsForRange(context.first_create_token, context.end_create_token, created_uids);
+
+			while(wait_timer.elapsed() <= wait_timeout_s)
+			{
+				bool all_present = true;
+				{
+					Lock lock(gui_client->world_state->mutex);
+					for(size_t i=0; i<created_uids.size(); ++i)
+						if(gui_client->world_state->objects.find(created_uids[i]) == gui_client->world_state->objects.end())
+						{
+							all_present = false;
+							break;
+						}
+				}
+
+				if(all_present)
+					break;
+
+				PlatformUtils::Sleep(10);
+			}
 		}
 
 		builder_state->forgetRange(context.first_create_token, context.end_create_token);
