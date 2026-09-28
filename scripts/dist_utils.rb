@@ -226,7 +226,12 @@ def copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, dist_dir,
 	FileUtils.mkdir_p("#{dist_dir}/data", :verbose => true) # Make 'data' dir, so that setting it as a target will make data/shaders be created etc..
 
 	FileUtils.cp_r(substrata_repos_dir + "/resources", dist_dir + "/data", :verbose => true)
-	
+
+	# Copy the CA certificate bundle from the LibreSSL install, used by the client to verify server certificates.
+	glare_core_libs_dir = getAndCheckEnvVar('GLARE_CORE_LIBS')
+	libressl_dir = OS.windows? ? "#{glare_core_libs_dir}/LibreSSL/libressl-#{$libressl_version}-x64-vs#{vs_version}-install" : "#{glare_core_libs_dir}/LibreSSL/libressl-#{$libressl_version}-install"
+	FileUtils.cp("#{libressl_dir}/etc/ssl/cert.pem", dist_dir + "/cert.pem", :verbose => true)
+
 	FileUtils.cp_r(substrata_repos_dir + "/shaders", dist_dir + "/data", :verbose => true) # Copy OpenGL shaders from the Substrata repo.
 	
 	# Copy misc. files.

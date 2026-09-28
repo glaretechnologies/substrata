@@ -338,6 +338,20 @@ void GUIClient::preConnectInitialise(const std::string& cache_dir_, const Refere
 	client_tls_config = tls_config_new();
 	if(!client_tls_config)
 		throw glare::Exception("Failed to initialise TLS (tls_config_new failed)");
+
+	// Load the trusted root certificates used to verify servers.
+	const std::string ca_bundle_path = base_dir_path + "/cert.pem";
+	std::vector<unsigned char> ca_bundle;
+	try
+	{
+		FileUtils::readEntireFile(ca_bundle_path, ca_bundle);
+	}
+	catch(FileUtils::FileUtilsExcep& e)
+	{
+		throw glare::Exception("Failed to read CA certificate bundle: " + e.what());
+	}
+	if(tls_config_set_ca_mem(client_tls_config, ca_bundle.data(), ca_bundle.size()) != 0)
+		throw glare::Exception("Failed to load CA certificate bundle '" + ca_bundle_path + "': " + std::string(tls_config_error(client_tls_config)));
 #endif
 }
 
