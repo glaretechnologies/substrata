@@ -1135,12 +1135,14 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndPhysicsShape(cons
 	else if(hasExtension(model_path, "gltf"))
 	{
 		GLTFLoadedData gltf_data;
-		batched_mesh = FormatDecoderGLTF::loadGLTFFileFromData(model_data_buf.data(), model_data_buf.dataSizeBytes(), /*gltf base dir=*/FileUtils::getDirectory(model_path), /*write_images_to_disk=*/false, gltf_data);
+		batched_mesh = FormatDecoderGLTF::loadGLTFFileFromData(model_data_buf.data(), model_data_buf.dataSizeBytes(), /*gltf base dir=*/FileUtils::getDirectory(model_path), /*write_images_to_disk=*/false,
+			/*restrict_uris_to_base_dir=*/true, gltf_data);
 	}
 	else if(hasExtension(model_path, "glb") || hasExtension(model_path, "vrm"))
 	{
 		GLTFLoadedData gltf_data;
-		batched_mesh = FormatDecoderGLTF::loadGLBFileFromData(model_data_buf.data(), model_data_buf.dataSizeBytes(), /*gltf base dir=*/FileUtils::getDirectory(model_path), /*write_images_to_disk=*/false, gltf_data);
+		batched_mesh = FormatDecoderGLTF::loadGLBFileFromData(model_data_buf.data(), model_data_buf.dataSizeBytes(), /*gltf base dir=*/FileUtils::getDirectory(model_path), /*write_images_to_disk=*/false,
+			/*restrict_uris_to_base_dir=*/true, gltf_data);
 	}
 	else if(hasExtension(model_path, "igmesh"))
 	{

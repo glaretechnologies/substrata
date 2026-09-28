@@ -76,7 +76,7 @@ BatchedMeshRef loadModelFromBuffer(const std::string& model_path, const void* da
 	{
 		const std::string gltf_base_dir = FileUtils::getDirectory(model_path);
 		GLTFLoadedData gltf_data;
-		batched_mesh = FormatDecoderGLTF::loadGLTFFileFromData(data, datalen, gltf_base_dir, /*write_images_to_disk=*/false, gltf_data);
+		batched_mesh = FormatDecoderGLTF::loadGLTFFileFromData(data, datalen, gltf_base_dir, /*write_images_to_disk=*/false, /*restrict_uris_to_base_dir=*/true, gltf_data);
 	}
 	else if(hasExtension(model_path, "igmesh"))
 	{
