@@ -847,7 +847,7 @@ static ChunkBuildResults combineAndSimplifyObjectMeshes(std::vector<ObInfo>& ob_
 
 			} // end if(mesh.nonNull())
 		}
-		catch(glare::Exception& e)
+		catch([[maybe_unused]] glare::Exception& e)
 		{
 #if !FUZZING
 			conPrint("ChunkGenThread: error while processing ob: " + e.what());
