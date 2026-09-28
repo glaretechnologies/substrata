@@ -896,12 +896,12 @@ GUIClient::~GUIClient()
 	// Save resources DB to disk if it has un-saved changes.
 	try
 	{
-		if(resource_manager->hasChanged())
+		if(resource_manager && resource_manager->hasChanged())
 			resource_manager->saveToDisk();
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("WARNING: failed to save resources database to '" + resource_manager->getResourcesDBPath() + "': " + e.what());
+		conPrint("WARNING: failed to save resources database: " + e.what());
 	}
 
 #if !defined(EMSCRIPTEN)

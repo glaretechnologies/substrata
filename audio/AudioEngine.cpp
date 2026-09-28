@@ -172,6 +172,7 @@ float SoundFile::minVal() const
 
 AudioEngine::AudioEngine()
 :	audio(NULL),
+	device(NULL),
 	resonance(NULL),
 	initialised(false)
 {
