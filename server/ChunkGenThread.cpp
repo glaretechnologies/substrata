@@ -117,6 +117,9 @@ struct ChunkBuildResults
 	std::string optimised_mesh_path;
 	std::string combined_texture_path;
 	uint64 combined_texture_hash;
+
+	size_t num_obs_combined;
+	size_t num_batches_combined;
 };
 
 
@@ -438,12 +441,12 @@ static void buildAndSaveArrayTexture(const std::vector<std::string>& used_tex_pa
 }
 
 
-static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int chunk_y, glare::TaskManager& task_manager)
+// invisible_tri_num_dirs and invisible_tri_res are passed to MeshSimplification::removeInvisibleTriangles().
+static ChunkBuildResults combineAndSimplifyObjectMeshes(std::vector<ObInfo>& ob_infos, LRUCache<std::string, BatchedMeshRef>& mesh_cache, int invisible_tri_num_dirs, int invisible_tri_res,
+	glare::TaskManager& task_manager, BatchedMeshRef& combined_mesh_out, std::vector<MatInfo>& new_mat_infos_out)
 {
 	ChunkBuildResults results;
 	results.ob_batch_ranges.resize(ob_infos.size());
-
-	LRUCache<std::string, BatchedMeshRef> mesh_cache;
 
 	//-------------------------- Create combined mesh -----------------------------
 	BatchedMeshRef combined_mesh = new BatchedMesh();
@@ -472,8 +475,8 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 	js::Vector<uint32, 16> combined_trans_indices; // Vertex indices of triangles with a transparent material assigned.
 	js::AABBox aabb_os = js::AABBox::emptyAABBox(); // AABB of combined mesh
 
-	size_t num_obs_combined = 0;
-	size_t num_batches_combined = 0;
+	results.num_obs_combined = 0;
+	results.num_batches_combined = 0;
 
 	std::vector<MatInfo> combined_mat_infos;
 
@@ -839,14 +842,16 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 					}
 				}
 
-				num_obs_combined++;
-				num_batches_combined += mesh->batches.size();
+				results.num_obs_combined++;
+				results.num_batches_combined += mesh->batches.size();
 
 			} // end if(mesh.nonNull())
 		}
 		catch(glare::Exception& e)
 		{
+#if !FUZZING
 			conPrint("ChunkGenThread: error while processing ob: " + e.what());
+#endif
 
 			// If an exception was thrown after space was allocated for the mesh verts, we want to trim that off.
 			combined_mesh->vertex_data.resize(initial_combined_mesh_vert_data_size);
@@ -902,7 +907,7 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 		combined_mesh->aabb_os = aabb_os;
 
 		std::vector<uint32> index_map;
-		combined_mesh = MeshSimplification::removeInvisibleTriangles(combined_mesh, index_map, task_manager);
+		combined_mesh = MeshSimplification::removeInvisibleTriangles(combined_mesh, index_map, task_manager, invisible_tri_num_dirs, invisible_tri_res);
 
 		// Some triangles (i.e. their 3 associated indices) have been removed.
 		// We need to update the corresponding object index ranges.
@@ -936,9 +941,10 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 		if(combined_mesh->numVerts() > 0)
 		{
 			//-------------------------------------- Remove unused materials --------------------------------------
-			std::vector<MatInfo> new_mat_infos;
 			{
+#if !FUZZING
 				conPrint("ChunkGenThread: Raw combined mesh num materials: " + toString(combined_mat_infos.size()));
+#endif
 
 				const size_t num_verts = combined_mesh->numVerts();
 
@@ -952,155 +958,173 @@ static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int 
 					uint32 new_mat_i_val = new_mat_i[mat_i];
 					if(new_mat_i_val == std::numeric_limits<uint32>::max())
 					{
-						new_mat_i_val = (uint32)new_mat_infos.size();
-						new_mat_infos.push_back(combined_mat_infos[mat_i]);
+						new_mat_i_val = (uint32)new_mat_infos_out.size();
+						new_mat_infos_out.push_back(combined_mat_infos[mat_i]);
 						new_mat_i[mat_i] = new_mat_i_val;
 					}
 				
 					std::memcpy(combined_mesh->vertex_data.data() + combined_mesh_vert_size * v + combined_mesh_mat_index_offset_B, &new_mat_i_val, sizeof(uint32)); // Copy new value back to combined_mesh
 				}
 
-				conPrint("ChunkGenThread: Used combined mesh num materials: " + toString(new_mat_infos.size()));
+#if !FUZZING
+				conPrint("ChunkGenThread: Used combined mesh num materials: " + toString(new_mat_infos_out.size()));
+#endif
 			}
-
-			//-------------------------------------- Build list of used textures --------------------------------------
-			// Build list of used textures, maintaining order.
-			std::vector<std::string> used_tex_paths;
-			std::set<std::string> textures_added;
-			for(size_t m=0; m<new_mat_infos.size(); ++m)
-			{
-				const MatInfo& mat_info = new_mat_infos[m];
-
-				const std::string tex_path = mat_info.tex_path;
-				if(!tex_path.empty())
-				{
-					if(textures_added.count(tex_path) == 0)
-					{
-						textures_added.insert(tex_path);
-						used_tex_paths.push_back(tex_path);
-					}
-				}
-			}
-
-			//-------------------------------------- Build texture array, save basis file to disk --------------------------------------
-			std::map<std::string, int> array_image_indices; // Index of texture in texture array.
-			// There will be no entry in the map for the path if the texture could not be loaded.
-
-			buildAndSaveArrayTexture(used_tex_paths, task_manager, chunk_x, chunk_y, 
-				array_image_indices, // array_image_indices_out
-				results.combined_texture_path, // combined_texture_path_out
-				results.combined_texture_hash // combined_texture_hash_out
-			);
-
-			// TEMP HACK from openglengine.cpp
-			// MaterialData flag values
-			#define HAVE_SHADING_NORMALS_FLAG			1
-			#define HAVE_TEXTURE_FLAG					2
-
-			//-------------------------------------- Build output_mat_infos --------------------------------------
-			js::Vector<OutputMatInfo> output_mat_infos;
-			for(size_t m=0; m<new_mat_infos.size(); ++m)
-			{
-				const MatInfo& mat_info = new_mat_infos[m];
-
-				OutputMatInfo output_mat_info;
-				output_mat_info.tex_matrix_col_major = mat_info.tex_matrix.transpose();
-				output_mat_info.emission_lum_flux_or_lum = mat_info.emission_lum_flux_or_lum;
-				output_mat_info.roughness = mat_info.roughness;
-				output_mat_info.metallic = mat_info.metallic;
-				output_mat_info.linear_colour_rgb = sanitiseAndConvertToLinearAlbedoColour(mat_info.colour_rgb);
-				output_mat_info.flags = 0;
-
-				const std::string tex_path = mat_info.tex_path;
-				if(!tex_path.empty() && (array_image_indices.count(tex_path) > 0))
-				{
-					output_mat_info.flags += (float)HAVE_TEXTURE_FLAG;
-
-					output_mat_info.array_image_index = (float)array_image_indices[tex_path];
-				}
-
-				output_mat_infos.push_back(output_mat_info);
-			}
-
-			runtimeCheck(combined_mesh->numIndices() > 0);
-			runtimeCheck(combined_mesh->numVerts() > 0);
-
-			// Write combined mesh to disk
-			conPrint("ChunkGenThread: Writing combined mesh to disk... (num indices: " + toString(combined_mesh->numIndices()) + ", num verts: " + toString(combined_mesh->numVerts()) + ")");
-			// NOTE: naming scheme needs to start with "chunk_", see if(hasPrefix(lod_model_url, "chunk_")) check in GUIClient::handleUploadedMeshData().
-			const std::string path = PlatformUtils::getTempDirPath() + "/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bmesh";
-			//const std::string path = "d:/tempfiles/main_world/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bmesh";
-			{
-				BatchedMesh::WriteOptions options;
-				options.write_mesh_version_2 = true; // Write older batched mesh version for backwards compatibility
-				options.compression_level = 19;
-				options.use_meshopt = true;
-				options.meshopt_vertex_version = 0; // For backwards compat.
-				options.pos_mantissa_bits = 14;
-				options.uv_mantissa_bits = 8;
-				combined_mesh->writeToFile(path, options);
-			}
-
-			// FormatDecoderGLTF::writeBatchedMeshToGLBFile(*combined_mesh, "d:/tempfiles/main_world/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".glb", GLTFWriteOptions());
-
-			conPrint("ChunkGenThread: num_obs_combined: " + toString(num_obs_combined));
-			conPrint("ChunkGenThread: num_batches_combined: " + toString(num_batches_combined));
-			conPrint("ChunkGenThread: Wrote chunk mesh to '" + path + "'.");
-
-			// Compute hash over it
-			const uint64 hash = FileChecksum::fileChecksum(path);
-
-
-			//--------------------------- Build optimised mesh ---------------------------
-			// Can't do meshopt optimisations because they reorder indices, which we need to preserve for object index ranges.
-
-			BatchedMesh::QuantiseOptions quantise_options;
-			quantise_options.pos_bits = 13;
-			quantise_options.uv_bits  = 10;
-			combined_mesh = combined_mesh->buildQuantisedMesh(quantise_options);
-
-			const std::string opt_mesh_path = path + "_opt"; // The final optimised mesh URL will be computed later.
-
-			// Write optimised mesh (using quantised position etc.)
-			{
-				BatchedMesh::WriteOptions options;
-				options.compression_level = 19;
-				options.use_meshopt = true;
-				combined_mesh->writeToFile(opt_mesh_path, options);
-			}
-
-			conPrint("ChunkGenThread: Wrote optimised chunk mesh to '" + opt_mesh_path + "'.");
-			//---------------------------------------------------------------------------------
-
-
-			// Write output_mat_infos for testing
-			if(false)
-			{
-				conPrint("Writing mat info to disk...");
-				FileOutStream file("d:/tempfiles/main_world/mat_info_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bin");
-
-				for(size_t i=0; i<output_mat_infos.size(); ++i)
-					file.writeData(&output_mat_infos[i], sizeof(OutputMatInfo));
-
-
-				//------------ Build compressed mat_info ------------
-				js::Vector<uint8> compressed_data(ZSTD_compressBound(output_mat_infos.dataSizeBytes()));
-
-				const size_t compressed_size = ZSTD_compress(/*dest=*/compressed_data.data(), /*dest capacity=*/compressed_data.size(), /*src=*/output_mat_infos.data(), /*src size=*/output_mat_infos.dataSizeBytes(),
-					19 // compression level  TODO: use higher level? test a few.
-				);
-				if(ZSTD_isError(compressed_size))
-					throw glare::Exception(std::string("Compression failed: ") + ZSTD_getErrorName(compressed_size));
-				compressed_data.resize(compressed_size);
-				FileUtils::writeEntireFile("d:/tempfiles/main_world/compressed_mat_info_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bin", (const char*)compressed_data.data(), compressed_data.size());
-				//---------------------------------------------------
-			}
-
-			results.output_mat_infos = output_mat_infos;
-			results.combined_mesh_path = path;
-			results.combined_mesh_hash = hash;
-			results.optimised_mesh_path = opt_mesh_path;
 		}
+	}
+
+	combined_mesh_out = combined_mesh;
+	return results;
+}
+
+
+static ChunkBuildResults buildChunkForObInfo(std::vector<ObInfo>& ob_infos, int chunk_x, int chunk_y, glare::TaskManager& task_manager)
+{
+	BatchedMeshRef combined_mesh;
+	std::vector<MatInfo> new_mat_infos;
+	LRUCache<std::string, BatchedMeshRef> mesh_cache;
+	ChunkBuildResults results = combineAndSimplifyObjectMeshes(ob_infos, mesh_cache, /*invisible_tri_num_dirs=*/32, /*invisible_tri_res=*/1024, task_manager, combined_mesh, new_mat_infos);
+	runtimeCheck(combined_mesh.nonNull());
+
+	if((combined_mesh->numIndices() > 0) && (combined_mesh->numVerts() > 0)) // If the mesh wasn't completely simplified away:
+	{
+		//-------------------------------------- Build list of used textures --------------------------------------
+		// Build list of used textures, maintaining order.
+		std::vector<std::string> used_tex_paths;
+		std::set<std::string> textures_added;
+		for(size_t m=0; m<new_mat_infos.size(); ++m)
+		{
+			const MatInfo& mat_info = new_mat_infos[m];
+
+			const std::string tex_path = mat_info.tex_path;
+			if(!tex_path.empty())
+			{
+				if(textures_added.count(tex_path) == 0)
+				{
+					textures_added.insert(tex_path);
+					used_tex_paths.push_back(tex_path);
+				}
+			}
+		}
+
+		//-------------------------------------- Build texture array, save basis file to disk --------------------------------------
+		std::map<std::string, int> array_image_indices; // Index of texture in texture array.
+		// There will be no entry in the map for the path if the texture could not be loaded.
+
+		buildAndSaveArrayTexture(used_tex_paths, task_manager, chunk_x, chunk_y, 
+			array_image_indices, // array_image_indices_out
+			results.combined_texture_path, // combined_texture_path_out
+			results.combined_texture_hash // combined_texture_hash_out
+		);
+
+		// TEMP HACK from openglengine.cpp
+		// MaterialData flag values
+		#define HAVE_SHADING_NORMALS_FLAG			1
+		#define HAVE_TEXTURE_FLAG					2
+
+		//-------------------------------------- Build output_mat_infos --------------------------------------
+		js::Vector<OutputMatInfo> output_mat_infos;
+		for(size_t m=0; m<new_mat_infos.size(); ++m)
+		{
+			const MatInfo& mat_info = new_mat_infos[m];
+
+			OutputMatInfo output_mat_info;
+			output_mat_info.tex_matrix_col_major = mat_info.tex_matrix.transpose();
+			output_mat_info.emission_lum_flux_or_lum = mat_info.emission_lum_flux_or_lum;
+			output_mat_info.roughness = mat_info.roughness;
+			output_mat_info.metallic = mat_info.metallic;
+			output_mat_info.linear_colour_rgb = sanitiseAndConvertToLinearAlbedoColour(mat_info.colour_rgb);
+			output_mat_info.flags = 0;
+
+			const std::string tex_path = mat_info.tex_path;
+			if(!tex_path.empty() && (array_image_indices.count(tex_path) > 0))
+			{
+				output_mat_info.flags += (float)HAVE_TEXTURE_FLAG;
+
+				output_mat_info.array_image_index = (float)array_image_indices[tex_path];
+			}
+
+			output_mat_infos.push_back(output_mat_info);
+		}
+
+		runtimeCheck(combined_mesh->numIndices() > 0);
+		runtimeCheck(combined_mesh->numVerts() > 0);
+
+		// Write combined mesh to disk
+		conPrint("ChunkGenThread: Writing combined mesh to disk... (num indices: " + toString(combined_mesh->numIndices()) + ", num verts: " + toString(combined_mesh->numVerts()) + ")");
+		// NOTE: naming scheme needs to start with "chunk_", see if(hasPrefix(lod_model_url, "chunk_")) check in GUIClient::handleUploadedMeshData().
+		const std::string path = PlatformUtils::getTempDirPath() + "/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bmesh";
+		//const std::string path = "d:/tempfiles/main_world/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bmesh";
+		{
+			BatchedMesh::WriteOptions options;
+			options.write_mesh_version_2 = true; // Write older batched mesh version for backwards compatibility
+			options.compression_level = 19;
+			options.use_meshopt = true;
+			options.meshopt_vertex_version = 0; // For backwards compat.
+			options.pos_mantissa_bits = 14;
+			options.uv_mantissa_bits = 8;
+			combined_mesh->writeToFile(path, options);
+		}
+
+		// FormatDecoderGLTF::writeBatchedMeshToGLBFile(*combined_mesh, "d:/tempfiles/main_world/chunk_128_" + toString(chunk_x) + "_" + toString(chunk_y) + ".glb", GLTFWriteOptions());
+
+		conPrint("ChunkGenThread: num_obs_combined: " + toString(results.num_obs_combined));
+		conPrint("ChunkGenThread: num_batches_combined: " + toString(results.num_batches_combined));
+		conPrint("ChunkGenThread: Wrote chunk mesh to '" + path + "'.");
+
+		// Compute hash over it
+		const uint64 hash = FileChecksum::fileChecksum(path);
+
+
+		//--------------------------- Build optimised mesh ---------------------------
+		// Can't do meshopt optimisations because they reorder indices, which we need to preserve for object index ranges.
+
+		BatchedMesh::QuantiseOptions quantise_options;
+		quantise_options.pos_bits = 13;
+		quantise_options.uv_bits  = 10;
+		combined_mesh = combined_mesh->buildQuantisedMesh(quantise_options);
+
+		const std::string opt_mesh_path = path + "_opt"; // The final optimised mesh URL will be computed later.
+
+		// Write optimised mesh (using quantised position etc.)
+		{
+			BatchedMesh::WriteOptions options;
+			options.compression_level = 19;
+			options.use_meshopt = true;
+			combined_mesh->writeToFile(opt_mesh_path, options);
+		}
+
+		conPrint("ChunkGenThread: Wrote optimised chunk mesh to '" + opt_mesh_path + "'.");
+		//---------------------------------------------------------------------------------
+
+
+		// Write output_mat_infos for testing
+		if(false)
+		{
+			conPrint("Writing mat info to disk...");
+			FileOutStream file("d:/tempfiles/main_world/mat_info_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bin");
+
+			for(size_t i=0; i<output_mat_infos.size(); ++i)
+				file.writeData(&output_mat_infos[i], sizeof(OutputMatInfo));
+
+
+			//------------ Build compressed mat_info ------------
+			js::Vector<uint8> compressed_data(ZSTD_compressBound(output_mat_infos.dataSizeBytes()));
+
+			const size_t compressed_size = ZSTD_compress(/*dest=*/compressed_data.data(), /*dest capacity=*/compressed_data.size(), /*src=*/output_mat_infos.data(), /*src size=*/output_mat_infos.dataSizeBytes(),
+				19 // compression level  TODO: use higher level? test a few.
+			);
+			if(ZSTD_isError(compressed_size))
+				throw glare::Exception(std::string("Compression failed: ") + ZSTD_getErrorName(compressed_size));
+			compressed_data.resize(compressed_size);
+			FileUtils::writeEntireFile("d:/tempfiles/main_world/compressed_mat_info_" + toString(chunk_x) + "_" + toString(chunk_y) + ".bin", (const char*)compressed_data.data(), compressed_data.size());
+			//---------------------------------------------------
+		}
+
+		results.output_mat_infos = output_mat_infos;
+		results.combined_mesh_path = path;
+		results.combined_mesh_hash = hash;
+		results.optimised_mesh_path = opt_mesh_path;
 	}
 
 	return results;
@@ -1559,7 +1583,7 @@ static const float test_cube_half_w = 5.f; // Large enough that removeSmallCompo
 struct TestCubeSpec
 {
 	TestCubeSpec() : index_type(BatchedMesh::ComponentType_UInt16), have_normals(true), normal_type(BatchedMesh::ComponentType_PackedNormal), have_uv0(true), uv0_type(BatchedMesh::ComponentType_Float), num_mats(1), quantise(false),
-		skinned(false), joints_type(BatchedMesh::ComponentType_UInt8), weights_type(BatchedMesh::ComponentType_UInt8) {}
+		skinned(false), joints_type(BatchedMesh::ComponentType_UInt8), weights_type(BatchedMesh::ComponentType_UInt8), non_finite_face(false), non_finite_value(std::numeric_limits<float>::infinity()) {}
 
 	BatchedMesh::ComponentType index_type; // ComponentType_UInt16 or ComponentType_UInt32
 	bool have_normals;
@@ -1573,6 +1597,9 @@ struct TestCubeSpec
 	bool skinned;
 	BatchedMesh::ComponentType joints_type; // ComponentType_UInt8 or ComponentType_UInt16
 	BatchedMesh::ComponentType weights_type; // ComponentType_UInt8, ComponentType_UInt16 or ComponentType_Float
+
+	bool non_finite_face; // Set all position coordinates of the first face's vertices to non_finite_value.
+	float non_finite_value;
 };
 
 
@@ -1583,8 +1610,8 @@ static const Vec4f test_skin_offset(0, 10, 10, 0);
 static size_t roundUpTo4(size_t x) { return (x + 3) & ~(size_t)3; }
 
 
-// Makes a cube with 4 verts per face, centred on the origin, and writes it to a bmesh file in the temp dir.  Returns the file path.
-static std::string writeTestCubeMesh(const std::string& name, const TestCubeSpec& spec)
+// Makes a cube with 4 verts per face, centred on the origin.
+static BatchedMeshRef makeTestCubeMesh(const TestCubeSpec& spec)
 {
 	try
 	{
@@ -1666,7 +1693,8 @@ static std::string writeTestCubeMesh(const std::string& name, const TestCubeSpec
 				uint8* const vert = &mesh->vertex_data[v * vert_size];
 
 				const Vec4f pos = (n + u * corner_u[c] + w * corner_w[c]) * test_cube_half_w;
-				const Vec3f pos3(pos[0], pos[1], pos[2]);
+				const bool use_non_finite_pos = spec.non_finite_face && (face_first_vert == 0);
+				const Vec3f pos3 = use_non_finite_pos ? Vec3f(spec.non_finite_value) : Vec3f(pos[0], pos[1], pos[2]);
 				std::memcpy(vert, &pos3, sizeof(Vec3f));
 
 				if(spec.have_normals)
@@ -1759,6 +1787,23 @@ static std::string writeTestCubeMesh(const std::string& name, const TestCubeSpec
 		if(spec.quantise)
 			mesh = mesh->buildQuantisedMesh(BatchedMesh::QuantiseOptions());
 
+		return mesh;
+	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
+		return nullptr;
+	}
+}
+
+
+// Makes a test cube and writes it to a bmesh file in the temp dir.  Returns the file path.
+static std::string writeTestCubeMesh(const std::string& name, const TestCubeSpec& spec)
+{
+	try
+	{
+		BatchedMeshRef mesh = makeTestCubeMesh(spec);
+
 		// Use meshopt, which compresses the interleaved vertex data, so that attributes smaller than 4 bytes (e.g. Oct16 normals) can be written.
 		BatchedMesh::WriteOptions write_options;
 		write_options.use_meshopt = true;
@@ -1770,7 +1815,7 @@ static std::string writeTestCubeMesh(const std::string& name, const TestCubeSpec
 	catch(glare::Exception& e)
 	{
 		failTest(e.what());
-		return nullptr;
+		return std::string();
 	}
 }
 
@@ -2121,9 +2166,27 @@ static void test()
 		{ makeObInfo(skinned_float_normals_path,	3, 40, opaque),	false, 1 },
 	}, task_manager, chunk_x++);
 
+	// A face with all vertices at +inf, so its edges have both ends at +inf.
+	TestCubeSpec inf_face_spec;
+	inf_face_spec.non_finite_face = true;
+	const std::string inf_face_path = writeTestCubeMesh("inf_face", inf_face_spec);
+
+	// A face with all vertices at NaN.
+	TestCubeSpec nan_face_spec;
+	nan_face_spec.non_finite_face = true;
+	nan_face_spec.non_finite_value = std::numeric_limits<float>::quiet_NaN();
+	const std::string nan_face_path = writeTestCubeMesh("nan_face", nan_face_spec);
+
+	testBuildChunk("Non-finite vertex positions", {
+		{ makeObInfo(good_path,		1, 0,  opaque), true,  1 },
+		{ makeObInfo(inf_face_path,	2, 20, opaque), false, 1 },
+		{ makeObInfo(good_path,		3, 40, opaque), true,  1 },
+		{ makeObInfo(nan_face_path,	4, 60, opaque), false, 1 },
+	}, task_manager, chunk_x++);
+
 	const std::string paths[] = { good_path, good_no_normals_path, good_no_uvs_path, good_two_mats_path, float_normals_path, oct16_normals_path, uint16_uvs_path,
 		no_normals_uint16_uvs_path, two_mats_uint16_uvs_path, uint32_indices_path, uint32_indices_float_normals_path, quantised_path,
-		skinned_uint8_path, skinned_uint16_path, skinned_float_weights_path, skinned_float_normals_path };
+		skinned_uint8_path, skinned_uint16_path, skinned_float_weights_path, skinned_float_normals_path, inf_face_path, nan_face_path };
 	for(size_t i=0; i<staticArrayNumElems(paths); ++i)
 		FileUtils::deleteFile(paths[i]);
 
@@ -2132,6 +2195,271 @@ static void test()
 
 
 } // end namespace ChunkGenThreadTests
+
+
+#if 0
+// Fuzzing of combineAndSimplifyObjectMeshes()
+//
+// Fuzz input format:
+//   byte 0: number of objects - 1 (mod 6)
+//   then 4 bytes per object:
+//     mesh choice (mod 4): 0 = fuzzed mesh, 1 = cube, 2 = skinned cube, 3 = cube with uint32 indices
+//     number of materials (mod 4).  Fewer than the mesh references results in dummy materials being added.
+//     transparent material bits: if bit m is set, material m is transparent.
+//     scale index (mod 5) into fuzz_scales.
+//   rest of input: the fuzzed mesh, in bmesh format.
+//
+// Seeds can be written with writeFuzzSeeds() below.  They use uncompressed bmesh data, so that mutations change mesh data directly instead of mostly breaking decompression.
+//
+// Command line:
+// C:\fuzz_corpus\chunk_gen C:\code\substrata\testfiles\fuzz_seeds\chunk_gen -max_len=100000
+
+
+#include <utils/BufferOutStream.h>
+
+
+static const float fuzz_scales[] = { 1.f, 0.1f, 4.f, 30.f, 0.02f }; // 0.02 makes the 10 m test cubes smaller than the simplification error threshold, so they get removed.
+static const size_t fuzz_header_bytes_per_ob = 4;
+
+static glare::TaskManager* fuzz_task_manager = NULL;
+static BatchedMeshRef fuzz_cube_meshes[3]; // Cube, skinned cube, cube with uint32 indices
+
+
+static void appendFuzzOb(std::vector<uint8>& header, uint8 mesh_choice, uint8 num_mats, uint8 transparent_bits, uint8 scale_i)
+{
+	header.push_back(mesh_choice);
+	header.push_back(num_mats);
+	header.push_back(transparent_bits);
+	header.push_back(scale_i);
+}
+
+
+static std::vector<uint8> makeFuzzHeader(const std::vector<std::vector<uint8>>& obs)
+{
+	std::vector<uint8> header;
+	header.push_back((uint8)(obs.size() - 1));
+	for(size_t i=0; i<obs.size(); ++i)
+		appendFuzzOb(header, obs[i][0], obs[i][1], obs[i][2], obs[i][3]);
+	return header;
+}
+
+
+// Writes each test cube variant, uncompressed, after a few different object headers.
+static void writeFuzzSeeds(const std::string& dir)
+{
+	using namespace ChunkGenThreadTests;
+
+	FileUtils::createDirIfDoesNotExist(dir);
+
+	std::vector<std::pair<std::string, TestCubeSpec>> specs;
+	{
+		TestCubeSpec spec;
+		specs.push_back(std::make_pair("cube", spec));
+	}
+	{
+		TestCubeSpec spec;
+		spec.have_normals = false;
+		spec.uv0_type = BatchedMesh::ComponentType_Half;
+		specs.push_back(std::make_pair("no_normals", spec));
+	}
+	{
+		TestCubeSpec spec;
+		spec.num_mats = 2;
+		specs.push_back(std::make_pair("two_mats", spec));
+	}
+	{
+		TestCubeSpec spec;
+		spec.normal_type = BatchedMesh::ComponentType_Float;
+		specs.push_back(std::make_pair("float_normals", spec));
+	}
+	{
+		TestCubeSpec spec;
+		spec.normal_type = BatchedMesh::ComponentType_Oct16;
+		specs.push_back(std::make_pair("oct16_normals", spec));
+	}
+	{
+		TestCubeSpec spec;
+		spec.uv0_type = BatchedMesh::ComponentType_UInt16;
+		specs.push_back(std::make_pair("uint16_uvs", spec));
+	}
+	{
+		TestCubeSpec spec;
+		spec.index_type = BatchedMesh::ComponentType_UInt32;
+		specs.push_back(std::make_pair("uint32_indices", spec));
+	}
+	{
+		TestCubeSpec spec;
+		spec.skinned = true;
+		spec.joints_type = BatchedMesh::ComponentType_UInt16;
+		spec.weights_type = BatchedMesh::ComponentType_Float;
+		specs.push_back(std::make_pair("skinned", spec));
+	}
+	{
+		TestCubeSpec spec;
+		spec.quantise = true;
+		specs.push_back(std::make_pair("quantised", spec));
+	}
+
+	std::vector<std::vector<uint8>> headers;
+	headers.push_back(makeFuzzHeader({ {0, 1, 0, 0} })); // Just the fuzzed mesh
+	headers.push_back(makeFuzzHeader({ {1, 1, 0, 0}, {0, 1, 0, 0}, {1, 1, 0, 0} })); // Fuzzed mesh between cubes
+	headers.push_back(makeFuzzHeader({ {1, 1, 0, 0}, {2, 1, 1, 0}, {0, 1, 0, 0} })); // Fuzzed mesh last, after a transparent skinned cube
+	headers.push_back(makeFuzzHeader({ {0, 1, 0, 0}, {3, 2, 2, 2}, {0, 2, 3, 1}, {1, 1, 1, 0} })); // Fuzzed mesh used twice, opaque then transparent
+	headers.push_back(makeFuzzHeader({ {0, 1, 0, 4}, {1, 1, 0, 0} })); // Fuzzed mesh at a small scale
+
+	for(size_t s=0; s<specs.size(); ++s)
+	{
+		BatchedMeshRef mesh = makeTestCubeMesh(specs[s].second);
+
+		BatchedMesh::WriteOptions write_options;
+		write_options.use_compression = false;
+		BufferOutStream mesh_stream;
+		mesh->writeToOutStream(mesh_stream, write_options);
+
+		for(size_t h=0; h<headers.size(); ++h)
+		{
+			std::vector<uint8> seed = headers[h];
+			seed.insert(seed.end(), mesh_stream.buf.begin(), mesh_stream.buf.end());
+			FileUtils::writeEntireFile(dir + "/" + specs[s].first + "_" + toString(h), (const char*)seed.data(), seed.size());
+		}
+	}
+}
+
+
+extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv)
+{
+	if(false)
+		writeFuzzSeeds("C:\\code\\substrata\\testfiles\\fuzz_seeds\\chunk_gen");
+
+	Clock::init();
+
+	fuzz_task_manager = new glare::TaskManager(1);
+
+	ChunkGenThreadTests::TestCubeSpec cube_spec;
+	fuzz_cube_meshes[0] = ChunkGenThreadTests::makeTestCubeMesh(cube_spec);
+
+	ChunkGenThreadTests::TestCubeSpec skinned_spec;
+	skinned_spec.skinned = true;
+	fuzz_cube_meshes[1] = ChunkGenThreadTests::makeTestCubeMesh(skinned_spec);
+
+	ChunkGenThreadTests::TestCubeSpec uint32_spec;
+	uint32_spec.index_type = BatchedMesh::ComponentType_UInt32;
+	uint32_spec.num_mats = 2;
+	fuzz_cube_meshes[2] = ChunkGenThreadTests::makeTestCubeMesh(uint32_spec);
+
+	return 0;
+}
+
+
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
+{
+	if(size < 1)
+		return 0;
+
+	const size_t num_obs = 1 + data[0] % 6;
+	const size_t header_size = 1 + num_obs * fuzz_header_bytes_per_ob;
+	if(size < header_size)
+		return 0;
+
+	// Decode the fuzzed mesh the same way LODGeneration::loadModel() does for bmesh files.
+	BatchedMeshRef fuzzed_mesh;
+	try
+	{
+		fuzzed_mesh = BatchedMesh::readFromData(data + header_size, size - header_size, /*mem allocator=*/NULL);
+		fuzzed_mesh->checkValidAndSanitiseMesh();
+	}
+	catch(glare::Exception&)
+	{
+		return 0; // A mesh that fails to load just makes the object fail, which is already covered by the unit tests.
+	}
+
+	// Put the meshes in the cache, so they are used instead of loading from disk.
+	const std::string mesh_paths[4] = { "fuzzed.bmesh", "cube.bmesh", "skinned_cube.bmesh", "uint32_cube.bmesh" };
+	const BatchedMeshRef meshes[4] = { fuzzed_mesh, fuzz_cube_meshes[0], fuzz_cube_meshes[1], fuzz_cube_meshes[2] };
+	LRUCache<std::string, BatchedMeshRef> mesh_cache;
+	for(int i=0; i<4; ++i)
+		mesh_cache.insert(std::make_pair(mesh_paths[i], meshes[i]), meshes[i]->getTotalMemUsage());
+
+	std::vector<ObInfo> ob_infos;
+	for(size_t i=0; i<num_obs; ++i)
+	{
+		const uint8* ob_data = data + 1 + i * fuzz_header_bytes_per_ob;
+		const int mesh_i = ob_data[0] % 4;
+		const int num_mats = ob_data[1] % 4;
+		const uint8 transparent_bits = ob_data[2];
+		const float scale = fuzz_scales[ob_data[3] % staticArrayNumElems(fuzz_scales)];
+
+		std::vector<float> opacities(num_mats);
+		for(int m=0; m<num_mats; ++m)
+			opacities[m] = ((transparent_bits >> m) & 1) ? 0.5f : 1.f;
+
+		const float pos_x = i * 40.f;
+		ObInfo ob_info = ChunkGenThreadTests::makeObInfo(mesh_paths[mesh_i], /*uid=*/i + 1, pos_x, opacities);
+		ob_info.ob_to_world = Matrix4f::translationMatrix(pos_x, 0, 0) * Matrix4f::uniformScaleMatrix(scale);
+		ob_info.ob_to_world_scale = scale;
+		ob_infos.push_back(ob_info);
+	}
+
+	BatchedMeshRef combined_mesh;
+	std::vector<MatInfo> new_mat_infos;
+	ChunkBuildResults results;
+	try
+	{
+		// Use a low number of rays, for speed, and so that some triangles of objects are removed while others are kept.
+		results = combineAndSimplifyObjectMeshes(ob_infos, mesh_cache, /*invisible_tri_num_dirs=*/4, /*invisible_tri_res=*/32, *fuzz_task_manager, combined_mesh, new_mat_infos);
+	}
+	catch(glare::Exception& e)
+	{
+		// Failures processing individual objects are caught inside combineAndSimplifyObjectMeshes(), so an exception here means one object's mesh made the whole chunk fail.
+		failTest("combineAndSimplifyObjectMeshes() threw: " + e.what());
+	}
+
+	testAssert(combined_mesh.nonNull());
+	testAssert(results.ob_batch_ranges.size() == num_obs);
+
+	const size_t num_verts = combined_mesh->numVerts();
+	const size_t num_indices = combined_mesh->numIndices();
+
+	for(size_t i=0; i<num_indices; ++i)
+		testAssert(combined_mesh->getIndexAsUInt32(i) < num_verts);
+
+	for(size_t b=0; b<combined_mesh->batches.size(); ++b)
+		testAssert((size_t)combined_mesh->batches[b].indices_start + combined_mesh->batches[b].num_indices <= num_indices);
+
+	for(size_t i=0; i<num_obs; ++i)
+	{
+		const ObjectBatchRanges& ranges = results.ob_batch_ranges[i];
+		testAssert(ranges.ob_uid == ob_infos[i].ob_uid);
+		testAssert(ranges.batch0_start <= ranges.batch0_end && ranges.batch0_end <= num_indices);
+		testAssert(ranges.batch1_start <= ranges.batch1_end && ranges.batch1_end <= num_indices);
+
+		for(size_t z=0; z<num_obs; ++z)
+			if(z != i)
+			{
+				const ObjectBatchRanges& other = results.ob_batch_ranges[z];
+				testAssert(!ChunkGenThreadTests::rangesOverlap(ranges.batch0_start, ranges.batch0_end, other.batch0_start, other.batch0_end));
+				testAssert(!ChunkGenThreadTests::rangesOverlap(ranges.batch1_start, ranges.batch1_end, other.batch1_start, other.batch1_end));
+				testAssert(!ChunkGenThreadTests::rangesOverlap(ranges.batch0_start, ranges.batch0_end, other.batch1_start, other.batch1_end));
+			}
+	}
+
+	// Check every vertex references one of the used materials.
+	if(num_verts > 0)
+	{
+		const BatchedMesh::VertAttribute& mat_index_attr = combined_mesh->getAttribute(BatchedMesh::VertAttribute_MatIndex);
+		for(size_t v=0; v<num_verts; ++v)
+		{
+			uint32 mat_i;
+			std::memcpy(&mat_i, &combined_mesh->vertex_data[combined_mesh->vertexSize() * v + mat_index_attr.offset_B], sizeof(uint32));
+			testAssert(mat_i < new_mat_infos.size());
+		}
+	}
+
+	return 0;
+}
+
+
+#endif // Fuzzing
 
 
 void ChunkGenThread::test()

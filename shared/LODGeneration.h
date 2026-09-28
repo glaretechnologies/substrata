@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2021 -
 class WorldMaterial;
 class WorldObject;
 class ResourceManager;
+class OutStream;
 namespace glare { class TaskManager; }
 
 
@@ -28,6 +29,8 @@ namespace LODGeneration
 
 BatchedMeshRef loadModel(const std::string& model_path);
 
+BatchedMeshRef loadModelFromBuffer(const std::string& model_path, const void* data, const size_t datalen);
+
 BatchedMeshRef computeLODModel(BatchedMeshRef batched_mesh, int lod_level);
 
 // Generate and save to disk
@@ -35,7 +38,8 @@ void generateLODModel(BatchedMeshRef batched_mesh, int lod_level, const std::str
 
 void generateLODModel(const std::string& model_path, int lod_level, const std::string& LOD_model_path);
 
-void generateOptimisedMesh(const std::string& source_mesh_abs_path, int min_lod_level, int lod_level, const std::string& optimised_mesh_path);
+// Writes to test_out_stream if non-null, otherwise writes to disk at optimised_mesh_path.
+void generateOptimisedMesh(const std::string& source_mesh_abs_path, const void* mesh_buffer, size_t mesh_buffer_size, int min_lod_level, int lod_level, const std::string& optimised_mesh_path, OutStream* test_out_stream);
 
 bool textureHasAlphaChannel(const std::string& tex_path, Map2DRef map);
 

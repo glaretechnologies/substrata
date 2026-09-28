@@ -917,7 +917,11 @@ void MeshLODGenThread::doRun()
 					{
 						conPrint("MeshLODGenThread: (mesh " + toString(i) + " / " + toString(meshes_to_gen.size()) + "): Generating mesh with URL " + toStdString(mesh_to_gen.lod_URL));
 
-						LODGeneration::generateOptimisedMesh(mesh_to_gen.model_abs_path, mesh_to_gen.min_lod_level, mesh_to_gen.lod_level, mesh_to_gen.LOD_model_abs_path);
+						{
+							MemMappedFile file(mesh_to_gen.model_abs_path);
+							LODGeneration::generateOptimisedMesh(/*source mesh abs path=*/mesh_to_gen.model_abs_path, file.fileData(), file.fileSize(), mesh_to_gen.min_lod_level, mesh_to_gen.lod_level,
+								/*optimised mesh path=*/mesh_to_gen.LOD_model_abs_path, /*test out stream=*/nullptr);
+						}
 
 						conPrint("\tMeshLODGenThread: done generating mesh.");
 

@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <PlatformUtils.h>
 #include <RuntimeCheck.h>
 #include <KillThreadMessage.h>
+#include <FileUtils.h>
 #include <Timer.h>
 #include <TaskManager.h>
 #include <graphics/MeshSimplification.h>
@@ -44,6 +45,14 @@ namespace LODGeneration
 
 BatchedMeshRef loadModel(const std::string& model_path)
 {
+	MemMappedFile file(model_path);
+
+	return loadModelFromBuffer(model_path, file.fileData(), file.fileSize());
+}
+
+
+BatchedMeshRef loadModelFromBuffer(const std::string& model_path, const void* data, const size_t datalen)
+{
 	BatchedMeshRef batched_mesh;
 
 	if(hasExtension(model_path, "obj"))
@@ -51,7 +60,7 @@ BatchedMeshRef loadModel(const std::string& model_path)
 		Indigo::MeshRef mesh = new Indigo::Mesh();
 
 		MLTLibMaterials mats;
-		FormatDecoderObj::streamModel(model_path, *mesh, 1.f, /*parse mtllib=*/false, mats); // Throws glare::Exception on failure.
+		FormatDecoderObj::loadModelFromBuffer((const uint8*)data, datalen, model_path, *mesh, 1.f, /*parse mtllib=*/false, mats); // Throws glare::Exception on failure.
 
 		batched_mesh = BatchedMesh::buildFromIndigoMesh(*mesh);
 	}
@@ -59,14 +68,15 @@ BatchedMeshRef loadModel(const std::string& model_path)
 	{
 		Indigo::MeshRef mesh = new Indigo::Mesh();
 
-		FormatDecoderSTL::streamModel(model_path, *mesh, 1.f);
+		FormatDecoderSTL::loadModelFromBuffer((const uint8*)data, datalen, *mesh, 1.f);
 
 		batched_mesh = BatchedMesh::buildFromIndigoMesh(*mesh);
 	}
 	else if(hasExtension(model_path, "gltf"))
 	{
-		GLTFLoadedData data;
-		batched_mesh = FormatDecoderGLTF::loadGLTFFile(model_path, data);
+		const std::string gltf_base_dir = FileUtils::getDirectory(model_path);
+		GLTFLoadedData gltf_data;
+		batched_mesh = FormatDecoderGLTF::loadGLTFFileFromData(data, datalen, gltf_base_dir, /*write_images_to_disk=*/false, gltf_data);
 	}
 	else if(hasExtension(model_path, "igmesh"))
 	{
@@ -74,7 +84,7 @@ BatchedMeshRef loadModel(const std::string& model_path)
 
 		try
 		{
-			Indigo::Mesh::readFromFile(toIndigoString(model_path), *mesh);
+			Indigo::Mesh::readFromBuffer((const uint8*)data, datalen, *mesh);
 		}
 		catch(Indigo::IndigoException& e)
 		{
@@ -85,7 +95,7 @@ BatchedMeshRef loadModel(const std::string& model_path)
 	}
 	else if(hasExtension(model_path, "bmesh"))
 	{
-		batched_mesh = BatchedMesh::readFromFile(model_path, /*mem allocator=*/NULL);
+		batched_mesh = BatchedMesh::readFromData(data, datalen, /*mem allocator=*/NULL);
 	}
 	else
 		throw glare::Exception("Format not supported: " + getExtension(model_path));
@@ -168,6 +178,9 @@ BatchedMeshRef computeLODModel(BatchedMeshRef batched_mesh, int lod_level)
 		sloppy_tri_threshold    = 1500;
 	}
 
+	if(!(batched_mesh->aabb_os.min_.isFinite() && batched_mesh->aabb_os.max_.isFinite()))
+		throw glare::Exception("computeLODModel(): Invalid mesh aabb_os: " + batched_mesh->aabb_os.toString());
+
 	const float target_error_abs = batched_mesh->aabb_os.longestLength() * target_error_rel;
 	BatchedMeshRef simplified_mesh = MeshSimplification::buildSimplifiedMesh(*batched_mesh, /*target_reduction_ratio=*/100000.f, /*target_error=*/target_error_abs, /*sloppy=*/false);
 
@@ -206,12 +219,13 @@ bool isMeshQuantised(BatchedMeshRef batched_mesh)
 }
 
 
-void generateOptimisedMesh(const std::string& source_mesh_abs_path, int min_lod_level, int lod_level, const std::string& optimised_mesh_path)
+// Writes to test_out_stream if non-null, otherwise writes to disk at optimised_mesh_path.
+void generateOptimisedMesh(const std::string& source_mesh_abs_path, const void* mesh_buffer, size_t mesh_buffer_size, int min_lod_level, int lod_level, const std::string& optimised_mesh_path, OutStream* test_out_stream)
 {
 	assert(min_lod_level == -1 || min_lod_level == 0);
 	assert(min_lod_level <= lod_level);
 
-	BatchedMeshRef batched_mesh = LODGeneration::loadModel(source_mesh_abs_path);
+	BatchedMeshRef batched_mesh = LODGeneration::loadModelFromBuffer(source_mesh_abs_path, mesh_buffer, mesh_buffer_size);
 
 	if(lod_level > min_lod_level)
 		batched_mesh = LODGeneration::computeLODModel(batched_mesh, lod_level);
@@ -229,7 +243,11 @@ void generateOptimisedMesh(const std::string& source_mesh_abs_path, int min_lod_
 	BatchedMesh::WriteOptions options;
 	options.use_meshopt = true;
 	options.compression_level = 19;
-	batched_mesh->writeToFile(optimised_mesh_path, options);
+
+	if(test_out_stream)
+		batched_mesh->writeToOutStream(*test_out_stream, options);
+	else
+		batched_mesh->writeToFile(optimised_mesh_path, options);
 }
 
 
@@ -615,11 +633,121 @@ bool texHasAlpha(const std::string& tex_path, std::map<std::string, bool>& tex_h
 
 
 #include "../utils/TestUtils.h"
-#include "../utils/FileUtils.h"
-#include "../utils/ConPrint.h"
-#include "../utils/PlatformUtils.h"
-#include "../utils/Exception.h"
-#include "../utils/Timer.h"
+
+
+#if 0
+// Fuzzing of generateOptimisedMesh(), including model loading with loadModelFromBuffer().
+//
+// Fuzz input format:
+//   byte 0: bits 0-2: format index (mod 5) into fuzz_formats
+//           bits 3-4: lod_level (mod 3)
+//           bit 5:    min_lod_level: 0 if set, else -1
+//   rest of input: the model file data.
+//
+// The generated mesh is read back and checked with checkValidAndSanitiseMesh(), since clients download it.
+//
+// Seeds can be written with writeFuzzSeeds() below.
+//
+// Command line:
+// C:\fuzz_corpus\lod_gen C:\code\substrata\testfiles\fuzz_seeds\lod_gen -max_len=1000000
+
+
+#include <utils/BufferOutStream.h>
+#include <utils/MemMappedFile.h>
+
+
+static const char* fuzz_formats[] = { "bmesh", "obj", "stl", "gltf", "igmesh" };
+
+
+static uint8 makeFuzzHeaderByte(int format_i, int lod_level, int min_lod_level)
+{
+	return (uint8)(format_i | (lod_level << 3) | ((min_lod_level == 0) ? (1 << 5) : 0));
+}
+
+
+// Writes some test repo models, one per format, after header bytes for a few LOD level combinations.
+static void writeFuzzSeeds(const std::string& dir)
+{
+	FileUtils::createDirIfDoesNotExist(dir);
+
+	const std::string testfiles_dir = TestUtils::getTestReposDir() + "/testfiles";
+	const std::vector<std::pair<std::string, int>> models = {
+		{ "bmesh/Cube_obj_11907297875084081315.bmesh",	0 },
+		{ "bmesh/float_uv_0_meshopt.bmesh",				0 },
+		{ "a_test_mesh.obj",							1 },
+		{ "stl/cube.stl",								2 },
+		{ "stl/cube_binary.stl",						2 },
+		{ "gltf/duck_with_embedded_texture.gltf",		3 },
+		{ "igmesh/cuboid.igmesh",						4 },
+	};
+
+	const int lod_combos[][2] = { { 0, -1 }, { 1, -1 }, { 2, 0 }, { 0, 0 } }; // (lod_level, min_lod_level)
+
+	for(size_t m=0; m<models.size(); ++m)
+	{
+		MemMappedFile file(testfiles_dir + "/" + models[m].first);
+
+		for(size_t c=0; c<staticArrayNumElems(lod_combos); ++c)
+		{
+			std::vector<uint8> seed(1 + file.fileSize());
+			seed[0] = makeFuzzHeaderByte(models[m].second, lod_combos[c][0], lod_combos[c][1]);
+			if(file.fileSize() > 0)
+				std::memcpy(&seed[1], file.fileData(), file.fileSize());
+
+			FileUtils::writeEntireFile(dir + "/" + FileUtils::getFilename(models[m].first) + "_" + toString(c), (const char*)seed.data(), seed.size());
+		}
+	}
+}
+
+
+extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv)
+{
+	Clock::init();
+
+	if(false)
+		writeFuzzSeeds("C:\\code\\substrata\\testfiles\\fuzz_seeds/lod_gen");
+	return 0;
+}
+
+
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
+{
+	if(size < 1)
+		return 0;
+
+	const int format_i = (data[0] & 7) % staticArrayNumElems(fuzz_formats);
+	const int lod_level = ((data[0] >> 3) & 3) % 3;
+	const int min_lod_level = ((data[0] >> 5) & 1) ? 0 : -1;
+
+	// The path is only used for its extension, and for the glTF base dir, which is a non-existent dir so external glTF buffers fail to load.
+	const std::string model_path = "fuzz_nonexistent_dir/fuzz_model." + std::string(fuzz_formats[format_i]);
+
+	BufferOutStream out_stream;
+	try
+	{
+		LODGeneration::generateOptimisedMesh(model_path, data + 1, size - 1, min_lod_level, lod_level, /*optimised mesh path=*/"", /*test out stream=*/&out_stream);
+	}
+	catch(glare::Exception&)
+	{
+		return 0; // Invalid model
+	}
+
+	// The generated mesh should load and be valid.
+	try
+	{
+		BatchedMeshRef generated_mesh = BatchedMesh::readFromData(out_stream.buf.data(), out_stream.buf.size(), /*mem allocator=*/NULL);
+		generated_mesh->checkValidAndSanitiseMesh();
+	}
+	catch(glare::Exception& e)
+	{
+		failTest("Generated mesh failed to load: " + e.what());
+	}
+
+	return 0;
+}
+
+
+#endif // Fuzzing
 
 
 void LODGeneration::test()

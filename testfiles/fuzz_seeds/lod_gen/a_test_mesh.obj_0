@@ -1,0 +1,18 @@
+# Test .obj mesh
+
+v 0.1 0.2 0.3
+v 0.1 0.2 0.6
+v 1.1 0.2 0.9
+
+vt 1 2 3
+vt 4 5 6
+
+vn 0 0 1
+vn 0 0 2
+vn 1 0 0
+
+usemtl default
+f 1/1/1 2/2/2 3/2/3 2/1/1
+
+# Test without texture coordinate indices:
+f 1//1 2//2 3//3 2//1
