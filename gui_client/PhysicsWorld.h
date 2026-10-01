@@ -70,9 +70,7 @@ namespace Layers
 	static constexpr uint8 MOVING = 1; // Dynamic, collidable objects, e.g. beach balls and vehicles. Includes kinematic objects like trains.
 	static constexpr uint8 NON_MOVING_NON_COLLIDABLE = 2; // E.g. static objects for which the user has unchecked the 'collidable' checkbox. (holograms, shrubs etc.).  They shouldn't collide with other objects, but we still want them in the engine to do raycasts against.
 	static constexpr uint8 MOVING_NON_COLLIDABLE = 3; // E.g. Avatar capsules for other avatars.  They shouldn't collide with other objects, but we still want them in the engine to do raycasts against.
-	static constexpr uint8 TERRAIN = 4; // Static terrain heightfields.
-	static constexpr uint8 MOVING_NO_TERRAIN = 5; // For snowboards that need to intersect terrain and so shouldn't collide with it.
-	static constexpr uint8 NUM_LAYERS = 6;
+	static constexpr uint8 NUM_LAYERS = 4;
 };
 
 

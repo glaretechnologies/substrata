@@ -69,6 +69,7 @@ private:
 	OpenGLEngine* m_opengl_engine;
 	bool show_debug_vis_obs;
 	Reference<GLObject> foot_point_gl_obs[2];
+	Reference<GLObject> collision_aabb_gl_ob;
 
 	WorldObject* object;
 	Reference<Scripting::SnowboardScriptSettings> settings;
@@ -76,6 +77,7 @@ private:
 	JPH::BodyID body_id;
 	JPH::RefConst<JPH::Shape> original_shape;
 	JPH::RefConst<JPH::Shape> riding_shape;
+	JPH::RefConst<JPH::Shape> raised_riding_shape;
 	bool suspension_enabled;
 	JPH::Ref<JPH::VehicleConstraint> vehicle_constraint;
 	Vec4f ground_normal;

@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2026 -
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Body/BodyLock.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
+#include <Jolt/Physics/Collision/Shape/OffsetCenterOfMassShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Vehicle/WheeledVehicleController.h>
 #include <cmath>
@@ -50,7 +51,12 @@ SnowboardPhysics::SnowboardPhysics(WorldObject* object_, Reference<Scripting::Sn
 	JPH::Ref<JPH::Shape> rounded_box = new JPH::BoxShape(half_extent, convex_radius);
 	JPH::Ref<JPH::Shape> crash_shape = new JPH::RotatedTranslatedShape(board_to_model * centre, board_to_model, rounded_box);
 
-	riding_shape = crash_shape;
+	// Keep both hulls centred on the original centre of mass so changing hulls
+	// does not shift the suspension's force points or the existing mass/inertia.
+	riding_shape = new JPH::OffsetCenterOfMassShape(crash_shape, original_shape->GetCenterOfMass() - crash_shape->GetCenterOfMass());
+	const float hull_height_offset = 0.15f;
+	JPH::Ref<JPH::Shape> raised_box = new JPH::RotatedTranslatedShape(board_to_model * (centre + JPH::Vec3(0,0,hull_height_offset)), board_to_model, rounded_box);
+	raised_riding_shape = new JPH::OffsetCenterOfMassShape(raised_box, original_shape->GetCenterOfMass() - raised_box->GetCenterOfMass());
 
 	JPH::VehicleConstraintSettings vehicle;
 	vehicle.mUp = board_to_model * JPH::Vec3(0,0,1);
@@ -70,7 +76,7 @@ SnowboardPhysics::SnowboardPhysics(WorldObject* object_, Reference<Scripting::Sn
 		// Support the edges, but apply suspension forces along the centre-of-mass
 		// longitudinal axis so the four springs do not fight the carving roll.
 		wheel->mEnableSuspensionForcePoint = true;
-		wheel->mSuspensionForcePoint = crash_shape->GetCenterOfMass() + board_to_model *
+		wheel->mSuspensionForcePoint = original_shape->GetCenterOfMass() + board_to_model *
 			JPH::Vec3(0, ((i & 2) ? 1.f : -1.f) * half_extent.GetY() * 0.8f, 0);
 		wheel->mSuspensionDirection = -vehicle.mUp;
 		wheel->mSteeringAxis = vehicle.mUp;
@@ -105,7 +111,7 @@ SnowboardPhysics::SnowboardPhysics(WorldObject* object_, Reference<Scripting::Sn
 
 	// Keep the existing mass and inertia. Only replace the collision hull; the
 	// visual model, model-space origin and rider bindings are unchanged.
-	bodies.SetShape(body_id, crash_shape, /*inUpdateMassProperties=*/false, JPH::EActivation::Activate);
+	bodies.SetShape(body_id, riding_shape, /*inUpdateMassProperties=*/false, JPH::EActivation::Activate);
 	bodies.SetFriction(body_id, 0.8f); // Parked hull friction, including when tipped over.
 	original_enhanced_internal_edge_removal = false;
 	original_object_layer = bodies.GetObjectLayer(body_id);
@@ -147,7 +153,7 @@ void SnowboardPhysics::setSuspensionEnabled(bool enabled)
 
 	// The body may already have been removed during object/script reload.
 	bool body_exists = false;
-	JPH::ObjectLayer target_layer = original_object_layer;
+	JPH::RefConst<JPH::Shape> target_shape = enabled ? riding_shape : original_shape;
 	{
 		JPH::BodyLockWrite lock(physics_world->physics_system->GetBodyLockInterface(), body_id);
 		if(lock.Succeeded())
@@ -157,16 +163,16 @@ void SnowboardPhysics::setSuspensionEnabled(bool enabled)
 			body.SetFriction(enabled ? 0.02f : original_friction);
 			body.SetEnhancedInternalEdgeRemoval(enabled ? true : original_enhanced_internal_edge_removal);
 			const JPH::Quat board_to_model = toJoltQuat(settings->model_to_y_forwards_rot_2 * settings->model_to_y_forwards_rot_1).Conjugated();
-			if(enabled && original_object_layer == Layers::MOVING && (body.GetRotation() * board_to_model * JPH::Vec3(0,0,1)).GetZ() > 0.5f)
-				target_layer = Layers::MOVING_NO_TERRAIN;
+			if(enabled && (body.GetRotation() * board_to_model * JPH::Vec3(0,0,1)).GetZ() > 0.5f)
+				target_shape = raised_riding_shape;
 		}
 	}
 	suspension_enabled = enabled && body_exists;
 	if(body_exists)
 	{
 		JPH::BodyInterface& bodies = physics_world->physics_system->GetBodyInterface();
-		bodies.SetObjectLayer(body_id, target_layer);
-		bodies.SetShape(body_id, enabled ? riding_shape : original_shape, /*inUpdateMassProperties=*/false, JPH::EActivation::Activate);
+		bodies.SetObjectLayer(body_id, original_object_layer);
+		bodies.SetShape(body_id, target_shape, /*inUpdateMassProperties=*/false, JPH::EActivation::Activate);
 		bodies.InvalidateContactCache(body_id);
 	}
 	if(suspension_enabled)
@@ -221,19 +227,15 @@ VehiclePhysicsUpdateEvents SnowboardPhysics::update(PhysicsWorld& world, const P
 	const Vec4f forward = board_to_world * Vec4f(0,1,0,0);
 	const Vec4f right = board_to_world * Vec4f(1,0,0,0);
 
-	// Restore the hull's terrain contacts before the suspension faces sideways or
-	// upwards. Hysteresis avoids switching repeatedly near the tipping threshold.
-	if(suspension_enabled && original_object_layer == Layers::MOVING)
+	// Use the unraised hull before the suspension faces sideways or upwards.
+	// Hysteresis avoids switching repeatedly near the tipping threshold.
+	if(suspension_enabled)
 	{
-		const JPH::ObjectLayer current_layer = bodies.GetObjectLayer(body_id);
-		const bool ignore_terrain = up[2] > (current_layer == Layers::MOVING_NO_TERRAIN ? 0.35f : 0.5f);
-		const JPH::ObjectLayer target_layer = ignore_terrain ? Layers::MOVING_NO_TERRAIN : original_object_layer;
-		if(current_layer != target_layer)
-		{
-			bodies.SetObjectLayer(body_id, target_layer);
-			bodies.InvalidateContactCache(body_id);
-			bodies.ActivateBody(body_id);
-		}
+		const JPH::RefConst<JPH::Shape> current_shape = bodies.GetShape(body_id);
+		const bool use_raised_hull = up[2] > (current_shape.GetPtr() == raised_riding_shape.GetPtr() ? 0.35f : 0.5f);
+		const JPH::RefConst<JPH::Shape> target_shape = use_raised_hull ? raised_riding_shape : riding_shape;
+		if(current_shape.GetPtr() != target_shape.GetPtr())
+			bodies.SetShape(body_id, target_shape, /*inUpdateMassProperties=*/false, JPH::EActivation::Activate);
 	}
 	const Vec4f vel = getLinearVel(world);
 	const float speed = vel.length();
@@ -473,6 +475,28 @@ void SnowboardPhysics::updateDebugVisObjects()
 		return;
 
 	const Matrix4f ob_to_world = getObjectToWorldTransformNoScale(*physics_world, true);
+
+	// Display the active hull's object-space AABB, rotated with the snowboard.
+	{
+		JPH::BodyLockRead lock(physics_world->physics_system->GetBodyLockInterface(), body_id);
+		if(lock.Succeeded())
+		{
+			if(!collision_aabb_gl_ob)
+			{
+				collision_aabb_gl_ob = m_opengl_engine->makeCuboidEdgeAABBObject(Vec4f(0,0,0,1), Vec4f(1,1,1,1), Colour4f(1,0.5f,0,1), 0.02f);
+				m_opengl_engine->addObject(collision_aabb_gl_ob);
+			}
+			const JPH::Shape* shape = lock.GetBody().GetShape();
+			const JPH::AABox bounds = shape->GetLocalBounds();
+			const JPH::Vec3 min_os = bounds.mMin + shape->GetCenterOfMass(); // Jolt local bounds are relative to the centre of mass.
+			const JPH::Vec3 size = bounds.mMax - bounds.mMin;
+			collision_aabb_gl_ob->ob_to_world_matrix = ob_to_world * Matrix4f::translationMatrix(toVec4fPos(min_os)) * Matrix4f::scaleMatrix(size.GetX(), size.GetY(), size.GetZ());
+			m_opengl_engine->updateObjectTransformData(*collision_aabb_gl_ob);
+		}
+		else
+			checkRemoveObAndSetRefToNull(*m_opengl_engine, collision_aabb_gl_ob);
+	}
+
 	const Scripting::SeatSettings& seat = settings->seat_settings[0];
 	const Vec4f pos_os[2] = { seat.left_foot_point_os, seat.right_foot_point_os };
 	for(size_t i=0; i<2; ++i)
@@ -498,8 +522,11 @@ void SnowboardPhysics::updateDebugVisObjects()
 void SnowboardPhysics::removeVisualisationObs()
 {
 	if(m_opengl_engine)
+	{
 		for(size_t i=0; i<2; ++i)
 			checkRemoveObAndSetRefToNull(*m_opengl_engine, foot_point_gl_obs[i]);
+		checkRemoveObAndSetRefToNull(*m_opengl_engine, collision_aabb_gl_ob);
+	}
 }
 
 
@@ -527,12 +554,10 @@ void SnowboardPhysics::test()
 		PhysicsWorld world(&task_manager, &stack_allocator);
 		// Check every ordered layer pair, including symmetry and non-collidable layers.
 		const bool expected_collisions[Layers::NUM_LAYERS][Layers::NUM_LAYERS] = {
-			{false, true,  false, false, false, true },
-			{true,  true,  false, false, true,  true },
-			{false, false, false, false, false, false},
-			{false, false, false, false, false, false},
-			{false, true,  false, false, false, false},
-			{true,  true,  false, false, false, true }
+			{false, true,  false, false},
+			{true,  true,  false, false},
+			{false, false, false, false},
+			{false, false, false, false}
 		};
 		for(int a=0; a<Layers::NUM_LAYERS; ++a)
 			for(int b=0; b<Layers::NUM_LAYERS; ++b)
@@ -550,7 +575,7 @@ void SnowboardPhysics::test()
 			terrain[i]->scale = Vec3f(1.f);
 			terrain[i]->restitution = 0;
 			world.addObject(terrain[i]);
-			testAssert(world.physics_system->GetBodyInterface().GetObjectLayer(terrain[i]->jolt_body_id) == Layers::TERRAIN);
+			testAssert(world.physics_system->GetBodyInterface().GetObjectLayer(terrain[i]->jolt_body_id) == Layers::NON_MOVING);
 		}
 
 		WorldObjectRef object = new WorldObject();
@@ -578,7 +603,8 @@ void SnowboardPhysics::test()
 		{
 			SnowboardPhysics controller(object.ptr(), settings, world);
 			controller.userEnteredVehicle(0);
-			testAssert(bodies.GetObjectLayer(physics_ob.jolt_body_id) == Layers::MOVING_NO_TERRAIN);
+			testAssert(bodies.GetObjectLayer(physics_ob.jolt_body_id) == Layers::MOVING);
+			testAssert(bodies.GetShape(physics_ob.jolt_body_id).GetPtr() == controller.raised_riding_shape.GetPtr());
 			PlayerPhysicsInput input;
 			const float dt = 1.f / 120.f;
 			for(int i=0; i<120; ++i)
@@ -661,7 +687,8 @@ void SnowboardPhysics::test()
 			bodies.SetPositionAndRotation(physics_ob.jolt_body_id, JPH::RVec3(0,0,0.1f),
 				JPH::Quat::sIdentity(), JPH::EActivation::Activate);
 			controller.update(world, input, dt);
-			testAssert(bodies.GetObjectLayer(physics_ob.jolt_body_id) == Layers::MOVING_NO_TERRAIN);
+			testAssert(bodies.GetObjectLayer(physics_ob.jolt_body_id) == Layers::MOVING);
+			testAssert(bodies.GetShape(physics_ob.jolt_body_id).GetPtr() == controller.raised_riding_shape.GetPtr());
 
 			// Both turn directions should bank onto the inside edge, rather than stay flat.
 			for(int turn=-1; turn<=1; turn+=2)
