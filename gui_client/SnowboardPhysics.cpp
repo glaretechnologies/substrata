@@ -239,7 +239,7 @@ VehiclePhysicsUpdateEvents SnowboardPhysics::update(PhysicsWorld& world, const P
 	}
 	const Vec4f vel = getLinearVel(world);
 	const float speed = vel.length();
-	const float mass = myMax(0.1f, object->mass);
+	const float mass = 80.f; // Board + rider mass.   myMax(0.1f, object->mass);
 	// Contacts and suspension impulses come from the previous physics substep,
 	// as with the other vehicle controllers. Use actual loaded supports rather
 	// than a centre ray that can miss the ground at a seam or crest.
@@ -330,10 +330,23 @@ VehiclePhysicsUpdateEvents SnowboardPhysics::update(PhysicsWorld& world, const P
 			const float load_accel = myMin(20.f, support_impulse / (dt * mass));
 			const float lateral_accel = myClamp(dot(relative_vel, tangent_right) * (0.6f + 4.4f * edge),
 				-load_accel * (0.12f + 1.1f * edge), load_accel * (0.12f + 1.1f * edge));
-			Vec4f resistance = tangent_right * lateral_accel + tangent_vel * (0.015f * tangent_vel.length());
-			if(braking && tangent_vel.length() > 0.001f)
+
+			// Get accceleration/decelleration due to air drag.
+			const float rho = 0.9f; // Air density (lower in mountains)
+			const float C_d_A = 0.5f; // C_d.A is the drag area, about 0.5–0.7 m^2 standing upright and roughly 0.2–0.3 m^2 tucked (according to Claude).
+			const float air_resistance_drag_accel_factor = rho * C_d_A / (2 * mass); // Acceleration due to air drag, apart from v^2 factor
+
+			// Get accceleration/decelleration due to friction between the board and the terrain (assume snow for now)
+			const float friction_mu = 0.05; // typical for a waxed base on good snow (- Claude)
+			const float sliding_friction_accel = friction_mu * load_accel;
+
+			const float tangent_vel_len = tangent_vel.length();
+			Vec4f resistance = tangent_right * lateral_accel + tangent_vel * (air_resistance_drag_accel_factor * tangent_vel_len);
+			if(tangent_vel_len > 0.001f)
+				resistance += normalise(tangent_vel) * sliding_friction_accel;
+			if(braking && tangent_vel_len > 0.001f)
 				resistance += normalise(tangent_vel) * myMin(settings->brake_acceleration, load_accel * 1.1f);
-			const float max_resistance = tangent_vel.length() / dt;
+			const float max_resistance = tangent_vel_len / dt;
 			if(resistance.length() > max_resistance)
 				resistance = normalise(resistance) * max_resistance;
 			const Vec4f force = (tangent_forward * (push * settings->push_acceleration) - resistance) * mass;
