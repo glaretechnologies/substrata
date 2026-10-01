@@ -82,7 +82,7 @@ struct PoseConstraint
 
 	bool sitting;
 	bool snowboarding;
-	float snowboard_crouch; // [0, 1], blended by the vehicle controller.
+	float snowboard_crouch; // [0, 1.5], blended by the vehicle controller. Values above 1 occur while charging a jump.
 	float snowboard_steer; // [-1, 1].
 	float snowboard_lean; // Radians relative to the board, positive towards its right edge.
 };

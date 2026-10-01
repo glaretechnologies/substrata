@@ -12212,7 +12212,8 @@ void GUIClient::summonBike()
 			WorldObject* ob = it.getValue().ptr();
 			if(ob->creator_id == logged_in_user_id && // If we created this object
 				//BitUtils::isBitSet(ob->flags, WorldObject::SUMMONED_FLAG) && // And this object was summoned
-				ob->vehicle_script.nonNull() && ob->vehicle_script.isType<Scripting::BikeScript>()) // And it has a bike script
+				ob->vehicle_script.nonNull() && ob->vehicle_script.isType<Scripting::BikeScript>() && // And it has a bike script
+				!isObjectVehicleBeingDrivenByOther(*ob)) // And another user is not riding it
 			{
 				if((existing_ob_to_summon == NULL) || (ob->uid.value() > existing_ob_to_summon->uid.value())) // Summon object with greatest UID
 					existing_ob_to_summon = ob;
@@ -12341,7 +12342,8 @@ void GUIClient::summonHovercar()
 			WorldObject* ob = it.getValue().ptr();
 			if(ob->creator_id == logged_in_user_id && // If we created this object
 				//BitUtils::isBitSet(ob->flags, WorldObject::SUMMONED_FLAG) && // And this object was summoned
-				ob->vehicle_script.nonNull() && ob->vehicle_script.isType<Scripting::HoverCarScript>()) // And it has a hovercar script
+				ob->vehicle_script.nonNull() && ob->vehicle_script.isType<Scripting::HoverCarScript>() && // And it has a hovercar script
+				!isObjectVehicleBeingDrivenByOther(*ob)) // And another user is not driving it
 			{
 				if((existing_ob_to_summon == NULL) || (ob->uid.value() > existing_ob_to_summon->uid.value())) // Summon object with greatest UID
 					existing_ob_to_summon = ob;
@@ -12445,7 +12447,8 @@ void GUIClient::summonBoat()
 			if(ob->creator_id == logged_in_user_id && // If we created this object
 				//BitUtils::isBitSet(ob->flags, WorldObject::SUMMONED_FLAG) && // And this object was summoned
 				ob->vehicle_script && ob->vehicle_script.isType<Scripting::BoatScript>() && // And it has a boat script
-				(ob->model_url == boat_model_URL))
+				(ob->model_url == boat_model_URL) &&
+				!isObjectVehicleBeingDrivenByOther(*ob)) // And another user is not driving it
 			{
 				if((existing_ob_to_summon == NULL) || (ob->uid.value() > existing_ob_to_summon->uid.value())) // Summon object with greatest UID
 					existing_ob_to_summon = ob;
@@ -12549,7 +12552,8 @@ void GUIClient::summonJetSki()
 			WorldObject* ob = it.getValue().ptr();
 			if((ob->creator_id == logged_in_user_id) && // If we created this object
 				ob->vehicle_script && ob->vehicle_script.isType<Scripting::BoatScript>() && // And it has a boat script
-				(ob->model_url == jetski_model_URL)) // ANd it uses the Jet ski model
+				(ob->model_url == jetski_model_URL) && // ANd it uses the Jet ski model
+				!isObjectVehicleBeingDrivenByOther(*ob)) // And another user is not riding it
 			{
 				if((existing_ob_to_summon == NULL) || (ob->uid.value() > existing_ob_to_summon->uid.value())) // Summon object with greatest UID
 					existing_ob_to_summon = ob;
@@ -12653,7 +12657,8 @@ void GUIClient::summonSnowboard()
 			WorldObject* ob = it.getValue().ptr();
 			if((ob->creator_id == logged_in_user_id) && // If we created this object
 				ob->vehicle_script && ob->vehicle_script.isType<Scripting::SnowboardScript>() && // And it has a snowboard script
-				(ob->model_url == snowboard_model_URL)) // And it uses the snowboard model
+				(ob->model_url == snowboard_model_URL) && // And it uses the snowboard model
+				!isObjectVehicleBeingDrivenByOther(*ob)) // And another user is not riding it
 			{
 				if((existing_ob_to_summon == NULL) || (ob->uid.value() > existing_ob_to_summon->uid.value())) // Summon object with greatest UID
 					existing_ob_to_summon = ob;
@@ -12752,7 +12757,8 @@ void GUIClient::summonCar()
 			WorldObject* ob = it.getValue().ptr();
 			if(ob->creator_id == logged_in_user_id && // If we created this object
 				//BitUtils::isBitSet(ob->flags, WorldObject::SUMMONED_FLAG) && // And this object was summoned
-				ob->vehicle_script.nonNull() && ob->vehicle_script.isType<Scripting::CarScript>()) // And it has a boat script
+				ob->vehicle_script.nonNull() && ob->vehicle_script.isType<Scripting::CarScript>() && // And it has a car script
+				!isObjectVehicleBeingDrivenByOther(*ob)) // And another user is not driving it
 			{
 				if((existing_ob_to_summon == NULL) || (ob->uid.value() > existing_ob_to_summon->uid.value())) // Summon object with greatest UID
 					existing_ob_to_summon = ob;
@@ -13502,7 +13508,7 @@ Reference<VehiclePhysics> GUIClient::createVehicleControllerForScript(WorldObjec
 	else if(ob->vehicle_script.isType<Scripting::SnowboardScript>())
 	{
 		physics_world->setObjectLayer(ob->physics_object, Layers::MOVING);
-		controller = new SnowboardPhysics(ob, ob->vehicle_script->settings.downcast<Scripting::SnowboardScriptSettings>(), *physics_world);
+		controller = new SnowboardPhysics(ob, ob->vehicle_script->settings.downcast<Scripting::SnowboardScriptSettings>(), *physics_world, particle_manager.ptr());
 	}
 	else if(ob->vehicle_script.isType<Scripting::BikeScript>())
 	{

@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2026 -
 
 
 #include "AvatarGraphics.h"
+#include "ParticleManager.h"
 #include "PhysicsWorld.h"
 #include "JoltUtils.h"
 #include <opengl/OpenGLEngine.h>
@@ -19,13 +20,20 @@ Copyright Glare Technologies Limited 2026 -
 #include <cmath>
 
 
-SnowboardPhysics::SnowboardPhysics(WorldObject* object_, Reference<Scripting::SnowboardScriptSettings> settings_, PhysicsWorld& world)
-:	object(object_), settings(settings_), physics_world(&world), body_id(object_->physics_object->jolt_body_id)
+// Holding Space for this long gives the full jump_speed. A tap gives min_jump_fraction of it.
+static const float jump_full_charge_time = 0.6f;
+static const float min_jump_fraction = 0.4f;
+
+
+SnowboardPhysics::SnowboardPhysics(WorldObject* object_, Reference<Scripting::SnowboardScriptSettings> settings_, PhysicsWorld& world, ParticleManager* particle_manager_)
+:	particle_manager(particle_manager_), object(object_), settings(settings_), physics_world(&world), body_id(object_->physics_object->jolt_body_id)
 {
 	m_opengl_engine = nullptr;
 	show_debug_vis_obs = false;
+	carve_particles_to_emit = 0;
 	occupied = false;
 	jump_was_down = false;
+	jump_charge_time = 0;
 	grounded = false;
 	jump_cooldown = 0;
 	righting_time = 0;
@@ -47,6 +55,9 @@ SnowboardPhysics::SnowboardPhysics(WorldObject* object_, Reference<Scripting::Sn
 		JPH::Mat44::sRotation(model_to_board) * JPH::Mat44::sTranslation(original_shape->GetCenterOfMass()));
 	const JPH::Vec3 centre = board_bounds.GetCenter();
 	const JPH::Vec3 half_extent = JPH::Vec3::sMax(board_bounds.GetExtent(), JPH::Vec3::sReplicate(0.01f));
+	board_bottom_centre_bs = Vec4f(centre.GetX(), centre.GetY(), centre.GetZ() - half_extent.GetZ(), 1);
+	board_half_width = half_extent.GetX();
+	board_half_length = half_extent.GetY();
 	const float convex_radius = myMin(0.02f, half_extent.ReduceMin() * 0.5f);
 	JPH::Ref<JPH::Shape> rounded_box = new JPH::BoxShape(half_extent, convex_radius);
 	JPH::Ref<JPH::Shape> crash_shape = new JPH::RotatedTranslatedShape(board_to_model * centre, board_to_model, rounded_box);
@@ -204,6 +215,7 @@ void SnowboardPhysics::userEnteredVehicle(int seat_index)
 	occupied = true;
 	setSuspensionEnabled(true);
 	jump_was_down = false;
+	jump_charge_time = 0;
 }
 
 
@@ -213,6 +225,7 @@ void SnowboardPhysics::userExitedVehicle(int old_seat_index)
 	setSuspensionEnabled(false);
 	righting_time = 0;
 	jump_was_down = false;
+	jump_charge_time = 0;
 	last_physics_input_bitflags = 0;
 }
 
@@ -309,10 +322,17 @@ VehiclePhysicsUpdateEvents SnowboardPhysics::update(PhysicsWorld& world, const P
 		push = 0;
 	const bool jump = occupied && input.space_down;
 	jump_cooldown = myMax(0.0f, jump_cooldown - dt);
+	// Holding Space charges the jump; releasing it jumps if grounded.
+	if(jump)
+		jump_charge_time = myMin(jump_full_charge_time, jump_charge_time + dt);
+	const float jump_charge = jump_charge_time / jump_full_charge_time;
+	const bool jump_released = jump_was_down && !jump;
 
 	const float blend = 1.0f - std::exp(-8.0f * dt);
 	steering += (steer_input - steering) * blend;
-	const float target_crouch = (occupied && input.C_down) ? 1.0f : myMax(grounded ? 0.0f : 0.65f, myClamp(speed / settings->fast_speed, 0.0f, 1.0f));
+	float target_crouch = (occupied && input.C_down) ? 1.0f : myMax(grounded ? 0.0f : 0.65f, myClamp(speed / settings->fast_speed, 0.0f, 1.0f));
+	if(jump) // Crouch deeper as the jump charges, beyond the full riding crouch of 1.
+		target_crouch = myMax(target_crouch, 0.4f + 0.6f * jump_charge) + 0.5f * jump_charge;
 	crouch += (target_crouch - crouch) * blend;
 
 	if(occupied || righting_time > 0)
@@ -323,7 +343,7 @@ VehiclePhysicsUpdateEvents SnowboardPhysics::update(PhysicsWorld& world, const P
 		{
 			const Vec4f tangent_forward = normalise(forward - normal * dot(forward, normal));
 			const Vec4f tangent_right = normalise(crossProduct(tangent_forward, normal));
-			const Vec4f tangent_vel = relative_vel - normal * dot(relative_vel, normal);
+			const Vec4f tangent_vel = relative_vel - normal * dot(relative_vel, normal); // Velocity relative to the ground, projected onto the ground plane.
 			// Edge grip suppresses sideways slip. Bound the combined resistance so
 			// braking, grip and drag cannot reverse the velocity on a long frame.
 			const float edge = myClamp(std::fabs(dot(up, tangent_right)) / std::sin(degreeToRad(35.f)), 0.f, 1.f);
@@ -333,7 +353,7 @@ VehiclePhysicsUpdateEvents SnowboardPhysics::update(PhysicsWorld& world, const P
 
 			// Get accceleration/decelleration due to air drag.
 			const float rho = 0.9f; // Air density (lower in mountains)
-			const float C_d_A = 0.5f; // C_d.A is the drag area, about 0.5–0.7 m^2 standing upright and roughly 0.2–0.3 m^2 tucked (according to Claude).
+			const float C_d_A = 0.5f; // C_d.A is the drag area, about 0.5ï¿½0.7 m^2 standing upright and roughly 0.2ï¿½0.3 m^2 tucked (according to Claude).
 			const float air_resistance_drag_accel_factor = rho * C_d_A / (2 * mass); // Acceleration due to air drag, apart from v^2 factor
 
 			// Get accceleration/decelleration due to friction between the board and the terrain (assume snow for now)
@@ -360,12 +380,16 @@ VehiclePhysicsUpdateEvents SnowboardPhysics::update(PhysicsWorld& world, const P
 					bodies.AddForce(wheel->GetContactBodyID(), toJoltVec3(-force * (support_weights[i] / support_impulse)), wheel->GetContactPosition());
 				}
 			}
-			if(jump && !jump_was_down && jump_cooldown == 0)
+			if(jump_released && jump_cooldown == 0)
 			{
-				bodies.AddImpulse(body_id, toJoltVec3(normal * (mass * settings->jump_speed)));
+				const float jump_speed = settings->jump_speed * (min_jump_fraction + (1 - min_jump_fraction) * jump_charge);
+				bodies.AddImpulse(body_id, toJoltVec3(normal * (mass * jump_speed)));
 				jump_cooldown = 0.3f;
 				grounded = false;
 			}
+
+			if(occupied)
+				emitCarveParticles(board_to_world, normal, tangent_right, relative_vel, edge, dt);
 		}
 
 
@@ -402,8 +426,61 @@ VehiclePhysicsUpdateEvents SnowboardPhysics::update(PhysicsWorld& world, const P
 			bodies.AddForce(body_id, JPH::Vec3(0,0,mass * 12.0f)); // Give a flipped board clearance to rotate.
 	}
 	righting_time = myMax(0.0f, righting_time - dt);
+	if(jump_released)
+		jump_charge_time = 0; // A release while airborne discards the charge.
 	jump_was_down = jump;
 	return VehiclePhysicsUpdateEvents();
+}
+
+
+// Kick up dust from the lower (contact) edge while carving or skidding sideways.
+void SnowboardPhysics::emitCarveParticles(const Matrix4f& board_to_world, const Vec4f& normal, const Vec4f& tangent_right, const Vec4f& relative_vel, float edge, float dt)
+{
+	if(!particle_manager)
+		return;
+
+	const Vec4f tangent_vel = relative_vel - normal * dot(relative_vel, normal); // Velocity relative to the ground, projected onto the ground plane.
+	const float slide_speed = std::fabs(dot(tangent_vel, tangent_right));
+	const float intensity = myMin(8.f, edge * tangent_vel.length() * 0.5f + slide_speed); // Roughly m/s of scraping at the edge.
+	if(intensity < 1.f)
+	{
+		carve_particles_to_emit = 0;
+		return;
+	}
+	carve_particles_to_emit += (intensity - 1.f) * 60.f * dt; // Up to ~210 particles/s.
+
+	const Vec4f board_right = board_to_world * Vec4f(1,0,0,0);
+	const float edge_side = (dot(board_right, normal) < 0) ? 1.f : -1.f; // Board-space X sign of the lower edge.
+	const Vec4f outwards = tangent_right * -edge_side; // Away from the contact edge, to the outside of the turn.
+
+	while(carve_particles_to_emit >= 1.f)
+	{
+		carve_particles_to_emit -= 1.f;
+
+		const float along = -0.9f + 1.4f * rng.unitRandom(); // Mostly from the rear of the edge.
+		const float kick = 0.5f + rng.unitRandom();
+
+		Particle particle;
+		particle.pos = board_to_world * (board_bottom_centre_bs + Vec4f(edge_side * board_half_width, along * board_half_length, 0, 0)) + normal * 0.03f;
+		// The edge ploughs material along with it, so spray leaves at about the board's velocity
+		// and continues straight on as the board turns inwards, fanning forwards and outwards.
+		particle.vel = tangent_vel * (0.8f + 0.3f * rng.unitRandom()) +
+			outwards * (intensity * 0.6f * kick) +
+			normal * (intensity * 0.25f * kick) +
+			Vec4f(-0.5f + rng.unitRandom(), -0.5f + rng.unitRandom(), 0, 0);
+		// Drag decel is about 0.13 * v^2 m/s^2, so particles carry a few metres before slowing,
+		// rather than hitting the particle manager's 10 m/s^2 drag cap immediately.
+		particle.mass = 1.0e-3f;
+		particle.area = 4.0e-4f;
+		particle.colour = Colour3f(0.62f, 0.54f, 0.44f); // Light dirt, to contrast with the ground.
+		particle.cur_opacity = 0.95f;
+		particle.dopacity_dt = -0.2f;
+		particle.particle_type = Particle::ParticleType_Smoke;
+		particle.width = 0.06f + 0.04f * rng.unitRandom();
+		particle.dwidth_dt = 0.1f;
+		particle.theta = rng.unitRandom() * Maths::get2Pi<float>();
+		particle_manager->addParticle(particle);
+	}
 }
 
 
@@ -465,10 +542,11 @@ void SnowboardPhysics::updateRiderPose(PoseConstraint& pose) const
 	pose.upper_leg_apart_angle = 0.15f;
 	pose.lower_leg_apart_angle = 0;
 	pose.rotate_foot_out_angle = 0;
-	pose.arm_down_angle = 2.7f - 0.8f * crouch;
+	const float arm_crouch = myMin(crouch, 1.f); // Jump charging only deepens the body and leg crouch.
+	pose.arm_down_angle = 2.7f - 0.8f * arm_crouch;
 	pose.arm_out_angle = 1.2f;
 	pose.upper_arm_shoulder_lift_angle = 0;
-	pose.lower_arm_up_angle = 0.25f + 0.3f * crouch;
+	pose.lower_arm_up_angle = 0.25f + 0.3f * arm_crouch;
 	pose.left_hand_hold_point_ws = pose.right_hand_hold_point_ws = Vec4f(std::numeric_limits<float>::quiet_NaN());
 }
 
@@ -545,7 +623,7 @@ void SnowboardPhysics::removeVisualisationObs()
 
 std::string SnowboardPhysics::getUIInfoMsg()
 {
-	return "W / Up: push, S / Down / B: brake, A / D: steer, C: crouch, Space: jump";
+	return "W / Up: push, S / Down / B: brake, A / D: steer, C: crouch, Space: hold and release to jump";
 }
 
 
@@ -614,7 +692,7 @@ void SnowboardPhysics::test()
 		const JPH::RefConst<JPH::Shape> old_shape = bodies.GetShape(physics_ob.jolt_body_id);
 		const float old_friction = bodies.GetFriction(physics_ob.jolt_body_id);
 		{
-			SnowboardPhysics controller(object.ptr(), settings, world);
+			SnowboardPhysics controller(object.ptr(), settings, world, /*particle_manager=*/nullptr);
 			controller.userEnteredVehicle(0);
 			testAssert(bodies.GetObjectLayer(physics_ob.jolt_body_id) == Layers::MOVING);
 			testAssert(bodies.GetShape(physics_ob.jolt_body_id).GetPtr() == controller.raised_riding_shape.GetPtr());
@@ -671,7 +749,31 @@ void SnowboardPhysics::test()
 				controller.update(world, input, dt);
 				world.think(dt);
 			}
+			// A tap gives a small jump, on release.
 			input.space_down = true;
+			controller.update(world, input, dt);
+			world.think(dt);
+			testAssert(controller.getLinearVel(world)[2] < 0.5f); // No jump while held.
+			input.space_down = false;
+			controller.update(world, input, dt);
+			const float tap_jump_vz = controller.getLinearVel(world)[2];
+			testAssert(tap_jump_vz > 1.f && tap_jump_vz < 2.5f);
+			world.think(dt);
+			for(int i=0; i<180; ++i) // Land and settle.
+			{
+				controller.update(world, input, dt);
+				world.think(dt);
+			}
+			// Holding past the full-charge time gives the full jump_speed on release.
+			input.space_down = true;
+			for(int i=0; i<90; ++i)
+			{
+				controller.update(world, input, dt);
+				world.think(dt);
+				testAssert(controller.getLinearVel(world)[2] < 0.5f);
+			}
+			testAssert(controller.crouch > 1.2f); // Deeper than the full riding crouch.
+			input.space_down = false;
 			controller.update(world, input, dt);
 			testAssert(controller.getLinearVel(world)[2] > 3.f);
 			world.think(dt);
@@ -683,7 +785,7 @@ void SnowboardPhysics::test()
 				world.think(dt);
 			}
 			testAssert(dot(controller.getLinearVel(world), travel_dir) < forward_speed + 0.05f); // No airborne push.
-			testAssert(controller.getLinearVel(world)[2] < 4.1f); // Holding Space does not keep adding impulses.
+			testAssert(controller.getLinearVel(world)[2] < 4.1f); // One impulse per release.
 
 			// An inverted landing must use the hull, then return to suspension when righted.
 			input.clear();

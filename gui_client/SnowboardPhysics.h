@@ -7,8 +7,10 @@ Copyright Glare Technologies Limited 2026 -
 
 
 #include "VehiclePhysics.h"
+#include <maths/PCG32.h>
 #include <Jolt/Physics/Vehicle/VehicleConstraint.h>
 struct GLObject;
+class ParticleManager;
 
 
 /*=====================================================================
@@ -16,14 +18,15 @@ SnowboardPhysics
 ----------------
 A sliding board supported by four hidden sphere-cast suspension contacts.
 Gravity supplies downhill acceleration; input supplies a small push, edge
-steering, braking and a grounded jump. A rounded hull handles obstacles.
+steering, braking and a grounded jump, charged by holding Space and released
+on key up. A rounded hull handles obstacles.
 =====================================================================*/
 class SnowboardPhysics final : public VehiclePhysics
 {
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	SnowboardPhysics(WorldObject* object, Reference<Scripting::SnowboardScriptSettings> settings, PhysicsWorld& world);
+	SnowboardPhysics(WorldObject* object, Reference<Scripting::SnowboardScriptSettings> settings, PhysicsWorld& world, ParticleManager* particle_manager);
 	~SnowboardPhysics();
 
 	WorldObject* getControlledObject() override { return object; }
@@ -65,11 +68,19 @@ public:
 private:
 	void setSuspensionEnabled(bool enabled);
 	void removeVisualisationObs();
+	void emitCarveParticles(const Matrix4f& board_to_world, const Vec4f& normal, const Vec4f& tangent_right, const Vec4f& relative_vel, float edge, float dt);
 
 	OpenGLEngine* m_opengl_engine;
 	bool show_debug_vis_obs;
 	Reference<GLObject> foot_point_gl_obs[2];
 	Reference<GLObject> collision_aabb_gl_ob;
+
+	ParticleManager* particle_manager; // May be null.
+	PCG32 rng;
+	float carve_particles_to_emit; // Fractional particle count carried between updates.
+	Vec4f board_bottom_centre_bs; // Centre of the hull's underside, in board space.
+	float board_half_width; // Half extent along board-space X.
+	float board_half_length; // Half extent along board-space Y.
 
 	WorldObject* object;
 	Reference<Scripting::SnowboardScriptSettings> settings;
@@ -86,6 +97,7 @@ private:
 	JPH::ObjectLayer original_object_layer;
 	bool occupied;
 	bool jump_was_down;
+	float jump_charge_time; // How long Space has been held, capped at the full-charge time.
 	bool grounded;
 	float jump_cooldown;
 	float righting_time;
