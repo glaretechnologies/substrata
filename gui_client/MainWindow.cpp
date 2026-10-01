@@ -3776,6 +3776,23 @@ void MainWindow::on_actionSummon_Jet_Ski_triggered()
 }
 
 
+void MainWindow::on_actionSummon_Snowboard_triggered()
+{
+	try
+	{
+		gui_client.summonSnowboard();
+	}
+	catch(glare::Exception& e)
+	{
+		showErrorNotification(e.what());
+
+		QMessageBox msgBox;
+		msgBox.setText(QtUtils::toQString(e.what()));
+		msgBox.exec();
+	}
+}
+
+
 void MainWindow::on_actionSummon_Car_triggered()
 {
 	try

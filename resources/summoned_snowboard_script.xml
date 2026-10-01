@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<script>
+	<snowboard>
+		<model_to_y_forwards_rot_1>1.57 0 0</model_to_y_forwards_rot_1>
+		<model_to_y_forwards_rot_2>0 0 -1.57</model_to_y_forwards_rot_2>
+		<push_acceleration>3</push_acceleration>
+		<brake_acceleration>8</brake_acceleration>
+		<turn_rate>1.6</turn_rate>
+		<jump_speed>4</jump_speed>
+		<fast_speed>14</fast_speed>
+		<seat>
+			<seat_position>0 0 0.05</seat_position>
+			<left_foot_point_os>0.28 0.02 -0.08</left_foot_point_os>
+			<right_foot_point_os>-0.33 0.02 -0.08</right_foot_point_os>
+		</seat>
+	</snowboard>
+</script>

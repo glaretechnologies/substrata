@@ -245,6 +245,7 @@ public:
 	void summonHovercar();
 	void summonBoat();
 	void summonJetSki();
+	void summonSnowboard();
 	void summonCar();
 	void objectTransformEdited();
 	void objectEdited();

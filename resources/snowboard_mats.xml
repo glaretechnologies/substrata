@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<materials>
+	<material>
+		<name></name>
+		<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+		<colour_texture_url>GLB_image_16953310986919210825_jpg_16953310986919210825.jpg</colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url></emission_texture_url>
+		<normal_map_url>GLB_image_9161215156477569574_jpg_9161215156477569574.jpg</normal_map_url>
+		<roughness>
+			<val>1</val>
+			<texture_url>GLB_image_3368751828563657912_jpg_3368751828563657912.jpg</texture_url>
+		</roughness>
+		<metallic_fraction><val>1</val></metallic_fraction>
+		<opacity><val>1</val></opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>18</flags>
+	</material>
+</materials>

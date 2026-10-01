@@ -83,7 +83,8 @@ bool userCanCreateSummonedObject(const WorldObject& ob, const UserID& user_id)
 			ob.model_url == VehiclesShared::bikeModelURL() || // bike
 			ob.model_url == VehiclesShared::hovercarModelURL() || // hovercar
 			ob.model_url == VehiclesShared::boatModelURL() || // boat
-			ob.model_url == VehiclesShared::jetSkiModelURL()) // jetski
+			ob.model_url == VehiclesShared::jetSkiModelURL() || // jetski
+			ob.model_url == VehiclesShared::snowboardModelURL()) // snowboard
 			return true;
 		else
 			return false;

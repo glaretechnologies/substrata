@@ -145,6 +145,7 @@
     <addaction name="actionSummon_Hovercar"/>
     <addaction name="actionSummon_Boat"/>
     <addaction name="actionSummon_Jet_Ski"/>
+    <addaction name="actionSummon_Snowboard"/>
     <addaction name="actionSummon_Car"/>
    </widget>
    <widget class="QMenu" name="menuGear">
@@ -777,6 +778,14 @@
   <action name="actionSummon_Jet_Ski">
    <property name="text">
     <string>Summon Jet Ski</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+J</string>
+   </property>
+  </action>
+  <action name="actionSummon_Snowboard">
+   <property name="text">
+    <string>Summon Snowboard</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+J</string>

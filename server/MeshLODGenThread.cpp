@@ -851,11 +851,12 @@ void MeshLODGenThread::doRun()
 
 					// Check vehicle meshes
 					{
-						checkForOptimisedMeshToGenerateForURL(URLString(VehiclesShared::bikeModelURL()),     /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
-						checkForOptimisedMeshToGenerateForURL(URLString(VehiclesShared::boatModelURL()),     /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
-						checkForOptimisedMeshToGenerateForURL(URLString(VehiclesShared::carModelURL()),      /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
-						checkForOptimisedMeshToGenerateForURL(URLString(VehiclesShared::hovercarModelURL()), /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
-						checkForOptimisedMeshToGenerateForURL(URLString(VehiclesShared::jetSkiModelURL()),   /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
+						checkForOptimisedMeshToGenerateForURL(URLString(VehiclesShared::bikeModelURL()),      /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
+						checkForOptimisedMeshToGenerateForURL(URLString(VehiclesShared::boatModelURL()),      /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
+						checkForOptimisedMeshToGenerateForURL(URLString(VehiclesShared::carModelURL()),       /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
+						checkForOptimisedMeshToGenerateForURL(URLString(VehiclesShared::hovercarModelURL()),  /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
+						checkForOptimisedMeshToGenerateForURL(URLString(VehiclesShared::jetSkiModelURL()),    /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
+						checkForOptimisedMeshToGenerateForURL(URLString(VehiclesShared::snowboardModelURL()), /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
 					}
 				}
 				
