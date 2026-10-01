@@ -104,6 +104,8 @@ public:
 		mObjectToBroadPhase[Layers::MOVING]                    = BroadPhaseLayers::MOVING;
 		mObjectToBroadPhase[Layers::NON_MOVING_NON_COLLIDABLE] = BroadPhaseLayers::NON_MOVING;
 		mObjectToBroadPhase[Layers::MOVING_NON_COLLIDABLE]     = BroadPhaseLayers::MOVING;
+		mObjectToBroadPhase[Layers::TERRAIN]                   = BroadPhaseLayers::NON_MOVING;
+		mObjectToBroadPhase[Layers::MOVING_NO_TERRAIN]         = BroadPhaseLayers::MOVING;
 	}
 
 	virtual uint32 GetNumBroadPhaseLayers() const override
@@ -141,8 +143,10 @@ class MyBroadPhaseLayerFilter : public JPH::ObjectVsBroadPhaseLayerFilter
 	{
 		switch(inLayer1)
 		{
+		case Layers::TERRAIN:
 		case Layers::NON_MOVING: // If an object is non-moving, it should only collide with moving objects
 			return inLayer2 == BroadPhaseLayers::MOVING;
+		case Layers::MOVING_NO_TERRAIN:
 		case Layers::MOVING: // If an object is moving, it can collide with both moving and non-moving objects
 			return true;
 		case Layers::NON_MOVING_NON_COLLIDABLE: // non-collidable objects don't collide with any layers
@@ -157,36 +161,56 @@ class MyBroadPhaseLayerFilter : public JPH::ObjectVsBroadPhaseLayerFilter
 };
 
 
+static constexpr uint64 layerBit(JPH::ObjectLayer layer)
+{
+	return (uint64)1 << (uint64)layer;
+}
 
-/*
-                            NON_MOVING      MOVING     NON_MOVING_NON_COLLIDABLE   MOVING_NON_COLLIDABLE
-NON_MOVING                                   y                                                          
-MOVING                       y               y                                                          
-NON_MOVING_NON_COLLIDABLE                                                                               
-MOVING_NON_COLLIDABLE                                                                                   
-*/
+static_assert(Layers::NUM_LAYERS <= 8);
 
-// TODO: Do these layer checks with bitmasks?  Should be faster.
+// Each 8 bit range is a row for layer 1, each bit in that 8 bit range is an entry for layer 2.
+static constexpr uint64 collision_matrix = 
+	((layerBit(Layers::MOVING)     | layerBit(Layers::MOVING_NO_TERRAIN))                                                        << (8*(uint64)Layers::NON_MOVING))        | // NON_MOVING
+	((layerBit(Layers::NON_MOVING) | layerBit(Layers::MOVING) | layerBit(Layers::TERRAIN) | layerBit(Layers::MOVING_NO_TERRAIN)) << (8*(uint64)Layers::MOVING))            | // MOVING: Moving collides with everything apart from Layers::NON_COLLIDABLE and MOVING_NON_COLLIDABLE
+	0                                                                                                                                                                      | // NON_MOVING_NON_COLLIDABLE: doesn't collide with anything
+	0                                                                                                                                                                      | // MOVING_NON_COLLIDABLE: doesn't collide with anything
+	(layerBit(Layers::MOVING)                                                                                                    << (8*(uint64)Layers::TERRAIN))           | // TERRAIN
+	((layerBit(Layers::NON_MOVING) | layerBit(Layers::MOVING) | layerBit(Layers::MOVING_NO_TERRAIN))                             << (8*(uint64)Layers::MOVING_NO_TERRAIN)) // MOVING_NO_TERRAIN
+	;
+
+
+
+[[maybe_unused]] static bool referenceShouldCollide(JPH::ObjectLayer inLayer1, JPH::ObjectLayer inLayer2)
+{
+	switch(inLayer1)
+	{
+	case Layers::NON_MOVING:
+		return (inLayer2 == Layers::MOVING) || (inLayer2 == Layers::MOVING_NO_TERRAIN);
+	case Layers::TERRAIN:
+		return inLayer2 == Layers::MOVING;
+	case Layers::MOVING_NO_TERRAIN:
+		return (inLayer2 == Layers::NON_MOVING) || (inLayer2 == Layers::MOVING) || (inLayer2 == Layers::MOVING_NO_TERRAIN);
+	case Layers::MOVING:
+		return (inLayer2 != Layers::NON_MOVING_NON_COLLIDABLE) && (inLayer2 != Layers::MOVING_NON_COLLIDABLE); // Moving collides with everything apart from Layers::NON_COLLIDABLE and MOVING_NON_COLLIDABLE
+	case Layers::NON_MOVING_NON_COLLIDABLE:
+		return false;
+	case Layers::MOVING_NON_COLLIDABLE:
+		return false;
+	default:
+		assert(false);
+		return false;
+	}
+}
+
 
 class MyObjectLayerPairFilter : public JPH::ObjectLayerPairFilter
 {
 	/// Returns true if two layers can collide
 	virtual bool ShouldCollide(JPH::ObjectLayer inLayer1, JPH::ObjectLayer inLayer2) const
 	{
-		switch(inLayer1)
-		{
-		case Layers::NON_MOVING:
-			return (inLayer2 == Layers::MOVING); // Non moving only collides with moving
-		case Layers::MOVING:
-			return (inLayer2 != Layers::NON_MOVING_NON_COLLIDABLE) && (inLayer2 != Layers::MOVING_NON_COLLIDABLE); // Moving collides with everything apart from Layers::NON_COLLIDABLE and MOVING_NON_COLLIDABLE
-		case Layers::NON_MOVING_NON_COLLIDABLE:
-			return false;
-		case Layers::MOVING_NON_COLLIDABLE:
-			return false;
-		default:
-			assert(false);
-			return false;
-		}
+		const bool collide = (collision_matrix & ((uint64)1 << ((uint64)inLayer1*8 + inLayer2))) != 0;
+		assert(collide == referenceShouldCollide(inLayer1, inLayer2));
+		return collide;
 	}
 };
 
@@ -1238,7 +1262,7 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 	else // Else if static:
 	{
 		if(object->collidable)
-			layer = Layers::NON_MOVING;
+			layer = object->shape.jolt_shape && object->shape.jolt_shape->GetSubType() == JPH::EShapeSubType::HeightField ? Layers::TERRAIN : Layers::NON_MOVING;
 		else
 			layer = Layers::NON_MOVING_NON_COLLIDABLE;
 	}
@@ -1523,19 +1547,6 @@ void PhysicsWorld::OnBodyDeactivated(const JPH::BodyID& inBodyID, uint64 inBodyU
 }
 
 
-JPH::ValidateResult PhysicsWorld::OnContactValidate(const JPH::Body& inBody1, const JPH::Body& inBody2, JPH::RVec3Arg inBaseOffset, const JPH::CollideShapeResult& inCollisionResult)
-{
-	const PhysicsObject* ob1 = (const PhysicsObject*)inBody1.GetUserData();
-	const PhysicsObject* ob2 = (const PhysicsObject*)inBody2.GetUserData();
-	// Contact rejection leaves suspension shape casts free to query the terrain.
-	if((ob1 && ob1->ignore_terrain_contacts && inBody2.GetShape()->GetSubType() == JPH::EShapeSubType::HeightField) ||
-		(ob2 && ob2->ignore_terrain_contacts && inBody1.GetShape()->GetSubType() == JPH::EShapeSubType::HeightField))
-		return JPH::ValidateResult::RejectAllContactsForThisBodyPair;
-
-	return JPH::ValidateResult::AcceptAllContactsForThisBodyPair;
-}
-
-
 /// Called whenever a new contact point is detected.
 /// Note that this callback is called when all bodies are locked, so don't use any locking functions!
 /// Body 1 and 2 will be sorted such that body 1 ID < body 2 ID, so body 1 may not be dynamic.
@@ -1647,6 +1658,8 @@ std::string PhysicsWorld::getDiagnostics() const
 	s += "mem usage: " + getNiceByteSize(stats.mem) + "\n";
 	s += "NON_MOVING layer obs:                " + toString(stats.layer_counts[Layers::NON_MOVING]) + "\n";
 	s += "MOVING layer obs:                    " + toString(stats.layer_counts[Layers::MOVING]) + "\n";
+	s += "TERRAIN layer obs:                   " + toString(stats.layer_counts[Layers::TERRAIN]) + "\n";
+	s += "MOVING_NO_TERRAIN layer obs:         " + toString(stats.layer_counts[Layers::MOVING_NO_TERRAIN]) + "\n";
 	s += "NON_MOVING_NON_COLLIDABLE layer obs: " + toString(stats.layer_counts[Layers::NON_MOVING_NON_COLLIDABLE]) + "\n";
 	s += "MOVING_NON_COLLIDABLE layer obs:     " + toString(stats.layer_counts[Layers::MOVING_NON_COLLIDABLE]) + "\n";
 
@@ -1710,7 +1723,7 @@ class CollidableObjectLayerFilter final : public JPH::ObjectLayerFilter
 public:
 	virtual bool ShouldCollide(JPH::ObjectLayer layer) const override
 	{
-		return (layer == Layers::NON_MOVING) || (layer == Layers::MOVING);
+		return (layer == Layers::NON_MOVING) || (layer == Layers::MOVING) || (layer == Layers::TERRAIN) || (layer == Layers::MOVING_NO_TERRAIN);
 	}
 };
 

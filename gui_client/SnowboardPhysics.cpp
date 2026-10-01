@@ -94,7 +94,13 @@ SnowboardPhysics::SnowboardPhysics(WorldObject* object_, Reference<Scripting::Sn
 	}
 	JPH::WheeledVehicleControllerSettings* controller = new JPH::WheeledVehicleControllerSettings();
 	controller->mEngine.mMaxTorque = 0;
-	controller->mDifferentials.clear();
+	controller->mTransmission.mMode = JPH::ETransmissionMode::Manual; // Stay in neutral; retain the required positive clutch strength.
+	// Jolt requires connected differential torque ratios to sum to one, even
+	// with no engine torque. Neutral gear and a disengaged clutch keep the probes uncoupled.
+	controller->mDifferentials.resize(1);
+	controller->mDifferentials[0].mLeftWheel = 0;
+	controller->mDifferentials[0].mRightWheel = 1;
+	controller->mDifferentials[0].mEngineTorqueRatio = 1.f;
 	vehicle.mController = controller;
 
 	// Keep the existing mass and inertia. Only replace the collision hull; the
@@ -102,21 +108,16 @@ SnowboardPhysics::SnowboardPhysics(WorldObject* object_, Reference<Scripting::Sn
 	bodies.SetShape(body_id, crash_shape, /*inUpdateMassProperties=*/false, JPH::EActivation::Activate);
 	bodies.SetFriction(body_id, 0.8f); // Parked hull friction, including when tipped over.
 	original_enhanced_internal_edge_removal = false;
-	original_ignore_terrain_contacts = false;
+	original_object_layer = bodies.GetObjectLayer(body_id);
 	{
 		JPH::BodyLockWrite lock(world.physics_system->GetBodyLockInterface(), body_id);
 		assert(lock.Succeeded());
 		JPH::Body& body = lock.GetBody();
 		original_enhanced_internal_edge_removal = body.GetEnhancedInternalEdgeRemoval();
 		body.SetEnhancedInternalEdgeRemoval(true);
-		PhysicsObject* physics_ob = (PhysicsObject*)body.GetUserData();
-		if(physics_ob)
-		{
-			original_ignore_terrain_contacts = physics_ob->ignore_terrain_contacts;
-			physics_ob->ignore_terrain_contacts = (body.GetRotation() * vehicle.mUp).GetZ() > 0.5f; // Only while upright enough for suspension support.
-		}
 		vehicle_constraint = new JPH::VehicleConstraint(body, vehicle);
 	}
+	static_cast<JPH::WheeledVehicleController*>(vehicle_constraint->GetController())->GetTransmission().Set(0, 0.f);
 	vehicle_constraint->SetVehicleCollisionTester(new JPH::VehicleCollisionTesterCastSphere(Layers::MOVING, radius, JPH::Vec3(0,0,1), degreeToRad(65.f)));
 	world.physics_system->AddConstraint(vehicle_constraint);
 	world.physics_system->AddStepListener(vehicle_constraint);
@@ -146,6 +147,7 @@ void SnowboardPhysics::setSuspensionEnabled(bool enabled)
 
 	// The body may already have been removed during object/script reload.
 	bool body_exists = false;
+	JPH::ObjectLayer target_layer = original_object_layer;
 	{
 		JPH::BodyLockWrite lock(physics_world->physics_system->GetBodyLockInterface(), body_id);
 		if(lock.Succeeded())
@@ -154,18 +156,16 @@ void SnowboardPhysics::setSuspensionEnabled(bool enabled)
 			JPH::Body& body = lock.GetBody();
 			body.SetFriction(enabled ? 0.02f : original_friction);
 			body.SetEnhancedInternalEdgeRemoval(enabled ? true : original_enhanced_internal_edge_removal);
-			PhysicsObject* physics_ob = (PhysicsObject*)body.GetUserData();
-			if(physics_ob)
-			{
-				const JPH::Quat board_to_model = toJoltQuat(settings->model_to_y_forwards_rot_2 * settings->model_to_y_forwards_rot_1).Conjugated();
-				physics_ob->ignore_terrain_contacts = enabled ? (body.GetRotation() * board_to_model * JPH::Vec3(0,0,1)).GetZ() > 0.5f : original_ignore_terrain_contacts;
-			}
+			const JPH::Quat board_to_model = toJoltQuat(settings->model_to_y_forwards_rot_2 * settings->model_to_y_forwards_rot_1).Conjugated();
+			if(enabled && original_object_layer == Layers::MOVING && (body.GetRotation() * board_to_model * JPH::Vec3(0,0,1)).GetZ() > 0.5f)
+				target_layer = Layers::MOVING_NO_TERRAIN;
 		}
 	}
 	suspension_enabled = enabled && body_exists;
 	if(body_exists)
 	{
 		JPH::BodyInterface& bodies = physics_world->physics_system->GetBodyInterface();
+		bodies.SetObjectLayer(body_id, target_layer);
 		bodies.SetShape(body_id, enabled ? riding_shape : original_shape, /*inUpdateMassProperties=*/false, JPH::EActivation::Activate);
 		bodies.InvalidateContactCache(body_id);
 	}
@@ -180,6 +180,7 @@ void SnowboardPhysics::setSuspensionEnabled(bool enabled)
 			JPH::BodyLockWrite lock(physics_world->physics_system->GetBodyLockInterface(), body_id);
 			vehicle_constraint = new JPH::VehicleConstraint(lock.GetBody(), *vehicle_settings);
 		}
+		static_cast<JPH::WheeledVehicleController*>(vehicle_constraint->GetController())->GetTransmission().Set(0, 0.f);
 		vehicle_constraint->SetVehicleCollisionTester(collision_tester);
 		physics_world->physics_system->AddConstraint(vehicle_constraint);
 		physics_world->physics_system->AddStepListener(vehicle_constraint);
@@ -222,24 +223,17 @@ VehiclePhysicsUpdateEvents SnowboardPhysics::update(PhysicsWorld& world, const P
 
 	// Restore the hull's terrain contacts before the suspension faces sideways or
 	// upwards. Hysteresis avoids switching repeatedly near the tipping threshold.
-	bool terrain_contacts_changed = false;
+	if(suspension_enabled && original_object_layer == Layers::MOVING)
 	{
-		JPH::BodyLockWrite lock(world.physics_system->GetBodyLockInterface(), body_id);
-		if(lock.Succeeded())
+		const JPH::ObjectLayer current_layer = bodies.GetObjectLayer(body_id);
+		const bool ignore_terrain = up[2] > (current_layer == Layers::MOVING_NO_TERRAIN ? 0.35f : 0.5f);
+		const JPH::ObjectLayer target_layer = ignore_terrain ? Layers::MOVING_NO_TERRAIN : original_object_layer;
+		if(current_layer != target_layer)
 		{
-			PhysicsObject* physics_ob = (PhysicsObject*)lock.GetBody().GetUserData();
-			if(physics_ob && suspension_enabled)
-			{
-				const bool ignore_terrain = up[2] > (physics_ob->ignore_terrain_contacts ? 0.35f : 0.5f);
-				terrain_contacts_changed = ignore_terrain != physics_ob->ignore_terrain_contacts;
-				physics_ob->ignore_terrain_contacts = ignore_terrain;
-			}
+			bodies.SetObjectLayer(body_id, target_layer);
+			bodies.InvalidateContactCache(body_id);
+			bodies.ActivateBody(body_id);
 		}
-	}
-	if(terrain_contacts_changed)
-	{
-		bodies.InvalidateContactCache(body_id); // Revalidate existing contacts with the new policy.
-		bodies.ActivateBody(body_id);
 	}
 	const Vec4f vel = getLinearVel(world);
 	const float speed = vel.length();
@@ -531,6 +525,18 @@ void SnowboardPhysics::test()
 		glare::TaskManager task_manager(1);
 		glare::StackAllocator stack_allocator(32 * 1024 * 1024);
 		PhysicsWorld world(&task_manager, &stack_allocator);
+		// Check every ordered layer pair, including symmetry and non-collidable layers.
+		const bool expected_collisions[Layers::NUM_LAYERS][Layers::NUM_LAYERS] = {
+			{false, true,  false, false, false, true },
+			{true,  true,  false, false, true,  true },
+			{false, false, false, false, false, false},
+			{false, false, false, false, false, false},
+			{false, true,  false, false, false, false},
+			{true,  true,  false, false, false, true }
+		};
+		for(int a=0; a<Layers::NUM_LAYERS; ++a)
+			for(int b=0; b<Layers::NUM_LAYERS; ++b)
+				testAssert(world.physics_system->GetDefaultLayerFilter((JPH::ObjectLayer)a).ShouldCollide((JPH::ObjectLayer)b) == expected_collisions[a][b]);
 		Array2D<float> heights(8, 8);
 		heights.setAllElems(0.f);
 		const PhysicsShape terrain_shape = PhysicsWorld::createJoltHeightFieldShape(8, heights, 1.f);
@@ -544,6 +550,7 @@ void SnowboardPhysics::test()
 			terrain[i]->scale = Vec3f(1.f);
 			terrain[i]->restitution = 0;
 			world.addObject(terrain[i]);
+			testAssert(world.physics_system->GetBodyInterface().GetObjectLayer(terrain[i]->jolt_body_id) == Layers::TERRAIN);
 		}
 
 		WorldObjectRef object = new WorldObject();
@@ -571,7 +578,7 @@ void SnowboardPhysics::test()
 		{
 			SnowboardPhysics controller(object.ptr(), settings, world);
 			controller.userEnteredVehicle(0);
-			testAssert(physics_ob.ignore_terrain_contacts);
+			testAssert(bodies.GetObjectLayer(physics_ob.jolt_body_id) == Layers::MOVING_NO_TERRAIN);
 			PlayerPhysicsInput input;
 			const float dt = 1.f / 120.f;
 			for(int i=0; i<120; ++i)
@@ -601,7 +608,7 @@ void SnowboardPhysics::test()
 			testAssert(!controller.suspension_enabled);
 			testAssert(bodies.GetShape(physics_ob.jolt_body_id).GetPtr() == old_shape.GetPtr());
 			testAssert(bodies.GetFriction(physics_ob.jolt_body_id) == old_friction);
-			testAssert(!physics_ob.ignore_terrain_contacts);
+			testAssert(bodies.GetObjectLayer(physics_ob.jolt_body_id) == Layers::MOVING);
 			input.clear();
 			bodies.SetLinearVelocity(physics_ob.jolt_body_id, toJoltVec3(travel_dir * 2.f));
 			for(int i=0; i<120; ++i)
@@ -647,14 +654,14 @@ void SnowboardPhysics::test()
 			for(int i=0; i<240; ++i)
 			{
 				controller.update(world, input, dt);
-				testAssert(!physics_ob.ignore_terrain_contacts);
+				testAssert(bodies.GetObjectLayer(physics_ob.jolt_body_id) == Layers::MOVING);
 				world.think(dt);
 				testAssert(controller.getBodyTransform(world).getColumn(3)[2] > 0.f);
 			}
 			bodies.SetPositionAndRotation(physics_ob.jolt_body_id, JPH::RVec3(0,0,0.1f),
 				JPH::Quat::sIdentity(), JPH::EActivation::Activate);
 			controller.update(world, input, dt);
-			testAssert(physics_ob.ignore_terrain_contacts);
+			testAssert(bodies.GetObjectLayer(physics_ob.jolt_body_id) == Layers::MOVING_NO_TERRAIN);
 
 			// Both turn directions should bank onto the inside edge, rather than stay flat.
 			for(int turn=-1; turn<=1; turn+=2)
@@ -683,7 +690,7 @@ void SnowboardPhysics::test()
 		}
 		testAssert(bodies.GetShape(physics_ob.jolt_body_id).GetPtr() == old_shape.GetPtr());
 		testAssert(bodies.GetFriction(physics_ob.jolt_body_id) == old_friction);
-		testAssert(!physics_ob.ignore_terrain_contacts);
+		testAssert(bodies.GetObjectLayer(physics_ob.jolt_body_id) == Layers::MOVING);
 		world.removeObject(object->physics_object);
 		for(int i=0; i<2; ++i)
 			world.removeObject(terrain[i]);

@@ -81,7 +81,7 @@ private:
 	Vec4f ground_normal;
 	float original_friction;
 	bool original_enhanced_internal_edge_removal;
-	bool original_ignore_terrain_contacts;
+	JPH::ObjectLayer original_object_layer;
 	bool occupied;
 	bool jump_was_down;
 	bool grounded;
