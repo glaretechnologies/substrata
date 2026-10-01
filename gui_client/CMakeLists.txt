@@ -140,6 +140,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/AvatarGraphics.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/AvatarGraphics.h
 ${CMAKE_SOURCE_DIR}/gui_client/BikePhysics.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/BikePhysics.h
+${CMAKE_SOURCE_DIR}/gui_client/SnowboardPhysics.cpp
+${CMAKE_SOURCE_DIR}/gui_client/SnowboardPhysics.h
 ${CMAKE_SOURCE_DIR}/gui_client/BiomeManager.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/BiomeManager.h
 ${CMAKE_SOURCE_DIR}/gui_client/BoatPhysics.cpp

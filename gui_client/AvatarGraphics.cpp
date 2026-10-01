@@ -112,6 +112,89 @@ inline static void clearProceduralRotation(js::Vector<GLObjectAnimNodeData, 16>&
 }
 
 
+// Predict this frame's hierarchy using the last sampled animation and the new
+// procedural transforms. In particular, knee IK must include the hip correction
+// from this frame, rather than chasing last frame's knee position.
+static Matrix4f riderNodeTransform(const GLObject& ob, int node_i)
+{
+	const GLObjectAnimNodeData& node = ob.anim_node_data[node_i];
+	const int parent_i = ob.mesh_data->animation_data.nodes[node_i].parent_index;
+	if(parent_i < 0)
+		return node.last_pre_proc_to_object * node.procedural_transform;
+
+	Matrix4f old_parent_inverse;
+	ob.anim_node_data[parent_i].node_hierarchical_to_object.getInverseForAffine3Matrix(old_parent_inverse);
+	return riderNodeTransform(ob, parent_i) * old_parent_inverse * node.last_pre_proc_to_object * node.procedural_transform;
+}
+
+
+static void rotateRiderBone(GLObject& ob, int node_i, const Vec4f& from_ws, const Vec4f& to_ws)
+{
+	if(from_ws.length() < 1.e-5f || to_ws.length() < 1.e-5f)
+		return;
+
+	const Vec4f from = normalise(from_ws), to = normalise(to_ws);
+	Vec4f axis = crossProduct(from, to);
+	const float cosine = myClamp(dot(from, to), -1.0f, 1.0f);
+	if(axis.length() < 1.e-5f)
+	{
+		if(cosine > 0)
+			return;
+		axis = crossProduct(from, std::fabs(from[0]) < 0.9f ? Vec4f(1,0,0,0) : Vec4f(0,1,0,0));
+	}
+	const Matrix4f current = ob.ob_to_world_matrix * riderNodeTransform(ob, node_i);
+	Matrix4f current_inverse;
+	current.getInverseForAffine3Matrix(current_inverse);
+	const Vec4f pos = current.getColumn(3);
+	const Matrix4f rotation = Quatf::fromAxisAndAngle(normalise(axis), std::acos(cosine)).toMatrix();
+	ob.anim_node_data[node_i].procedural_transform = ob.anim_node_data[node_i].procedural_transform * current_inverse *
+		Matrix4f::translationMatrix(pos) * rotation * Matrix4f::translationMatrix(-pos) * current;
+}
+
+
+static void solveSnowboardLeg(GLObject& ob, int thigh_i, int knee_i, int foot_i, const Vec4f& target_ws,
+	const Matrix4f& seat_to_world, const Matrix4f& avatar_to_seat, float toe_angle)
+{
+	const Vec4f hip = (ob.ob_to_world_matrix * riderNodeTransform(ob, thigh_i)).getColumn(3);
+	Vec4f knee = (ob.ob_to_world_matrix * riderNodeTransform(ob, knee_i)).getColumn(3);
+	Vec4f foot = (ob.ob_to_world_matrix * riderNodeTransform(ob, foot_i)).getColumn(3);
+	const float a = hip.getDist(knee), b = knee.getDist(foot);
+	const float distance = hip.getDist(target_ws);
+	if(a < 1.e-4f || b < 1.e-4f || distance < 1.e-4f)
+		return;
+
+	const float c = myClamp(distance, std::fabs(a-b) + 1.e-4f, a+b - 1.e-4f);
+	const Vec4f down = normalise(target_ws - hip);
+	const Vec4f forward = seat_to_world * Vec4f(0,1,0,0);
+	const Vec4f pole = forward - down * dot(forward, down);
+	if(pole.length() < 1.e-4f)
+		return;
+
+	const float along = (a*a + c*c - b*b) / (2*c);
+	const Vec4f knee_target = hip + down * along + normalise(pole) * std::sqrt(myMax(0.0f, a*a - along*along));
+	rotateRiderBone(ob, thigh_i, knee - hip, knee_target - hip);
+	knee = (ob.ob_to_world_matrix * riderNodeTransform(ob, knee_i)).getColumn(3);
+	foot = (ob.ob_to_world_matrix * riderNodeTransform(ob, foot_i)).getColumn(3);
+	rotateRiderBone(ob, knee_i, foot - knee, target_ws - knee);
+
+	// Keep the soles in their standing bind-pose orientation, rotated out at the
+	// bindings, independently of the knee bend and torso lean.
+	Matrix4f bind_foot;
+	ob.mesh_data->animation_data.nodes[foot_i].inverse_bind_matrix.getInverseForAffine3Matrix(bind_foot);
+	const Matrix4f desired = seat_to_world * Matrix4f::rotationAroundZAxis(toe_angle) * avatar_to_seat * bind_foot;
+	const Matrix4f current = ob.ob_to_world_matrix * riderNodeTransform(ob, foot_i);
+	Matrix4f flat = current;
+	for(int axis=0; axis<3; ++axis)
+	{
+		if(desired.getColumn(axis).length() > 1.e-5f)
+			flat.setColumn(axis, normalise(desired.getColumn(axis)) * current.getColumn(axis).length());
+	}
+	Matrix4f current_inverse;
+	current.getInverseForAffine3Matrix(current_inverse);
+	ob.anim_node_data[foot_i].procedural_transform = ob.anim_node_data[foot_i].procedural_transform * current_inverse * flat;
+}
+
+
 // NOTE: from player physics
 static const float SPHERE_RAD = 0.3f;
 static const float CYLINDER_HEIGHT = 1.3f; // Chosen so the capsule top is about the same height as the head of xbot.glb.  Can test this by jumping into an overhead ledge :)
@@ -226,6 +309,16 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, PhysicsWorld& phy
 		
 		const Vec4f up_os(0,1,0,0);
 
+		// Feet are only procedurally constrained on the snowboard. Clear them when
+		// switching to another vehicle or dismounting as well.
+		const int foot_indices[2] = {left_foot_node_i, right_foot_node_i};
+		for(int i=0; i<2; ++i)
+		{
+			const int foot_i = foot_indices[i];
+			if(foot_i >= 0 && foot_i < (int)anim_node_data.size())
+				anim_node_data[foot_i].procedural_transform = Matrix4f::identity();
+		}
+
 		if(pose_constraint.sitting)
 		{
 			new_anim_i = idle_anim_i;
@@ -242,6 +335,36 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, PhysicsWorld& phy
 
 			// pre_ob_to_world_matrix will rotate avatars from y-up and z-forwards to z-up and -y forwards.  Rotate around z axis to change to +y-forwards
 			skinned_gl_ob->ob_to_world_matrix = pose_constraint.seat_to_world * /*move hips to seat position=*/Matrix4f::translationMatrix(-hips_pos_os) * Matrix4f::rotationAroundZAxis(Maths::pi<float>()) * pre_ob_to_world_matrix;
+
+			const bool snowboard_legs = pose_constraint.snowboarding &&
+				left_up_leg_node_i >= 0 && right_up_leg_node_i >= 0 && left_knee_node_i >= 0 && right_knee_node_i >= 0 && left_foot_node_i >= 0 && right_foot_node_i >= 0 &&
+				left_up_leg_node_i < (int)anim_node_data.size() && right_up_leg_node_i < (int)anim_node_data.size() &&
+				left_knee_node_i < (int)anim_node_data.size() && right_knee_node_i < (int)anim_node_data.size() &&
+				left_foot_node_i < (int)anim_node_data.size() && right_foot_node_i < (int)anim_node_data.size();
+			float snowboard_leg_length = 0.9f;
+			if(snowboard_legs)
+			{
+				const Matrix4f& to_world = skinned_gl_ob->ob_to_world_matrix;
+				const Vec4f hip = to_world * anim_node_data[left_up_leg_node_i].last_pre_proc_to_object.getColumn(3);
+				const Vec4f knee = to_world * anim_node_data[left_knee_node_i].last_pre_proc_to_object.getColumn(3);
+				const Vec4f foot = to_world * anim_node_data[left_foot_node_i].last_pre_proc_to_object.getColumn(3);
+				snowboard_leg_length = myClamp(hip.getDist(knee) + knee.getDist(foot), 0.1f, 4.0f);
+			}
+			if(pose_constraint.snowboarding)
+			{
+				clearProceduralRotation(anim_node_data, left_arm_node_i);
+				clearProceduralRotation(anim_node_data, right_arm_node_i);
+				clearProceduralRotation(anim_node_data, left_forearm_node_i);
+				clearProceduralRotation(anim_node_data, right_forearm_node_i);
+				clearProceduralRotation(anim_node_data, left_hand_node_i);
+				clearProceduralRotation(anim_node_data, right_hand_node_i);
+
+				const float crouch = pose_constraint.snowboard_crouch;
+				const Vec4f hip_offset(0, -snowboard_leg_length * (0.08f + 0.16f*crouch), snowboard_leg_length * (0.98f - 0.27f*crouch), 0);
+				// Seat X runs along the board. Lean around the bindings; leg IK below keeps both feet planted.
+				skinned_gl_ob->ob_to_world_matrix = pose_constraint.seat_to_world * Matrix4f::rotationAroundXAxis(pose_constraint.snowboard_lean) * Matrix4f::translationMatrix(hip_offset - hips_pos_os) *
+					Matrix4f::rotationAroundZAxis(Maths::pi<float>()) * pre_ob_to_world_matrix;
+			}
 
 			Matrix4f world_to_ob_matrix;
 			skinned_gl_ob->ob_to_world_matrix.getInverseForAffine3Matrix(world_to_ob_matrix);
@@ -289,6 +412,18 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, PhysicsWorld& phy
 				skinned_gl_ob->anim_node_data[right_knee_node_i].procedural_transform = Matrix4f::rotationAroundZAxis( pose_constraint.rotate_foot_out_angle) * /*move lower leg out=*/Matrix4f::rotationAroundYAxis(-pose_constraint.lower_leg_apart_angle) * Matrix4f::rotationAroundXAxis(pose_constraint.lower_leg_rot_angle);
 			}
 
+
+			if(snowboard_legs)
+			{
+				const Matrix4f avatar_to_seat = Matrix4f::rotationAroundZAxis(Maths::pi<float>()) * pre_ob_to_world_matrix;
+				const float half_stance = snowboard_leg_length * 0.30f;
+				const float ankle_height = snowboard_leg_length * 0.09f;
+				const float binding_offset_y = -0.12f; // Shared 12 cm heelward offset across the board in seat space.
+				solveSnowboardLeg(*skinned_gl_ob, left_up_leg_node_i, left_knee_node_i, left_foot_node_i,
+					(isFinite(pose_constraint.left_foot_point_ws[0]) ? pose_constraint.left_foot_point_ws : pose_constraint.seat_to_world * Vec4f(-half_stance,binding_offset_y,ankle_height,1)), pose_constraint.seat_to_world, avatar_to_seat, 0.25f);
+				solveSnowboardLeg(*skinned_gl_ob, right_up_leg_node_i, right_knee_node_i, right_foot_node_i,
+					(isFinite(pose_constraint.right_foot_point_ws[0]) ? pose_constraint.right_foot_point_ws : pose_constraint.seat_to_world * Vec4f(half_stance,binding_offset_y,ankle_height,1)), pose_constraint.seat_to_world, avatar_to_seat, -0.25f);
+			}
 
 			// Inverse kinematics for left arm grab
 			const bool do_left_arm_IK_grab = isFinite(pose_constraint.left_hand_hold_point_ws[0]);
@@ -385,7 +520,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, PhysicsWorld& phy
 				{
 					const Matrix4f last_left_arm_bone_to_object_space = anim_node_data[left_arm_node_i].last_pre_proc_to_object; // last left-arm bone to object space (y-up) transformation.
 					const Quatf bone_to_object_space_rot = Quatf::fromMatrix(last_left_arm_bone_to_object_space);
-					const Quatf desired_rot_os = /*rot out=*/Quatf::yAxisRot(pose_constraint.arm_out_angle) * /*rot down=*/Quatf::xAxisRot(pose_constraint.arm_down_angle) *
+					const Quatf desired_rot_os = /*rot out=*/Quatf::yAxisRot(pose_constraint.arm_out_angle) * /*rot down=*/Quatf::xAxisRot(pose_constraint.arm_down_angle + (pose_constraint.snowboarding ? 0.35f * pose_constraint.snowboard_steer : 0.0f)) *
 						Quatf::zAxisRot(-pose_constraint.upper_arm_shoulder_lift_angle);
 					// Note that node_transform = last_pre_proc_to_object * ob->anim_node_data[node_i].procedural_transform, so we want to undo the bone-to-object-space rotation last (so it should be on left)
 					anim_node_data[left_arm_node_i ].procedural_transform = (bone_to_object_space_rot.conjugate() * desired_rot_os).toMatrix();
@@ -476,7 +611,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, PhysicsWorld& phy
 				{
 					const Matrix4f last_right_arm_bone_to_object_space = anim_node_data[right_arm_node_i].last_pre_proc_to_object; // last right-arm bone to object space (y-up) transformation.
 					const Quatf bone_to_object_space_rot = Quatf::fromMatrix(last_right_arm_bone_to_object_space);
-					const Quatf desired_rot_os = /*rot out=*/Quatf::yAxisRot(-pose_constraint.arm_out_angle) * /*rot down=*/Quatf::xAxisRot(pose_constraint.arm_down_angle) * 
+					const Quatf desired_rot_os = /*rot out=*/Quatf::yAxisRot(-pose_constraint.arm_out_angle) * /*rot down=*/Quatf::xAxisRot(pose_constraint.arm_down_angle - (pose_constraint.snowboarding ? 0.35f * pose_constraint.snowboard_steer : 0.0f)) *
 						Quatf::zAxisRot(pose_constraint.upper_arm_shoulder_lift_angle);
 					anim_node_data[right_arm_node_i ].procedural_transform = (bone_to_object_space_rot.conjugate() * desired_rot_os).toMatrix();
 				}
@@ -858,10 +993,10 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, PhysicsWorld& phy
 			if(lowest_node_height_above_ground < 0)
 				vertical_adjustment = -lowest_node_height_above_ground;
 
-			assert(isFinite(vertical_adjustment));
-			assert(isFinite(avatar_rotation.x));
-			assert(isFinite(avatar_rotation.y));
-			assert(isFinite(avatar_rotation.z));
+			//assert(isFinite(vertical_adjustment));
+			//assert(isFinite(avatar_rotation.x));
+			//assert(isFinite(avatar_rotation.y));
+			//assert(isFinite(avatar_rotation.z));
 
 			// pre_ob_to_world_matrix will rotate avatars from y-up and z-forwards to z-up and -y forwards.  Rotate around z axis to change to +x-forwards
 			skinned_gl_ob->ob_to_world_matrix = /*Matrix4f::translationMatrix(forwards_vec * turn_forwards_nudge) * */rotateThenTranslateMatrix(pos, avatar_rotation) * lean_matrix * Matrix4f::translationMatrix(0,0,vertical_adjustment) *

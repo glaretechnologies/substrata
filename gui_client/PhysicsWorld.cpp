@@ -54,6 +54,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <Jolt/Physics/Collision/BroadPhase/BroadPhaseQuery.h>
 #include <Jolt/Physics/Collision/RayCast.h>
+#include <Jolt/Physics/Collision/CollideShape.h>
 #include <Jolt/Physics/Collision/CastResult.h>
 #include <Jolt/Physics/Collision/Shape/OffsetCenterOfMassShape.h>
 #endif
@@ -1519,6 +1520,19 @@ void PhysicsWorld::OnBodyDeactivated(const JPH::BodyID& inBodyID, uint64 inBodyU
 		}
 	}
 	//activated_obs.erase(inBodyID);
+}
+
+
+JPH::ValidateResult PhysicsWorld::OnContactValidate(const JPH::Body& inBody1, const JPH::Body& inBody2, JPH::RVec3Arg inBaseOffset, const JPH::CollideShapeResult& inCollisionResult)
+{
+	const PhysicsObject* ob1 = (const PhysicsObject*)inBody1.GetUserData();
+	const PhysicsObject* ob2 = (const PhysicsObject*)inBody2.GetUserData();
+	// Contact rejection leaves suspension shape casts free to query the terrain.
+	if((ob1 && ob1->ignore_terrain_contacts && inBody2.GetShape()->GetSubType() == JPH::EShapeSubType::HeightField) ||
+		(ob2 && ob2->ignore_terrain_contacts && inBody1.GetShape()->GetSubType() == JPH::EShapeSubType::HeightField))
+		return JPH::ValidateResult::RejectAllContactsForThisBodyPair;
+
+	return JPH::ValidateResult::AcceptAllContactsForThisBodyPair;
 }
 
 

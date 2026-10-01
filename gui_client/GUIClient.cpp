@@ -41,6 +41,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "Scripting.h"
 #include "HoverCarPhysics.h"
 #include "BikePhysics.h"
+#include "SnowboardPhysics.h"
 #include "CarPhysics.h"
 #include "BoatPhysics.h"
 #include "JoltUtils.h"
@@ -8531,6 +8532,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 									pose_constraint.lower_arm_up_angle						= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].lower_arm_up_angle;
 									pose_constraint.left_hand_hold_point_ws					= ob_to_world * vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].left_hand_hold_point_os;
 									pose_constraint.right_hand_hold_point_ws				= ob_to_world * vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].right_hand_hold_point_os;
+									vehicle_controller_inside->updateRiderPose(pose_constraint);
 								}
 								else
 								{
@@ -8654,6 +8656,7 @@ void GUIClient::updateAvatarGraphics(double cur_time, double dt, const Vec3d& ou
 										pose_constraint.lower_arm_up_angle						= controller->getSettings().seat_settings[avatar->vehicle_seat_index].lower_arm_up_angle;
 										pose_constraint.left_hand_hold_point_ws					= ob_to_world * controller->getSettings().seat_settings[avatar->vehicle_seat_index].left_hand_hold_point_os;
 										pose_constraint.right_hand_hold_point_ws				= ob_to_world * controller->getSettings().seat_settings[avatar->vehicle_seat_index].right_hand_hold_point_os;
+										controller->updateRiderPose(pose_constraint);
 									}
 									else
 									{
@@ -13394,6 +13397,11 @@ Reference<VehiclePhysics> GUIClient::createVehicleControllerForScript(WorldObjec
 		physics_world->setObjectLayer(ob->physics_object, Layers::MOVING);
 
 		controller = new BoatPhysics(ob, ob->physics_object->jolt_body_id, physics_settings, *physics_world, particle_manager.ptr(), terrain_decal_manager.ptr());
+	}
+	else if(ob->vehicle_script.isType<Scripting::SnowboardScript>())
+	{
+		physics_world->setObjectLayer(ob->physics_object, Layers::MOVING);
+		controller = new SnowboardPhysics(ob, ob->vehicle_script->settings.downcast<Scripting::SnowboardScriptSettings>(), *physics_world);
 	}
 	else if(ob->vehicle_script.isType<Scripting::BikeScript>())
 	{

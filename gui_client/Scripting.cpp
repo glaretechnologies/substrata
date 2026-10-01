@@ -110,6 +110,17 @@ SeatSettings::SeatSettings()
 
 	left_hand_hold_point_os  = Vec4f(std::numeric_limits<float>::quiet_NaN());
 	right_hand_hold_point_os = Vec4f(std::numeric_limits<float>::quiet_NaN());
+	left_foot_point_os = right_foot_point_os = Vec4f(std::numeric_limits<float>::quiet_NaN());
+}
+
+
+SnowboardScriptSettings::SnowboardScriptSettings()
+{
+	push_acceleration = 3.0f;
+	brake_acceleration = 8.0f;
+	turn_rate = 1.6f;
+	jump_speed = 4.0f;
+	fast_speed = 14.0f;
 }
 
 
@@ -130,6 +141,21 @@ static SeatSettings parseSeatSettings(pugi::xml_node seat_elem, const SeatSettin
 	seat_settings.lower_arm_up_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_arm_up_angle", default_seat_settings.lower_arm_up_angle);
 	seat_settings.left_hand_hold_point_os	= parseVec3WithDefault(seat_elem, "left_hand_hold_point_os",  Vec3d(std::numeric_limits<double>::quiet_NaN())).toVec4fPoint();
 	seat_settings.right_hand_hold_point_os	= parseVec3WithDefault(seat_elem, "right_hand_hold_point_os", Vec3d(std::numeric_limits<double>::quiet_NaN())).toVec4fPoint();
+
+	if(seat_elem.child("left_foot_point_os"))
+	{
+		seat_settings.left_foot_point_os = parseVec3(seat_elem, "left_foot_point_os").toVec4fPoint();
+		for(int i=0; i<3; ++i)
+			if(!isFinite(seat_settings.left_foot_point_os[i]))
+				throw glare::Exception("Invalid left_foot_point_os");
+	}
+	if(seat_elem.child("right_foot_point_os"))
+	{
+		seat_settings.right_foot_point_os = parseVec3(seat_elem, "right_foot_point_os").toVec4fPoint();
+		for(int i=0; i<3; ++i)
+			if(!isFinite(seat_settings.right_foot_point_os[i]))
+				throw glare::Exception("Invalid right_foot_point_os");
+	}
 
 	return seat_settings;
 }
@@ -263,6 +289,40 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 
 				vehicle_script_out = boat_script;
 			}
+		}
+
+		// ----------- snowboard -----------
+		if(pugi::xml_node elem = root_elem.child("snowboard"))
+		{
+			Reference<SnowboardScript> snowboard = new SnowboardScript();
+			Reference<SnowboardScriptSettings> settings = new SnowboardScriptSettings();
+			snowboard->settings = settings;
+			settings->model_to_y_forwards_rot_1 = parseRotationWithDefault(elem, "model_to_y_forwards_rot_1", Quatf::identity());
+			settings->model_to_y_forwards_rot_2 = parseRotationWithDefault(elem, "model_to_y_forwards_rot_2", Quatf::identity());
+			settings->push_acceleration = (float)XMLParseUtils::parseDoubleWithDefault(elem, "push_acceleration", settings->push_acceleration);
+			settings->brake_acceleration = (float)XMLParseUtils::parseDoubleWithDefault(elem, "brake_acceleration", settings->brake_acceleration);
+			settings->turn_rate = (float)XMLParseUtils::parseDoubleWithDefault(elem, "turn_rate", settings->turn_rate);
+			settings->jump_speed = (float)XMLParseUtils::parseDoubleWithDefault(elem, "jump_speed", settings->jump_speed);
+			settings->fast_speed = (float)XMLParseUtils::parseDoubleWithDefault(elem, "fast_speed", settings->fast_speed);
+			if(!isFinite(settings->push_acceleration) || settings->push_acceleration < 0 || settings->push_acceleration > 20 ||
+				!isFinite(settings->brake_acceleration) || settings->brake_acceleration < 0 || settings->brake_acceleration > 30 ||
+				!isFinite(settings->turn_rate) || settings->turn_rate < 0 || settings->turn_rate > 6 ||
+				!isFinite(settings->jump_speed) || settings->jump_speed < 0 || settings->jump_speed > 15 ||
+				!isFinite(settings->fast_speed) || settings->fast_speed <= 0 || settings->fast_speed > 100)
+				throw glare::Exception("Invalid snowboard settings: acceleration, turn rate, jump speed or fast speed out of range.");
+
+			SeatSettings seat;
+			// For a snowboard, seat_position is the centre of the bindings on the deck, in model space.
+			if(pugi::xml_node seat_elem = elem.child("seat"))
+			{
+				seat = parseSeatSettings(seat_elem, seat);
+				if(seat_elem.next_sibling("seat"))
+					throw glare::Exception("snowboard supports exactly one rider");
+			}
+			if(!isFinite(seat.seat_position[0]) || !isFinite(seat.seat_position[1]) || !isFinite(seat.seat_position[2]))
+				throw glare::Exception("Invalid snowboard seat_position");
+			settings->seat_settings.push_back(seat);
+			vehicle_script_out = snowboard;
 		}
 
 		// ----------- bike -----------

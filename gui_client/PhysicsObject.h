@@ -87,6 +87,7 @@ public:
 
 	bool collidable; // Is this object solid, for the purposes of player physics?
 	bool is_sensor;
+	bool ignore_terrain_contacts; // Suspension-supported vehicles. Changed only while the Jolt body is write-locked.
 
 	void* userdata;
 	int userdata_type; // 0 = WorldObject, 1 = Parcel, 2 = InstanceInfo, 3 = Avatar

@@ -46,6 +46,8 @@ struct SeatSettings
 
 	Vec4f left_hand_hold_point_os;
 	Vec4f right_hand_hold_point_os;
+	Vec4f left_foot_point_os; // Optional ankle IK targets in model space; NaN selects automatic placement.
+	Vec4f right_foot_point_os;
 };
 
 
@@ -130,6 +132,27 @@ public:
 	virtual bool isRightable() const override { return true; }
 };
 
+
+
+struct SnowboardScriptSettings : public VehicleScriptedSettings
+{
+	SnowboardScriptSettings();
+
+	float push_acceleration;
+	float brake_acceleration;
+	float turn_rate;
+	float jump_speed;
+	float fast_speed;
+};
+
+
+class SnowboardScript : public VehicleScript
+{
+public:
+	GLARE_ALIGNED_16_NEW_DELETE
+
+	bool isRightable() const override { return true; }
+};
 
 
 struct BikeScriptSettings : public VehicleScriptedSettings

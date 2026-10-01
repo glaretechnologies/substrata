@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2023 -
 
 class CameraController;
 class PhysicsWorld;
+struct PoseConstraint;
 
 
 struct VehiclePhysicsUpdateEvents
@@ -68,6 +69,9 @@ public:
 	virtual JPH::BodyID getBodyID() const = 0; // ID of vehicle physics object.
 
 	virtual const Scripting::VehicleScriptedSettings& getSettings() const = 0;
+
+	// Optional dynamic rider pose, applied after the common seat settings for local and remote avatars.
+	virtual void updateRiderPose(PoseConstraint& pose) const {}
 
 	virtual void setDebugVisEnabled(bool enabled, OpenGLEngine& opengl_engine) {}
 	virtual void updateDebugVisObjects() {}
