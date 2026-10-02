@@ -12,7 +12,7 @@ Copyright Glare Technologies Limited 2026 -
 #include <utils/ConPrint.h>
 #include <utils/Exception.h>
 #include <algorithm>
-#include <cstring>
+#include <limits>
 
 
 GPUTimeMeasurement::GPUTimeMeasurement(const std::string& output_path_, const Vec3d& cam_pos_, const Vec3d& cam_angles_, int num_frames_)
@@ -26,9 +26,7 @@ GPUTimeMeasurement::GPUTimeMeasurement(const std::string& output_path_, const Ve
 	was_profiling_enabled(false),
 	num_warmup_frames_done(0),
 	connected(false)
-{
-	std::memset(&last_draw_counts, 0, sizeof(last_draw_counts));
-}
+{}
 
 
 bool GPUTimeMeasurement::think(GUIClient& gui_client, OpenGLEngine& engine)
@@ -99,7 +97,9 @@ bool GPUTimeMeasurement::think(GUIClient& gui_client, OpenGLEngine& engine)
 	}
 
 	gpu_time_samples.push_back(engine.getLastGPUPassTimes());
-	last_draw_counts = engine.getLastDrawCounts();
+	draw_count_samples.push_back(engine.getLastDrawCounts());
+	for(int i=0; i<OpenGLEngine::NUM_GPU_SECTIONS; ++i)
+		section_time_samples[i].push_back(engine.getLastGPUSectionTime((OpenGLEngine::GPUSection)i));
 
 	if((int)gpu_time_samples.size() < num_frames)
 		return false;
@@ -114,16 +114,21 @@ bool GPUTimeMeasurement::think(GUIClient& gui_client, OpenGLEngine& engine)
 }
 
 
-// Median, 90th percentile and maximum of the samples, in ms, as a table row.
-static std::string statsRow(const std::string& name, std::vector<double>& samples_s)
+// Mean, median, 90th percentile and maximum of the samples, in ms, as a table row.
+static std::string statsRow(const std::string& name, std::vector<double>& samples_s, int name_width = 20)
 {
 	std::sort(samples_s.begin(), samples_s.end());
 	const size_t n = samples_s.size();
+	double sum = 0;
+	for(size_t i=0; i<n; ++i)
+		sum += samples_s[i];
+	const double mean   = sum / n;
 	const double median = samples_s[n / 2];
 	const double p90    = samples_s[std::min(n - 1, (n * 9) / 10)];
 	const double max    = samples_s[n - 1];
 
-	return ::rightSpacePad(name, 20) +
+	return ::rightSpacePad(name, name_width) +
+		::leftPad(doubleToStringNDecimalPlaces(mean   * 1.0e3, 3), ' ', 9) +
 		::leftPad(doubleToStringNDecimalPlaces(median * 1.0e3, 3), ' ', 9) +
 		::leftPad(doubleToStringNDecimalPlaces(p90    * 1.0e3, 3), ' ', 9) +
 		::leftPad(doubleToStringNDecimalPlaces(max    * 1.0e3, 3), ' ', 9) + "\n";
@@ -143,7 +148,7 @@ std::string GPUTimeMeasurement::makeReport(const OpenGLEngine& engine, double wa
 		s += "WARNING: the scene had not finished loading when measurement started, so these times may not be comparable with other runs.\n";
 	s += "Wall-clock time per frame: " + doubleToStringNDecimalPlaces(wall_time_s / n * 1.0e3, 3) + " ms (limited by vsync if it is on; the GPU times are not)\n\n";
 
-	s += ::rightSpacePad("GPU pass (ms)", 20) + ::leftPad("median", ' ', 9) + ::leftPad("p90", ' ', 9) + ::leftPad("max", ' ', 9) + "\n";
+	s += ::rightSpacePad("GPU pass (ms)", 20) + ::leftPad("mean", ' ', 9) + ::leftPad("median", ' ', 9) + ::leftPad("p90", ' ', 9) + ::leftPad("max", ' ', 9) + "\n";
 
 	std::vector<double> v(n);
 #define GPU_TIME_ROW(field, name) \
@@ -174,11 +179,33 @@ std::string GPUTimeMeasurement::makeReport(const OpenGLEngine& engine, double wa
 	}
 	s += statsRow("sum of passes", v);
 
-	// Draw counts barely change between frames from a fixed camera, so the last frame's are representative.
-	const OpenGLEngine::DrawCounts& c = last_draw_counts;
+	// Unlike the pass timers above, the sections are timed every frame and cover all of draw(), so they include the work outside the timed passes.
+	s += "\n" + ::rightSpacePad("draw() section (ms)", 28) + ::leftPad("mean", ' ', 9) + ::leftPad("median", ' ', 9) + ::leftPad("p90", ' ', 9) + ::leftPad("max", ' ', 9) + "\n";
+	for(int i=0; i<OpenGLEngine::NUM_GPU_SECTIONS; ++i)
+	{
+		std::vector<double> section_times = section_time_samples[i];
+		s += statsRow(OpenGLEngine::getGPUSectionName((OpenGLEngine::GPUSection)i), section_times, /*name_width=*/28);
+	}
+
+	// Main-pass draw counts barely change between frames from a fixed camera, so the last frame's are representative.
+	const OpenGLEngine::DrawCounts& c = draw_count_samples.back();
 	s += "\nObjects in view frustum: " + toString(c.num_obs_in_frustum) + "\n";
 	s += "Main pass: " + toString(c.num_batches_drawn) + " batches, " + uInt32ToStringCommaSeparated(c.num_tris_drawn) + " tris, " + toString(c.num_prog_changes) + " program changes\n";
-	s += "Depth pass: " + toString(c.depth_num_batches_drawn) + " batches, " + uInt32ToStringCommaSeparated(c.depth_num_tris_drawn) + " tris\n";
+
+	// The depth pass draws a different static cascade and object set each frame, on a 12-frame cycle, so its counts vary from frame to frame.
+	uint64 batches_sum = 0, tris_sum = 0;
+	uint32 min_tris = std::numeric_limits<uint32>::max(), max_tris = 0;
+	for(size_t i=0; i<draw_count_samples.size(); ++i)
+	{
+		const OpenGLEngine::DrawCounts& d = draw_count_samples[i];
+		batches_sum += d.depth_num_batches_drawn;
+		tris_sum += d.depth_num_tris_drawn;
+		min_tris = std::min(min_tris, d.depth_num_tris_drawn);
+		max_tris = std::max(max_tris, d.depth_num_tris_drawn);
+	}
+	const size_t num_draw_samples = draw_count_samples.size();
+	s += "Depth pass (mean per frame): " + toString(batches_sum / num_draw_samples) + " batches, " + uInt64ToStringCommaSeparated(tris_sum / num_draw_samples) + " tris (min " +
+		uInt32ToStringCommaSeparated(min_tris) + ", max " + uInt32ToStringCommaSeparated(max_tris) + ")\n";
 
 	return s;
 }

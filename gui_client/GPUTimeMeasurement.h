@@ -53,5 +53,6 @@ private:
 	Timer measure_timer;     // Wall-clock time over the measured frames.
 
 	std::vector<OpenGLEngine::GPUPassTimes> gpu_time_samples; // One per measured frame.
-	OpenGLEngine::DrawCounts last_draw_counts;
+	std::vector<double> section_time_samples[OpenGLEngine::NUM_GPU_SECTIONS]; // [section][frame]
+	std::vector<OpenGLEngine::DrawCounts> draw_count_samples; // One per measured frame.
 };
