@@ -369,6 +369,8 @@ else()
 		${CMAKE_SOURCE_DIR}/gui_client/MCPClientHandler.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/MCPClientHandler.h
 		${CMAKE_SOURCE_DIR}/gui_client/MCPRenderRequest.h
+		${CMAKE_SOURCE_DIR}/gui_client/GPUTimeMeasurement.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/GPUTimeMeasurement.h
 		${CMAKE_SOURCE_DIR}/gui_client/MaterialBrowser.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/MaterialBrowser.h
 		${CMAKE_SOURCE_DIR}/gui_client/MaterialBrowser.ui
