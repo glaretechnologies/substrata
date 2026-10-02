@@ -117,6 +117,27 @@ else()
 endif()
 MESSAGE("GLARE_CORE_TRUNK_DIR: ${GLARE_CORE_TRUNK_DIR_ENV}")
 
+# In BUILD_TESTS builds (Debug, RelWithDebInfo), the client loads shaders etc. straight from the repo dirs, so shader edits show up without copying files to the output dir.
+SET(SUBSTRATA_USE_OPENGL_DATA_DIR "" CACHE PATH "OpenGL engine data dir (with shaders) to load from in BUILD_TESTS builds.  If empty, GLARE_CORE_TRUNK_DIR/opengl is used.  If OFF, <exe dir>/data is used.")
+if(SUBSTRATA_USE_OPENGL_DATA_DIR STREQUAL "")
+	set(SUBSTRATA_DEV_OPENGL_DATA_DIR "${GLARE_CORE_TRUNK_DIR_ENV}/opengl")
+elseif(SUBSTRATA_USE_OPENGL_DATA_DIR STREQUAL "OFF")
+	set(SUBSTRATA_DEV_OPENGL_DATA_DIR "")
+else()
+	string(REPLACE "\\" "/" SUBSTRATA_DEV_OPENGL_DATA_DIR "${SUBSTRATA_USE_OPENGL_DATA_DIR}")
+endif()
+MESSAGE("SUBSTRATA_USE_OPENGL_DATA_DIR: ${SUBSTRATA_DEV_OPENGL_DATA_DIR}")
+
+SET(SUBSTRATA_SHADER_TRUNK_DIR "" CACHE PATH "Substrata repo dir to load substrata shaders from in BUILD_TESTS builds.  If empty, this source dir is used.  If OFF, <exe dir>/data/shaders is used.")
+if(SUBSTRATA_SHADER_TRUNK_DIR STREQUAL "")
+	set(SUBSTRATA_DEV_TRUNK_DIR "${CMAKE_SOURCE_DIR}")
+elseif(SUBSTRATA_SHADER_TRUNK_DIR STREQUAL "OFF")
+	set(SUBSTRATA_DEV_TRUNK_DIR "")
+else()
+	string(REPLACE "\\" "/" SUBSTRATA_DEV_TRUNK_DIR "${SUBSTRATA_SHADER_TRUNK_DIR}")
+endif()
+MESSAGE("SUBSTRATA_SHADER_TRUNK_DIR: ${SUBSTRATA_DEV_TRUNK_DIR}")
+
 SET(CEF_BINARY_DISTRIB_DIR_ENV $ENV{CEF_BINARY_DISTRIB_DIR})
 MESSAGE("CEF_BINARY_DISTRIB_DIR: ${CEF_BINARY_DISTRIB_DIR_ENV}")
 

@@ -935,14 +935,9 @@ void GUIClient::makeShaders()
 	// Make shader for portal
 	{
 		std::string use_shader_dir = base_dir_path + "/data/shaders";
-#if BUILD_TESTS
-		try
-		{
-			// For development, load shader straight from the repo dir.
-			use_shader_dir = PlatformUtils::getEnvironmentVariable("SUBSTRATA_TRUNK_DIR") + "/shaders";
-		}
-		catch(glare::Exception&)
-		{}
+#if BUILD_TESTS && defined(SUBSTRATA_DEV_TRUNK_DIR)
+		// For development, load shader straight from the repo dir.  Set with the SUBSTRATA_SHADER_TRUNK_DIR CMake cache var.
+		use_shader_dir = std::string(SUBSTRATA_DEV_TRUNK_DIR) + "/shaders";
 #endif
 		const std::string version_directive    = opengl_engine->getVersionDirective();
 		const std::string preprocessor_defines_vert = opengl_engine->getPreprocessorDefinesWithCommonVertStructs();

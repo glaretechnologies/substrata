@@ -15,6 +15,16 @@ endif()
 
 add_definitions(${WINTER_PREPROCESSOR_DEFINITIONS}) # WINTER_PREPROCESSOR_DEFINITIONS is returned from embed_winter.cmake via winter.cmake.
 
+# Repo dirs to load shaders from in BUILD_TESTS builds, see SUBSTRATA_USE_OPENGL_DATA_DIR and SUBSTRATA_SHADER_TRUNK_DIR in the root CMakeLists.txt.
+if(NOT EMSCRIPTEN)
+	if(SUBSTRATA_DEV_OPENGL_DATA_DIR)
+		add_definitions(-DSUBSTRATA_DEV_OPENGL_DATA_DIR="${SUBSTRATA_DEV_OPENGL_DATA_DIR}")
+	endif()
+	if(SUBSTRATA_DEV_TRUNK_DIR)
+		add_definitions(-DSUBSTRATA_DEV_TRUNK_DIR="${SUBSTRATA_DEV_TRUNK_DIR}")
+	endif()
+endif()
+
 
 # Add graphics files used only in GUI client
 set(gui_client_graphics
