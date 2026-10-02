@@ -515,6 +515,31 @@ void ModelLoading::makeGLObjectForModelFile(
 				vox_contents.used_materials[i].col_from_palette[0], 
 				vox_contents.used_materials[i].col_from_palette[1], 
 				vox_contents.used_materials[i].col_from_palette[2]);
+
+			results_out.materials[i]->roughness.val = vox_contents.used_materials[i].roughness;
+
+			if(vox_contents.used_materials[i].type == VoxMaterial::Type_Glass)
+			{
+				results_out.materials[i]->opacity.val = 0.04f;
+			}
+			else if(vox_contents.used_materials[i].type == VoxMaterial::Type_Metal)
+			{
+				results_out.materials[i]->metallic_fraction.val = 1.f;
+			}
+			else if(vox_contents.used_materials[i].type == VoxMaterial::Type_Emissive)
+			{
+				if(vox_contents.used_materials[i].flux > 0.f)
+				{
+					const float L_v = 1.0e5f; // luminance.  Chosen to have a bit of a glow in daylight.
+
+					results_out.materials[i]->emission_rgb = Colour3f(
+						vox_contents.used_materials[i].col_from_palette[0], 
+						vox_contents.used_materials[i].col_from_palette[1], 
+						vox_contents.used_materials[i].col_from_palette[2]);
+
+					results_out.materials[i]->emission_lum_flux_or_lum = L_v * myClamp(vox_contents.used_materials[i].flux, 0.0f, 10.0f); // flux is 2 in emission.vox test model.
+				}
+			}
 		}
 
 		
