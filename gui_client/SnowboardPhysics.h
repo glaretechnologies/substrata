@@ -103,5 +103,6 @@ private:
 	float righting_time;
 	float crouch;
 	float steering;
+	float forward_direction; // +1 or -1, selected from longitudinal ground-relative velocity.
 	float rider_lean;
 };

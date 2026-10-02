@@ -39,6 +39,7 @@ SnowboardPhysics::SnowboardPhysics(WorldObject* object_, Reference<Scripting::Sn
 	righting_time = 0;
 	crouch = 0;
 	steering = 0;
+	forward_direction = 1;
 	rider_lean = 0;
 
 	ground_normal = Vec4f(0,0,1,0);
@@ -290,6 +291,17 @@ VehiclePhysicsUpdateEvents SnowboardPhysics::update(PhysicsWorld& world, const P
 		ground_normal = was_grounded ? normalise(ground_normal + (normal - ground_normal) * (1.f - std::exp(-12.f * dt))) : normal;
 	}
 	const Vec4f relative_vel = vel - (grounded ? ground_velocity : Vec4f(0,0,0,0));
+	if(occupied && grounded)
+	{
+		const Vec4f tangent_forward = normalise(forward - ground_normal * dot(forward, ground_normal));
+		const float forward_speed = dot(relative_vel, tangent_forward);
+		// Keep the feet planted: reversing travel changes which foot leads.
+		// Retain the forward end near rest so sideways slip cannot flip the push direction.
+		if(forward_speed > 0.5f)
+			forward_direction = 1;
+		else if(forward_speed < -0.5f)
+			forward_direction = -1;
+	}
 
 	float target_lean = 0;
 	if(occupied && grounded)
@@ -369,7 +381,7 @@ VehiclePhysicsUpdateEvents SnowboardPhysics::update(PhysicsWorld& world, const P
 			const float max_resistance = tangent_vel_len / dt;
 			if(resistance.length() > max_resistance)
 				resistance = normalise(resistance) * max_resistance;
-			const Vec4f force = (tangent_forward * (push * settings->push_acceleration) - resistance) * mass;
+			const Vec4f force = (tangent_forward * (forward_direction * push * settings->push_acceleration) - resistance) * mass;
 			bodies.AddForce(body_id, toJoltVec3(force));
 			// Match the suspension solver's two-way interaction with moving platforms.
 			for(int i=0; i<4; ++i)
@@ -457,7 +469,7 @@ void SnowboardPhysics::emitCarveParticles(const Matrix4f& board_to_world, const 
 	{
 		carve_particles_to_emit -= 1.f;
 
-		const float along = -0.9f + 1.4f * rng.unitRandom(); // Mostly from the rear of the edge.
+		const float along = forward_direction * (-0.9f + 1.4f * rng.unitRandom()); // Mostly from the rear of the edge.
 		const float kick = 0.5f + rng.unitRandom();
 
 		Particle particle;
