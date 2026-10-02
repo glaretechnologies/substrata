@@ -40,6 +40,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "MiniMap.h"
 #include "PlayerPhysics.h"
 #include "MCPRenderRequest.h"
+#include "GPUTimeMeasurement.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../shared/LODGeneration.h"
@@ -52,6 +53,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <QtGui/QColor>
 #include <QtGui/QMouseEvent>
 #include <QtGui/QClipboard>
+#include <QtGui/QScreen>
 #include <QtGui/QDesktopServices>
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QMessageBox>
@@ -324,6 +326,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	taking_gear_screenshot(false),
 	screenshot_gear_model_load_started(false),
 	test_screenshot_taking(false),
+	window_size_from_command_line(false),
 	running_destructor(false),
 	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
 	settings(NULL),
@@ -841,8 +844,12 @@ void MainWindow::closeEvent(QCloseEvent* event)
 		exitFromFullScreenMode();
 
 	// Save main window geometry and state.  See http://doc.qt.io/archives/qt-4.8/qmainwindow.html#saveState
-	settings->setValue("mainwindow/geometry", saveGeometry());
-	settings->setValue("mainwindow/windowState", saveState());
+	// Not if --window_size set the size for this run, so that the user's usual window size is kept.
+	if(!window_size_from_command_line)
+	{
+		settings->setValue("mainwindow/geometry", saveGeometry());
+		settings->setValue("mainwindow/windowState", saveState());
+	}
 
 
 	stopMCPClientServer();
@@ -1322,6 +1329,19 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	runScreenshotCode();
 
 	processMCPRenderRequests();
+
+	if(gpu_time_measurement.ptr())
+	{
+		// Measure from first person, so the camera is at the requested position and our avatar isn't in the way.
+		if(gui_client.cam_controller.thirdPersonEnabled())
+			enableFirstPersonCamera();
+
+		if(gpu_time_measurement->think(gui_client, *opengl_engine))
+		{
+			gpu_time_measurement.set(nullptr);
+			close();
+		}
+	}
 
 	// Update URL Bar
 	if(this->url_widget->shouldBeUpdated())
@@ -5372,6 +5392,11 @@ int main(int argc, char *argv[])
 		syntax["--no_MDI"] = std::vector<ArgumentParser::ArgumentType>(); // Disable MDI in graphics engine
 		syntax["--no_bindless"] = std::vector<ArgumentParser::ArgumentType>(); // Disable bindless textures in graphics engine
 		syntax["--use_temp_resources_db"] = std::vector<ArgumentParser::ArgumentType>(); // Use a temporary, fresh resource database.  For testing.
+		// Measure the GPU time of each render pass from a fixed camera, write a report to a file, then exit.  Args: output path, x, y, z, heading, pitch (see CameraController).
+		syntax["--measure_gpu_times"] = { ArgumentParser::ArgumentType_string, ArgumentParser::ArgumentType_double, ArgumentParser::ArgumentType_double, ArgumentParser::ArgumentType_double,
+			ArgumentParser::ArgumentType_double, ArgumentParser::ArgumentType_double };
+		syntax["--measure_frames"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_int); // Number of frames for --measure_gpu_times to measure.  Default 300.
+		syntax["--window_size"] = std::vector<ArgumentParser::ArgumentType>(2, ArgumentParser::ArgumentType_int); // Size of the 3D view in physical pixels (width, height), for this run only.
 
 		if(args.size() == 3 && args[1] == "-NSDocumentRevisionsDebugMode")
 			args.resize(1); // This is some XCode debugging rubbish, remove it
@@ -5519,6 +5544,20 @@ int main(int argc, char *argv[])
 			if(parsed_args.isArgPresent("--testscreenshot"))
 				mw.test_screenshot_taking = true;
 
+			if(parsed_args.isArgPresent("--measure_gpu_times"))
+			{
+				const int num_frames = parsed_args.isArgPresent("--measure_frames") ? parsed_args.getArgIntValue("--measure_frames") : 300;
+				if(num_frames < 1)
+					throw glare::Exception("--measure_frames must be at least 1.");
+
+				mw.gpu_time_measurement.set(new GPUTimeMeasurement(
+					parsed_args.getArgStringValue("--measure_gpu_times", 0),
+					/*cam pos=*/Vec3d(parsed_args.getArgDoubleValue("--measure_gpu_times", 1), parsed_args.getArgDoubleValue("--measure_gpu_times", 2), parsed_args.getArgDoubleValue("--measure_gpu_times", 3)),
+					/*cam angles=*/Vec3d(parsed_args.getArgDoubleValue("--measure_gpu_times", 4), parsed_args.getArgDoubleValue("--measure_gpu_times", 5), /*roll=*/0),
+					num_frames
+				));
+			}
+
 			mw.initialiseUI();
 
 			if(!enable_CEF)
@@ -5533,6 +5572,30 @@ int main(int argc, char *argv[])
 
 			mw.show(); // Calls glWidget->initializeGL() which initialises OpenGLEngine.
 			applyThemeFromSettings(*mw.settings); // Re-apply now that native windows exist, so title bar color updates on Windows.
+
+			if(parsed_args.isArgPresent("--window_size"))
+			{
+				const int gl_w = parsed_args.getArgIntValue("--window_size", 0);
+				const int gl_h = parsed_args.getArgIntValue("--window_size", 1);
+				if(gl_w < 16 || gl_h < 16)
+					throw glare::Exception("--window_size must be at least 16 x 16.");
+
+				// Size the main window so that the 3D view comes out at the requested size.  Qt sizes are in logical pixels, so convert using the device pixel ratio.
+				if(mw.isMaximized() || mw.isFullScreen())
+					mw.showNormal();
+				const double dpr = mw.ui->glWidget->devicePixelRatioF();
+				const QSize gl_logical_size((int)std::lround(gl_w / dpr), (int)std::lround(gl_h / dpr));
+				const QSize non_gl_size = mw.size() - mw.ui->glWidget->size(); // Space taken by docks, toolbars, status bar etc.
+				mw.resize(gl_logical_size + non_gl_size);
+
+				// Keep the window on one screen: spanning two makes the compositor do extra work, and they may have different pixel ratios.
+				const QRect screen_rect = mw.screen()->availableGeometry();
+				mw.move(screen_rect.topLeft());
+				if(mw.frameGeometry().width() > screen_rect.width() || mw.frameGeometry().height() > screen_rect.height())
+					conPrint("Warning: --window_size " + toString(gl_w) + " x " + toString(gl_h) + " doesn't fit on the screen, so the window will run off it.");
+
+				mw.window_size_from_command_line = true;
+			}
 
 			mw.raise();
 

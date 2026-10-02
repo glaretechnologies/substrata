@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/Timer.h>
 #include <utils/ComObHandle.h>
 #include <utils/SocketBufferOutStream.h>
+#include <utils/UniqueRef.h>
 #include <QtWidgets/QMainWindow>
 #include <string>
 namespace Ui { class MainWindow; }
@@ -33,6 +34,7 @@ struct _SDL_GameController;
 class RenderStatsWidget;
 class MiniDmpSender;
 class MCPRenderRequest;
+class GPUTimeMeasurement;
 
 
 class MainWindow final : public QMainWindow, public PrintOutput, public UIInterface
@@ -356,6 +358,8 @@ public:
 	WorldObjectRef screenshot_gear_world_ob; // Temp WorldObject used to drive gear model loading for gear screenshots
 	bool screenshot_gear_model_load_started; // Set when we have called loadModelForObject for the gear model
 	bool test_screenshot_taking;
+	UniqueRef<GPUTimeMeasurement> gpu_time_measurement; // Non-null if running with --measure_gpu_times.  The client exits when it is done.
+	bool window_size_from_command_line; // True if --window_size set the window size, in which case we don't save the window geometry on exit.
 	int screenshot_highlight_parcel_id;
 	int screenshot_width_px;
 	float screenshot_ortho_sensor_width_m;
