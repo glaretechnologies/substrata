@@ -881,7 +881,7 @@ void AnimatedTextureManager::think(GUIClient* gui_client, OpenGLEngine* opengl_e
 											if(!next_tex)
 												msg->tex_path = info.original_tex->key;
 
-											gui_client->opengl_upload_thread->getMessageQueue().enqueue(msg);
+											gui_client->opengl_upload_thread->enqueueUpload(msg);
 
 											info.next_tex_i = (info.next_tex_i + 1) % 2;
 										}
