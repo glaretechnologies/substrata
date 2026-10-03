@@ -346,6 +346,7 @@ public:
 	// NOTE: this is camera-position dependent - objects stream in based on the camera position, so this becomes true only once
 	// streaming for the current position has settled.
 	bool isSceneFullyLoaded();
+	std::string getSceneLoadingStatus(); // The non-zero terms of isSceneFullyLoaded(), for working out what loading is waiting on.
 	size_t numBuiltObjectsInProximityWithoutModel();
 	bool objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action); // Also shows error notifications if modification is not allowed.
 	// Action will be printed in error message, could be "modify" or "delete"

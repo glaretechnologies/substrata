@@ -4118,11 +4118,42 @@ bool GUIClient::isSceneFullyLoaded()
 	// Number of outstanding model/texture load or build tasks.  Same expression used by the screenshot code in MainWindow.
 	const size_t num_model_and_tex_tasks = load_item_queue.size() + model_and_texture_loader_task_manager.getNumUnfinishedTasks() + model_loaded_messages_to_process.size();
 
+	// Loaded models and textures that haven't finished being uploaded to the GPU yet: items waiting to be uploaded, and uploads in progress.
+	const size_t num_uploads_pending = texture_loaded_messages_to_process.size() + async_texture_loaded_messages_to_process.size() +
+		pbo_async_tex_loader.numUploadingTextures() + async_geom_loader.numUploadingGeometry() +
+		(opengl_upload_thread ? (size_t)opengl_upload_thread->getNumNewResourceUploadsPending() : 0) +
+		(tex_loading_progress.loadingInProgress() ? 1 : 0) + (cur_loading_mesh_data.nonNull() ? 1 : 0);
+
 	return
 		(num_model_and_tex_tasks == 0) &&
+		(num_uploads_pending == 0) &&
 		(num_non_net_resources_downloading == 0) &&
 		(num_net_resources_downloading == 0) &&
 		(terrain_system.nonNull() && terrain_system->isTerrainFullyBuilt());
+}
+
+
+// The non-zero terms of isSceneFullyLoaded(), for working out what loading is waiting on.
+std::string GUIClient::getSceneLoadingStatus()
+{
+	std::string s;
+	auto addIfNonZero = [&](const char* name, size_t n) { if(n != 0) s += std::string(s.empty() ? "" : ", ") + name + ": " + toString(n); };
+
+	addIfNonZero("load_item_queue",                         load_item_queue.size());
+	addIfNonZero("loader tasks unfinished",                 model_and_texture_loader_task_manager.getNumUnfinishedTasks());
+	addIfNonZero("model_loaded_messages_to_process",        model_loaded_messages_to_process.size());
+	addIfNonZero("texture_loaded_messages_to_process",      texture_loaded_messages_to_process.size());
+	addIfNonZero("async_texture_loaded_messages_to_process", async_texture_loaded_messages_to_process.size());
+	addIfNonZero("PBO texture uploads",                     pbo_async_tex_loader.numUploadingTextures());
+	addIfNonZero("async geometry uploads",                  async_geom_loader.numUploadingGeometry());
+	addIfNonZero("new resource uploads pending",            opengl_upload_thread ? (size_t)opengl_upload_thread->getNumNewResourceUploadsPending() : 0);
+	addIfNonZero("upload thread queue (all)",               opengl_upload_thread ? opengl_upload_thread->getMessageQueue().size() : 0);
+	addIfNonZero("chunked texture upload in progress",      tex_loading_progress.loadingInProgress() ? 1 : 0);
+	addIfNonZero("chunked mesh upload in progress",         cur_loading_mesh_data.nonNull() ? 1 : 0);
+	addIfNonZero("non-net resources downloading",           (size_t)num_non_net_resources_downloading.getVal());
+	addIfNonZero("net resources downloading",               (size_t)num_net_resources_downloading.getVal());
+	addIfNonZero("terrain not fully built",                 (terrain_system.nonNull() && terrain_system->isTerrainFullyBuilt()) ? 0 : 1);
+	return s.empty() ? "loaded" : s;
 }
 
 

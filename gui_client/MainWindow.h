@@ -49,6 +49,8 @@ public:
 
 	void logAndConPrintMessage(const std::string& msg); // Print to console, and appends to LogWindow log display.
 
+	void hideAllDockWidgets();
+
 	// PrintOutput interface
 	virtual void print(const std::string& s) override; // Print a message and a newline character.
 	virtual void printStr(const std::string& s) override; // Print a message without a newline character.

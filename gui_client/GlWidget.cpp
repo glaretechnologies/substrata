@@ -53,6 +53,15 @@ extern "C"
 #endif
 
 
+static bool vsync_enabled = true;
+
+
+void GlWidget::setVSyncEnabled(bool enabled)
+{
+	vsync_enabled = enabled;
+}
+
+
 // https://wiki.qt.io/How_to_use_OpenGL_Core_Profile_with_Qt
 // https://developer.apple.com/opengl/capabilities/GLInfo_1085_Core.html
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
@@ -67,6 +76,9 @@ static QSurfaceFormat makeFormat()
 #endif
 	format.setProfile(QSurfaceFormat::CoreProfile);
 	format.setSamples(4); // Enable multisampling
+
+	if(!vsync_enabled)
+		format.setSwapInterval(0);
 
 	return format;
 }
@@ -90,7 +102,8 @@ static QGLFormat makeFormat()
 	// Not having MSAA here has no measureable perf impact but does save quite a lot of GPU mem (~230 MB at 2560 x 1282).
 	//format.setSampleBuffers(true); // Enable multisampling
 
-//	format.setSwapInterval(0); // TEMP: turn off vsync
+	if(!vsync_enabled)
+		format.setSwapInterval(0);
 
 	return format;
 }
