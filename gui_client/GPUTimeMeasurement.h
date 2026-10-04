@@ -34,7 +34,7 @@ public:
 	bool think(GUIClient& gui_client, OpenGLEngine& engine);
 
 private:
-	std::string makeReport(const OpenGLEngine& engine, double wall_time_s) const;
+	std::string makeReport(const OpenGLEngine& engine) const;
 	std::string makeNearbyObjectsReport(OpenGLEngine& engine) const;
 	void writeReport(const std::string& report);
 	void saveRender(GUIClient& gui_client, OpenGLEngine& engine);
@@ -62,4 +62,11 @@ private:
 	std::vector<double> cpu_section_time_samples[OpenGLEngine::NUM_GPU_SECTIONS]; // [section][frame]
 	std::vector<double> draw_CPU_time_samples; // One per measured frame.
 	std::vector<OpenGLEngine::DrawCounts> draw_count_samples; // One per measured frame.
+	double wall_time_s;      // Wall-clock time over the measured frames.
+
+	// Counting the fragment shader invocations in the opaque pass, to measure overdraw, is done over NUM_COUNTING_FRAMES frames after the timed frames.
+	static const int NUM_COUNTING_FRAMES = 20;
+	bool frag_invocation_counting_supported;
+	int num_counting_frames_done;
+	std::vector<uint64> opaque_frag_invocation_samples; // Counts read back during the counting frames.  Usually several per count, as each lags by a frame or more.
 };

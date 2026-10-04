@@ -30,7 +30,10 @@ GPUTimeMeasurement::GPUTimeMeasurement(const std::string& output_path_, const Ve
 	was_profiling_enabled(false),
 	num_warmup_frames_done(0),
 	load_wait_time_s(0),
-	connected(false)
+	connected(false),
+	wall_time_s(0),
+	frag_invocation_counting_supported(false),
+	num_counting_frames_done(0)
 {}
 
 
@@ -111,24 +114,43 @@ bool GPUTimeMeasurement::think(GUIClient& gui_client, OpenGLEngine& engine)
 		return false;
 	}
 
-	gpu_time_samples.push_back(engine.getLastGPUPassTimes());
-	draw_count_samples.push_back(engine.getLastDrawCounts());
-	draw_CPU_time_samples.push_back(engine.getLastDrawCPUTime());
-	for(int i=0; i<OpenGLEngine::NUM_GPU_SECTIONS; ++i)
+	if((int)gpu_time_samples.size() < num_frames)
 	{
-		section_time_samples[i].push_back(engine.getLastGPUSectionTime((OpenGLEngine::GPUSection)i));
-		cpu_section_time_samples[i].push_back(engine.getLastCPUSectionTime((OpenGLEngine::GPUSection)i));
+		gpu_time_samples.push_back(engine.getLastGPUPassTimes());
+		draw_count_samples.push_back(engine.getLastDrawCounts());
+		draw_CPU_time_samples.push_back(engine.getLastDrawCPUTime());
+		for(int i=0; i<OpenGLEngine::NUM_GPU_SECTIONS; ++i)
+		{
+			section_time_samples[i].push_back(engine.getLastGPUSectionTime((OpenGLEngine::GPUSection)i));
+			cpu_section_time_samples[i].push_back(engine.getLastCPUSectionTime((OpenGLEngine::GPUSection)i));
+		}
+
+		if((int)gpu_time_samples.size() < num_frames)
+			return false;
+
+		wall_time_s = measure_timer.elapsed();
+
+		// Count the opaque pass's fragment shader invocations, for the overdraw, over some more frames after the timed ones, so the counting can't affect the times.
+		frag_invocation_counting_supported = engine.setOpaqueFragInvocationCountingEnabled(true);
+		if(frag_invocation_counting_supported)
+			return false;
 	}
 
-	if((int)gpu_time_samples.size() < num_frames)
-		return false;
-
-	const double wall_time_s = measure_timer.elapsed();
+	if(frag_invocation_counting_supported && (num_counting_frames_done < NUM_COUNTING_FRAMES))
+	{
+		num_counting_frames_done++;
+		const uint64 count = engine.getLastDrawCounts().num_opaque_frag_invocations;
+		if(count > 0)
+			opaque_frag_invocation_samples.push_back(count);
+		if(num_counting_frames_done < NUM_COUNTING_FRAMES)
+			return false;
+		engine.setOpaqueFragInvocationCountingEnabled(false);
+	}
 
 	if(!was_profiling_enabled)
 		engine.setProfilingEnabled(false);
 
-	writeReport(makeReport(engine, wall_time_s) + makeNearbyObjectsReport(engine));
+	writeReport(makeReport(engine) + makeNearbyObjectsReport(engine));
 	saveRender(gui_client, engine);
 	return true;
 }
@@ -181,7 +203,7 @@ static std::string statsRow(const std::string& name, std::vector<double>& sample
 }
 
 
-std::string GPUTimeMeasurement::makeReport(const OpenGLEngine& engine, double wall_time_s) const
+std::string GPUTimeMeasurement::makeReport(const OpenGLEngine& engine) const
 {
 	const std::vector<OpenGLEngine::GPUPassTimes>& samples = gpu_time_samples;
 	const size_t n = samples.size();
@@ -252,7 +274,6 @@ std::string GPUTimeMeasurement::makeReport(const OpenGLEngine& engine, double wa
 	s += "Multi-draw-indirect calls in the frame (all passes): " + toString(c.num_multi_draw_indirect_calls) + "\n";
 	s += "Phong uniform buffer updates in the frame (all passes): " + toString(c.num_phong_uniform_buf_updates) + ", of which skipped as unchanged: " + toString(c.num_phong_uniform_buf_updates_skipped) + "\n";
 	s += "Phong texture sets bound in the frame (all passes): " + toString(c.num_phong_texture_sets_bound) + ", of which all already bound: " + toString(c.num_phong_texture_sets_already_bound) + "\n";
-
 	// The depth pass draws a different static cascade and object set each frame, on a 12-frame cycle, so its counts vary from frame to frame.
 	uint64 batches_sum = 0, tris_sum = 0;
 	uint32 min_tris = std::numeric_limits<uint32>::max(), max_tris = 0;
@@ -267,6 +288,23 @@ std::string GPUTimeMeasurement::makeReport(const OpenGLEngine& engine, double wa
 	const size_t num_draw_samples = draw_count_samples.size();
 	s += "Depth pass (mean per frame): " + toString(batches_sum / num_draw_samples) + " batches, " + uInt64ToStringCommaSeparated(tris_sum / num_draw_samples) + " tris (min " +
 		uInt32ToStringCommaSeparated(min_tris) + ", max " + uInt32ToStringCommaSeparated(max_tris) + ")\n";
+
+	// The overdraw: fragment shader invocations per pixel in the opaque pass.  1 would mean each pixel is shaded once.  Fragments rejected by early depth testing
+	// aren't shaded, so aren't counted.  With MSAA, the shader runs once per pixel per primitive, not per sample.
+	if(!frag_invocation_counting_supported)
+		s += "Opaque pass overdraw: not measured, as pipeline statistics queries aren't supported\n";
+	else if(opaque_frag_invocation_samples.empty())
+		s += "Opaque pass overdraw: not measured, as no counts were read back\n";
+	else
+	{
+		std::vector<uint64> counts = opaque_frag_invocation_samples;
+		std::sort(counts.begin(), counts.end());
+		const uint64 median_count = counts[counts.size() / 2];
+		const double num_pixels = (double)engine.getViewPortWidth() * engine.getViewPortHeight();
+		s += "Opaque pass fragment shader invocations: " + uInt64ToStringCommaSeparated(median_count) + " (median of " + toString(counts.size()) + " counts, min " +
+			uInt64ToStringCommaSeparated(counts.front()) + ", max " + uInt64ToStringCommaSeparated(counts.back()) + "), overdraw " +
+			doubleToStringNDecimalPlaces(median_count / num_pixels, 2) + " per pixel\n";
+	}
 
 	return s;
 }
