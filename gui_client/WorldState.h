@@ -36,6 +36,7 @@ public:
 	void updateWithGlobalTimeReceived(double t);
 	double getCurrentGlobalTime() const;
 	void newRoundTripTimeComputed(double rtt);
+	void setFrozenGlobalTime(double t); // While t >= 0, getCurrentGlobalTime() returns t instead of the server-synced time.  Pass a negative value to unfreeze.
 
 	size_t getTotalMemUsage() const;
 
@@ -72,6 +73,8 @@ private:
 
 	double min_rtt GUARDED_BY(mutex);
 	bool received_rtt GUARDED_BY(mutex);
+
+	double frozen_global_time GUARDED_BY(mutex); // If >= 0, the global time is frozen at this value.
 public:
 	Mutex last_ping_send_time_mutex;
 	double last_ping_send_time   GUARDED_BY(last_ping_send_time_mutex); // Clock::getTimeSinceInit() when a ping message was last sent to server

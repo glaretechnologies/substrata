@@ -158,6 +158,7 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	parsed_args(args),
 	connection_state(ServerConnectionState_NotConnected),
 	received_world_settings_since_connect_or_world_change(false),
+	freeze_time(false),
 	world_settings_locally_dirty(false),
 	logged_in_user_id(UserID::invalidUserID()),
 	logged_in_user_flags(0),
@@ -6349,6 +6350,11 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 	const double dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
+
+	const double FROZEN_TIME = 1000.0; // Render, animated texture and global time when freeze_time is true.
+	if(world_state.nonNull())
+		world_state->setFrozenGlobalTime(freeze_time ? FROZEN_TIME : -1.0);
+
 	const double global_time = world_state.nonNull() ? this->world_state->getCurrentGlobalTime() : 0.0; // Used as input into script functions
 
 	// Set current animation frame for objects with animated textures
@@ -6363,7 +6369,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		int num_gif_textures_processed = 0;
 		int num_mp4_textures_processed = 0;
 
-		const double anim_time = total_timer.elapsed();
+		const double anim_time = freeze_time ? FROZEN_TIME : total_timer.elapsed();
 
 		{
 			Lock lock(this->world_state->mutex); // NOTE: This lock needed?
@@ -6477,7 +6483,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	}
 
 	if(opengl_engine)
-		opengl_engine->setCurrentTime((float)cur_time);
+		opengl_engine->setCurrentTime((float)(freeze_time ? FROZEN_TIME : cur_time));
 
 
 	UpdateEvents physics_events;
@@ -6529,8 +6535,9 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				{
 					ZoneScopedN("path_controllers eval"); // Tracy profiler
 					Lock lock(this->world_state->mutex);
-					for(size_t z=0; z<path_controllers.size(); ++z)
-						path_controllers[z]->update(*world_state, *physics_world, opengl_engine.ptr(), (float)substep_dt);
+					if(!freeze_time) // Path controllers advance by the time step, and can't be updated with a zero time step (MoveKinematic() divides by it), so just don't update them when time is frozen.
+						for(size_t z=0; z<path_controllers.size(); ++z)
+							path_controllers[z]->update(*world_state, *physics_world, opengl_engine.ptr(), (float)substep_dt);
 
 					// Run active scripted moveTo/rotateTo controllers, removing any that have finished from the active set.
 					for(auto it = active_move_to_controllers.begin(); it != active_move_to_controllers.end(); ++it)

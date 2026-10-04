@@ -865,6 +865,10 @@ public:
 
 	bool received_world_settings_since_connect_or_world_change; // Have we received a WorldSettingsInitialSendMessage since connecting to the server?
 
+	// If true, the render time (clouds, water, animations etc.), animated texture time and global time (object scripts etc.) are held at a fixed value,
+	// so that frames rendered at different times, in different runs, look the same.  Set when doing GPU time measurement.
+	bool freeze_time;
+
 	UserID logged_in_user_id;
 	std::string logged_in_user_name;
 	uint32 logged_in_user_flags;

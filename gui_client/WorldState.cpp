@@ -23,7 +23,8 @@ WorldState::WorldState()
 	objects(UID::invalidUID()),
 	last_ping_send_time(0),
 	min_rtt(1.0e10),
-	received_rtt(false)
+	received_rtt(false),
+	frozen_global_time(-1)
 {
 }
 
@@ -164,6 +165,9 @@ double WorldState::getCurrentGlobalTime() const
 {
 	Lock lock(mutex);
 
+	if(frozen_global_time >= 0)
+		return frozen_global_time;
+
 	const double clock_cur_time = Clock::getCurTimeRealSec();
 
 	const double time_since_last_rcv = clock_cur_time - this->local_time_global_time_received;
@@ -195,6 +199,14 @@ void WorldState::newRoundTripTimeComputed(double rtt)
 	received_rtt = true;
 
 	// conPrint("newRoundTripTimeComputed(): min_rtt: " + doubleToStringMaxNDecimalPlaces(min_rtt * 1.0e3, 4) + " ms");
+}
+
+
+void WorldState::setFrozenGlobalTime(double t)
+{
+	Lock lock(mutex);
+
+	frozen_global_time = t;
 }
 
 

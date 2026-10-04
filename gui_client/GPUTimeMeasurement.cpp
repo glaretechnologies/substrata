@@ -58,6 +58,9 @@ bool GPUTimeMeasurement::think(GUIClient& gui_client, OpenGLEngine& engine)
 
 		gui_client.player_physics.setEyePosition(cam_pos);
 		gui_client.player_physics.setFlyModeEnabled(true); // Don't fall to the ground.
+
+		// Hold clouds, scripted objects etc. still, so that runs render the same thing, and their renders can be compared.
+		gui_client.freeze_time = true;
 	}
 
 	// Hold the camera at the measurement position every frame, so that nothing else (the mouse, say) moves it.
