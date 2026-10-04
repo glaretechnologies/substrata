@@ -16943,9 +16943,10 @@ public:
 
 		RayTraceResult results;
 		gui_client->physics_world->traceRay(gui_client->cam_controller.getPosition().toVec4fPoint(), trace_dir, 10000.f, JPH::BodyID(), results);
-
-
-		return results.hit_t * dot(trace_dir, gui_client->cam_controller.getForwardsVec().toVec4fVector()); // Adjust from distance to depth
+		if(results.hit_object)
+			return results.hit_t * dot(trace_dir, gui_client->cam_controller.getForwardsVec().toVec4fVector()); // Adjust from distance to depth
+		else
+			return 2000000.f;
 	}
 	
 	// Return normal in camera space
