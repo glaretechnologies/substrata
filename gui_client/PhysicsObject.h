@@ -108,7 +108,9 @@ public:
 	and smooth_rotation = rot_old * rot_snap^-1
 
 	We then slowly reduce smooth_translation and smooth_rotation over time to zero / identity rotation, until pos' and pos_snap converge.
+	They decay at about SMOOTHING_DECAY_RATE per second, so the rendered velocity is about the body velocity - SMOOTHING_DECAY_RATE * smooth_translation.
 	*/
+	static constexpr float SMOOTHING_DECAY_RATE = 3.f; // 1/s
 	Vec4f smooth_translation;
 	Quatf smooth_rotation;
 

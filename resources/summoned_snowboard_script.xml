@@ -6,7 +6,7 @@
 		<push_acceleration>3</push_acceleration>
 		<brake_acceleration>8</brake_acceleration>
 		<turn_rate>1.6</turn_rate>
-		<jump_speed>4</jump_speed>
+		<jump_speed>3</jump_speed>
 		<fast_speed>14</fast_speed>
 		<seat>
 			<seat_position>0 0 0.05</seat_position>

@@ -6742,7 +6742,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 								// Reduce smooth_translation and smooth_rotation over time to zero / identity rotation.  NOTE: This is deliberately before the getSmoothedObToWorldMatrix() call below,
 								// so that getSmoothedObToWorldMatrix() result is unchanged over the rest of this frame.
-								const float smooth_change_factor = (1 - 3.f * myMin(0.1f, (float)dt));
+								const float smooth_change_factor = (1 - PhysicsObject::SMOOTHING_DECAY_RATE * myMin(0.1f, (float)dt));
 								assert(smooth_change_factor >= 0 && smooth_change_factor < 1);
 								physics_ob->smooth_translation *= smooth_change_factor;
 								physics_ob->smooth_rotation = Quatf::nlerp(Quatf::identity(), physics_ob->smooth_rotation, smooth_change_factor);

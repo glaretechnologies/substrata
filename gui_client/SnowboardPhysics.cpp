@@ -24,6 +24,35 @@ Copyright Glare Technologies Limited 2026 -
 static const float jump_full_charge_time = 0.6f;
 static const float min_jump_fraction = 0.4f;
 
+// On take-off the legs straighten explosively: crouch goes to 0 at a fast rate for a short time, then the normal in-air tuck takes over.
+static const float jump_extend_duration = 0.25f; // s
+static const float jump_extend_rate = 5.f; // 1/s.  The normal crouch rate is 8.
+static const float jump_hip_extension_speed = 1.f; // m/s.  Upward kick to the torso offset on take-off.
+
+// Torso offset from the target hip position, in seat space (along the board, towards the toes, up).
+// Horizontally the torso is a ball on a spring.  Vertically the legs are a shock absorber plus a deliberate stand-up.
+static const float torso_horizontal_frequency = 1.5f; // Hz
+static const float torso_horizontal_damping = 0.95f; // Damping ratio.  Nearly critical, so little wobble.
+static const float torso_absorb_decel = 3.f; // m/s^2.  Steady braking of the torso by the legs on landing.  Dip depth = speed^2 / (2 * this).
+static const float torso_landing_hold_time = 0.2f; // s.  Time to stay crouched after absorbing a landing, before standing up.
+static const float torso_landing_hold_full_depth = 0.1f; // m.  Dips this deep or deeper get the full hold time; shallower ones proportionally less.
+static const float landing_min_air_time = 0.2f; // s.  Touching down after at least this long in the air counts as a landing, for the crouch hold.
+static const float landing_hold_window = 0.5f; // s.  Dips that start within this time of a landing hold the crouch.  Other dips, e.g. from carving, don't.
+static const float torso_recovery_time = 0.5f; // s.  Time to stand back up to about 95% of the way, without overshoot.
+static const float torso_offset_min[3] = { -0.12f, -0.12f, -0.28f }; // m
+static const float torso_offset_max[3] = {  0.12f,  0.12f, 0.06f }; // m
+static const float torso_max_board_vel_change = 6.f; // m/s per update.  Limits the effect of teleports.
+static const float torso_chest_tilt_per_metre = 2.f; // Chest tilt, in radians per metre of horizontal torso offset.
+
+// Arm swing: the arms lag the shoulders' velocity changes, like pendulums, and a soft spring returns them to the procedural pose.
+// Angles in seat space: [0] towards +X (along the board), [1] towards +Y (the rider's front), [2] down.
+static const float arm_swing_per_shoulder_vel_change = 2.f; // rad/s per m/s, about 1 / arm length.
+static const float arm_swing_frequency = 2.5f; // Hz
+static const float arm_swing_damping = 0.6f; // Damping ratio.  Underdamped, so the arms swing a little before settling.
+static const float arm_swing_min[3] = { -0.7f, -0.7f, -0.3f }; // rad
+static const float arm_swing_max[3] = {  0.7f,  0.7f,  0.9f }; // rad
+static const float forearm_swing_fraction = 0.5f; // Forearm swing relative to the upper arm, as a fraction of the upper arm swing.
+
 
 SnowboardPhysics::SnowboardPhysics(WorldObject* object_, Reference<Scripting::SnowboardScriptSettings> settings_, PhysicsWorld& world, ParticleManager* particle_manager_)
 :	particle_manager(particle_manager_), object(object_), settings(settings_), physics_world(&world), body_id(object_->physics_object->jolt_body_id)
@@ -36,11 +65,22 @@ SnowboardPhysics::SnowboardPhysics(WorldObject* object_, Reference<Scripting::Sn
 	jump_charge_time = 0;
 	grounded = false;
 	jump_cooldown = 0;
+	jump_extend_time = 0;
 	righting_time = 0;
+	tipped_time = 0;
 	crouch = 0;
 	steering = 0;
 	forward_direction = 1;
 	rider_lean = 0;
+	torso_offset_ss = Vec4f(0,0,0,0);
+	torso_vel_ss = Vec4f(0,0,0,0);
+	torso_hold_time = 0;
+	air_time = 0;
+	time_since_landing = landing_hold_window;
+	arm_swing = Vec4f(0,0,0,0);
+	arm_swing_vel = Vec4f(0,0,0,0);
+	last_board_vel = Vec4f(0,0,0,0);
+	have_last_board_vel = false;
 
 	ground_normal = Vec4f(0,0,1,0);
 
@@ -73,7 +113,7 @@ SnowboardPhysics::SnowboardPhysics(WorldObject* object_, Reference<Scripting::Sn
 	JPH::VehicleConstraintSettings vehicle;
 	vehicle.mUp = board_to_model * JPH::Vec3(0,0,1);
 	vehicle.mForward = board_to_model * JPH::Vec3(0,1,0);
-	vehicle.mMaxPitchRollAngle = Maths::pi<float>(); // No invisible upright constraint while airborne.
+	vehicle.mMaxPitchRollAngle = Maths::pi<float>(); // Tilt limit starts disabled; update() engages it while riding upright.
 
 	const float radius = myClamp(half_extent.GetX() * 0.4f, 0.015f, 0.07f);
 	const float clearance = 0.015f; // About 1 cm under load, keeping the hull clear of small terrain seams.
@@ -217,6 +257,12 @@ void SnowboardPhysics::userEnteredVehicle(int seat_index)
 	setSuspensionEnabled(true);
 	jump_was_down = false;
 	jump_charge_time = 0;
+	torso_offset_ss = torso_vel_ss = Vec4f(0,0,0,0);
+	torso_hold_time = 0;
+	air_time = 0;
+	time_since_landing = landing_hold_window;
+	arm_swing = arm_swing_vel = Vec4f(0,0,0,0);
+	have_last_board_vel = false;
 }
 
 
@@ -241,6 +287,14 @@ VehiclePhysicsUpdateEvents SnowboardPhysics::update(PhysicsWorld& world, const P
 	const Vec4f forward = board_to_world * Vec4f(0,1,0,0);
 	const Vec4f right = board_to_world * Vec4f(1,0,0,0);
 
+	// Right the board automatically if the rider has been tipped over for a while.  Repeats until upright.
+	tipped_time = (occupied && up[2] < std::cos(degreeToRad(60.f))) ? (tipped_time + dt) : 0;
+	if(tipped_time > 0.5f && righting_time <= 0)
+	{
+		startRightingVehicle();
+		tipped_time = 0;
+	}
+
 	// Use the unraised hull before the suspension faces sideways or upwards.
 	// Hysteresis avoids switching repeatedly near the tipping threshold.
 	if(suspension_enabled)
@@ -250,6 +304,16 @@ VehiclePhysicsUpdateEvents SnowboardPhysics::update(PhysicsWorld& world, const P
 		const JPH::RefConst<JPH::Shape> target_shape = use_raised_hull ? raised_riding_shape : riding_shape;
 		if(current_shape.GetPtr() != target_shape.GetPtr())
 			bodies.SetShape(body_id, target_shape, /*inUpdateMassProperties=*/false, JPH::EActivation::Activate);
+
+		// While riding, keep the board's up vector within max_tilt of world up so it can't flip over.
+		// The limit is only engaged once the board is inside the cone, so a board that is mounted while
+		// flipped, or is being righted, is not snapped back by the constraint.  Once engaged it stays
+		// engaged unless the board is well outside the cone, so solver overshoot does not release it.
+		const float max_tilt = degreeToRad(75.f);
+		const bool limit_engaged = vehicle_constraint->GetMaxPitchRollAngle() < Maths::pi<float>() * 0.99f;
+		const bool engage_limit = occupied && righting_time <= 0 && (up[2] >= std::cos(max_tilt) || (limit_engaged && up[2] >= std::cos(max_tilt + degreeToRad(15.f))));
+		if(engage_limit != limit_engaged)
+			vehicle_constraint->SetMaxPitchRollAngle(engage_limit ? max_tilt : Maths::pi<float>());
 	}
 	const Vec4f vel = getLinearVel(world);
 	const float speed = vel.length();
@@ -284,6 +348,15 @@ VehiclePhysicsUpdateEvents SnowboardPhysics::update(PhysicsWorld& world, const P
 	}
 	const bool was_grounded = grounded;
 	grounded = support_impulse > 1.e-5f && jump_cooldown <= 0;
+	if(grounded)
+	{
+		if(air_time >= landing_min_air_time)
+			time_since_landing = 0; // Just landed.
+		air_time = 0;
+	}
+	else
+		air_time += dt;
+	time_since_landing += dt;
 	if(grounded)
 	{
 		ground_velocity = ground_velocity / support_impulse;
@@ -345,7 +418,11 @@ VehiclePhysicsUpdateEvents SnowboardPhysics::update(PhysicsWorld& world, const P
 	float target_crouch = (occupied && input.C_down) ? 1.0f : myMax(grounded ? 0.0f : 0.65f, myClamp(speed / settings->fast_speed, 0.0f, 1.0f));
 	if(jump) // Crouch deeper as the jump charges, beyond the full riding crouch of 1.
 		target_crouch = myMax(target_crouch, 0.4f + 0.6f * jump_charge) + 0.5f * jump_charge;
-	crouch += (target_crouch - crouch) * blend;
+	if(jump_extend_time > 0)
+		crouch += (0.f - crouch) * (1.0f - std::exp(-jump_extend_rate * dt)); // Explosive leg extension on take-off.
+	else
+		crouch += (target_crouch - crouch) * blend;
+	jump_extend_time = myMax(0.f, jump_extend_time - dt);
 
 	if(occupied || righting_time > 0)
 	{
@@ -396,6 +473,10 @@ VehiclePhysicsUpdateEvents SnowboardPhysics::update(PhysicsWorld& world, const P
 			{
 				const float jump_speed = settings->jump_speed * (min_jump_fraction + (1 - min_jump_fraction) * jump_charge);
 				bodies.AddImpulse(body_id, toJoltVec3(normal * (mass * jump_speed)));
+				have_last_board_vel = false; // The rider pushes off, so the torso shouldn't be thrown down by the jump.
+				torso_vel_ss[2] = myMax(torso_vel_ss[2], jump_hip_extension_speed);
+				torso_hold_time = 0;
+				jump_extend_time = jump_extend_duration;
 				jump_cooldown = 0.3f;
 				grounded = false;
 			}
@@ -437,11 +518,99 @@ VehiclePhysicsUpdateEvents SnowboardPhysics::update(PhysicsWorld& world, const P
 		if(righting_time > 1.65f)
 			bodies.AddForce(body_id, JPH::Vec3(0,0,mass * 12.0f)); // Give a flipped board clearance to rotate.
 	}
+	if(occupied)
+	{
+		// Drive the torso from the board as rendered, so the rider reacts to the motion the viewer sees.  For remote boards, network snapshots
+		// set the body state directly, and the rendered transform hides the jump with smooth_translation, which decays at SMOOTHING_DECAY_RATE.
+		// The current velocity includes any jump impulse from this update.
+		Vec4f rendered_vel = getLinearVel(world);
+		if(object->physics_object)
+			rendered_vel -= object->physics_object->smooth_translation * PhysicsObject::SMOOTHING_DECAY_RATE;
+		updateTorsoSpring(getSeatToWorldTransformNoScale(world, 0, /*smoothed=*/true), rendered_vel, dt);
+	}
+
 	righting_time = myMax(0.0f, righting_time - dt);
 	if(jump_released)
 		jump_charge_time = 0; // A release while airborne discards the charge.
 	jump_was_down = jump;
 	return VehiclePhysicsUpdateEvents();
+}
+
+
+// Torso offset from the target hip position, in seat space.  When the board's velocity changes, the torso keeps going relative to the board.
+// Horizontally a spring pulls it back: braking pushes it forwards along the board, etc.
+// Vertically the legs absorb a landing at a steady deceleration (the leg IK flexes the knees), then the rider stands back up.
+void SnowboardPhysics::updateTorsoSpring(const Matrix4f& seat_to_world, const Vec4f& board_vel, float dt)
+{
+	Vec4f board_dv_ss(0,0,0,0); // Board velocity change in seat space.
+	if(have_last_board_vel)
+	{
+		// In the air, ignore the change from gravity, so the rider holds their pose, and a landing arrives all at once.
+		// This still sees the impact if the landing step is before the suspension reports ground contact.
+		Vec4f dv = board_vel - last_board_vel;
+		if(!grounded)
+			dv -= toVec4fVec(physics_world->physics_system->GetGravity()) * dt;
+		if(dv.length() > torso_max_board_vel_change)
+			dv = normalise(dv) * torso_max_board_vel_change;
+		for(int axis=0; axis<3; ++axis)
+			board_dv_ss[axis] = dot(dv, seat_to_world.getColumn(axis));
+		torso_vel_ss -= board_dv_ss; // Relative to the board, the torso moves the opposite way.
+	}
+	last_board_vel = board_vel;
+	have_last_board_vel = true;
+
+	const Vec4f torso_vel_before_legs = torso_vel_ss;
+
+	for(int axis=0; axis<3; ++axis)
+	{
+		float& offset = torso_offset_ss[axis];
+		float& vel = torso_vel_ss[axis];
+		if(axis < 2)
+		{
+			const float omega = Maths::get2Pi<float>() * torso_horizontal_frequency;
+			vel += (-omega * omega * offset - 2 * torso_horizontal_damping * omega * vel) * dt; // Semi-implicit Euler.
+		}
+		else if(vel < 0 && offset <= 0) // Dropping below the stance height: the legs brake the torso steadily, without pushing it back.
+		{
+			vel = myMin(0.f, vel + torso_absorb_decel * dt);
+			if(time_since_landing < landing_hold_window) // Only hold the crouch after landing from the air.
+				torso_hold_time = torso_landing_hold_time * myMin(1.f, -offset / torso_landing_hold_full_depth); // Starts counting down once the absorbing stops.
+		}
+		else if(torso_hold_time > 0) // Stay crouched for a moment after absorbing a landing.
+		{
+			vel = 0;
+			torso_hold_time -= dt;
+		}
+		else // Stand back up (or settle down), critically damped.
+		{
+			const float omega = 4.74f / torso_recovery_time; // A critically damped spring settles to about 5% in 4.74 / omega.
+			vel += (-omega * omega * offset - 2 * omega * vel) * dt;
+		}
+		offset += vel * dt;
+
+		// Stop at the limits, e.g. a full knee bend.
+		if(torso_offset_ss[axis] < torso_offset_min[axis]) { torso_offset_ss[axis] = torso_offset_min[axis]; torso_vel_ss[axis] = myMax(0.f, torso_vel_ss[axis]); }
+		if(torso_offset_ss[axis] > torso_offset_max[axis]) { torso_offset_ss[axis] = torso_offset_max[axis]; torso_vel_ss[axis] = myMin(0.f, torso_vel_ss[axis]); }
+	}
+	if(!torso_offset_ss.isFinite() || !torso_vel_ss.isFinite())
+		torso_offset_ss = torso_vel_ss = Vec4f(0,0,0,0);
+
+	// The shoulders move with the torso.  The torso keeps its world velocity when the board's changes (its relative velocity takes the
+	// opposite change above), so the shoulders' world velocity only changes by what the legs and springs apply.
+	const Vec4f shoulder_dv_ss = torso_vel_ss - torso_vel_before_legs;
+	arm_swing_vel[0] -= arm_swing_per_shoulder_vel_change * shoulder_dv_ss[0]; // Arms lag behind sideways and forwards motion.
+	arm_swing_vel[1] -= arm_swing_per_shoulder_vel_change * shoulder_dv_ss[1];
+	arm_swing_vel[2] += arm_swing_per_shoulder_vel_change * shoulder_dv_ss[2]; // Shoulders pushed up (e.g. absorbing a landing) make the arms droop.
+	const float omega = Maths::get2Pi<float>() * arm_swing_frequency;
+	for(int axis=0; axis<3; ++axis)
+	{
+		arm_swing_vel[axis] += (-omega * omega * arm_swing[axis] - 2 * arm_swing_damping * omega * arm_swing_vel[axis]) * dt;
+		arm_swing[axis] += arm_swing_vel[axis] * dt;
+		if(arm_swing[axis] < arm_swing_min[axis]) { arm_swing[axis] = arm_swing_min[axis]; arm_swing_vel[axis] = myMax(0.f, arm_swing_vel[axis]); }
+		if(arm_swing[axis] > arm_swing_max[axis]) { arm_swing[axis] = arm_swing_max[axis]; arm_swing_vel[axis] = myMin(0.f, arm_swing_vel[axis]); }
+	}
+	if(!arm_swing.isFinite() || !arm_swing_vel.isFinite())
+		arm_swing = arm_swing_vel = Vec4f(0,0,0,0);
 }
 
 
@@ -560,6 +729,23 @@ void SnowboardPhysics::updateRiderPose(PoseConstraint& pose) const
 	pose.upper_arm_shoulder_lift_angle = 0;
 	pose.lower_arm_up_angle = 0.25f + 0.3f * arm_crouch;
 	pose.left_hand_hold_point_ws = pose.right_hand_hold_point_ws = Vec4f(std::numeric_limits<float>::quiet_NaN());
+
+	// Spring-mass torso: move the hips by the torso offset (leg IK keeps the feet on the bindings), and tilt the chest with the horizontal offset.
+	pose.snowboard_pelvis_delta_ss = Matrix4f::translationMatrix(torso_offset_ss);
+	const Vec4f horizontal_offset(torso_offset_ss[0], torso_offset_ss[1], 0, 0);
+	if(horizontal_offset.length() > 1.e-4f)
+		pose.snowboard_chest_rot_ss = Quatf::fromAxisAndAngle(normalise(crossProduct(Vec4f(0,0,1,0), horizontal_offset)), torso_chest_tilt_per_metre * horizontal_offset.length());
+
+	// Arm swing, around the shoulders in seat space.  Rotating around X moves a hanging arm towards +Y, and around Y moves it towards -X.
+	// The left arm is out towards -X, so lowering it is a negative rotation around Y, and lowering the right arm is a positive one.
+	for(int side=0; side<2; ++side)
+	{
+		const float lower_sign = (side == 0) ? -1.f : 1.f;
+		const Quatf upper_arm_rot = Quatf::xAxisRot(arm_swing[1]) * Quatf::yAxisRot(-arm_swing[0] + lower_sign * arm_swing[2]);
+		const Quatf forearm_rot = Quatf::xAxisRot(forearm_swing_fraction * arm_swing[1]) * Quatf::yAxisRot(forearm_swing_fraction * (-arm_swing[0] + lower_sign * arm_swing[2]));
+		pose.snowboard_upper_arm_rot_ss[side] = upper_arm_rot;
+		pose.snowboard_forearm_rot_ss[side] = forearm_rot;
+	}
 }
 
 
@@ -619,6 +805,7 @@ void SnowboardPhysics::updateDebugVisObjects()
 		else
 			checkRemoveObAndSetRefToNull(*m_opengl_engine, foot_point_gl_obs[i]);
 	}
+
 }
 
 
@@ -721,6 +908,10 @@ void SnowboardPhysics::test()
 				controller.update(world, input, dt);
 				world.think(dt);
 				testAssert(controller.getBodyTransform(world).getColumn(3)[2] > 0.045f); // Underside stays clear of the terrain.
+
+				// The spring-mass torso stays within its limits.
+				for(int axis=0; axis<3; ++axis)
+					testAssert(controller.torso_offset_ss[axis] >= torso_offset_min[axis] && controller.torso_offset_ss[axis] <= torso_offset_max[axis]);
 			}
 			testAssert(dot(controller.getBodyTransform(world).getColumn(3), travel_dir) > 1.f);
 			testAssert(dot(controller.getLinearVel(world), travel_dir) > 1.5f);

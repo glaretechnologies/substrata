@@ -119,7 +119,7 @@ SnowboardScriptSettings::SnowboardScriptSettings()
 	push_acceleration = 3.0f;
 	brake_acceleration = 8.0f;
 	turn_rate = 1.6f;
-	jump_speed = 4.0f;
+	jump_speed = 3.0f;
 	fast_speed = 14.0f;
 }
 

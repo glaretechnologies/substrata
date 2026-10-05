@@ -58,7 +58,14 @@ struct PoseConstraint
 {
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	PoseConstraint() : sitting(false), upper_leg_rot_around_thigh_bone_angle(0), snowboarding(false), snowboard_crouch(0), snowboard_steer(0), snowboard_lean(0) { left_foot_point_ws = right_foot_point_ws = Vec4f(std::numeric_limits<float>::quiet_NaN()); }
+	PoseConstraint() : sitting(false), upper_leg_rot_around_thigh_bone_angle(0), snowboarding(false), snowboard_crouch(0), snowboard_steer(0), snowboard_lean(0)
+	{
+		left_foot_point_ws = right_foot_point_ws = Vec4f(std::numeric_limits<float>::quiet_NaN());
+		snowboard_pelvis_delta_ss = Matrix4f::identity();
+		snowboard_chest_rot_ss = Quatf::identity();
+		for(int i=0; i<2; ++i)
+			snowboard_upper_arm_rot_ss[i] = snowboard_forearm_rot_ss[i] = Quatf::identity();
+	}
 
 	// For sitting:
 	Matrix4f seat_to_world; // Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0).  Should just have rotation and translation, no scaling.
@@ -85,6 +92,12 @@ struct PoseConstraint
 	float snowboard_crouch; // [0, 1.5], blended by the vehicle controller. Values above 1 occur while charging a jump.
 	float snowboard_steer; // [-1, 1].
 	float snowboard_lean; // Radians relative to the board, positive towards its right edge.
+
+	// Snowboard rider torso and arm motion added to the procedural pose, in seat space.  Identity when there is none.
+	Matrix4f snowboard_pelvis_delta_ss; // Rigid transform applied to the whole avatar, before leg IK.
+	Quatf snowboard_chest_rot_ss; // Rotation of the chest (Spine2) relative to the pelvis delta.
+	Quatf snowboard_upper_arm_rot_ss[2]; // Left, right.  Relative to the pelvis delta.
+	Quatf snowboard_forearm_rot_ss[2]; // Left, right.  Relative to the upper arm.
 };
 
 #ifdef _WIN32
