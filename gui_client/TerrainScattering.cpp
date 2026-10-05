@@ -19,6 +19,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/FileUtils.h>
 #include <utils/ContainerUtils.h>
 #include <utils/RuntimeCheck.h>
+#include <utils/BitUtils.h>
 #include "graphics/Voronoi.h"
 #include "graphics/FormatDecoderGLTF.h"
 #include "graphics/PNGDecoder.h"
@@ -570,6 +571,31 @@ void TerrainScattering::rebuildDetailMaskMapSection(int section_x, int section_y
 }
 
 
+// See https://nullprogram.com/blog/2018/07/31/ (lowbias32)
+static inline uint32 lowbias32Hash(uint32 x)
+{
+	x ^= x >> 16;
+	x *= 0x7feb352dU;
+	x ^= x >> 15;
+	x *= 0x846ca68bU;
+	x ^= x >> 16;
+	return x;
+}
+
+
+// Per-tree leaf colour factor, in [0.7, 1.0] for each channel, computed from the tree position.
+// This must match treeColourFactor() in imposter_vert_shader.glsl, so that tree imposters get the same colour as the tree models.
+static Colour3f treeColourFactor(const Vec4f& tree_pos)
+{
+	const uint32 h = lowbias32Hash(bitCast<uint32>(tree_pos[0]) ^ lowbias32Hash(bitCast<uint32>(tree_pos[1])));
+	return Colour3f(
+		0.7f + (float)( h        & 0x3FFu) * (0.3f / 1023.f),
+		0.7f + (float)((h >> 10) & 0x3FFu) * (0.3f / 1023.f),
+		0.7f + (float)((h >> 20) & 0x3FFu) * (0.3f / 1023.f)
+	);
+}
+
+
 /*
                    large chunk (0, 0)                                     large chunk (1, 0)
 ==============================================================================================================
@@ -773,16 +799,10 @@ void TerrainScattering::updateCampos(const Vec3d& campos, glare::StackAllocator&
 						gl_ob->mesh_data = biome_manager->elm_tree_mesh_render_data;
 						gl_ob->materials = biome_manager->elm_tree_gl_materials;
 
-						// Randomise leaf colour a little.
-						float r_factor = 0.7f + rng.unitRandom() * 0.3f;
-						float g_factor = 0.7f + rng.unitRandom() * 0.3f;
-						float b_factor = 0.7f + rng.unitRandom() * 0.3f;
-						gl_ob->materials[1].albedo_linear_rgb.r *= r_factor;
-						gl_ob->materials[1].albedo_linear_rgb.g *= g_factor;
-						gl_ob->materials[1].albedo_linear_rgb.b *= b_factor;
-						gl_ob->materials[1].transmission_albedo_linear_rgb.r *= r_factor;
-						gl_ob->materials[1].transmission_albedo_linear_rgb.g *= g_factor;
-						gl_ob->materials[1].transmission_albedo_linear_rgb.b *= b_factor;
+						// Randomise leaf colour a little.  Uses the same factor as the tree imposter shader.
+						const Colour3f col_factor = treeColourFactor(tree_info[z].pos);
+						gl_ob->materials[1].albedo_linear_rgb              *= col_factor;
+						gl_ob->materials[1].transmission_albedo_linear_rgb *= col_factor;
 
 						opengl_engine->addObject(gl_ob);
 						chunk.gl_obs.push_back(gl_ob);
@@ -1658,6 +1678,9 @@ void TerrainScattering::makeTreeChunk(int chunk_x_index, int chunk_y_index, glar
 		chunk.imposters_gl_ob->materials[0].begin_fade_out_distance = 100000;
 		chunk.imposters_gl_ob->materials[0].end_fade_out_distance   = 120000;
 		chunk.imposters_gl_ob->materials[0].imposter_tex_has_multiple_angles = true;
+		// Scale the imposter texture colour so that imposters match the brightness and hue of the elm tree models (see BiomeManager elm_tree_gl_materials).
+		// Tuned by comparing rendered imposters against tree models near the imposter transition distance.
+		chunk.imposters_gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(162/256.f)) * Colour3f(1.4f, 1.4f, 1.2f);
 		//chunk.imposters_gl_ob->materials[0].materialise_lower_z = 0; // begin fade in distance
 		//chunk.imposters_gl_ob->materials[0].materialise_upper_z = 0.01; // end fade in distance
 		//chunk.imposters_gl_ob->materials[0].begin_fade_out_distance = 100;
