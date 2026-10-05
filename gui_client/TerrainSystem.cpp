@@ -158,6 +158,8 @@ static const int max_depth = 14;
 
 static const float MAX_PHYSICS_DIST = 500.f; // Build physics objects for terrain chunks if the closest point on them to camera is <= MAX_PHYSICS_DIST away.
 
+static const bool DO_AABB_VIS = false;
+
 //static float world_w = 4096;
 //// static float CHUNK_W = 512.f;
 //static int chunk_res = 128; // quad res per patch
@@ -1355,7 +1357,7 @@ void TerrainSystem::removeSubtree(TerrainNode* node, std::vector<GLObjectRef>& o
 			removeSubtree(node->children[i].ptr(), old_subtree_gl_obs_in_out, old_subtree_phys_obs_in_out);
 			id_to_node_map.erase(node->children[i]->id);
 
-			if(node->children[i]->vis_aabb_gl_ob.nonNull())
+			if(DO_AABB_VIS && node->children[i]->vis_aabb_gl_ob)
 				opengl_engine->removeObject(node->children[i]->vis_aabb_gl_ob);
 
 			node->children[i] = NULL;
@@ -1396,14 +1398,15 @@ void TerrainSystem::createInteriorNodeSubtree(TerrainNode* node, const Vec3d& ca
 	node->children[3]->aabb = js::AABBox(node->aabb.min_ + Vec4f(0, child_w, 0, 0), node->aabb.max_ - Vec4f(child_w, 0, 0, 0));
 
 	// Add an AABB visualisation for debugging
-	if(false)
+	if(DO_AABB_VIS)
 	{
 		const Colour3f col = depth_colours[(node->depth + 1) % staticArrayNumElems(depth_colours)];
 		for(int i=0; i<4; ++i)
 		{
-			float padding = 0.01f;
+			float padding = -1.f - node->depth * 0.01f;
 			Vec4f padding_v(padding,padding,padding,0);
-			node->children[i]->vis_aabb_gl_ob = opengl_engine->makeAABBObject(node->children[i]->aabb.min_ - padding_v, node->children[i]->aabb.max_ + padding_v, Colour4f(col[0], col[1], col[2], 0.2f));
+			node->children[i]->vis_aabb_gl_ob = opengl_engine->makeCuboidEdgeAABBObject(node->children[i]->aabb.min_ - padding_v, node->children[i]->aabb.max_ + padding_v, 
+				Colour4f(col[0], col[1], col[2], 1.f), 2.f);
 			opengl_engine->addObject(node->children[i]->vis_aabb_gl_ob);
 		}
 	}
@@ -1513,7 +1516,7 @@ void TerrainSystem::updateSubtree(TerrainNode* cur, const Vec3d& campos)
 				removeSubtree(cur->children[i].ptr(), cur->old_subtree_gl_obs, cur->old_subtree_phys_obs);
 				id_to_node_map.erase(cur->children[i]->id);
 
-				if(cur->children[i]->vis_aabb_gl_ob.nonNull())
+				if(DO_AABB_VIS && cur->children[i]->vis_aabb_gl_ob)
 					opengl_engine->removeObject(cur->children[i]->vis_aabb_gl_ob);
 
 				cur->children[i] = NULL;
