@@ -23,7 +23,7 @@ camera, over a number of frames, and writes a report to a file.
 Started with the --measure_gpu_times command line option.  Waits for the
 client to connect and for the world around the camera to finish loading,
 then measures, so that runs of different builds from the same camera can be
-compared.
+compared.  Also saves a render of the view next to the report, as a PNG.
 =====================================================================*/
 class GPUTimeMeasurement
 {
@@ -34,8 +34,10 @@ public:
 	bool think(GUIClient& gui_client, OpenGLEngine& engine);
 
 private:
-	std::string makeReport(const OpenGLEngine& engine, double wall_time_s) const;
+	std::string makeReport(const OpenGLEngine& engine) const;
+	std::string makeNearbyObjectsReport(OpenGLEngine& engine) const;
 	void writeReport(const std::string& report);
+	void saveRender(GUIClient& gui_client, OpenGLEngine& engine);
 
 	std::string output_path;
 	Vec3d cam_pos;
@@ -44,14 +46,27 @@ private:
 
 	bool became_loaded;      // Has the scene finished loading since the camera was positioned?
 	bool load_timed_out;     // Did we give up waiting for loading, and measure anyway?
+	std::string load_timeout_status; // What loading was still waiting on, if it timed out.  See GUIClient::getSceneLoadingStatus().
+	Timer status_log_timer;  // Time since the loading status was last logged.
 	bool measuring;
 	bool was_profiling_enabled; // Profiling state before measuring, restored afterwards.
 	int num_warmup_frames_done;
 	Timer total_timer;       // Time since connecting, for the loading timeout.
+	double load_wait_time_s; // Time from connecting to starting measuring.
 	bool connected;
 	Timer settle_timer;      // Time since the scene became loaded.
 	Timer measure_timer;     // Wall-clock time over the measured frames.
 
 	std::vector<OpenGLEngine::GPUPassTimes> gpu_time_samples; // One per measured frame.
-	OpenGLEngine::DrawCounts last_draw_counts;
+	std::vector<double> section_time_samples[OpenGLEngine::NUM_GPU_SECTIONS]; // [section][frame]
+	std::vector<double> cpu_section_time_samples[OpenGLEngine::NUM_GPU_SECTIONS]; // [section][frame]
+	std::vector<double> draw_CPU_time_samples; // One per measured frame.
+	std::vector<OpenGLEngine::DrawCounts> draw_count_samples; // One per measured frame.
+	double wall_time_s;      // Wall-clock time over the measured frames.
+
+	// Counting the fragment shader invocations in the opaque pass, to measure overdraw, is done over NUM_COUNTING_FRAMES frames after the timed frames.
+	static const int NUM_COUNTING_FRAMES = 20;
+	bool frag_invocation_counting_supported;
+	int num_counting_frames_done;
+	std::vector<uint64> opaque_frag_invocation_samples; // Counts read back during the counting frames.  Usually several per count, as each lags by a frame or more.
 };

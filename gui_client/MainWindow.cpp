@@ -4738,7 +4738,14 @@ void MainWindow::enterFullScreenMode()
 	this->ui->toolBar->hide();
 	this->ui->statusbar->hide();
 
-	// Hide all dock widgets
+	hideAllDockWidgets();
+
+	gui_client.showInfoNotification("Full-screen mode entered.  Press ALT + ENTER to exit it.");
+}
+
+
+void MainWindow::hideAllDockWidgets()
+{
 	this->ui->helpInfoDockWidget->hide();
 	this->ui->chatDockWidget->hide();
 	this->ui->editorDockWidget->hide();
@@ -4747,8 +4754,6 @@ void MainWindow::enterFullScreenMode()
 	this->ui->worldSettingsWidget->hide();
 	this->ui->diagnosticsDockWidget->hide();
 	this->ui->worldSettingsDockWidget->hide();
-
-	gui_client.showInfoNotification("Full-screen mode entered.  Press ALT + ENTER to exit it.");
 }
 
 void MainWindow::exitFromFullScreenMode()
@@ -5498,6 +5503,9 @@ int main(int argc, char *argv[])
 			// We want to call connectToServer as quickly as possible to hide the latency of setting up the TLS connection to the server.
 			// So do the bare minimum of initialisation, call connectToServer, then do the reset (setting up UI etc.)
 
+			if(parsed_args.isArgPresent("--measure_gpu_times"))
+				GlWidget::setVSyncEnabled(false); // So that the wall-clock frame time is how long a frame actually takes, and the GPU isn't left waiting on vsync.
+
 			MainWindow mw(cyberspace_base_dir_path, appdata_path, parsed_args);
 			mw.minidump_sender = minidump_sender;
 
@@ -5580,17 +5588,25 @@ int main(int argc, char *argv[])
 				if(gl_w < 16 || gl_h < 16)
 					throw glare::Exception("--window_size must be at least 16 x 16.");
 
-				// Size the main window so that the 3D view comes out at the requested size.  Qt sizes are in logical pixels, so convert using the device pixel ratio.
+				// Put the window on the primary screen, wherever it was last time, so that runs are comparable.  Keep it to the one screen: spanning two makes the
+				// compositor do extra work, and they may have different pixel ratios.
 				if(mw.isMaximized() || mw.isFullScreen())
 					mw.showNormal();
-				const double dpr = mw.ui->glWidget->devicePixelRatioF();
+				mw.hideAllDockWidgets(); // So the window is just the 3D view (plus menu, toolbar and status bar), and fits on the screen.  Not saved, see window_size_from_command_line.
+				mw.layout()->activate(); // Lay out again now, so the size of the non-3D-view parts below doesn't include the hidden dock widgets.
+				const QScreen* screen = QApplication::primaryScreen();
+				const QRect screen_rect = screen->availableGeometry();
+				mw.move(screen_rect.topLeft());
+
+				// Size the main window so that the 3D view comes out at the requested size.  Qt sizes are in logical pixels, so convert using the screen's device pixel ratio.
+				const double dpr = screen->devicePixelRatio();
 				const QSize gl_logical_size((int)std::lround(gl_w / dpr), (int)std::lround(gl_h / dpr));
 				const QSize non_gl_size = mw.size() - mw.ui->glWidget->size(); // Space taken by docks, toolbars, status bar etc.
 				mw.resize(gl_logical_size + non_gl_size);
 
-				// Keep the window on one screen: spanning two makes the compositor do extra work, and they may have different pixel ratios.
-				const QRect screen_rect = mw.screen()->availableGeometry();
-				mw.move(screen_rect.topLeft());
+				// The other widgets don't always keep their size when the window is resized, so correct for any difference.
+				mw.layout()->activate();
+				mw.resize(mw.size() + (gl_logical_size - mw.ui->glWidget->size()));
 				if(mw.frameGeometry().width() > screen_rect.width() || mw.frameGeometry().height() > screen_rect.height())
 					conPrint("Warning: --window_size " + toString(gl_w) + " x " + toString(gl_h) + " doesn't fit on the screen, so the window will run off it.");
 

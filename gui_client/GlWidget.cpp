@@ -53,6 +53,15 @@ extern "C"
 #endif
 
 
+static bool vsync_enabled = true;
+
+
+void GlWidget::setVSyncEnabled(bool enabled)
+{
+	vsync_enabled = enabled;
+}
+
+
 // https://wiki.qt.io/How_to_use_OpenGL_Core_Profile_with_Qt
 // https://developer.apple.com/opengl/capabilities/GLInfo_1085_Core.html
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
@@ -67,6 +76,9 @@ static QSurfaceFormat makeFormat()
 #endif
 	format.setProfile(QSurfaceFormat::CoreProfile);
 	format.setSamples(4); // Enable multisampling
+
+	if(!vsync_enabled)
+		format.setSwapInterval(0);
 
 	return format;
 }
@@ -90,7 +102,8 @@ static QGLFormat makeFormat()
 	// Not having MSAA here has no measureable perf impact but does save quite a lot of GPU mem (~230 MB at 2560 x 1282).
 	//format.setSampleBuffers(true); // Enable multisampling
 
-//	format.setSwapInterval(0); // TEMP: turn off vsync
+	if(!vsync_enabled)
+		format.setSwapInterval(0);
 
 	return format;
 }
@@ -446,23 +459,13 @@ void GlWidget::initializeGL()
 	opengl_engine = new OpenGLEngine(engine_settings);
 
 	std::string data_dir = base_dir_path + "/data";
-#if BUILD_TESTS
-	try
-	{
-		// For development, allow loading opengl engine data, particularly shaders, straight from the repo dir.
-		data_dir = PlatformUtils::getEnvironmentVariable("SUBSTRATA_USE_OPENGL_DATA_DIR"); // SUBSTRATA_USE_OPENGL_DATA_DIR can be set to e.g. n:/glare-core/opengl
-		conPrint("Using OpenGL data dir from Env var: '" + data_dir + "'");
-	}
-	catch(glare::Exception&)
-	{}
-	
-	try
-	{
-		const std::string substrata_dir = PlatformUtils::getEnvironmentVariable("SUBSTRATA_TRUNK_DIR");
-		opengl_engine->additional_shader_dirs.push_back(substrata_dir);
-	}
-	catch(glare::Exception&)
-	{}
+#if BUILD_TESTS && defined(SUBSTRATA_DEV_OPENGL_DATA_DIR)
+	// For development, load opengl engine data, particularly shaders, straight from the repo dir.  Set with the SUBSTRATA_USE_OPENGL_DATA_DIR CMake cache var.
+	data_dir = SUBSTRATA_DEV_OPENGL_DATA_DIR;
+	conPrint("Using OpenGL data dir: '" + data_dir + "'");
+#endif
+#if BUILD_TESTS && defined(SUBSTRATA_DEV_TRUNK_DIR)
+	opengl_engine->additional_shader_dirs.push_back(SUBSTRATA_DEV_TRUNK_DIR);
 #endif
 		
 	opengl_engine->initialise(

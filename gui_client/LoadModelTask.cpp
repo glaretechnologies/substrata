@@ -185,7 +185,7 @@ void LoadModelTask::run(size_t thread_index)
 				gl_meshdata = NULL;
 				physics_shape.jolt_shape = NULL;
 
-				upload_thread->getMessageQueue().enqueue(upload_msg);
+				upload_thread->enqueueUpload(upload_msg);
 			}
 			else
 			{

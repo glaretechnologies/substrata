@@ -158,6 +158,7 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	parsed_args(args),
 	connection_state(ServerConnectionState_NotConnected),
 	received_world_settings_since_connect_or_world_change(false),
+	freeze_time(false),
 	world_settings_locally_dirty(false),
 	logged_in_user_id(UserID::invalidUserID()),
 	logged_in_user_flags(0),
@@ -935,14 +936,9 @@ void GUIClient::makeShaders()
 	// Make shader for portal
 	{
 		std::string use_shader_dir = base_dir_path + "/data/shaders";
-#if BUILD_TESTS
-		try
-		{
-			// For development, load shader straight from the repo dir.
-			use_shader_dir = PlatformUtils::getEnvironmentVariable("SUBSTRATA_TRUNK_DIR") + "/shaders";
-		}
-		catch(glare::Exception&)
-		{}
+#if BUILD_TESTS && defined(SUBSTRATA_DEV_TRUNK_DIR)
+		// For development, load shader straight from the repo dir.  Set with the SUBSTRATA_SHADER_TRUNK_DIR CMake cache var.
+		use_shader_dir = std::string(SUBSTRATA_DEV_TRUNK_DIR) + "/shaders";
 #endif
 		const std::string version_directive    = opengl_engine->getVersionDirective();
 		const std::string preprocessor_defines_vert = opengl_engine->getPreprocessorDefinesWithCommonVertStructs();
@@ -4123,11 +4119,42 @@ bool GUIClient::isSceneFullyLoaded()
 	// Number of outstanding model/texture load or build tasks.  Same expression used by the screenshot code in MainWindow.
 	const size_t num_model_and_tex_tasks = load_item_queue.size() + model_and_texture_loader_task_manager.getNumUnfinishedTasks() + model_loaded_messages_to_process.size();
 
+	// Loaded models and textures that haven't finished being uploaded to the GPU yet: items waiting to be uploaded, and uploads in progress.
+	const size_t num_uploads_pending = texture_loaded_messages_to_process.size() + async_texture_loaded_messages_to_process.size() +
+		pbo_async_tex_loader.numUploadingTextures() + async_geom_loader.numUploadingGeometry() +
+		(opengl_upload_thread ? (size_t)opengl_upload_thread->getNumNewResourceUploadsPending() : 0) +
+		(tex_loading_progress.loadingInProgress() ? 1 : 0) + (cur_loading_mesh_data.nonNull() ? 1 : 0);
+
 	return
 		(num_model_and_tex_tasks == 0) &&
+		(num_uploads_pending == 0) &&
 		(num_non_net_resources_downloading == 0) &&
 		(num_net_resources_downloading == 0) &&
 		(terrain_system.nonNull() && terrain_system->isTerrainFullyBuilt());
+}
+
+
+// The non-zero terms of isSceneFullyLoaded(), for working out what loading is waiting on.
+std::string GUIClient::getSceneLoadingStatus()
+{
+	std::string s;
+	auto addIfNonZero = [&](const char* name, size_t n) { if(n != 0) s += std::string(s.empty() ? "" : ", ") + name + ": " + toString(n); };
+
+	addIfNonZero("load_item_queue",                         load_item_queue.size());
+	addIfNonZero("loader tasks unfinished",                 model_and_texture_loader_task_manager.getNumUnfinishedTasks());
+	addIfNonZero("model_loaded_messages_to_process",        model_loaded_messages_to_process.size());
+	addIfNonZero("texture_loaded_messages_to_process",      texture_loaded_messages_to_process.size());
+	addIfNonZero("async_texture_loaded_messages_to_process", async_texture_loaded_messages_to_process.size());
+	addIfNonZero("PBO texture uploads",                     pbo_async_tex_loader.numUploadingTextures());
+	addIfNonZero("async geometry uploads",                  async_geom_loader.numUploadingGeometry());
+	addIfNonZero("new resource uploads pending",            opengl_upload_thread ? (size_t)opengl_upload_thread->getNumNewResourceUploadsPending() : 0);
+	addIfNonZero("upload thread queue (all)",               opengl_upload_thread ? opengl_upload_thread->getMessageQueue().size() : 0);
+	addIfNonZero("chunked texture upload in progress",      tex_loading_progress.loadingInProgress() ? 1 : 0);
+	addIfNonZero("chunked mesh upload in progress",         cur_loading_mesh_data.nonNull() ? 1 : 0);
+	addIfNonZero("non-net resources downloading",           (size_t)num_non_net_resources_downloading.getVal());
+	addIfNonZero("net resources downloading",               (size_t)num_net_resources_downloading.getVal());
+	addIfNonZero("terrain not fully built",                 (terrain_system.nonNull() && terrain_system->isTerrainFullyBuilt()) ? 0 : 1);
+	return s.empty() ? "loaded" : s;
 }
 
 
@@ -6323,6 +6350,11 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 	const double dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
+
+	const double FROZEN_TIME = 1000.0; // Render, animated texture and global time when freeze_time is true.
+	if(world_state.nonNull())
+		world_state->setFrozenGlobalTime(freeze_time ? FROZEN_TIME : -1.0);
+
 	const double global_time = world_state.nonNull() ? this->world_state->getCurrentGlobalTime() : 0.0; // Used as input into script functions
 
 	// Set current animation frame for objects with animated textures
@@ -6337,7 +6369,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		int num_gif_textures_processed = 0;
 		int num_mp4_textures_processed = 0;
 
-		const double anim_time = total_timer.elapsed();
+		const double anim_time = freeze_time ? FROZEN_TIME : total_timer.elapsed();
 
 		{
 			Lock lock(this->world_state->mutex); // NOTE: This lock needed?
@@ -6451,7 +6483,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	}
 
 	if(opengl_engine)
-		opengl_engine->setCurrentTime((float)cur_time);
+		opengl_engine->setCurrentTime((float)(freeze_time ? FROZEN_TIME : cur_time));
 
 
 	UpdateEvents physics_events;
@@ -6503,8 +6535,9 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				{
 					ZoneScopedN("path_controllers eval"); // Tracy profiler
 					Lock lock(this->world_state->mutex);
-					for(size_t z=0; z<path_controllers.size(); ++z)
-						path_controllers[z]->update(*world_state, *physics_world, opengl_engine.ptr(), (float)substep_dt);
+					if(!freeze_time) // Path controllers advance by the time step, and can't be updated with a zero time step (MoveKinematic() divides by it), so just don't update them when time is frozen.
+						for(size_t z=0; z<path_controllers.size(); ++z)
+							path_controllers[z]->update(*world_state, *physics_world, opengl_engine.ptr(), (float)substep_dt);
 
 					// Run active scripted moveTo/rotateTo controllers, removing any that have finished from the active set.
 					for(auto it = active_move_to_controllers.begin(); it != active_move_to_controllers.end(); ++it)
@@ -16917,9 +16950,10 @@ public:
 
 		RayTraceResult results;
 		gui_client->physics_world->traceRay(gui_client->cam_controller.getPosition().toVec4fPoint(), trace_dir, 10000.f, JPH::BodyID(), results);
-
-
-		return results.hit_t * dot(trace_dir, gui_client->cam_controller.getForwardsVec().toVec4fVector()); // Adjust from distance to depth
+		if(results.hit_object)
+			return results.hit_t * dot(trace_dir, gui_client->cam_controller.getForwardsVec().toVec4fVector()); // Adjust from distance to depth
+		else
+			return 2000000.f;
 	}
 	
 	// Return normal in camera space

@@ -346,6 +346,7 @@ public:
 	// NOTE: this is camera-position dependent - objects stream in based on the camera position, so this becomes true only once
 	// streaming for the current position has settled.
 	bool isSceneFullyLoaded();
+	std::string getSceneLoadingStatus(); // The non-zero terms of isSceneFullyLoaded(), for working out what loading is waiting on.
 	size_t numBuiltObjectsInProximityWithoutModel();
 	bool objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action); // Also shows error notifications if modification is not allowed.
 	// Action will be printed in error message, could be "modify" or "delete"
@@ -863,6 +864,10 @@ public:
 	ServerConnectionState connection_state;
 
 	bool received_world_settings_since_connect_or_world_change; // Have we received a WorldSettingsInitialSendMessage since connecting to the server?
+
+	// If true, the render time (clouds, water, animations etc.), animated texture time and global time (object scripts etc.) are held at a fixed value,
+	// so that frames rendered at different times, in different runs, look the same.  Set when doing GPU time measurement.
+	bool freeze_time;
 
 	UserID logged_in_user_id;
 	std::string logged_in_user_name;

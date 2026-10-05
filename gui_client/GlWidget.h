@@ -60,6 +60,9 @@ public:
 
 	void setCursorIfNotHidden(Qt::CursorShape new_shape);
 
+	// Call before any GlWidget is constructed.  Vsync is on by default.  Turned off for --measure_gpu_times, so frame times aren't capped at the display refresh rate.
+	static void setVSyncEnabled(bool enabled);
+
 	static float defaultSensorWidth() { return 0.035f; }
 	static float defaultLensSensorDist() { return 0.025f; }
 
