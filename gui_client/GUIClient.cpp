@@ -9439,23 +9439,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			ui_interface->clientConnectedToServer();
 
-			// Try and log in automatically if we have saved credentials for this domain, and auto_login is true.
-			if(settings->getBoolValue("LoginDialog/auto_login", /*default=*/true))
-			{
-				const std::string username = ui_interface->getUsernameForDomain(server_hostname);
-				if(!username.empty())
-				{
-					const std::string password = ui_interface->getDecryptedPasswordForDomain(server_hostname); // manager.getDecryptedPasswordForDomain(server_hostname);
+			// NOTE: Any automatic LogInMessage is sent from connectToServer(), so that the server handles it before QueryObjectsInAABB.
 
-					// Make LogInMessage packet and enqueue to send
-					MessageUtils::initPacket(scratch_packet, Protocol::LogInMessage);
-					scratch_packet.writeStringLengthFirst(username);
-					scratch_packet.writeStringLengthFirst(password);
-
-					enqueueMessageToSend(*this->client_thread, scratch_packet);
-				}
-			}
-				
 			// Send CreateAvatar packet for this client's avatar
 			{
 				MessageUtils::initPacket(scratch_packet, Protocol::CreateAvatar);
@@ -9468,6 +9453,18 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				writeAvatarToNetworkStream(avatar, scratch_packet);
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
+
+				// If we are not automatically logging in, create our avatar locally now so we can start loading its model, instead of waiting for the server to send back AvatarCreated,
+				// which will only arrive after the initial objects have been sent.  (If we are logging in, our avatar is created when we receive the LoggedInMessage.)
+				if(getAutoLoginUsername(server_hostname).empty() && world_state)
+				{
+					WorldStateLock lock(this->world_state->mutex);
+					if(this->world_state->avatars.count(this->client_avatar_uid) == 0)
+					{
+						avatar.name = "Anonymous"; // The server uses this name for clients that are not logged in.
+						createOurAvatarLocally(avatar, lock);
+					}
+				}
 			}
 
 			audio_engine.playOneShotSound(resources_dir_path + "/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.mp3", 
@@ -9897,6 +9894,37 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			if(!m->gesture_settings.gesture_settings.empty())
 				gesture_ui.setCurrentGestureSettings(m->gesture_settings);
 
+			// Create or update our avatar locally with our avatar settings, so that we can start loading it now.
+			// Otherwise we would have to wait for the server to send back the AvatarCreated and AvatarFullUpdate messages, which will only arrive after the initial objects have been sent.
+			if(world_state && this->client_avatar_uid.valid())
+			{
+				WorldStateLock lock(this->world_state->mutex);
+
+				const Vec3d cam_angles = this->cam_controller.getAvatarAngles();
+
+				Avatar new_state;
+				new_state.name = m->username;
+				new_state.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
+				new_state.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
+				new_state.avatar_settings = m->avatar_settings;
+				new_state.equipped_gear = m->equipped_gear;
+
+				auto res = this->world_state->avatars.find(this->client_avatar_uid);
+				if(res == this->world_state->avatars.end())
+				{
+					createOurAvatarLocally(new_state, lock);
+				}
+				else
+				{
+					Avatar* avatar = res->second.ptr();
+					new_state.flags = avatar->flags;
+					new_state.pos = avatar->pos;
+					new_state.rotation = avatar->rotation;
+					avatar->copyNetworkStateFrom(new_state);
+					avatar->generatePseudoRandomNameColour();
+					avatar->other_dirty = true;
+				}
+			}
 
 			// Send AvatarFullUpdate message, to change the nametag on our avatar.
 			const Vec3d cam_angles = this->cam_controller.getAvatarAngles();
@@ -14180,6 +14208,25 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 	builder_ai_ui = nullptr;
 	checkCreateManagersAndMinimapAndBuilderAIUI();
 
+	// Try and log in automatically if we have saved credentials for this domain, and auto_login is true.
+	// Do this before sending QueryObjectsInAABB, since the server handles messages from a client in order, and the reply to QueryObjectsInAABB
+	// (all the initial objects) can take a long time to send.  This way we get the LoggedInMessage (with our avatar settings) back before the objects,
+	// and can start loading our avatar early.  The message is buffered by the ClientThread and sent once it has connected.
+	{
+		const std::string username = getAutoLoginUsername(server_hostname);
+		if(!username.empty())
+		{
+			const std::string password = ui_interface->getDecryptedPasswordForDomain(server_hostname);
+
+			// Make LogInMessage packet and enqueue to send
+			MessageUtils::initPacket(scratch_packet, Protocol::LogInMessage);
+			scratch_packet.writeStringLengthFirst(username);
+			scratch_packet.writeStringLengthFirst(password);
+
+			enqueueMessageToSend(*this->client_thread, scratch_packet);
+		}
+	}
+
 	// Note that getFirstPersonPosition() is used for consistency with proximity_loader.updateCamPos() calls, where getFirstPersonPosition() is used also.
 	const js::AABBox initial_aabb = proximity_loader.setCameraPosForNewConnection(this->cam_controller.getFirstPersonPosition().toVec4fPoint());
 
@@ -14202,6 +14249,33 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 	this->connection_state = ServerConnectionState_Connecting;
 	this->received_world_settings_since_connect_or_world_change = false;
 	this->world_settings_locally_dirty = false;
+}
+
+
+std::string GUIClient::getAutoLoginUsername(const std::string& hostname)
+{
+	if(settings->getBoolValue("LoginDialog/auto_login", /*default=*/true))
+		return ui_interface->getUsernameForDomain(hostname); // Will be empty if we don't have saved credentials for this domain.
+	else
+		return std::string();
+}
+
+
+void GUIClient::createOurAvatarLocally(const Avatar& avatar_state, WorldStateLock& lock)
+{
+	assert(this->world_state->avatars.count(this->client_avatar_uid) == 0);
+
+	AvatarRef avatar = new Avatar();
+	avatar->uid = this->client_avatar_uid;
+	avatar->our_avatar = true;
+	avatar->copyNetworkStateFrom(avatar_state);
+	avatar->state = Avatar::State_JustCreated;
+	avatar->other_dirty = true;
+	avatar->generatePseudoRandomNameColour();
+	avatar->setTransformAndHistory(avatar_state.pos, avatar_state.rotation);
+	this->world_state->avatars.insert(std::make_pair(avatar->uid, avatar));
+
+	msg_queue.enqueue(new AvatarCreatedMessage(avatar->uid)); // Show the 'joined' message now, rather than when the server sends back AvatarCreated.
 }
 
 

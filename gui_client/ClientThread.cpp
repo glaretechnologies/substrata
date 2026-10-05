@@ -456,6 +456,8 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 
 					out_msg_queue->enqueue(new AvatarCreatedMessage(temp_avatar.uid)); // Inform MainWindow
 				}
+				// Else the avatar already exists.  This can be our avatar, created locally when we received the LoggedInMessage (see GUIClient Msg_LoggedInMessage handling),
+				// which has already shown the 'joined' message.  Keep the local avatar, as the state in this message may be older (e.g. default avatar settings from the CreateAvatar message).
 			}
 			break;
 		}

@@ -417,6 +417,8 @@ public:
 	void clearCachedData(); // Clear cached meshes, physics shapes, textures, animations etc.  All objects must have been removed first, e.g. with disconnectFromServerAndClearAllObjects().
 
 	void connectToServer(const URLParseResults& url_results);
+	std::string getAutoLoginUsername(const std::string& hostname); // Returns the username to automatically log in with on connecting to the server with the given hostname, or the empty string if we won't automatically log in.
+	void createOurAvatarLocally(const Avatar& avatar_state, WorldStateLock& lock) REQUIRES(world_state->mutex); // Create our avatar in world_state without waiting for the server to send AvatarCreated.
 	void forceRefresh(const URLParseResults& url_results); // Reconnect to the server, after throwing away all cached data, so that everything is loaded and built again from scratch.
 	void changeToDifferentWorld(const URLParseResults& url_results);
 
