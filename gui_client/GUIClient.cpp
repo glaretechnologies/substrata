@@ -12693,7 +12693,7 @@ void GUIClient::summonSnowboard()
 	const js::AABBox aabb_os(Vec4f(-0.95142f, -0.132507f, -0.188208f, 1), Vec4f(0.950202f, 0.131274f, 0.186821f, 1)); // Got from saved snowboard object
 
 	const Vec3d pos = this->cam_controller.getFirstPersonPosition() +
-		::removeComponentInDir(this->cam_controller.getForwardsVec(), Vec3d(0,0,1)) * 3 +
+		::removeComponentInDir(this->cam_controller.getForwardsVec(), Vec3d(0,0,1)) * 2 +
 		Vec3d(0,0,-1.67) + // Move down by eye height to ground
 		Vec3d(0, 0, 0.25f); // Spawn just above the ground.
 
