@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2026 -
 
 #include "GUIClient.h"
 #include "UIInterface.h"
+#include <opengl/OpenGLMeshRenderData.h>
 #include <graphics/PNGDecoder.h>
 #include <graphics/ImageMap.h>
 #include <utils/FileUtils.h>
@@ -33,8 +34,27 @@ GPUTimeMeasurement::GPUTimeMeasurement(const std::string& output_path_, const Ve
 	connected(false),
 	wall_time_s(0),
 	frag_invocation_counting_supported(false),
-	num_counting_frames_done(0)
+	num_counting_frames_done(0),
+	ab_mode(false),
+	ab_num_rounds(0),
+	ab_state(ABState_StartSample),
+	ab_sample_index(0),
+	ab_frames_done(0)
 {}
+
+
+void GPUTimeMeasurement::setShaderAB(const std::string& target_shader_path, const std::string& variant_a_path, const std::string& variant_b_path, int num_rounds)
+{
+	if(num_rounds < 1)
+		throw glare::Exception("The number of shader A/B rounds must be at least 1.");
+
+	ab_mode = true;
+	ab_target_shader_path = target_shader_path;
+	ab_original_contents = FileUtils::readEntireFile(target_shader_path);
+	ab_variant_contents[0] = FileUtils::readEntireFile(variant_a_path);
+	ab_variant_contents[1] = FileUtils::readEntireFile(variant_b_path);
+	ab_num_rounds = num_rounds;
+}
 
 
 bool GPUTimeMeasurement::think(GUIClient& gui_client, OpenGLEngine& engine)
@@ -60,8 +80,7 @@ bool GPUTimeMeasurement::think(GUIClient& gui_client, OpenGLEngine& engine)
 		gui_client.player_physics.setFlyModeEnabled(true); // Don't fall to the ground.
 
 		// Hold clouds, scripted objects etc. still, so that runs render the same thing, and their renders can be compared.
-		gui_client.freeze_time = true;
-	}
+		gui_client.freeze_time = true;	}
 
 	// Hold the camera at the measurement position every frame, so that nothing else (the mouse, say) moves it.
 	gui_client.cam_controller.setAngles(cam_angles);
@@ -108,6 +127,9 @@ bool GPUTimeMeasurement::think(GUIClient& gui_client, OpenGLEngine& engine)
 		measuring = true;
 		return false;
 	}
+
+	if(ab_mode)
+		return thinkShaderAB(gui_client, engine);
 
 	if(num_warmup_frames_done < NUM_WARMUP_FRAMES)
 	{
@@ -159,10 +181,197 @@ bool GPUTimeMeasurement::think(GUIClient& gui_client, OpenGLEngine& engine)
 }
 
 
+// The passes reported by the shader A/B mode.
+static const struct { double OpenGLEngine::GPUPassTimes::* field; const char* name; } ab_passes[] = {
+	{ &OpenGLEngine::GPUPassTimes::dynamic_depth_draw, "dynamic depth draw" },
+	{ &OpenGLEngine::GPUPassTimes::static_depth_draw,  "static depth draw" },
+	{ &OpenGLEngine::GPUPassTimes::pre_pass,           "pre-pass" },
+	{ &OpenGLEngine::GPUPassTimes::compute_ssao,       "compute SSAO" },
+	{ &OpenGLEngine::GPUPassTimes::blur_ssao,          "blur SSAO" },
+	{ &OpenGLEngine::GPUPassTimes::draw_opaque_obs,    "draw opaque obs" },
+	{ &OpenGLEngine::GPUPassTimes::draw_water,         "draw water" },
+	{ &OpenGLEngine::GPUPassTimes::bloom,              "bloom" },
+	{ &OpenGLEngine::GPUPassTimes::final_imaging,      "final imaging" },
+	{ &OpenGLEngine::GPUPassTimes::total,              "TOTAL" }
+};
+
+
+static double median(std::vector<double> v)
+{
+	std::sort(v.begin(), v.end());
+	return v[v.size() / 2];
+}
+
+
+// Shader A/B mode, after the scene has loaded and settled.  For each sample: write the variant's shader to the target file, reload the shaders and wait for
+// all the programs to be built, do some warmup frames, then measure.
+bool GPUTimeMeasurement::thinkShaderAB(GUIClient& gui_client, OpenGLEngine& engine)
+{
+	const int NUM_WARMUP_FRAMES = 30;
+	// Time to wait after writing the shader file before requesting the reload, so that the shader file watcher sees the change first, instead of
+	// triggering a second reload later, during measuring.
+	const double FILE_WATCHER_WAIT_S = 0.3;
+
+	try
+	{
+		// If a reload was triggered, or programs are still being built (some can be built lazily, when first used), wait and warm up again.
+		if(((ab_state == ABState_Warmup) || (ab_state == ABState_Measuring)) && (engine.isShaderReloadPending() || (engine.getNumProgramsBuilding() > 0)))
+		{
+			ab_state = ABState_WaitingForReload;
+			ab_frames_done = 1; // Reload already requested.
+		}
+
+		switch(ab_state)
+		{
+		case ABState_StartSample:
+		{
+			if(ab_sample_index >= 2 * ab_num_rounds)
+			{
+				FileUtils::writeEntireFile(ab_target_shader_path, ab_original_contents);
+				if(!was_profiling_enabled)
+					engine.setProfilingEnabled(false);
+				writeReport(makeShaderABReport(engine));
+				return true;
+			}
+
+			FileUtils::writeEntireFile(ab_target_shader_path, ab_variant_contents[ab_sample_index % 2]);
+			ab_timer.reset();
+			ab_frames_done = 0; // Used as a flag in ABState_WaitingForReload: has the reload been requested?
+			ab_state = ABState_WaitingForReload;
+			return false;
+		}
+		case ABState_WaitingForReload:
+		{
+			if(ab_frames_done == 0)
+			{
+				if(ab_timer.elapsed() < FILE_WATCHER_WAIT_S)
+					return false;
+				engine.shaderFileChanged(); // Request the reload, in case the file watcher didn't.
+				ab_frames_done = 1;
+				return false;
+			}
+			if(engine.isShaderReloadPending() || (engine.getNumProgramsBuilding() > 0))
+				return false;
+
+			if(ab_samples.size() == (size_t)ab_sample_index) // Record the reload time the first time only, not after a restart.
+			{
+				ABSample sample;
+				sample.variant = ab_sample_index % 2;
+				sample.reload_time_s = ab_timer.elapsed();
+				ab_samples.push_back(sample);
+			}
+			ab_frames_done = 0;
+			ab_state = ABState_Warmup;
+			return false;
+		}
+		case ABState_Warmup:
+		{
+			ab_frames_done++;
+			if(ab_frames_done < NUM_WARMUP_FRAMES)
+				return false;
+			ab_frame_times.clear();
+			ab_timer.reset();
+			ab_state = ABState_Measuring;
+			return false;
+		}
+		case ABState_Measuring:
+		{
+			ab_frame_times.push_back(engine.getLastGPUPassTimes());
+			if((int)ab_frame_times.size() < num_frames)
+				return false;
+
+			ABSample& sample = ab_samples.back();
+			sample.wall_time_per_frame_s = ab_timer.elapsed() / ab_frame_times.size();
+			std::vector<double> v(ab_frame_times.size());
+			for(size_t p=0; p<staticArrayNumElems(ab_passes); ++p)
+			{
+				for(size_t i=0; i<ab_frame_times.size(); ++i)
+					v[i] = ab_frame_times[i].*ab_passes[p].field;
+				sample.median.*ab_passes[p].field = median(v);
+			}
+
+			conPrint("GPUTimeMeasurement: shader A/B sample " + toString(ab_sample_index) + " (" + (sample.variant == 0 ? "A" : "B") + "): TOTAL " +
+				doubleToStringNDecimalPlaces(sample.median.total * 1.0e3, 3) + " ms");
+
+			// Save a render of each variant, at its last sample.
+			if(ab_sample_index >= 2 * ab_num_rounds - 2)
+				saveRender(gui_client, engine, ::removeDotAndExtension(output_path) + (sample.variant == 0 ? "_A.png" : "_B.png"));
+
+			ab_sample_index++;
+			ab_state = ABState_StartSample;
+			return false;
+		}
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		try
+		{
+			FileUtils::writeEntireFile(ab_target_shader_path, ab_original_contents);
+		}
+		catch(glare::Exception&)
+		{}
+		writeReport("Error: shader A/B failed: " + e.what() + "\n");
+		return true;
+	}
+	return false;
+}
+
+
+std::string GPUTimeMeasurement::makeShaderABReport(const OpenGLEngine& engine) const
+{
+	std::string s = "Shader A/B of '" + ab_target_shader_path + "': " + toString(ab_num_rounds) + " rounds, " + toString(num_frames) + " frames per sample, at " +
+		toString(engine.getViewPortWidth()) + " x " + toString(engine.getViewPortHeight()) + " on " + engine.opengl_renderer + "\n";
+	s += "Camera: pos (" + doubleToStringNDecimalPlaces(cam_pos.x, 3) + ", " + doubleToStringNDecimalPlaces(cam_pos.y, 3) + ", " + doubleToStringNDecimalPlaces(cam_pos.z, 3) +
+		"), heading " + doubleToStringNDecimalPlaces(cam_angles.x, 4) + ", pitch " + doubleToStringNDecimalPlaces(cam_angles.y, 4) + "\n";
+	if(load_timed_out)
+		s += "WARNING: the scene had not finished loading when measurement started.  Still waiting on: " + load_timeout_status + "\n";
+	s += std::string("SSAO: ") + (engine.isSSAOEnabled() ? "on" : "off") + "\n";
+	s += "Each value is the median over the samples of the per-sample median.  Range is max - min over the samples.\n\n";
+
+	s += ::rightSpacePad("pass (ms)", 20) + ::leftPad("A", ' ', 9) + ::leftPad("B", ' ', 9) + ::leftPad("B - A", ' ', 9) + ::leftPad("A range", ' ', 9) + ::leftPad("B range", ' ', 9) + "\n";
+
+	const size_t num_rows = staticArrayNumElems(ab_passes) + 1;
+	for(size_t p=0; p<num_rows; ++p) // The last row is the wall-clock time per frame.
+	{
+		double med[2], range[2];
+		for(int variant=0; variant<2; ++variant)
+		{
+			std::vector<double> vals;
+			for(size_t i=0; i<ab_samples.size(); ++i)
+				if(ab_samples[i].variant == variant)
+					vals.push_back((p < staticArrayNumElems(ab_passes)) ? (ab_samples[i].median.*ab_passes[p].field) : ab_samples[i].wall_time_per_frame_s);
+			std::sort(vals.begin(), vals.end());
+			med[variant]   = vals.empty() ? 0 : median(vals);
+			range[variant] = vals.empty() ? 0 : (vals.back() - vals.front());
+		}
+		const std::string name = (p < staticArrayNumElems(ab_passes)) ? ab_passes[p].name : "wall-clock / frame";
+		s += ::rightSpacePad(name, 20) +
+			::leftPad(doubleToStringNDecimalPlaces(med[0] * 1.0e3, 3), ' ', 9) +
+			::leftPad(doubleToStringNDecimalPlaces(med[1] * 1.0e3, 3), ' ', 9) +
+			::leftPad(std::string((med[1] >= med[0]) ? "+" : "") + doubleToStringNDecimalPlaces((med[1] - med[0]) * 1.0e3, 3), ' ', 9) +
+			::leftPad(doubleToStringNDecimalPlaces(range[0] * 1.0e3, 3), ' ', 9) +
+			::leftPad(doubleToStringNDecimalPlaces(range[1] * 1.0e3, 3), ' ', 9) + "\n";
+	}
+
+	s += "\nSamples (in order):\n";
+	for(size_t i=0; i<ab_samples.size(); ++i)
+		s += "  " + std::string(ab_samples[i].variant == 0 ? "A" : "B") + ": TOTAL " + doubleToStringNDecimalPlaces(ab_samples[i].median.total * 1.0e3, 3) +
+			" ms, opaque " + doubleToStringNDecimalPlaces(ab_samples[i].median.draw_opaque_obs * 1.0e3, 3) + " ms, reload took " +
+			doubleToStringNDecimalPlaces(ab_samples[i].reload_time_s, 2) + " s\n";
+	return s;
+}
+
+
 // Saves an image of the measured view next to the report, so runs can be checked visually to be measuring the same thing (e.g. that the same objects and textures had loaded).
 void GPUTimeMeasurement::saveRender(GUIClient& gui_client, OpenGLEngine& engine)
 {
-	const std::string path = ::removeDotAndExtension(output_path) + ".png";
+	saveRender(gui_client, engine, ::removeDotAndExtension(output_path) + ".png");
+}
+
+
+void GPUTimeMeasurement::saveRender(GUIClient& gui_client, OpenGLEngine& engine, const std::string& path)
+{
 	try
 	{
 		const bool old_draw_overlay_objects = engine.getCurrentScene()->draw_overlay_objects;

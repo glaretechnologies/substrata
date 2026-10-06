@@ -459,6 +459,8 @@ void MainWindow::initialiseUI()
 	//	ui->glWidget->allow_multi_draw_indirect = false;
 	if(parsed_args.isArgPresent("--no_bindless"))
 		ui->glWidget->allow_bindless_textures = false;
+	if(parsed_args.isArgPresent("--no_ssao"))
+		ui->glWidget->allow_SSAO = false;
 
 	ui->glWidget->setBaseDir(base_dir_path, /*print output=*/this, settings);
 	ui->objectEditor->base_dir_path = base_dir_path;
@@ -3637,7 +3639,7 @@ void MainWindow::on_actionOptions_triggered()
 		gui_client.setOnlyLoadMostImportantObs(settings->value(MainOptionsDialog::onlyLoadMostImportantObsKey(), /*default val=*/gui_client.onlyLoadMostImportantObjectsDefaultValue()).toBool());
 
 		//ui->glWidget->opengl_engine->setMSAAEnabled(settings->value(MainOptionsDialog::MSAAKey(), /*default val=*/true).toBool());
-		gui_client.opengl_engine->setSSAOEnabled(settings->value(MainOptionsDialog::SSAOKey(), /*default val=*/false).toBool());
+		gui_client.opengl_engine->setSSAOEnabled(ui->glWidget->allow_SSAO && settings->value(MainOptionsDialog::SSAOKey(), /*default val=*/false).toBool());
 
 		startMainTimer(); // Restart main timer, as the timer interval depends on max FPS, whiich may have changed.
 
@@ -5396,11 +5398,15 @@ int main(int argc, char *argv[])
 		syntax["--testscreenshot"] = std::vector<ArgumentParser::ArgumentType>(); // Test screenshot taking
 		syntax["--no_MDI"] = std::vector<ArgumentParser::ArgumentType>(); // Disable MDI in graphics engine
 		syntax["--no_bindless"] = std::vector<ArgumentParser::ArgumentType>(); // Disable bindless textures in graphics engine
+		syntax["--no_ssao"] = std::vector<ArgumentParser::ArgumentType>(); // Disable SSAO for this run, regardless of the saved setting
 		syntax["--use_temp_resources_db"] = std::vector<ArgumentParser::ArgumentType>(); // Use a temporary, fresh resource database.  For testing.
 		// Measure the GPU time of each render pass from a fixed camera, write a report to a file, then exit.  Args: output path, x, y, z, heading, pitch (see CameraController).
 		syntax["--measure_gpu_times"] = { ArgumentParser::ArgumentType_string, ArgumentParser::ArgumentType_double, ArgumentParser::ArgumentType_double, ArgumentParser::ArgumentType_double,
 			ArgumentParser::ArgumentType_double, ArgumentParser::ArgumentType_double };
 		syntax["--measure_frames"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_int); // Number of frames for --measure_gpu_times to measure.  Default 300.
+		// Shader A/B mode for --measure_gpu_times.  Args: target shader file path, variant A file path, variant B file path.  See GPUTimeMeasurement::setShaderAB().
+		syntax["--ab_shader"] = std::vector<ArgumentParser::ArgumentType>(3, ArgumentParser::ArgumentType_string);
+		syntax["--ab_rounds"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_int); // Number of samples of each variant for --ab_shader.  Default 3.
 		syntax["--window_size"] = std::vector<ArgumentParser::ArgumentType>(2, ArgumentParser::ArgumentType_int); // Size of the 3D view in physical pixels (width, height), for this run only.
 
 		if(args.size() == 3 && args[1] == "-NSDocumentRevisionsDebugMode")
@@ -5564,6 +5570,10 @@ int main(int argc, char *argv[])
 					/*cam angles=*/Vec3d(parsed_args.getArgDoubleValue("--measure_gpu_times", 4), parsed_args.getArgDoubleValue("--measure_gpu_times", 5), /*roll=*/0),
 					num_frames
 				));
+
+				if(parsed_args.isArgPresent("--ab_shader"))
+					mw.gpu_time_measurement->setShaderAB(parsed_args.getArgStringValue("--ab_shader", 0), parsed_args.getArgStringValue("--ab_shader", 1), parsed_args.getArgStringValue("--ab_shader", 2),
+						/*num rounds=*/parsed_args.isArgPresent("--ab_rounds") ? parsed_args.getArgIntValue("--ab_rounds") : 3);
 			}
 
 			mw.initialiseUI();

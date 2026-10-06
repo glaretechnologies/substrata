@@ -131,7 +131,8 @@ GlWidget::GlWidget(QWidget *parent)
 	screenshot_ortho_sensor_width_m(10),
 	show_imgui_window(false),
 	allow_bindless_textures(true),
-	allow_multi_draw_indirect(true)
+	allow_multi_draw_indirect(true),
+	allow_SSAO(true)
 {
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 	setFormat(makeFormat());
@@ -424,6 +425,8 @@ void GlWidget::initializeGL()
 		use_SSAO = settings->value(MainOptionsDialog::SSAOKey(),    /*default val=*/default_use_SSAO).toBool();
 		volumetric_clouds = settings->value(MainOptionsDialog::volumetricCloudsKey(), /*default val=*/false).toBool();
 	}
+	if(!allow_SSAO)
+		use_SSAO = false;
 
 	// Enable debug output (glDebugMessageCallback) in Debug and RelWithDebugInfo mode, e.g. when BUILD_TESTS is 1.
 	// Don't enable in Release mode, in case it has a performance cost.

@@ -24,11 +24,21 @@ Started with the --measure_gpu_times command line option.  Waits for the
 client to connect and for the world around the camera to finish loading,
 then measures, so that runs of different builds from the same camera can be
 compared.  Also saves a render of the view next to the report, as a PNG.
+
+Shader A/B mode (--ab_shader, see setShaderAB()): after loading once, alternates
+two variants of a shader file, A and B, reloading the shaders each time, and
+measures each variant several times in the same process.  This is much faster
+than a client launch per measurement, and the alternation cancels out drift.
 =====================================================================*/
 class GPUTimeMeasurement
 {
 public:
 	GPUTimeMeasurement(const std::string& output_path, const Vec3d& cam_pos, const Vec3d& cam_angles, int num_frames);
+
+	// Enables the shader A/B mode: the contents of the files at variant_a_path and variant_b_path are alternately written to target_shader_path (a file in the
+	// engine's shader directory), and the shaders reloaded, num_rounds times each, measuring num_frames frames each time.  The target file's original
+	// contents are restored afterwards.  Needs a BUILD_TESTS build, for shader reloading.
+	void setShaderAB(const std::string& target_shader_path, const std::string& variant_a_path, const std::string& variant_b_path, int num_rounds);
 
 	// Call once per frame.  Returns true once the report has been written (or writing it failed), after which the client can exit.
 	bool think(GUIClient& gui_client, OpenGLEngine& engine);
@@ -38,6 +48,9 @@ private:
 	std::string makeNearbyObjectsReport(OpenGLEngine& engine) const;
 	void writeReport(const std::string& report);
 	void saveRender(GUIClient& gui_client, OpenGLEngine& engine);
+	void saveRender(GUIClient& gui_client, OpenGLEngine& engine, const std::string& path);
+	bool thinkShaderAB(GUIClient& gui_client, OpenGLEngine& engine);
+	std::string makeShaderABReport(const OpenGLEngine& engine) const;
 
 	std::string output_path;
 	Vec3d cam_pos;
@@ -69,4 +82,25 @@ private:
 	bool frag_invocation_counting_supported;
 	int num_counting_frames_done;
 	std::vector<uint64> opaque_frag_invocation_samples; // Counts read back during the counting frames.  Usually several per count, as each lags by a frame or more.
+
+	// Shader A/B mode.  Samples alternate A, B, A, B, ...
+	bool ab_mode;
+	std::string ab_target_shader_path;
+	std::string ab_original_contents;
+	std::string ab_variant_contents[2];
+	int ab_num_rounds;
+	enum ABState { ABState_StartSample, ABState_WaitingForReload, ABState_Warmup, ABState_Measuring };
+	ABState ab_state;
+	int ab_sample_index;      // Index of the current sample.  Its variant is ab_sample_index % 2.
+	int ab_frames_done;       // Warmup or measured frames done in the current state.
+	Timer ab_timer;           // Time since the shader file was written for the current sample, or since measuring started.
+	std::vector<OpenGLEngine::GPUPassTimes> ab_frame_times; // Per frame, for the current sample.
+	struct ABSample
+	{
+		int variant;
+		OpenGLEngine::GPUPassTimes median; // Per pass, the median over the sample's frames.
+		double wall_time_per_frame_s;
+		double reload_time_s;  // Time from writing the shader file to all programs being built.
+	};
+	std::vector<ABSample> ab_samples;
 };

@@ -153,6 +153,7 @@ public:
 
 	bool allow_bindless_textures;
 	bool allow_multi_draw_indirect;
+	bool allow_SSAO; // If false, SSAO is disabled regardless of the saved setting.  Set by the --no_ssao command line option.
 
 	glare::TaskManager* main_task_manager;
 	glare::TaskManager* high_priority_task_manager;
