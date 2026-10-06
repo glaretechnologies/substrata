@@ -15876,7 +15876,7 @@ void GUIClient::updateGroundPlane()
 			if(!spec.detail_col_map_URLs[i].empty())
 				use_detail_col_map_URLs[i] = this->server_has_basisu_terrain_detail_maps ? (toURLString(eatExtension(toStdString(spec.detail_col_map_URLs[i])) + "basis")) : spec.detail_col_map_URLs[i];
 			if(!spec.detail_height_map_URLs[i].empty())
-				use_detail_col_map_URLs[i] = this->server_has_basisu_terrain_detail_maps ? (toURLString(eatExtension(toStdString(spec.detail_height_map_URLs[i])) + "basis")) : spec.detail_height_map_URLs[i];
+				use_detail_height_map_URLs[i] = this->server_has_basisu_terrain_detail_maps ? (toURLString(eatExtension(toStdString(spec.detail_height_map_URLs[i])) + "basis")) : spec.detail_height_map_URLs[i];
 		}
 
 		for(int i=0; i<4; ++i)
