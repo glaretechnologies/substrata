@@ -294,8 +294,29 @@ void TerrainSystem::init(const TerrainPathSpec& spec_, const std::string& base_d
 		OpenGLTextureRef default_col_tex = opengl_engine->getTexture(base_dir_path + "/data/resources/grey_grid.png");
 		//conPrint("Loading grid texture took " + timer.elapsedStringNPlaces(4));
 
-		for(int i=0; i<4; ++i)
+		for(int i=0; i<3; ++i)
 			opengl_engine->setDetailTexture(i, default_col_tex);
+
+		// Slot 3 is the beach sand.  If the world doesn't set a sand texture, use a plain sand colour (the mean colour of the default sand texture, aerial_beach_01),
+		// so that beaches still look like sand rather than the grid.
+		ImageMapUInt8Ref default_sand_col_map = new ImageMapUInt8(1, 1, 3);
+		default_sand_col_map->getPixel(0, 0)[0] = 145;
+		default_sand_col_map->getPixel(0, 0)[1] = 134;
+		default_sand_col_map->getPixel(0, 0)[2] = 123;
+		opengl_engine->setDetailTexture(3, opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("__default_sand_col_tex__"), *default_sand_col_map));
+	}
+	{
+		// Default detail normal maps: flat.
+		ImageMapUInt8Ref flat_normal_map = new ImageMapUInt8(1, 1, 3);
+		flat_normal_map->getPixel(0, 0)[0] = 128;
+		flat_normal_map->getPixel(0, 0)[1] = 128;
+		flat_normal_map->getPixel(0, 0)[2] = 255;
+		TextureParams normal_map_params;
+		normal_map_params.use_sRGB = false;
+		normal_map_params.allow_compression = false;
+		OpenGLTextureRef flat_normal_map_tex = opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("__default_detail_normal_map__"), *flat_normal_map, normal_map_params);
+		for(int i=0; i<4; ++i)
+			opengl_engine->setDetailNormalMap(i, flat_normal_map_tex);
 	}
 
 	for(int i=0; i<4; ++i)
@@ -439,6 +460,11 @@ void TerrainSystem::handleTextureLoaded(const OpenGLTextureKey& path, const Map2
 
 			detail_heightmaps[i] = map;
 		}
+
+		if(spec.detail_normal_map_paths[i] == path)
+		{
+			opengl_engine->setDetailNormalMap(i, opengl_engine->getTextureIfLoaded(OpenGLTextureKey(path)));
+		}
 	}
 
 	for(int x=0; x<TERRAIN_DATA_SECTION_RES; ++x)
@@ -483,6 +509,9 @@ bool TerrainSystem::isTextureUsedByTerrain(const OpenGLTextureKey& path) const
 			return true;
 
 		if(spec.detail_height_map_paths[i] == path)
+			return true;
+
+		if(spec.detail_normal_map_paths[i] == path)
 			return true;
 	}
 

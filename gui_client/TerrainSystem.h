@@ -51,6 +51,7 @@ struct TerrainPathSpec
 
 	OpenGLTextureKey detail_col_map_paths[4];
 	OpenGLTextureKey detail_height_map_paths[4];
+	OpenGLTextureKey detail_normal_map_paths[4];
 
 	float terrain_section_width_m;
 	float terrain_height_scale;
