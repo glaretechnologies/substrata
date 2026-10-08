@@ -48,9 +48,12 @@ void generateLODTexture(const std::string& base_tex_path, int lod_level, const s
 void generateBasisTexture(const std::string& src_tex_path, int base_lod_level, int lod_level, const std::string& basis_tex_path, glare::TaskManager& task_manager);
 
 // Generate a KTX2 file with BC1 data (or BC3 if the texture has any non-opaque alpha), with MIP levels, RDO-encoded and zstd-compressed.
-// Same dimensions as generateBasisTexture().  Only handles single images (not image sequences such as animated gifs).
+// Same dimensions as generateBasisTexture().  Animated gifs and webps are written as animated KTX2 files.
+// The source texture data is read from src_tex_buffer.  src_tex_path is used for its extension, to determine the image format.
+// Writes to test_out_stream if non-null, otherwise writes to disk at ktx2_tex_path.
 // Server only.
-void generateBC13KTX2Texture(const std::string& src_tex_path, int base_lod_level, int lod_level, const std::string& ktx2_tex_path, glare::TaskManager& task_manager);
+void generateBC13KTX2Texture(const std::string& src_tex_path, const void* src_tex_buffer, size_t src_tex_buffer_size, int base_lod_level, int lod_level, const std::string& ktx2_tex_path,
+	OutStream* test_out_stream, glare::TaskManager& task_manager);
 
 // Generate LOD and KTX textures for materials, if not already present on disk.
 //void generateLODTexturesForMaterialsIfNotPresent(std::vector<WorldMaterialRef>& materials, ResourceManager& resource_manager, glare::TaskManager& task_manager);

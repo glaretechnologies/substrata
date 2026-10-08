@@ -1032,7 +1032,11 @@ void MeshLODGenThread::doRun()
 						conPrint("MeshLODGenThread: (basis and ktx " + toString(i) + " / " + toString(basis_textures_to_gen.size()) + "): Generating " + (tex_to_gen.bc13_ktx2 ? "BC1/BC3 KTX2" : "basis") + " texture with URL " + toStdString(tex_to_gen.basis_URL));
 
 						if(tex_to_gen.bc13_ktx2)
-							LODGeneration::generateBC13KTX2Texture(tex_to_gen.source_tex_abs_path, tex_to_gen.base_lod_level, tex_to_gen.lod_level, tex_to_gen.basis_tex_abs_path, task_manager);
+						{
+							MemMappedFile file(tex_to_gen.source_tex_abs_path);
+							LODGeneration::generateBC13KTX2Texture(tex_to_gen.source_tex_abs_path, file.fileData(), file.fileSize(), tex_to_gen.base_lod_level, tex_to_gen.lod_level,
+								tex_to_gen.basis_tex_abs_path, /*test out stream=*/nullptr, task_manager);
+						}
 						else
 							LODGeneration::generateBasisTexture(tex_to_gen.source_tex_abs_path, tex_to_gen.base_lod_level, tex_to_gen.lod_level, tex_to_gen.basis_tex_abs_path, task_manager);
 

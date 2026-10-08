@@ -631,7 +631,8 @@ static void encodeBC13Level(const uint8* src, size_t W, size_t H, size_t N, bool
 #endif // !GUI_CLIENT
 
 
-void generateBC13KTX2Texture(const std::string& src_tex_path, int base_lod_level, int lod_level, const std::string& ktx2_tex_path, glare::TaskManager& task_manager)
+void generateBC13KTX2Texture(const std::string& src_tex_path, const void* src_tex_buffer, size_t src_tex_buffer_size, int base_lod_level, int lod_level, const std::string& ktx2_tex_path,
+	OutStream* test_out_stream, glare::TaskManager& task_manager)
 {
 #if GUI_CLIENT
 	throw glare::Exception("generateBC13KTX2Texture not supported.");
@@ -647,14 +648,14 @@ void generateBC13KTX2Texture(const std::string& src_tex_path, int base_lod_level
 
 	const int min_w_h = 1;
 
-	// Load texture from disk and decode it.  Animated gifs and webps are decoded to an image sequence.  Generated for the same textures as generateBasisTexture(), so decode in the same way.
+	// Decode the texture.  Animated gifs and webps are decoded to an image sequence.  Generated for the same textures as generateBasisTexture(), so decode in the same way.
 	Reference<Map2D> map;
 	if(hasExtension(src_tex_path, "gif"))
-		map = GIFDecoder::decodeImageSequence(src_tex_path);
+		map = GIFDecoder::decodeImageSequenceFromBuffer(src_tex_buffer, src_tex_buffer_size);
 	else if(hasExtension(src_tex_path, "webp"))
-		map = WebPDecoder::decodeImageOrSequence(src_tex_path);
+		map = WebPDecoder::decodeImageOrSequenceFromBuffer(src_tex_buffer, src_tex_buffer_size);
 	else
-		map = ImageDecoding::decodeImage(".", src_tex_path);
+		map = ImageDecoding::decodeImageFromBuffer(".", src_tex_path, ArrayRef<uint8>((const uint8*)src_tex_buffer, src_tex_buffer_size));
 
 	// If the map is a 16-bit image, convert to 8-bit first.
 	if(dynamic_cast<const ImageMap<uint16, UInt16ComponentValueTraits>*>(map.ptr()))
@@ -777,7 +778,11 @@ void generateBC13KTX2Texture(const std::string& src_tex_path, int base_lod_level
 		}
 	}
 
-	KTXDecoder::writeKTX2File(has_alpha ? KTXDecoder::Format_BC3 : KTXDecoder::Format_BC1, /*supercompression=*/true, new_w, new_h, (int)frames.size(), frame_duration_s, level_data, ktx2_tex_path, BC13_ZSTD_LEVEL);
+	const KTXDecoder::Format ktx_format = has_alpha ? KTXDecoder::Format_BC3 : KTXDecoder::Format_BC1;
+	if(test_out_stream)
+		KTXDecoder::writeKTX2ToStream(ktx_format, /*supercompression=*/true, new_w, new_h, (int)frames.size(), frame_duration_s, level_data, *test_out_stream, BC13_ZSTD_LEVEL);
+	else
+		KTXDecoder::writeKTX2File(ktx_format, /*supercompression=*/true, new_w, new_h, (int)frames.size(), frame_duration_s, level_data, ktx2_tex_path, BC13_ZSTD_LEVEL);
 
 	conPrint("\tBC1/BC3 encoding and writing KTX2 file took " + timer.elapsedStringNSigFigs(3));
 #endif
@@ -1092,6 +1097,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 #if !GUI_CLIENT
 
 #include <graphics/CompressedImage.h>
+#include <utils/BufferOutStream.h>
+#include <utils/MemMappedFile.h>
 
 
 // Makes an image with smooth gradients in each channel, which BC1 and BC3 can represent well.
@@ -1223,10 +1230,11 @@ static void checkBC13RMSError(const ImageMapUInt8& decoded, const ImageMapUInt8&
 static Reference<TextureData> generateAndCheckBC13Texture(const std::string& src_path, int base_lod_level, int lod_level, size_t expected_W, size_t expected_H, bool expect_bc3,
 	size_t expected_num_frames, glare::TaskManager& task_manager)
 {
-	const std::string ktx2_path = PlatformUtils::getTempDirPath() + "/bc13_test_output.ktx2";
-	LODGeneration::generateBC13KTX2Texture(src_path, base_lod_level, lod_level, ktx2_path, task_manager);
+	MemMappedFile src_file(src_path);
+	BufferOutStream out_stream;
+	LODGeneration::generateBC13KTX2Texture(src_path, src_file.fileData(), src_file.fileSize(), base_lod_level, lod_level, /*ktx2_tex_path=*/"", &out_stream, task_manager);
 
-	Reference<Map2D> im = KTXDecoder::decodeKTX2(ktx2_path);
+	Reference<Map2D> im = KTXDecoder::decodeKTX2FromBuffer(out_stream.buf.data(), out_stream.buf.size());
 	testAssert(im.isType<CompressedImage>());
 	Reference<TextureData> texture_data = im.downcastToPtr<CompressedImage>()->texture_data;
 	testAssert(texture_data->W == expected_W && texture_data->H == expected_H);
@@ -1360,10 +1368,11 @@ static void testGenerateBC13KTX2Texture(glare::TaskManager& task_manager)
 
 	//---------------- Invalid source file: throws ----------------
 	{
-		FileUtils::writeEntireFileTextMode(temp_dir + "/bc13_test_invalid.png", "not a png");
+		const std::string invalid_data = "not a png";
 		try
 		{
-			LODGeneration::generateBC13KTX2Texture(temp_dir + "/bc13_test_invalid.png", 0, 0, temp_dir + "/bc13_test_output.ktx2", task_manager);
+			BufferOutStream out_stream;
+			LODGeneration::generateBC13KTX2Texture("invalid.png", invalid_data.data(), invalid_data.size(), /*base_lod_level=*/0, /*lod_level=*/0, /*ktx2_tex_path=*/"", &out_stream, task_manager);
 			failTest("Expected exception");
 		}
 		catch(glare::Exception&)
@@ -1514,6 +1523,160 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 		for(size_t i=0; i<decoded->numPixels(); ++i)
 			testAssert(decoded->getPixel(i)[3] == 255);
 	}
+
+	return 0;
+}
+
+#endif // Fuzzing
+
+
+#if 0
+// Fuzzing of generateBC13KTX2Texture(): image decoding, resizing, BC1/BC3 encoding with RDO, and KTX2 writing.
+//
+// Fuzz input format:
+//   byte 0: bits 0-2: source image format index into bc13_fuzz_formats
+//           bits 3-4: LOD level combination index into bc13_fuzz_lod_combos
+//   rest of input: the source image file data.
+//
+// The generated KTX2 file is decoded and checked: it's what clients download.
+//
+// Seeds can be written with writeBC13TextureFuzzSeeds() below.
+//
+// Command line:
+// C:\fuzz_corpus\bc13_texture C:\code\substrata\testfiles\fuzz_seeds\bc13_texture -max_len=1000000
+
+
+static const char* bc13_fuzz_formats[] = { "png", "jpg", "gif", "webp", "exr", "ktx", "ktx2", "basis" }; // The supported image extensions, see ImageDecoding::isSupportedImageExtension().
+
+static const int bc13_fuzz_lod_combos[][3] = { // (base_lod_level, lod_level, max width/height)
+	{ 0,  0, 4096 },
+	{ -1, 0, 1024 },
+	{ 0,  1, 256 },
+	{ 0,  2, 64 }
+};
+
+static glare::TaskManager* bc13_fuzz_task_manager = nullptr;
+
+
+static void writeBC13TextureFuzzSeed(const std::string& dir, const std::string& name, int format_i, int lod_combo_i, const void* data, size_t size)
+{
+	std::vector<uint8> seed(1 + size);
+	seed[0] = (uint8)(format_i | (lod_combo_i << 3));
+	if(size > 0)
+		std::memcpy(&seed[1], data, size);
+	FileUtils::writeEntireFile(dir + "/" + name + "_" + toString(lod_combo_i), (const char*)seed.data(), seed.size());
+}
+
+
+static void writeBC13TextureFuzzSeeds(const std::string& dir)
+{
+	FileUtils::createDirIfDoesNotExist(dir);
+
+	const std::string temp_dir = PlatformUtils::getTempDirPath();
+
+	// Small synthetic images: RGB, RGBA with alpha, greyscale and greyscale + alpha PNGs, and a JPEG.
+	struct SynthImage { const char* name; size_t W, H, N; };
+	const SynthImage synth_images[] = { { "rgb", 24, 16, 3 }, { "rgba", 16, 16, 4 }, { "grey", 13, 7, 1 }, { "grey_alpha", 8, 8, 2 } };
+	for(size_t i=0; i<staticArrayNumElems(synth_images); ++i)
+	{
+		ImageMapUInt8Ref im = makeBC13TestImage(synth_images[i].W, synth_images[i].H, synth_images[i].N, /*varying_alpha=*/true);
+		const std::string path = temp_dir + "/bc13_fuzz_seed.png";
+		PNGDecoder::write(*im, path);
+		MemMappedFile file(path);
+		for(int c=0; c<4; ++c)
+			writeBC13TextureFuzzSeed(dir, std::string(synth_images[i].name) + "_png", /*format_i=*/0, c, file.fileData(), file.fileSize());
+	}
+	{
+		ImageMapUInt8Ref im = makeBC13TestImage(32, 24, 3, /*varying_alpha=*/false);
+		const std::string path = temp_dir + "/bc13_fuzz_seed.jpg";
+		JPEGDecoder::save(im, path, JPEGDecoder::SaveOptions());
+		MemMappedFile file(path);
+		for(int c=0; c<4; ++c)
+			writeBC13TextureFuzzSeed(dir, "rgb_jpg", /*format_i=*/1, c, file.fileData(), file.fileSize());
+	}
+
+	// Test repo files: an animated gif, and animated and alpha webps.
+	const std::string testfiles_dir = TestUtils::getTestReposDir() + "/testfiles";
+	const std::vector<std::pair<std::string, int>> files = {
+		{ "gifs/fire.gif",								2 },
+		{ "webps/sample-animated-200x200.webp",			3 },
+		{ "webps/sample-alpha-400x300.webp",			3 },
+	};
+	for(size_t f=0; f<files.size(); ++f)
+	{
+		MemMappedFile file(testfiles_dir + "/" + files[f].first);
+		for(int c=0; c<4; ++c)
+			writeBC13TextureFuzzSeed(dir, FileUtils::getFilename(files[f].first), files[f].second, c, file.fileData(), file.fileSize());
+	}
+}
+
+
+extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv)
+{
+	Clock::init();
+
+	bc13_fuzz_task_manager = new glare::TaskManager(/*num threads=*/1);
+
+	if(false)
+		writeBC13TextureFuzzSeeds("C:\\code\\substrata\\testfiles\\fuzz_seeds/bc13_texture");
+	return 0;
+}
+
+
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
+{
+	if(size < 1)
+		return 0;
+
+	const int format_i = data[0] & 7;
+	const int lod_combo_i = (data[0] >> 3) & 3;
+	const int base_lod_level = bc13_fuzz_lod_combos[lod_combo_i][0];
+	const int lod_level      = bc13_fuzz_lod_combos[lod_combo_i][1];
+	const size_t max_w_h     = bc13_fuzz_lod_combos[lod_combo_i][2];
+
+	// The path is only used for its extension.
+	const std::string src_path = "fuzz_texture." + std::string(bc13_fuzz_formats[format_i]);
+
+	BufferOutStream out_stream;
+	try
+	{
+		LODGeneration::generateBC13KTX2Texture(src_path, data + 1, size - 1, base_lod_level, lod_level, /*ktx2_tex_path=*/"", &out_stream, *bc13_fuzz_task_manager);
+	}
+	catch(glare::Exception&)
+	{
+		return 0; // Invalid or unsupported image
+	}
+
+	// The generated KTX2 file should decode, and be valid.
+	Reference<Map2D> im;
+	try
+	{
+		im = KTXDecoder::decodeKTX2FromBuffer(out_stream.buf.data(), out_stream.buf.size());
+	}
+	catch(glare::Exception& e)
+	{
+		failTest("Generated KTX2 file failed to decode: " + e.what());
+	}
+
+	testAssert(im.isType<CompressedImage>());
+	const TextureData& texture_data = *im.downcastToPtr<CompressedImage>()->texture_data;
+	const bool bc3 = texture_data.format == OpenGLTextureFormat::Format_Compressed_DXT_SRGBA_Uint8;
+	testAssert(bc3 || (texture_data.format == OpenGLTextureFormat::Format_Compressed_DXT_SRGB_Uint8));
+	testAssert(texture_data.W >= 4 && texture_data.H >= 4 && texture_data.W <= max_w_h && texture_data.H <= max_w_h);
+	testAssert(texture_data.W % 4 == 0 && texture_data.H % 4 == 0);
+	testAssert(texture_data.numMipLevels() == TextureData::computeNumMipLevels(texture_data.W, texture_data.H));
+	testAssert(texture_data.numFrames() >= 1);
+	if(texture_data.isMultiFrame())
+		testAssert(texture_data.frame_durations_equal && std::isfinite(texture_data.recip_frame_duration) && (texture_data.recip_frame_duration > 0));
+
+	// Check the block invariants for every MIP level of every frame.
+	for(size_t f=0; f<texture_data.numFrames(); ++f)
+		for(size_t k=0; k<texture_data.numMipLevels(); ++k)
+		{
+			const size_t num_blocks = TextureData::computeNum4PixelBlocksForLevel(texture_data.W, texture_data.H, k);
+			testAssert(texture_data.level_offsets[k].level_size == num_blocks * (bc3 ? 16 : 8));
+			checkBC13BlockInvariants(texture_data.mipmap_data.data() + f * texture_data.frame_size_B + texture_data.level_offsets[k].offset, num_blocks, bc3);
+		}
 
 	return 0;
 }
