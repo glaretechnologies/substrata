@@ -888,7 +888,9 @@ public:
 	float override_sun_phi;   // Azimuth angle (radians)
 
 	// The texture file formats to use, given what the server provides and what the GPU supports.
-	TextureFormatPreferences textureFormatPreferences() const;
+	// Cached: updated by updateTextureFormatPreferences() when the server capabilities are received and when opengl_engine is set.
+	TextureFormatPreferences tex_format_prefs;
+	void updateTextureFormatPreferences();
 	bool server_has_basisu_terrain_detail_maps;
 	bool server_has_optimised_meshes;
 	int server_opt_mesh_version;
