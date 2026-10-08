@@ -308,9 +308,12 @@ int main(int argc, char *argv[])
 
 		// Add all files from base_dir_path + "/resources" into the resource manager (files from server_dist_resources in Substrata repo).
 		{
-			const std::vector<std::string> paths = FileUtils::getFilesInDirFullPaths(base_dir_path + "/resources");
-			for(size_t i=0; i<paths.size(); ++i)
-				server.world_state->resource_manager->addExternalResource(/*URL=*/URLString(FileUtils::getFilename(paths[i])), /*local_abs_path=*/paths[i]);
+			if(FileUtils::fileExists(base_dir_path + "/resources"))
+			{
+				const std::vector<std::string> paths = FileUtils::getFilesInDirFullPaths(base_dir_path + "/resources");
+				for(size_t i=0; i<paths.size(); ++i)
+					server.world_state->resource_manager->addExternalResource(/*URL=*/URLString(FileUtils::getFilename(paths[i])), /*local_abs_path=*/paths[i]);
+			}
 
 
 			// Issue some warnings if files not present
