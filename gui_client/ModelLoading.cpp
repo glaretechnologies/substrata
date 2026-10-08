@@ -129,10 +129,10 @@ static const std::string toLocalPath(const URLString& URL, ResourceManager& reso
 }
 
 
-void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int lod_level, const URLString& lightmap_url, bool use_basis, ResourceManager& resource_manager, glare::ArenaAllocator* allocator, 
+void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int lod_level, const URLString& lightmap_url, const TextureFormatPreferences& tex_format_prefs, ResourceManager& resource_manager, glare::ArenaAllocator* allocator, 
 	OpenGLMaterial& opengl_mat)
 {
-	const WorldMaterial::GetURLOptions get_url_options(use_basis, /*arena allocator=*/allocator);
+	const WorldMaterial::GetURLOptions get_url_options(tex_format_prefs, /*arena allocator=*/allocator);
 
 	opengl_mat.albedo_linear_rgb = sanitiseAndConvertToLinearAlbedoColour(mat.colour_rgb);
 	if(!mat.colour_texture_url.empty())
@@ -1066,7 +1066,7 @@ GLObjectRef ModelLoading::makeImageCube(OpenGLEngine& gl_engine, VertexBufferAll
 
 
 GLObjectRef ModelLoading::makeGLObjectForMeshDataAndMaterials(OpenGLEngine& gl_engine, const Reference<OpenGLMeshRenderData> gl_meshdata, //size_t num_materials_referenced,
-	int ob_lod_level, const std::vector<WorldMaterialRef>& materials, const URLString& lightmap_url, bool use_basis,
+	int ob_lod_level, const std::vector<WorldMaterialRef>& materials, const URLString& lightmap_url, const TextureFormatPreferences& tex_format_prefs,
 	ResourceManager& resource_manager,
 	glare::ArenaAllocator* allocator,
 	const Matrix4f& ob_to_world_matrix)
@@ -1081,7 +1081,7 @@ GLObjectRef ModelLoading::makeGLObjectForMeshDataAndMaterials(OpenGLEngine& gl_e
 	{
 		if(i < materials.size())
 		{
-			setGLMaterialFromWorldMaterial(*materials[i], ob_lod_level, lightmap_url, use_basis, resource_manager, allocator, ob->materials[i]);
+			setGLMaterialFromWorldMaterial(*materials[i], ob_lod_level, lightmap_url, tex_format_prefs, resource_manager, allocator, ob->materials[i]);
 		}
 		else
 		{
@@ -1119,12 +1119,12 @@ GLObjectRef ModelLoading::makeGLObjectForMeshDataAndMaterials(OpenGLEngine& gl_e
 
 
 void ModelLoading::setMaterialTexPathsForLODLevel(GLObject& gl_ob, int ob_lod_level, const std::vector<WorldMaterialRef>& materials,
-	const URLString& lightmap_url, bool use_basis, ResourceManager& resource_manager, glare::ArenaAllocator* allocator)
+	const URLString& lightmap_url, const TextureFormatPreferences& tex_format_prefs, ResourceManager& resource_manager, glare::ArenaAllocator* allocator)
 {
 	for(size_t i=0; i<gl_ob.materials.size(); ++i)
 	{
 		if(i < materials.size())
-			setGLMaterialFromWorldMaterial(*materials[i], ob_lod_level, lightmap_url, use_basis, resource_manager, allocator, gl_ob.materials[i]);
+			setGLMaterialFromWorldMaterial(*materials[i], ob_lod_level, lightmap_url, tex_format_prefs, resource_manager, allocator, gl_ob.materials[i]);
 	}
 }
 

@@ -47,6 +47,11 @@ void generateLODTexture(const std::string& base_tex_path, int lod_level, const s
 
 void generateBasisTexture(const std::string& src_tex_path, int base_lod_level, int lod_level, const std::string& basis_tex_path, glare::TaskManager& task_manager);
 
+// Generate a KTX2 file with BC1 data (or BC3 if the texture has any non-opaque alpha), with MIP levels, RDO-encoded and zstd-compressed.
+// Same dimensions as generateBasisTexture().  Only handles single images (not image sequences such as animated gifs).
+// Server only.
+void generateBC13KTX2Texture(const std::string& src_tex_path, int base_lod_level, int lod_level, const std::string& ktx2_tex_path, glare::TaskManager& task_manager);
+
 // Generate LOD and KTX textures for materials, if not already present on disk.
 //void generateLODTexturesForMaterialsIfNotPresent(std::vector<WorldMaterialRef>& materials, ResourceManager& resource_manager, glare::TaskManager& task_manager);
 

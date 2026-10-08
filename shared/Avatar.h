@@ -79,8 +79,8 @@ public:
 
 	struct GetDependencyOptions
 	{
-		GetDependencyOptions() : use_basis(true), get_optimised_mesh(false), opt_mesh_version(-1) {}
-		bool use_basis;
+		GetDependencyOptions() : tex_format_prefs(/*use_basis=*/true, /*use_bc13_ktx2=*/false), get_optimised_mesh(false), opt_mesh_version(-1) {}
+		TextureFormatPreferences tex_format_prefs;
 		bool get_optimised_mesh;
 		int opt_mesh_version;
 	};

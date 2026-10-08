@@ -31,6 +31,17 @@ namespace glare { class Allocator; }
 namespace glare { class ArenaAllocator; }
 
 
+// Which texture file formats the client prefers to use, out of the formats that the server generates from the original textures.
+// Depends on what the server provides and on what the client's GPU supports.
+struct TextureFormatPreferences
+{
+	TextureFormatPreferences(bool use_basis_, bool use_bc13_ktx2_) : use_basis(use_basis_), use_bc13_ktx2(use_bc13_ktx2_) {}
+
+	bool use_basis;     // Use the .basis versions of textures.
+	bool use_bc13_ktx2; // Use the _bc13.ktx2 versions (BC1, or BC3 if the texture has alpha) instead of the .basis versions.  They are generated for the same textures.
+};
+
+
 struct ScalarVal
 {
 	ScalarVal() : val(0.0f) {}
@@ -38,10 +49,10 @@ struct ScalarVal
 
 	struct GetURLOptions
 	{
-		GetURLOptions(bool tex_use_sRGB_, bool use_basis_, int material_min_lod_level_, glare::ArenaAllocator* arena_allocator_) 
-			:	tex_use_sRGB(tex_use_sRGB_), use_basis(use_basis_), material_min_lod_level(material_min_lod_level_), arena_allocator(arena_allocator_) {}
+		GetURLOptions(bool tex_use_sRGB_, const TextureFormatPreferences& tex_format_prefs_, int material_min_lod_level_, glare::ArenaAllocator* arena_allocator_)
+			:	tex_use_sRGB(tex_use_sRGB_), tex_format_prefs(tex_format_prefs_), material_min_lod_level(material_min_lod_level_), arena_allocator(arena_allocator_) {}
 		bool tex_use_sRGB;
-		bool use_basis;
+		TextureFormatPreferences tex_format_prefs;
 		int material_min_lod_level;
 		glare::ArenaAllocator* arena_allocator;
 	};
@@ -150,8 +161,8 @@ public:
 
 	struct GetURLOptions
 	{
-		GetURLOptions(bool use_basis_, glare::ArenaAllocator* arena_allocator_) : use_basis(use_basis_), arena_allocator(arena_allocator_) {}
-		bool use_basis;
+		GetURLOptions(const TextureFormatPreferences& tex_format_prefs_, glare::ArenaAllocator* arena_allocator_) : tex_format_prefs(tex_format_prefs_), arena_allocator(arena_allocator_) {}
+		TextureFormatPreferences tex_format_prefs;
 		glare::ArenaAllocator* arena_allocator;
 	};
 

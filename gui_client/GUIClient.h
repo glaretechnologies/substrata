@@ -880,6 +880,15 @@ public:
 	bool server_using_lod_chunks; // Should be equal to !world_state->lod_chunks.empty(), cached in a boolean.
 
 	bool server_has_basis_textures;
+	bool server_has_bc13_ktx2_textures; // Does the server generate _bc13.ktx2 (BC1/BC3) textures?  See Protocol::TEXTURE_BC13_KTX2_SUPPORT.
+
+	// If override_sun_angles is set (by the --sun_angles command line option), these sun angles are used instead of the world settings sun angles.
+	bool override_sun_angles;
+	float override_sun_theta; // Angle from vertical (radians)
+	float override_sun_phi;   // Azimuth angle (radians)
+
+	// The texture file formats to use, given what the server provides and what the GPU supports.
+	TextureFormatPreferences textureFormatPreferences() const;
 	bool server_has_basisu_terrain_detail_maps;
 	bool server_has_optimised_meshes;
 	int server_opt_mesh_version;

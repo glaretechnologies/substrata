@@ -105,7 +105,7 @@ void Avatar::appendDependencyURLs(int ob_lod_level, const GetDependencyOptions& 
 	if(!avatar_settings.model_url.empty())
 		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(avatar_settings.model_url, ob_lod_level, model_options)));
 
-	const WorldMaterial::GetURLOptions mat_options(options.use_basis, /*area allocator=*/nullptr);
+	const WorldMaterial::GetURLOptions mat_options(options.tex_format_prefs, /*area allocator=*/nullptr);
 
 	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
 		avatar_settings.materials[i]->appendDependencyURLs(mat_options, ob_lod_level, URLs_out);
@@ -134,7 +134,7 @@ void Avatar::appendDependencyURLsForAllLODLevels(const GetDependencyOptions& opt
 		for(int level=0; level<3; ++level)
 			URLs_out.push_back(DependencyURL(getLODModelURLForLevel(avatar_settings.model_url, level, model_options)));
 
-	const WorldMaterial::GetURLOptions mat_options(options.use_basis, /*area allocator=*/nullptr);
+	const WorldMaterial::GetURLOptions mat_options(options.tex_format_prefs, /*area allocator=*/nullptr);
 
 	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
 		avatar_settings.materials[i]->appendDependencyURLsAllLODLevels(mat_options, URLs_out);
@@ -163,7 +163,7 @@ void Avatar::appendDependencyURLsBaseLevel(const GetDependencyOptions& options, 
 	if(!avatar_settings.model_url.empty())
 		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(avatar_settings.model_url, 0, model_options)));
 
-	const WorldMaterial::GetURLOptions mat_options(options.use_basis, /*area allocator=*/nullptr);
+	const WorldMaterial::GetURLOptions mat_options(options.tex_format_prefs, /*area allocator=*/nullptr);
 
 	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
 		avatar_settings.materials[i]->appendDependencyURLsBaseLevel(mat_options, URLs_out);

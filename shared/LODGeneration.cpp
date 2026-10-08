@@ -37,7 +37,10 @@ Copyright Glare Technologies Limited 2021 -
 #include <encoder/basisu_comp.h>
 #if !GUI_CLIENT
 //#include <encoder/basisu_comp.h>
+#include <bc7enc_rdo/rgbcx.h>
+#include <bc7enc_rdo/ert.h>
 #endif
+#include <Task.h>
 
 namespace LODGeneration
 {
@@ -446,6 +449,342 @@ void generateBasisTexture(const std::string& src_tex_path, int base_lod_level, i
 }
 
 
+#if !GUI_CLIENT
+
+namespace
+{
+
+// RDO (rate distortion optimisation) quality/size tradeoffs.  Higher = smaller zstd-compressed files, lower quality.  0 = no RDO.
+// The LOD level 1 and 2 textures are only seen from a distance, so use a higher value for them, as for the basis quality level in generateBasisTexture().
+static const float BC13_RDO_LAMBDA = 2.f;
+static const float BC13_LOD_RDO_LAMBDA = 8.f; // For LOD levels >= base level.  Measured on 256 px textures: ~15-65% smaller than lambda 2 depending on content, for 1-3 dB lower PSNR.
+static const int BC13_ZSTD_LEVEL = 19; // Slower to compress than lower levels, but not much slower to decompress (probably).
+
+
+static Mutex rgbcx_init_mutex;
+static bool rgbcx_initialised GUARDED_BY(rgbcx_init_mutex) = false;
+
+static void initRGBCX()
+{
+	Lock lock(rgbcx_init_mutex);
+	if(!rgbcx_initialised)
+	{
+		rgbcx::init(rgbcx::bc1_approx_mode::cBC1Ideal);
+		rgbcx_initialised = true;
+	}
+}
+
+
+// Block unpackers for the RDO post-process (ert::reduce_entropy), as in bc7enc_rdo's rdo_bc_encoder.  They return false for blocks the RDO process isn't allowed to produce.
+static bool unpackBC1BlockForRDO(const void* block, ert::color_rgba* pixels, uint32_t /*block_index*/, void* user_data)
+{
+	const bool allow_3_colour_mode = user_data != nullptr;
+	const bool used_3_colour_mode = rgbcx::unpack_bc1(block, pixels, /*set_alpha=*/true, rgbcx::bc1_approx_mode::cBC1Ideal);
+	if(used_3_colour_mode)
+	{
+		if(!allow_3_colour_mode)
+			return false;
+
+		// Don't allow selector 3 in 3-colour mode (which decodes as transparent black in RGBA BC1, and as black in RGB BC1), as the encoder doesn't use it either.
+		const rgbcx::bc1_block* bc1_block = (const rgbcx::bc1_block*)block;
+		for(uint32_t y=0; y<4; ++y)
+		for(uint32_t x=0; x<4; ++x)
+			if(bc1_block->get_selector(x, y) == 3)
+				return false;
+	}
+	return true;
+}
+
+
+static bool unpackBC4BlockForRDO(const void* block, ert::color_rgba* pixels, uint32_t /*block_index*/, void* /*user_data*/)
+{
+	std::memset(pixels, 0, sizeof(ert::color_rgba) * 16);
+	rgbcx::unpack_bc4(block, (uint8_t*)pixels, /*stride=*/4);
+	return true;
+}
+
+
+struct BC13EncodeClosure
+{
+	const ert::color_rgba* block_pixels; // 16 RGBA pixels per block
+	uint8* blocks_out;
+	bool use_bc3;
+	float rdo_lambda;
+};
+
+
+// Encodes blocks [begin, end), then does the RDO post-process on them.  The RDO process only looks back within the range of blocks for each task.
+class BC13EncodeTask : public glare::Task
+{
+public:
+	BC13EncodeTask(const BC13EncodeClosure& closure_, size_t begin_, size_t end_) : closure(closure_), begin(begin_), end(end_) {}
+
+	virtual void run(size_t /*thread_index*/)
+	{
+		const size_t block_size = closure.use_bc3 ? 16 : 8;
+		const uint32_t num_blocks = (uint32_t)(end - begin);
+		uint8* const blocks = closure.blocks_out + begin * block_size;
+		const ert::color_rgba* const block_pixels = closure.block_pixels + begin * 16;
+
+		for(size_t i=0; i<num_blocks; ++i)
+		{
+			if(closure.use_bc3)
+				rgbcx::encode_bc3(rgbcx::MAX_LEVEL, blocks + i * 16, (const uint8_t*)&block_pixels[i * 16]);
+			else
+				rgbcx::encode_bc1(rgbcx::MAX_LEVEL, blocks + i * 8, (const uint8_t*)&block_pixels[i * 16], /*allow_3color=*/true, /*use_transparent_texels_for_black=*/false);
+		}
+
+		if(closure.rdo_lambda <= 0)
+			return;
+
+		// RDO parameters, as in bc7enc_rdo's rdo_bc_encoder::postprocess_rdo().
+		ert::reduce_entropy_params rgb_params;
+		rgb_params.m_lambda = closure.rdo_lambda;
+		rgb_params.m_lookback_window_size = 128;
+		rgb_params.m_try_two_matches = true;
+		rgb_params.m_smooth_block_max_mse_scale = 15.f + (50.f - 15.f) * myMin(1.f, closure.rdo_lambda / 8.f);
+		rgb_params.m_color_weights[3] = 0;
+		uint32_t num_modified = 0;
+
+		if(closure.use_bc3)
+		{
+			// Alpha block (BC4) followed by colour block (BC1, which must use 4-colour mode in BC3).
+			std::vector<ert::color_rgba> alpha_pixels(num_blocks * 16);
+			for(size_t i=0; i<num_blocks * 16; ++i)
+			{
+				alpha_pixels[i].m_c[0] = block_pixels[i].m_c[3];
+				alpha_pixels[i].m_c[1] = alpha_pixels[i].m_c[2] = alpha_pixels[i].m_c[3] = 0;
+			}
+
+			ert::reduce_entropy_params alpha_params = rgb_params;
+			alpha_params.m_lookback_window_size = myMax(16u, rgb_params.m_lookback_window_size);
+			alpha_params.m_smooth_block_max_mse_scale = 10.f + (30.f - 10.f) * myMin(1.f, closure.rdo_lambda / 4.f);
+			alpha_params.m_color_weights[1] = alpha_params.m_color_weights[2] = alpha_params.m_color_weights[3] = 0;
+
+			ert::reduce_entropy(blocks, num_blocks, /*total_block_stride_in_bytes=*/16, /*block_size_to_optimize_in_bytes=*/8, 4, 4, /*num_comps=*/1,
+				alpha_pixels.data(), alpha_params, num_modified, unpackBC4BlockForRDO, /*user data=*/nullptr);
+
+			ert::reduce_entropy(blocks + 8, num_blocks, /*total_block_stride_in_bytes=*/16, /*block_size_to_optimize_in_bytes=*/8, 4, 4, /*num_comps=*/3,
+				block_pixels, rgb_params, num_modified, unpackBC1BlockForRDO, /*user data (allow 3-colour mode)=*/nullptr);
+		}
+		else
+		{
+			ert::reduce_entropy(blocks, num_blocks, /*total_block_stride_in_bytes=*/8, /*block_size_to_optimize_in_bytes=*/8, 4, 4, /*num_comps=*/3,
+				block_pixels, rgb_params, num_modified, unpackBC1BlockForRDO, /*user data (allow 3-colour mode)=*/(void*)1);
+		}
+	}
+
+	const BC13EncodeClosure& closure;
+	size_t begin, end;
+};
+
+
+// Encodes an RGB or RGBA 8-bit image (N = 3 or 4) to BC1 or BC3 blocks.  Edge blocks are padded by clamping to the image edge.
+static void encodeBC13Level(const uint8* src, size_t W, size_t H, size_t N, bool use_bc3, float rdo_lambda, glare::TaskManager& task_manager, std::vector<uint8>& blocks_out)
+{
+	const size_t blocks_x = (W + 3) / 4;
+	const size_t blocks_y = (H + 3) / 4;
+	const size_t num_blocks = blocks_x * blocks_y;
+
+	std::vector<ert::color_rgba> block_pixels(num_blocks * 16);
+	for(size_t by=0; by<blocks_y; ++by)
+	for(size_t bx=0; bx<blocks_x; ++bx)
+		for(size_t y=0; y<4; ++y)
+		for(size_t x=0; x<4; ++x)
+		{
+			const size_t sx = myMin(bx * 4 + x, W - 1);
+			const size_t sy = myMin(by * 4 + y, H - 1);
+			const uint8* p = src + (sx + sy * W) * N;
+			ert::color_rgba& c = block_pixels[(bx + by * blocks_x) * 16 + y * 4 + x];
+			c.m_c[0] = p[0];
+			c.m_c[1] = p[1];
+			c.m_c[2] = p[2];
+			c.m_c[3] = (N == 4) ? p[3] : 255;
+		}
+
+	blocks_out.resize(num_blocks * (use_bc3 ? 16 : 8));
+
+	BC13EncodeClosure closure;
+	closure.block_pixels = block_pixels.data();
+	closure.blocks_out = blocks_out.data();
+	closure.use_bc3 = use_bc3;
+	closure.rdo_lambda = rdo_lambda;
+
+	// Use fairly large chunks of blocks per task, as the RDO process can only find matches within a task's blocks.
+	const size_t MIN_BLOCKS_PER_TASK = 4096;
+	const size_t num_tasks = myMax<size_t>(1, myMin(task_manager.getConcurrency(), num_blocks / MIN_BLOCKS_PER_TASK));
+	const size_t blocks_per_task = Maths::roundedUpDivide(num_blocks, num_tasks);
+
+	glare::TaskGroupRef group = new glare::TaskGroup();
+	for(size_t t=0; t<num_tasks; ++t)
+	{
+		const size_t begin = myMin(t * blocks_per_task, num_blocks);
+		const size_t end   = myMin((t + 1) * blocks_per_task, num_blocks);
+		if(begin < end)
+			group->tasks.push_back(new BC13EncodeTask(closure, begin, end));
+	}
+	task_manager.runTaskGroup(group);
+}
+
+} // end anonymous namespace
+
+#endif // !GUI_CLIENT
+
+
+void generateBC13KTX2Texture(const std::string& src_tex_path, int base_lod_level, int lod_level, const std::string& ktx2_tex_path, glare::TaskManager& task_manager)
+{
+#if GUI_CLIENT
+	throw glare::Exception("generateBC13KTX2Texture not supported.");
+#else
+	initRGBCX();
+
+	// Use the same dimensions as generateBasisTexture(), so that the basis and BC1/BC3 textures for a given LOD level are interchangeable.
+	int new_max_w_h;
+	if(lod_level == base_lod_level)
+		new_max_w_h = 4096;
+	else
+		new_max_w_h = (lod_level == 0) ? 1024 : ((lod_level == 1) ? 256 : 64);
+
+	const int min_w_h = 1;
+
+	// Load texture from disk and decode it.  Animated gifs and webps are decoded to an image sequence.  Generated for the same textures as generateBasisTexture(), so decode in the same way.
+	Reference<Map2D> map;
+	if(hasExtension(src_tex_path, "gif"))
+		map = GIFDecoder::decodeImageSequence(src_tex_path);
+	else if(hasExtension(src_tex_path, "webp"))
+		map = WebPDecoder::decodeImageOrSequence(src_tex_path);
+	else
+		map = ImageDecoding::decodeImage(".", src_tex_path);
+
+	// If the map is a 16-bit image, convert to 8-bit first.
+	if(dynamic_cast<const ImageMap<uint16, UInt16ComponentValueTraits>*>(map.ptr()))
+		map = convertUInt16ToUInt8ImageMap(static_cast<const ImageMap<uint16, UInt16ComponentValueTraits>&>(*map));
+
+	if(!map.isType<ImageMapUInt8>() && !map.isType<ImageMapSequenceUInt8>())
+		throw glare::Exception("generateBC13KTX2Texture: unhandled image type (not an 8-bit image or image sequence): " + src_tex_path);
+
+	if((map->getMapWidth() == 0) || (map->getMapHeight() == 0) || (map->numChannels() == 0))
+		throw glare::Exception("Invalid image dimensions (zero)");
+
+	int new_w, new_h;
+	if(map->getMapWidth() > map->getMapHeight())
+	{
+		new_w = myMin((int)map->getMapWidth(), new_max_w_h);
+		new_h = myMax(min_w_h, (int)((float)new_w * (float)map->getMapHeight() / (float)map->getMapWidth()));
+	}
+	else
+	{
+		new_h = myMin((int)map->getMapHeight(), new_max_w_h);
+		new_w = myMax(min_w_h, (int)((float)new_h * (float)map->getMapWidth() / (float)map->getMapHeight()));
+	}
+
+	new_w = Maths::roundUpToMultipleOfPowerOf2(new_w, 4); // As for basis textures: WebGL requires the dimensions of block-compressed textures to be a multiple of 4.
+	new_h = Maths::roundUpToMultipleOfPowerOf2(new_h, 4);
+
+	// Use BC3 if any frame has any non-opaque alpha, BC1 otherwise.
+	// This is determined from the source image(s), since resizing can change alpha values slightly from 255.
+	auto imageHasNonOpaqueAlpha = [](const ImageMapUInt8& im)
+	{
+		if((im.getN() != 2) && (im.getN() != 4))
+			return false;
+		const size_t alpha_i = im.getN() - 1;
+		for(size_t i=0; i<im.numPixels(); ++i)
+			if(im.getPixel(i)[alpha_i] != 255)
+				return true;
+		return false;
+	};
+	bool has_alpha = false;
+	if(map.isType<ImageMapSequenceUInt8>())
+	{
+		const ImageMapSequenceUInt8* seq = map.downcastToPtr<ImageMapSequenceUInt8>();
+		for(size_t f=0; (f<seq->images.size()) && !has_alpha; ++f)
+			has_alpha = imageHasNonOpaqueAlpha(*seq->images[f]);
+	}
+	else
+		has_alpha = imageHasNonOpaqueAlpha(*map.downcastToPtr<ImageMapUInt8>());
+
+	// Get the frames: a single image, or the images of an animated image sequence.
+	std::vector<ImageMapUInt8Ref> frames;
+	double frame_duration_s = 0;
+	if(map.isType<ImageMapSequenceUInt8>())
+	{
+		Reference<Map2D> resized_seq = map.downcastToPtr<ImageMapSequenceUInt8>()->resizeMidQuality(new_w, new_h, &task_manager);
+		runtimeCheck(resized_seq.isType<ImageMapSequenceUInt8>());
+		const ImageMapSequenceUInt8* seq = resized_seq.downcastToPtr<ImageMapSequenceUInt8>();
+		runtimeCheck(!seq->images.empty() && (seq->frame_durations.size() == seq->images.size()));
+		frames = seq->images;
+		frame_duration_s = seq->frame_durations[0]; // NOTE: just use frame 0 duration, as for basis files (see writeBasisUniversalFileForSequence()).
+	}
+	else
+	{
+		Reference<Map2D> resized_map = map.downcastToPtr<ImageMapUInt8>()->resizeMidQuality(new_w, new_h, &task_manager);
+		runtimeCheck(resized_map.isType<ImageMapUInt8>());
+		frames.push_back(resized_map.downcast<ImageMapUInt8>());
+	}
+
+	for(size_t f=0; f<frames.size(); ++f)
+	{
+		// Convert greyscale and greyscale + alpha images to RGB and RGBA.
+		if((frames[f]->getN() == 1) || (frames[f]->getN() == 2))
+		{
+			const size_t src_N = frames[f]->getN();
+			const size_t dst_N = src_N + 2;
+			ImageMapUInt8Ref converted = new ImageMapUInt8(frames[f]->getWidth(), frames[f]->getHeight(), dst_N);
+			for(size_t i=0; i<frames[f]->numPixels(); ++i)
+			{
+				const uint8* src = frames[f]->getPixel(i);
+				uint8* dst = converted->getPixel(i);
+				dst[0] = dst[1] = dst[2] = src[0];
+				if(dst_N == 4)
+					dst[3] = src[1];
+			}
+			frames[f] = converted;
+		}
+		if(((frames[f]->getN() != 3) && (frames[f]->getN() != 4)) || (frames[f]->getN() != frames[0]->getN()))
+			throw glare::Exception("generateBC13KTX2Texture: unhandled number of channels: " + toString(frames[f]->getN()));
+	}
+
+	const float rdo_lambda = (lod_level > base_lod_level) ? BC13_LOD_RDO_LAMBDA : BC13_RDO_LAMBDA;
+
+	conPrint("\tMaking " + std::string(has_alpha ? "BC3" : "BC1") + " KTX2 file with dimensions " + toString(new_w) + " * " + toString(new_h) + ", " + toString(frames.size()) + " frame(s), RDO lambda " + doubleToStringNSigFigs(rdo_lambda, 2) +
+		" for LOD level " + toString(lod_level));
+
+	Timer timer;
+
+	// level_data[k] holds MIP level k of all frames: frame 0, then frame 1, etc.  Compressing each level of all frames together lets zstd exploit the redundancy between frames.
+	std::vector<std::vector<uint8> > level_data;
+	std::vector<uint8> frame_level_blocks;
+	for(size_t f=0; f<frames.size(); ++f)
+	{
+		// Build the uncompressed MIP chain, as the client would for an uncompressed texture.
+		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(frames[f].ptr(), /*general_mem_allocator=*/nullptr, &task_manager, /*allow_compression=*/false, /*build_mipmaps=*/true, /*convert_float_to_half=*/false);
+		const size_t N = frames[f]->getN();
+		runtimeCheck(!texture_data->isCompressed() && (texture_data->numChannels() == N));
+
+		if(f == 0)
+			level_data.resize(texture_data->numMipLevels());
+		runtimeCheck(texture_data->numMipLevels() == level_data.size());
+
+		for(size_t k=0; k<texture_data->numMipLevels(); ++k)
+		{
+			const size_t level_W = myMax<size_t>(1, texture_data->W >> k);
+			const size_t level_H = myMax<size_t>(1, texture_data->H >> k);
+			const size_t offset = texture_data->level_offsets.empty() ? 0 : texture_data->level_offsets[k].offset;
+			runtimeCheck((texture_data->level_offsets.empty() || (texture_data->level_offsets[k].level_size == level_W * level_H * N)) && (offset + level_W * level_H * N <= texture_data->mipmap_data.size()));
+
+			encodeBC13Level(&texture_data->mipmap_data[offset], level_W, level_H, N, has_alpha, rdo_lambda, task_manager, frame_level_blocks);
+			level_data[k].insert(level_data[k].end(), frame_level_blocks.begin(), frame_level_blocks.end());
+		}
+	}
+
+	KTXDecoder::writeKTX2File(has_alpha ? KTXDecoder::Format_BC3 : KTXDecoder::Format_BC1, /*supercompression=*/true, new_w, new_h, (int)frames.size(), frame_duration_s, level_data, ktx2_tex_path, BC13_ZSTD_LEVEL);
+
+	conPrint("\tBC1/BC3 encoding and writing KTX2 file took " + timer.elapsedStringNSigFigs(3));
+#endif
+}
+
+
+
 void writeBasisUniversalFile(const ImageMapUInt8& imagemap, const std::string& path, int quality_level)
 {
 #if GUI_CLIENT
@@ -750,6 +1089,261 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 #endif // Fuzzing
 
 
+#if !GUI_CLIENT
+
+#include <graphics/CompressedImage.h>
+
+
+// Makes an image with smooth gradients in each channel, which BC1 and BC3 can represent well.
+// Alpha (for N = 2 or 4) is a vertical gradient if varying_alpha is true, otherwise 255.
+static ImageMapUInt8Ref makeBC13TestImage(size_t W, size_t H, size_t N, bool varying_alpha)
+{
+	ImageMapUInt8Ref im = new ImageMapUInt8(W, H, N);
+	for(size_t y=0; y<H; ++y)
+	for(size_t x=0; x<W; ++x)
+	{
+		const uint8 c[3] = { (uint8)(x * 255 / myMax<size_t>(1, W - 1)), (uint8)(y * 255 / myMax<size_t>(1, H - 1)), (uint8)((x + y) * 255 / myMax<size_t>(1, W + H - 2)) };
+		const uint8 alpha = varying_alpha ? (uint8)(y * 255 / myMax<size_t>(1, H - 1)) : 255;
+		uint8* p = im->getPixel(x, y);
+		if(N == 1)      { p[0] = c[0]; }
+		else if(N == 2) { p[0] = c[0]; p[1] = alpha; }
+		else            { p[0] = c[0]; p[1] = c[1]; p[2] = c[2]; if(N == 4) p[3] = alpha; }
+	}
+	return im;
+}
+
+
+// Decodes MIP level 0 of a frame of a BC1 or BC3 texture to an RGBA image.
+static ImageMapUInt8Ref decodeBC13Frame(const TextureData& texture_data, size_t frame_i)
+{
+	const bool bc3 = texture_data.format == OpenGLTextureFormat::Format_Compressed_DXT_SRGBA_Uint8;
+	testAssert(bc3 || (texture_data.format == OpenGLTextureFormat::Format_Compressed_DXT_SRGB_Uint8));
+	const size_t bytes_per_block = bc3 ? 16 : 8;
+	const size_t W = texture_data.W;
+	const size_t H = texture_data.H;
+	const size_t blocks_x = (W + 3) / 4;
+	const size_t blocks_y = (H + 3) / 4;
+	testAssert(texture_data.level_offsets[0].level_size == blocks_x * blocks_y * bytes_per_block);
+
+	const uint8* level_0 = texture_data.mipmap_data.data() + frame_i * texture_data.frame_size_B + texture_data.level_offsets[0].offset;
+	ImageMapUInt8Ref im = new ImageMapUInt8(W, H, 4);
+	for(size_t by=0; by<blocks_y; ++by)
+	for(size_t bx=0; bx<blocks_x; ++bx)
+	{
+		uint8 pixels[16 * 4];
+		const uint8* block = level_0 + (bx + by * blocks_x) * bytes_per_block;
+		if(bc3)
+			rgbcx::unpack_bc3(block, pixels);
+		else
+			rgbcx::unpack_bc1(block, pixels, /*set_alpha=*/true);
+
+		for(size_t y=0; y<4; ++y)
+		for(size_t x=0; x<4; ++x)
+			if((bx * 4 + x < W) && (by * 4 + y < H))
+				std::memcpy(im->getPixel(bx * 4 + x, by * 4 + y), &pixels[(x + y * 4) * 4], 4);
+	}
+	return im;
+}
+
+
+// PSNR (dB) of the decoded RGBA image vs the reference image, over the colour channels (if alpha is false) or the alpha channel (if alpha is true).
+// Greyscale reference images are compared against each of R, G and B.  A reference without alpha has alpha 255.
+static double computeBC13PSNR(const ImageMapUInt8& decoded, const ImageMapUInt8& ref, bool alpha)
+{
+	testAssert(decoded.getWidth() == ref.getWidth() && decoded.getHeight() == ref.getHeight());
+	const size_t ref_N = ref.getN();
+	double sum_sqr_err = 0;
+	size_t num_values = 0;
+	for(size_t i=0; i<ref.numPixels(); ++i)
+	{
+		const uint8* d = decoded.getPixel(i);
+		const uint8* r = ref.getPixel(i);
+		if(alpha)
+		{
+			const int ref_alpha = (ref_N == 2 || ref_N == 4) ? r[ref_N - 1] : 255;
+			sum_sqr_err += Maths::square((double)d[3] - ref_alpha);
+			num_values++;
+		}
+		else
+		{
+			for(size_t c=0; c<3; ++c)
+			{
+				const int ref_val = (ref_N <= 2) ? r[0] : r[c];
+				sum_sqr_err += Maths::square((double)d[c] - ref_val);
+				num_values++;
+			}
+		}
+	}
+	const double mse = sum_sqr_err / num_values;
+	return (mse == 0) ? 1000.0 : 10.0 * std::log10(255.0 * 255.0 / mse);
+}
+
+
+static void checkBC13PSNR(const ImageMapUInt8& decoded, const ImageMapUInt8& ref, bool alpha, double min_psnr)
+{
+	const double psnr = computeBC13PSNR(decoded, ref, alpha);
+	conPrint(std::string("	") + (alpha ? "alpha" : "colour") + " PSNR: " + doubleToStringNSigFigs(psnr, 3) + " dB");
+	testAssert(psnr > min_psnr);
+}
+
+
+// Runs generateBC13KTX2Texture, then decodes the result and checks its properties.  Returns the decoded texture data.
+static Reference<TextureData> generateAndCheckBC13Texture(const std::string& src_path, int base_lod_level, int lod_level, size_t expected_W, size_t expected_H, bool expect_bc3,
+	size_t expected_num_frames, glare::TaskManager& task_manager)
+{
+	const std::string ktx2_path = PlatformUtils::getTempDirPath() + "/bc13_test_output.ktx2";
+	LODGeneration::generateBC13KTX2Texture(src_path, base_lod_level, lod_level, ktx2_path, task_manager);
+
+	Reference<Map2D> im = KTXDecoder::decodeKTX2(ktx2_path);
+	testAssert(im.isType<CompressedImage>());
+	Reference<TextureData> texture_data = im.downcastToPtr<CompressedImage>()->texture_data;
+	testAssert(texture_data->W == expected_W && texture_data->H == expected_H);
+	testAssert(texture_data->format == (expect_bc3 ? OpenGLTextureFormat::Format_Compressed_DXT_SRGBA_Uint8 : OpenGLTextureFormat::Format_Compressed_DXT_SRGB_Uint8));
+	testAssert(texture_data->numFrames() == expected_num_frames);
+	testAssert(texture_data->numMipLevels() == TextureData::computeNumMipLevels(expected_W, expected_H)); // Full MIP chain
+	testAssert(expected_W % 4 == 0 && expected_H % 4 == 0); // Dimensions are rounded up to a multiple of 4, for WebGL.
+	return texture_data;
+}
+
+
+static void testGenerateBC13KTX2Texture(glare::TaskManager& task_manager)
+{
+	conPrint("testGenerateBC13KTX2Texture()");
+
+	const std::string temp_dir = PlatformUtils::getTempDirPath();
+	const double min_psnr = 35.0; // dB.  The test images are smooth gradients, so should be represented well.
+
+	//---------------- RGB PNG, base level, no resize: BC1 ----------------
+	{
+		ImageMapUInt8Ref src = makeBC13TestImage(64, 48, 3, /*varying_alpha=*/false);
+		PNGDecoder::write(*src, temp_dir + "/bc13_test_rgb.png");
+		Reference<TextureData> texture_data = generateAndCheckBC13Texture(temp_dir + "/bc13_test_rgb.png", /*base_lod_level=*/0, /*lod_level=*/0, 64, 48, /*expect_bc3=*/false, /*expected_num_frames=*/1, task_manager);
+		checkBC13PSNR(*decodeBC13Frame(*texture_data, 0), *src, /*alpha=*/false, /*min_psnr=*/min_psnr);
+	}
+
+	//---------------- RGBA PNG with varying alpha: BC3 ----------------
+	{
+		ImageMapUInt8Ref src = makeBC13TestImage(64, 64, 4, /*varying_alpha=*/true);
+		PNGDecoder::write(*src, temp_dir + "/bc13_test_rgba.png");
+		Reference<TextureData> texture_data = generateAndCheckBC13Texture(temp_dir + "/bc13_test_rgba.png", /*base_lod_level=*/0, /*lod_level=*/0, 64, 64, /*expect_bc3=*/true, /*expected_num_frames=*/1, task_manager);
+		ImageMapUInt8Ref decoded = decodeBC13Frame(*texture_data, 0);
+		checkBC13PSNR(*decoded, *src, /*alpha=*/false, /*min_psnr=*/min_psnr);
+		checkBC13PSNR(*decoded, *src, /*alpha=*/true, /*min_psnr=*/min_psnr);
+	}
+
+	//---------------- Opaque RGBA PNG, resized for LOD level 1: should be BC1, as alpha is checked before resizing ----------------
+	{
+		ImageMapUInt8Ref src = makeBC13TestImage(1000, 600, 4, /*varying_alpha=*/false);
+		PNGDecoder::write(*src, temp_dir + "/bc13_test_opaque_rgba.png");
+		// Max dimension 256 for LOD level 1: 1000 x 600 -> 256 x 153, rounded up to 256 x 156.
+		generateAndCheckBC13Texture(temp_dir + "/bc13_test_opaque_rgba.png", /*base_lod_level=*/0, /*lod_level=*/1, 256, 156, /*expect_bc3=*/false, /*expected_num_frames=*/1, task_manager);
+		// Max dimension 64 for LOD level 2.
+		generateAndCheckBC13Texture(temp_dir + "/bc13_test_opaque_rgba.png", /*base_lod_level=*/0, /*lod_level=*/2, 64, 40, /*expect_bc3=*/false, /*expected_num_frames=*/1, task_manager);
+		// Max dimension 1024 for LOD level 0 if it isn't the base level: not resized here.
+		generateAndCheckBC13Texture(temp_dir + "/bc13_test_opaque_rgba.png", /*base_lod_level=*/-1, /*lod_level=*/0, 1000, 600, /*expect_bc3=*/false, /*expected_num_frames=*/1, task_manager);
+	}
+
+	//---------------- Dimensions not a multiple of 4: rounded up ----------------
+	{
+		ImageMapUInt8Ref src = makeBC13TestImage(30, 18, 3, /*varying_alpha=*/false);
+		PNGDecoder::write(*src, temp_dir + "/bc13_test_non_mult_4.png");
+		generateAndCheckBC13Texture(temp_dir + "/bc13_test_non_mult_4.png", /*base_lod_level=*/0, /*lod_level=*/0, 32, 20, /*expect_bc3=*/false, /*expected_num_frames=*/1, task_manager);
+	}
+
+	//---------------- Greyscale PNG: BC1 ----------------
+	{
+		ImageMapUInt8Ref src = makeBC13TestImage(32, 32, 1, /*varying_alpha=*/false);
+		PNGDecoder::write(*src, temp_dir + "/bc13_test_grey.png");
+		Reference<TextureData> texture_data = generateAndCheckBC13Texture(temp_dir + "/bc13_test_grey.png", /*base_lod_level=*/0, /*lod_level=*/0, 32, 32, /*expect_bc3=*/false, /*expected_num_frames=*/1, task_manager);
+		checkBC13PSNR(*decodeBC13Frame(*texture_data, 0), *src, /*alpha=*/false, /*min_psnr=*/min_psnr);
+	}
+
+	//---------------- Greyscale + alpha PNG: BC3 ----------------
+	{
+		ImageMapUInt8Ref src = makeBC13TestImage(32, 32, 2, /*varying_alpha=*/true);
+		PNGDecoder::write(*src, temp_dir + "/bc13_test_grey_alpha.png");
+		Reference<TextureData> texture_data = generateAndCheckBC13Texture(temp_dir + "/bc13_test_grey_alpha.png", /*base_lod_level=*/0, /*lod_level=*/0, 32, 32, /*expect_bc3=*/true, /*expected_num_frames=*/1, task_manager);
+		ImageMapUInt8Ref decoded = decodeBC13Frame(*texture_data, 0);
+		checkBC13PSNR(*decoded, *src, /*alpha=*/false, /*min_psnr=*/min_psnr);
+		checkBC13PSNR(*decoded, *src, /*alpha=*/true, /*min_psnr=*/min_psnr);
+	}
+
+	//---------------- 16-bit RGB PNG: converted to 8-bit, BC1 ----------------
+	{
+		ImageMapUInt8Ref src = makeBC13TestImage(64, 48, 3, /*varying_alpha=*/false);
+		ImageMap<uint16, UInt16ComponentValueTraits> src_16(64, 48, 3);
+		for(size_t i=0; i<src->getDataSize(); ++i)
+			src_16.getData()[i] = (uint16)(src->getData()[i] * 257);
+		PNGDecoder::write(src_16, temp_dir + "/bc13_test_16_bit.png");
+		Reference<TextureData> texture_data = generateAndCheckBC13Texture(temp_dir + "/bc13_test_16_bit.png", /*base_lod_level=*/0, /*lod_level=*/0, 64, 48, /*expect_bc3=*/false, /*expected_num_frames=*/1, task_manager);
+		checkBC13PSNR(*decodeBC13Frame(*texture_data, 0), *src, /*alpha=*/false, /*min_psnr=*/min_psnr);
+	}
+
+	//---------------- JPEG: BC1 ----------------
+	{
+		ImageMapUInt8Ref src = makeBC13TestImage(128, 64, 3, /*varying_alpha=*/false);
+		JPEGDecoder::SaveOptions options;
+		JPEGDecoder::save(src, temp_dir + "/bc13_test.jpg", options);
+		Reference<TextureData> texture_data = generateAndCheckBC13Texture(temp_dir + "/bc13_test.jpg", /*base_lod_level=*/0, /*lod_level=*/0, 128, 64, /*expect_bc3=*/false, /*expected_num_frames=*/1, task_manager);
+		checkBC13PSNR(*decodeBC13Frame(*texture_data, 0), *src, /*alpha=*/false, /*min_psnr=*/30.0); // Lower threshold, as JPEG is lossy too.
+	}
+
+	//---------------- Animated gif: one frame per gif frame, with the gif frame 0 duration ----------------
+	{
+		const std::string gif_path = TestUtils::getTestReposDir() + "/testfiles/gifs/fire.gif";
+		Reference<Map2D> gif = GIFDecoder::decodeImageSequence(gif_path);
+		testAssert(gif.isType<ImageMapSequenceUInt8>());
+		const ImageMapSequenceUInt8* seq = gif.downcastToPtr<ImageMapSequenceUInt8>();
+		testAssert(seq->images.size() > 1);
+		const size_t expected_W = Maths::roundUpToMultipleOfPowerOf2<size_t>(gif->getMapWidth(), 4);
+		const size_t expected_H = Maths::roundUpToMultipleOfPowerOf2<size_t>(gif->getMapHeight(), 4);
+
+		Reference<TextureData> texture_data = generateAndCheckBC13Texture(gif_path, /*base_lod_level=*/0, /*lod_level=*/0, expected_W, expected_H, /*expect_bc3=*/false, /*expected_num_frames=*/seq->images.size(), task_manager);
+		testAssert(texture_data->isMultiFrame());
+		testAssert(texture_data->frame_durations_equal);
+		testEpsEqual(texture_data->recip_frame_duration, 1.0 / seq->frame_durations[0]);
+
+		// Check each frame is close to its gif frame, if the gif wasn't resized.
+		if(expected_W == gif->getMapWidth() && expected_H == gif->getMapHeight())
+			for(size_t f=0; f<seq->images.size(); ++f)
+				checkBC13PSNR(*decodeBC13Frame(*texture_data, f), *seq->images[f], /*alpha=*/false, /*min_psnr=*/25.0); // Gif frames have hard edges, so a lower threshold.
+
+		// LOD level 2 of the gif: max dimension 64.  Images aren't scaled up, so a small gif stays the same size.
+		const size_t W = gif->getMapWidth();
+		const size_t H = gif->getMapHeight();
+		size_t lod2_W, lod2_H;
+		if(W > H)
+		{
+			lod2_W = myMin<size_t>(W, 64);
+			lod2_H = myMax<size_t>(1, (size_t)((float)lod2_W * H / W));
+		}
+		else
+		{
+			lod2_H = myMin<size_t>(H, 64);
+			lod2_W = myMax<size_t>(1, (size_t)((float)lod2_H * W / H));
+		}
+		generateAndCheckBC13Texture(gif_path, /*base_lod_level=*/0, /*lod_level=*/2, Maths::roundUpToMultipleOfPowerOf2<size_t>(lod2_W, 4), Maths::roundUpToMultipleOfPowerOf2<size_t>(lod2_H, 4),
+			/*expect_bc3=*/false, /*expected_num_frames=*/seq->images.size(), task_manager);
+	}
+
+	//---------------- Invalid source file: throws ----------------
+	{
+		FileUtils::writeEntireFileTextMode(temp_dir + "/bc13_test_invalid.png", "not a png");
+		try
+		{
+			LODGeneration::generateBC13KTX2Texture(temp_dir + "/bc13_test_invalid.png", 0, 0, temp_dir + "/bc13_test_output.ktx2", task_manager);
+			failTest("Expected exception");
+		}
+		catch(glare::Exception&)
+		{}
+	}
+
+	conPrint("testGenerateBC13KTX2Texture() done.");
+}
+
+#endif // !GUI_CLIENT
+
+
 void LODGeneration::test()
 {
 	conPrint("LODGeneration::test()");
@@ -760,6 +1354,8 @@ void LODGeneration::test()
 	{
 
 #if !GUI_CLIENT  // generateBasisTexture is disabled in gui_client.
+		testGenerateBC13KTX2Texture(task_manager);
+
 		// Test generateBasisTexture on an animated gif.
 		{
 			generateBasisTexture(TestUtils::getTestReposDir() + "/testfiles/gifs/fire.gif", // src tex path

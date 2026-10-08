@@ -64,11 +64,13 @@ struct LODTextureToGen
 };
 
 
+// A .basis texture, or a _bc13.ktx2 texture (BC1 or BC3 in a KTX2 file), to generate from a source texture.
 struct BasisTextureToGen
 {
 	std::string source_tex_abs_path; // source texture abs path
-	std::string basis_tex_abs_path; // abs path to write KTX texture to.
-	URLString basis_URL;
+	std::string basis_tex_abs_path; // abs path to write the .basis or _bc13.ktx2 texture to.
+	URLString basis_URL; // URL of the .basis or _bc13.ktx2 texture
+	bool bc13_ktx2; // Generate a _bc13.ktx2 texture rather than a .basis texture?
 	int base_lod_level;
 	int lod_level;
 	UserID owner_id;
@@ -493,7 +495,7 @@ static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, Ser
 						if(texture_URL == mat->colour_texture_url)
 							has_alpha = BitUtils::isBitSet(mat->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG); // Assume mat->flags are correct.
 
-						WorldMaterial::GetURLOptions options(/*use basis=*/false, /*arena allocator=*/nullptr);
+						WorldMaterial::GetURLOptions options(TextureFormatPreferences(/*use_basis=*/false, /*use_bc13_ktx2=*/false), /*arena allocator=*/nullptr);
 						const URLString lod_URL = mat->getLODTextureURLForLevel(options, texture_URL, lvl, has_alpha);
 
 						if(lod_URL != texture_URL) // We don't do LOD for some texture types.
@@ -528,7 +530,7 @@ static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, Ser
 
 
 // Make tasks for generating Basis level textures.
-static void checkForBasisTexturesToGenerateForMaterials(ServerAllWorldsState* world_state, const std::vector<WorldMaterialRef>& materials, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered,
+static void checkForBasisAndBC13KTXTexturesToGenerateForMaterials(ServerAllWorldsState* world_state, const std::vector<WorldMaterialRef>& materials, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered,
 	std::vector<BasisTextureToGen>& basis_textures_to_gen)
 {
 	for(size_t z=0; z<materials.size(); ++z)
@@ -551,10 +553,12 @@ static void checkForBasisTexturesToGenerateForMaterials(ServerAllWorldsState* wo
 				if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
 				{
 					for(int lvl = mat->minLODLevel(); lvl <= 2; ++lvl)
+					for(int bc13 = 0; bc13 <= 1; ++bc13) // Generate the .basis texture and the _bc13.ktx2 texture.
 					{
-						WorldMaterial::GetURLOptions options(/*use basis=*/true, /*arena allocator=*/nullptr);
+						WorldMaterial::GetURLOptions options(TextureFormatPreferences(/*use_basis=*/true, /*use_bc13_ktx2=*/bc13 != 0), /*arena allocator=*/nullptr);
 						const URLString basis_lod_URL = mat->getLODTextureURLForLevel(options, texture_URL, lvl, /*has_alpha=*/false);  // Lod URL without ktx extension (jpg or PNG)
-						if(hasExtension(basis_lod_URL, "basis"))
+						const bool is_generated_URL = bc13 ? hasSuffix(basis_lod_URL, "_bc13.ktx2") : hasExtension(basis_lod_URL, "basis");
+						if(is_generated_URL)
 						{
 							if(lod_URLs_considered.count(basis_lod_URL) == 0)
 							{
@@ -570,6 +574,7 @@ static void checkForBasisTexturesToGenerateForMaterials(ServerAllWorldsState* wo
 									tex_to_gen.source_tex_abs_path = tex_abs_path; // source texture abs path
 									tex_to_gen.basis_tex_abs_path = basis_abs_path; // abs path to write Basis texture to.
 									tex_to_gen.basis_URL = basis_lod_URL;
+									tex_to_gen.bc13_ktx2 = bc13 != 0;
 									tex_to_gen.base_lod_level = mat->minLODLevel();
 									tex_to_gen.lod_level = lvl;
 									tex_to_gen.owner_id = base_resource->owner_id;
@@ -586,15 +591,15 @@ static void checkForBasisTexturesToGenerateForMaterials(ServerAllWorldsState* wo
 
 
 // Make tasks for generating Basis level textures.
-static void checkForBasisTexturesToGenerateForOb(ServerAllWorldsState* world_state, WorldObject* ob, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered,
+static void checkForBasisAndBC13KTXTexturesToGenerateForOb(ServerAllWorldsState* world_state, WorldObject* ob, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered,
 	std::vector<BasisTextureToGen>& basis_textures_to_gen)
 {
-	checkForBasisTexturesToGenerateForMaterials(world_state, /*world, */ob->materials, lod_URLs_considered, basis_textures_to_gen);
+	checkForBasisAndBC13KTXTexturesToGenerateForMaterials(world_state, /*world, */ob->materials, lod_URLs_considered, basis_textures_to_gen);
 }
 
 
 // Make tasks for generating Basis level textures.
-static void checkForBasisTexturesToGenerateForURL(const URLString& URL, ResourceManager* resource_manager, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered,
+static void checkForBasisAndBC13KTXTexturesToGenerateForURL(const URLString& URL, ResourceManager* resource_manager, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered,
 	std::vector<BasisTextureToGen>& basis_textures_to_gen)
 {
 	const URLString base_texture_URL = URL;
@@ -605,8 +610,9 @@ static void checkForBasisTexturesToGenerateForURL(const URLString& URL, Resource
 		if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
 		{
 			for(int lvl = 0; lvl <= 2; ++lvl)
+			for(int bc13 = 0; bc13 <= 1; ++bc13) // Generate the .basis texture and the _bc13.ktx2 texture.
 			{
-				const URLString basis_lod_URL = removeDotAndExtension(base_texture_URL) + toURLString(((lvl > 0) ? ("_lod" + toString(lvl)) : std::string()) + ".basis");
+				const URLString basis_lod_URL = removeDotAndExtension(base_texture_URL) + toURLString(((lvl > 0) ? ("_lod" + toString(lvl)) : std::string()) + (bc13 ? "_bc13.ktx2" : ".basis"));
 				if(lod_URLs_considered.count(basis_lod_URL) == 0)
 				{
 					lod_URLs_considered.insert(basis_lod_URL);
@@ -621,6 +627,7 @@ static void checkForBasisTexturesToGenerateForURL(const URLString& URL, Resource
 						tex_to_gen.source_tex_abs_path = tex_abs_path; // source texture abs path
 						tex_to_gen.basis_tex_abs_path = basis_abs_path; // abs path to write Basis texture to.
 						tex_to_gen.basis_URL = basis_lod_URL;
+						tex_to_gen.bc13_ktx2 = bc13 != 0;
 						tex_to_gen.base_lod_level = 0;
 						tex_to_gen.lod_level = lvl;
 						tex_to_gen.owner_id = base_resource->owner_id;
@@ -811,7 +818,7 @@ void MeshLODGenThread::doRun()
 
 								checkForLODAndOptimisedMeshesToGenerate(world_state, world, ob, lod_URLs_considered, meshes_to_gen);
 								checkForLODTexturesToGenerate(world_state, world, ob, lod_URLs_considered, lod_textures_to_gen);
-								checkForBasisTexturesToGenerateForOb(world_state, ob, lod_URLs_considered, basis_textures_to_gen);
+								checkForBasisAndBC13KTXTexturesToGenerateForOb(world_state, ob, lod_URLs_considered, basis_textures_to_gen);
 							}
 							catch(glare::Exception& e)
 							{
@@ -823,10 +830,13 @@ void MeshLODGenThread::doRun()
 						for(int i=0; i<4; ++i)
 						{
 							const URLString detail_col_map_URL = world->world_settings.terrain_spec.detail_col_map_URLs[i];
-							checkForBasisTexturesToGenerateForURL(detail_col_map_URL, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
+							checkForBasisAndBC13KTXTexturesToGenerateForURL(detail_col_map_URL, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
 
 							const URLString detail_height_map_URL = world->world_settings.terrain_spec.detail_height_map_URLs[i];
-							checkForBasisTexturesToGenerateForURL(detail_height_map_URL, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
+							checkForBasisAndBC13KTXTexturesToGenerateForURL(detail_height_map_URL, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
+
+							const URLString detail_normal_map_URL = world->world_settings.terrain_spec.detail_normal_map_URLs[i];
+							checkForBasisAndBC13KTXTexturesToGenerateForURL(detail_normal_map_URL, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
 						}
 
 						// Check chatbot avatars.  A chatbot has its own copy of the avatar settings it was created with, so the model and textures it uses
@@ -836,7 +846,7 @@ void MeshLODGenThread::doRun()
 							const ChatBot* chatbot = it->second.ptr();
 							checkForOptimisedMeshToGenerateForURL(chatbot->avatar_settings.model_url, /*max_lod_lvl=*/0, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
 
-							checkForBasisTexturesToGenerateForMaterials(world_state, chatbot->avatar_settings.materials, lod_URLs_considered, basis_textures_to_gen);
+							checkForBasisAndBC13KTXTexturesToGenerateForMaterials(world_state, chatbot->avatar_settings.materials, lod_URLs_considered, basis_textures_to_gen);
 						}
 					}
 
@@ -846,7 +856,7 @@ void MeshLODGenThread::doRun()
 						const User* user = it->second.ptr();
 						checkForOptimisedMeshToGenerateForURL(user->avatar_settings.model_url, /*max_lod_lvl=*/0, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
 
-						checkForBasisTexturesToGenerateForMaterials(world_state, user->avatar_settings.materials, lod_URLs_considered, basis_textures_to_gen);
+						checkForBasisAndBC13KTXTexturesToGenerateForMaterials(world_state, user->avatar_settings.materials, lod_URLs_considered, basis_textures_to_gen);
 					}
 
 					// Check vehicle meshes
@@ -882,7 +892,7 @@ void MeshLODGenThread::doRun()
 								checkObjectFlags(world_state, world, ob, mesh_info, lock);
 								checkForLODAndOptimisedMeshesToGenerate(world_state, world, ob, lod_URLs_considered, meshes_to_gen);
 								checkForLODTexturesToGenerate(world_state, world, ob, lod_URLs_considered, lod_textures_to_gen);
-								checkForBasisTexturesToGenerateForOb(world_state, ob, lod_URLs_considered, basis_textures_to_gen);
+								checkForBasisAndBC13KTXTexturesToGenerateForOb(world_state, ob, lod_URLs_considered, basis_textures_to_gen);
 							}
 							catch(glare::Exception& e)
 							{
@@ -895,7 +905,7 @@ void MeshLODGenThread::doRun()
 				for(auto it = URLs_to_check.begin(); it != URLs_to_check.end(); ++it)
 				{
 					const URLString URL_to_check = *it;
-					checkForBasisTexturesToGenerateForURL(URL_to_check, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
+					checkForBasisAndBC13KTXTexturesToGenerateForURL(URL_to_check, world_state->resource_manager.ptr(), lod_URLs_considered, basis_textures_to_gen);
 					checkForOptimisedMeshToGenerateForURL(URL_to_check, /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), lod_URLs_considered, meshes_to_gen);
 				}
 			}
@@ -1019,11 +1029,12 @@ void MeshLODGenThread::doRun()
 					const BasisTextureToGen& tex_to_gen = basis_textures_to_gen[i];
 					try
 					{
-						conPrint("MeshLODGenThread: (basis " + toString(i) + " / " + toString(basis_textures_to_gen.size()) + "): Generating basis texture with URL " + toStdString(tex_to_gen.basis_URL));
+						conPrint("MeshLODGenThread: (basis and ktx " + toString(i) + " / " + toString(basis_textures_to_gen.size()) + "): Generating " + (tex_to_gen.bc13_ktx2 ? "BC1/BC3 KTX2" : "basis") + " texture with URL " + toStdString(tex_to_gen.basis_URL));
 
-						LODGeneration::generateBasisTexture(tex_to_gen.source_tex_abs_path, 
-							tex_to_gen.base_lod_level, tex_to_gen.lod_level, tex_to_gen.basis_tex_abs_path, 
-							task_manager);
+						if(tex_to_gen.bc13_ktx2)
+							LODGeneration::generateBC13KTX2Texture(tex_to_gen.source_tex_abs_path, tex_to_gen.base_lod_level, tex_to_gen.lod_level, tex_to_gen.basis_tex_abs_path, task_manager);
+						else
+							LODGeneration::generateBasisTexture(tex_to_gen.source_tex_abs_path, tex_to_gen.base_lod_level, tex_to_gen.lod_level, tex_to_gen.basis_tex_abs_path, task_manager);
 
 						// Now that we have generated the LOD model, add it to resources.
 						{ // lock scope
@@ -1048,14 +1059,14 @@ void MeshLODGenThread::doRun()
 					}
 					catch(glare::Exception& e)
 					{
-						conPrint("\tMeshLODGenThread: excep while generating Basis texture: " + e.what());
+						conPrint("\tMeshLODGenThread: excep while generating Basis/KTX texture: " + e.what());
 					}
 
 					if(should_quit)
 						return;
 				}
 
-				conPrint("MeshLODGenThread: Done generating Basis textures. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
+				conPrint("MeshLODGenThread: Done generating Basis and KTX textures. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
 			}
 			//------------------------------------------- End Generate each KTX texture  -------------------------------------------
 		}

@@ -285,7 +285,7 @@ void WorldObject::appendDependencyURLs(int ob_lod_level, const GetDependencyOpti
 		URLs_out.push_back(dependency_url);
 	}
 
-	const WorldMaterial::GetURLOptions mat_get_url_options(options.use_basis, options.allocator);
+	const WorldMaterial::GetURLOptions mat_get_url_options(options.tex_format_prefs, options.allocator);
 
 	const size_t materials_size = materials.size();
 	for(size_t i=0; i<materials_size; ++i)
@@ -316,7 +316,7 @@ void WorldObject::appendDependencyURLsForAllLODLevels(const GetDependencyOptions
 			URLs_out.push_back(dependency_url);
 		}
 
-	const WorldMaterial::GetURLOptions mat_get_url_options(options.use_basis, options.allocator);
+	const WorldMaterial::GetURLOptions mat_get_url_options(options.tex_format_prefs, options.allocator);
 
 	for(size_t i=0; i<materials.size(); ++i)
 		materials[i]->appendDependencyURLsAllLODLevels(mat_get_url_options, URLs_out);
@@ -342,7 +342,7 @@ void WorldObject::appendDependencyURLsBaseLevel(const GetDependencyOptions& opti
 		URLs_out.push_back(dependency_url);
 	}
 
-	const WorldMaterial::GetURLOptions mat_get_url_options(options.use_basis, options.allocator);
+	const WorldMaterial::GetURLOptions mat_get_url_options(options.tex_format_prefs, options.allocator);
 
 	for(size_t i=0; i<materials.size(); ++i)
 		materials[i]->appendDependencyURLsBaseLevel(mat_get_url_options, URLs_out);
@@ -2242,7 +2242,7 @@ void WorldObject::test()
 				for(size_t i=0; i<obs.size(); ++i)
 				{
 					WorldObject::GetDependencyOptions options;
-					options.use_basis = true;
+					options.tex_format_prefs = TextureFormatPreferences(/*use_basis=*/true, /*use_bc13_ktx2=*/false);
 					options.allocator = &arena_allocator;
 					obs[i]->getDependencyURLSet(/*ob lod level=*/1, options, URLs);
 				}
@@ -2260,7 +2260,7 @@ void WorldObject::test()
 				for(size_t i=0; i<obs.size(); ++i)
 				{
 					WorldObject::GetDependencyOptions options;
-					options.use_basis = true;
+					options.tex_format_prefs = TextureFormatPreferences(/*use_basis=*/true, /*use_bc13_ktx2=*/false);
 					obs[i]->getDependencyURLSet(/*ob lod level=*/1, options, URLs);
 				}
 				smallest_time = myMin(smallest_time, timer.elapsed());
@@ -2285,7 +2285,7 @@ void WorldObject::test()
 						for(size_t i=0; i<obs.size(); ++i)
 						{
 							WorldObject::GetDependencyOptions options;
-							options.use_basis = true;
+							options.tex_format_prefs = TextureFormatPreferences(/*use_basis=*/true, /*use_bc13_ktx2=*/false);
 							options.allocator = &arena_allocator;
 							obs[i]->appendDependencyURLs(/*ob lod level=*/1, options, URL_vector);
 						}
@@ -2309,7 +2309,7 @@ void WorldObject::test()
 						for(size_t i=0; i<obs.size(); ++i)
 						{
 							WorldObject::GetDependencyOptions options;
-							options.use_basis = true;
+							options.tex_format_prefs = TextureFormatPreferences(/*use_basis=*/true, /*use_bc13_ktx2=*/false);
 							obs[i]->appendDependencyURLs(/*ob lod level=*/1, options, URL_vector);
 						}
 					}

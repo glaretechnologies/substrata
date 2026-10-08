@@ -39,6 +39,7 @@ struct TerrainSpec
 
 	URLString detail_col_map_URLs[4];
 	URLString detail_height_map_URLs[4];
+	URLString detail_normal_map_URLs[4]; // Same convention as WorldMaterial normal maps.  Currently only slot 3 (beach sand) is used.
 
 	float terrain_section_width_m;
 	float terrain_height_scale; // Multiplier applied to raw heightmap values. Default value is 1.

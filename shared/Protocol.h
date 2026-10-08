@@ -268,6 +268,7 @@ const uint32 SENDS_USER_MOVED_CHATBOT_MSGS			= 0x2;//  Does the client send User
 const uint32 OBJECT_TEXTURE_BASISU_SUPPORT			= 0x1;
 const uint32 TERRAIN_DETAIL_MAPS_BASISU_SUPPORT		= 0x2;
 const uint32 OPTIMISED_MESH_SUPPORT					= 0x4;
+const uint32 TEXTURE_BC13_KTX2_SUPPORT				= 0x8; // Does the server generate _bc13.ktx2 versions (BC1 or BC3) of textures, alongside the .basis versions?
 
 const int OPTIMISED_MESH_VERSION = 4;
 // v4: Improved LOD logic to make smaller meshes.

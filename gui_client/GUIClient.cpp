@@ -199,6 +199,10 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	ui_interface(NULL),
 	server_using_lod_chunks(false),
 	server_has_basis_textures(false),
+	server_has_bc13_ktx2_textures(false),
+	override_sun_angles(false),
+	override_sun_theta(0),
+	override_sun_phi(0),
 	server_has_basisu_terrain_detail_maps(false),
 	server_has_optimised_meshes(false),
 	server_opt_mesh_version(-1),
@@ -493,8 +497,8 @@ void GUIClient::initAudioEngine()
 }
 
 
-static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, bool use_basis, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator);
-static void assignLoadedOpenGLTexturesToGearItemMats(GearItem* item, EquippedGearGraphics* equipped_gear, bool use_basis, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator);
+static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, const TextureFormatPreferences& tex_format_prefs, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator);
+static void assignLoadedOpenGLTexturesToGearItemMats(GearItem* item, EquippedGearGraphics* equipped_gear, const TextureFormatPreferences& tex_format_prefs, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator);
 
 
 void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenGLEngine> opengl_engine_, 
@@ -777,7 +781,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 
 
 			test_avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data, /*ob_lod_level=*/0, 
-				test_avatar->avatar_settings.materials, /*lightmap_url=*/URLString(), /*use_basis=*/true, *resource_manager, &arena_allocator, ob_to_world_matrix);
+				test_avatar->avatar_settings.materials, /*lightmap_url=*/URLString(), /*tex_format_prefs=*/TextureFormatPreferences(/*use_basis=*/true, /*use_bc13_ktx2=*/false), *resource_manager, &arena_allocator, ob_to_world_matrix);
 
 				
 			// Load animation data
@@ -800,7 +804,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 			// 	conPrint("node " + toString(i) + ": " + test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.nodes[i].name);
 			// }
 
-			assignLoadedOpenGLTexturesToAvatarMats(test_avatar.ptr(), /*use_basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
+			assignLoadedOpenGLTexturesToAvatarMats(test_avatar.ptr(), /*tex_format_prefs=*/this->textureFormatPreferences(), *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
 
 			opengl_engine->addObject(test_avatar->graphics.skinned_gl_ob);
 		}
@@ -1268,6 +1272,14 @@ static inline bool isValidLightMapURL(OpenGLEngine& opengl_engine, const string_
 }
 
 
+TextureFormatPreferences GUIClient::textureFormatPreferences() const
+{
+	// _bc13.ktx2 textures are BC1/BC3 (DXT1/DXT5), so need S3TC support on the GPU (always present on desktop GPUs, may be missing in WebGL on mobile devices).
+	const bool gpu_supports_bc13 = opengl_engine && opengl_engine->texture_compression_s3tc_support;
+	return TextureFormatPreferences(/*use_basis=*/this->server_has_basis_textures, /*use_bc13_ktx2=*/this->server_has_bc13_ktx2_textures && gpu_supports_bc13);
+}
+
+
 // Start loading texture, if present
 void GUIClient::startLoadingTextureIfPresent(const URLString& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
 	const TextureParams& tex_params)
@@ -1323,7 +1335,7 @@ void GUIClient::startLoadingTextureForObjectOrAvatar(const UID& ob_uid, const UI
 	const URLString& texture_url, bool tex_has_alpha, bool use_sRGB, bool allow_compression)
 {
 	glare::ArenaFrame frame(arena_allocator);
-	const WorldMaterial::GetURLOptions get_url_options(/*use basis=*/server_has_basis_textures, /*arena allocator=*/&arena_allocator);
+	const WorldMaterial::GetURLOptions get_url_options(this->textureFormatPreferences(), /*arena allocator=*/&arena_allocator);
 
 	const URLString temp_lod_tex_url = world_mat.getLODTextureURLForLevel(get_url_options, texture_url, ob_lod_level, tex_has_alpha);
 
@@ -1631,7 +1643,7 @@ bool GUIClient::isResourceCurrentlyNeededForObject(const URLString& url, const W
 	glare::STLArenaAllocator<DependencyURL> stl_arena_allocator(&arena_allocator);
 
 	WorldObject::GetDependencyOptions options;
-	options.use_basis = this->server_has_basis_textures;
+	options.tex_format_prefs = this->textureFormatPreferences();
 	options.include_lightmaps = this->use_lightmaps;
 	options.get_optimised_mesh = this->server_has_optimised_meshes;
 	options.opt_mesh_version = this->server_opt_mesh_version;
@@ -1740,7 +1752,7 @@ void GUIClient::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_l
 	glare::STLArenaAllocator<DependencyURL> stl_arena_allocator(&arena_allocator);
 
 	WorldObject::GetDependencyOptions options;
-	options.use_basis = this->server_has_basis_textures;
+	options.tex_format_prefs = this->textureFormatPreferences();
 	options.include_lightmaps = this->use_lightmaps;
 	options.get_optimised_mesh = this->server_has_optimised_meshes;
 	options.opt_mesh_version = this->server_opt_mesh_version;
@@ -1791,7 +1803,7 @@ void GUIClient::startDownloadingResourcesForAvatar(Avatar* avatar, int ob_lod_le
 
 	Avatar::GetDependencyOptions options;
 	options.get_optimised_mesh = this->server_has_optimised_meshes;
-	options.use_basis = this->server_has_basis_textures;
+	options.tex_format_prefs = this->textureFormatPreferences();
 	options.opt_mesh_version = this->server_opt_mesh_version;
 
 	DependencyURLSet dependency_URLs(std::less<DependencyURL>(), stl_arena_allocator);
@@ -1837,11 +1849,11 @@ void GUIClient::startDownloadingResourcesForAvatar(Avatar* avatar, int ob_lod_le
 
 // For when the desired texture LOD is not loaded, pick another texture LOD that is loaded (if it exists).
 // Prefer lower LOD levels (more detail).
-static Reference<OpenGLTexture> getBestTextureLOD(const WorldMaterial& world_mat, const OpenGLTextureKey& base_tex_path, bool tex_has_alpha, bool use_sRGB, bool use_basis, OpenGLEngine& opengl_engine, glare::ArenaAllocator* allocator)
+static Reference<OpenGLTexture> getBestTextureLOD(const WorldMaterial& world_mat, const OpenGLTextureKey& base_tex_path, bool tex_has_alpha, bool use_sRGB, const TextureFormatPreferences& tex_format_prefs, OpenGLEngine& opengl_engine, glare::ArenaAllocator* allocator)
 {
 	for(int lvl=world_mat.minLODLevel(); lvl<=2; ++lvl)
 	{
-		const WorldMaterial::GetURLOptions get_url_options(use_basis, allocator);
+		const WorldMaterial::GetURLOptions get_url_options(tex_format_prefs, allocator);
 		const OpenGLTextureKey tex_lod_path = world_mat.getLODTexturePathForLevel(get_url_options, base_tex_path, lvl, tex_has_alpha);
 		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(tex_lod_path);
 		if(tex.nonNull())
@@ -1874,7 +1886,7 @@ static inline bool isNonEmptyAndNotMp4(const string_view path)
 
 
 static void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const WorldMaterial* world_mat, const URLString& texture_URL, const OpenGLTextureKey& desired_tex_path, GLObject* ob, size_t mat_index, OpenGLEngine& opengl_engine, 
-	ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator, bool use_basis, bool tex_has_alpha, bool use_sRGB, bool& mat_changed_out)
+	ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator, const TextureFormatPreferences& tex_format_prefs, bool tex_has_alpha, bool use_sRGB, bool& mat_changed_out)
 {
 	if(isNonEmptyAndNotMp4(desired_tex_path))
 	{
@@ -1891,7 +1903,7 @@ static void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const
 					OpenGLTextureKey base_tex_path(stl_allocator);
 					resource_manager.getTexPathForURL(texture_URL, /*path out=*/base_tex_path);
 
-					new_tex = getBestTextureLOD(*world_mat, base_tex_path, tex_has_alpha, /*use_sRGB=*/use_sRGB, use_basis, opengl_engine, allocator); 
+					new_tex = getBestTextureLOD(*world_mat, base_tex_path, tex_has_alpha, /*use_sRGB=*/use_sRGB, tex_format_prefs, opengl_engine, allocator); 
 				}
 
 				if(new_tex != opengl_texture) // If we have a new texture to assign to opengl_texture:
@@ -1920,20 +1932,20 @@ static void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const
 
 // Returns true if mat changed, false otherwise
 static bool doAssignLoadedOpenGLTexturesToMaterial(OpenGLMaterial& opengl_mat, const WorldMaterial* world_mat, GLObject* gl_ob, size_t mat_index, OpenGLEngine& opengl_engine, 
-	ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator, bool use_basis)
+	ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator, const TextureFormatPreferences& tex_format_prefs)
 {
 	bool mat_changed = false;
 
-	checkAssignBestOpenGLTexture(opengl_mat.albedo_texture, world_mat, world_mat ? world_mat->colour_texture_url : URLString(), opengl_mat.tex_path, gl_ob, mat_index, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis, 
+	checkAssignBestOpenGLTexture(opengl_mat.albedo_texture, world_mat, world_mat ? world_mat->colour_texture_url : URLString(), opengl_mat.tex_path, gl_ob, mat_index, opengl_engine, resource_manager, animated_texture_manager, allocator, tex_format_prefs, 
 		/*tex has alpha=*/world_mat ? world_mat->colourTexHasAlpha() : false, /*use sRBB=*/true, mat_changed);
 
-	checkAssignBestOpenGLTexture(opengl_mat.emission_texture, world_mat, world_mat ? world_mat->emission_texture_url : URLString(), opengl_mat.emission_tex_path, gl_ob, mat_index, opengl_engine, resource_manager, animated_texture_manager, allocator,use_basis, 
+	checkAssignBestOpenGLTexture(opengl_mat.emission_texture, world_mat, world_mat ? world_mat->emission_texture_url : URLString(), opengl_mat.emission_tex_path, gl_ob, mat_index, opengl_engine, resource_manager, animated_texture_manager, allocator, tex_format_prefs, 
 		/*tex has alpha=*/false, /*use sRBB=*/true, mat_changed);
 
-	checkAssignBestOpenGLTexture(opengl_mat.metallic_roughness_texture, world_mat, world_mat ? world_mat->roughness.texture_url : URLString(), opengl_mat.metallic_roughness_tex_path, gl_ob, mat_index, opengl_engine, resource_manager, animated_texture_manager, allocator,use_basis, 
+	checkAssignBestOpenGLTexture(opengl_mat.metallic_roughness_texture, world_mat, world_mat ? world_mat->roughness.texture_url : URLString(), opengl_mat.metallic_roughness_tex_path, gl_ob, mat_index, opengl_engine, resource_manager, animated_texture_manager, allocator, tex_format_prefs, 
 		/*tex has alpha=*/false, /*use sRBB=*/false, mat_changed);
 
-	checkAssignBestOpenGLTexture(opengl_mat.normal_map, world_mat, world_mat ? world_mat->normal_map_url : URLString(), opengl_mat.normal_map_path, gl_ob, mat_index, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis, 
+	checkAssignBestOpenGLTexture(opengl_mat.normal_map, world_mat, world_mat ? world_mat->normal_map_url : URLString(), opengl_mat.normal_map_path, gl_ob, mat_index, opengl_engine, resource_manager, animated_texture_manager, allocator, tex_format_prefs, 
 		/*tex has alpha=*/false, /*use_sRGB=*/false, mat_changed);
 
 	return mat_changed;
@@ -1943,7 +1955,7 @@ static bool doAssignLoadedOpenGLTexturesToMaterial(OpenGLMaterial& opengl_mat, c
 // Update textures to correct LOD-level textures.
 // Try and use the texture with the target LOD level first (given by e.g. opengl_mat.tex_path).
 // If that texture is not currently loaded into the OpenGL Engine, then use another texture LOD that is loaded, as chosen in getBestTextureLOD().
-static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, bool use_lightmaps, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, 
+static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, const TextureFormatPreferences& tex_format_prefs, bool use_lightmaps, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, 
 	AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator)
 {
 	ZoneScoped; // Tracy profiler
@@ -1956,7 +1968,7 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, bool use_basis, 
 		OpenGLMaterial& opengl_mat = ob->opengl_engine_ob->materials[z];
 		const WorldMaterial* world_mat = (z < ob->materials.size()) ? ob->materials[z].ptr() : NULL;
 
-		bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis);
+		bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, allocator, tex_format_prefs);
 
 		if(use_lightmaps && isValidLightMapURL(opengl_engine, opengl_mat.lightmap_path))
 		{
@@ -2002,12 +2014,12 @@ void GUIClient::assignLoadedOpenGLTexturesToMats(WorldObject* ob)
 
 	glare::ArenaFrame frame(arena_allocator);
 
-	doAssignLoadedOpenGLTexturesToMats(ob, /*use_basis=*/this->server_has_basis_textures, this->use_lightmaps, *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
+	doAssignLoadedOpenGLTexturesToMats(ob, /*tex_format_prefs=*/this->textureFormatPreferences(), this->use_lightmaps, *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
 }
 
 
 // For avatars
-static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, bool use_basis, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator)
+static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, const TextureFormatPreferences& tex_format_prefs, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator)
 {
 	ZoneScoped; // Tracy profiler
 
@@ -2019,7 +2031,7 @@ static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, bool use_basis, O
 			OpenGLMaterial& opengl_mat = avatar_gl_ob->materials[z];
 			const WorldMaterial* world_mat = (z < av->avatar_settings.materials.size()) ? av->avatar_settings.materials[z].ptr() : NULL;
 
-			const bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, avatar_gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis);
+			const bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, avatar_gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, tex_format_prefs);
 			if(mat_changed)
 				opengl_engine.materialTextureChanged(*avatar_gl_ob, opengl_mat);
 		}
@@ -2038,7 +2050,7 @@ static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, bool use_basis, O
 				OpenGLMaterial& opengl_mat = gl_ob->materials[z];
 				const WorldMaterial* world_mat = (z < item->materials.size()) ? item->materials[z].ptr() : NULL;
 
-				const bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis);
+				const bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, tex_format_prefs);
 				if(mat_changed)
 					opengl_engine.materialTextureChanged(*gl_ob, opengl_mat);
 			}
@@ -2047,7 +2059,7 @@ static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, bool use_basis, O
 }
 
 
-static void assignLoadedOpenGLTexturesToGearItemMats(const GearItem* item, EquippedGearGraphics* equipped_gear, bool use_basis, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator)
+static void assignLoadedOpenGLTexturesToGearItemMats(const GearItem* item, EquippedGearGraphics* equipped_gear, const TextureFormatPreferences& tex_format_prefs, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator)
 {
 	ZoneScoped; // Tracy profiler
 
@@ -2059,7 +2071,7 @@ static void assignLoadedOpenGLTexturesToGearItemMats(const GearItem* item, Equip
 			OpenGLMaterial& opengl_mat = gl_ob->materials[z];
 			const WorldMaterial* world_mat = (z < item->materials.size()) ? item->materials[z].ptr() : NULL;
 
-			const bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, use_basis);
+			const bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, tex_format_prefs);
 			if(mat_changed)
 				opengl_engine.materialTextureChanged(*gl_ob, opengl_mat);
 		}
@@ -2150,7 +2162,7 @@ void GUIClient::createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix,
 	glare::ArenaFrame frame(arena_allocator);
 
 	if(ob->materials.size() >= 1)
-		ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*ob_lod_level*/0, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &arena_allocator, gl_mat_0);
+		ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*ob_lod_level*/0, ob->lightmap_url, /*tex_format_prefs=*/this->textureFormatPreferences(), *this->resource_manager, &arena_allocator, gl_mat_0);
 
 
 	gl_mat_0.alpha_blend = true; // Make use alpha blending
@@ -2494,7 +2506,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				// Use material[1] from the WorldObject as the light housing GL material.
 				opengl_ob->materials.resize(2);
 				if(ob->materials.size() >= 2)
-					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
+					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*tex_format_prefs=*/this->textureFormatPreferences(), *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
 				else
 					opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.85f));
 
@@ -2563,7 +2575,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				// Use material[0] from the WorldObject as the seat GL material.
 				opengl_ob->materials.resize(1);
 				if(ob->materials.size() >= 1)
-					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
+					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[0], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", /*tex_format_prefs=*/this->textureFormatPreferences(), *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
 				else
 				{
 					// Default semi-transparent blue-grey seat color
@@ -2774,7 +2786,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				{
 					{
 						glare::ArenaFrame frame(arena_allocator);
-						ModelLoading::setMaterialTexPathsForLODLevel(*ob->opengl_engine_ob, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator);
+						ModelLoading::setMaterialTexPathsForLODLevel(*ob->opengl_engine_ob, ob_lod_level, ob->materials, ob->lightmap_url, /*tex_format_prefs=*/this->textureFormatPreferences(), *resource_manager, &arena_allocator);
 					}
 					assignLoadedOpenGLTexturesToMats(ob);
 					for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
@@ -2878,7 +2890,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				{
 					{
 						glare::ArenaFrame frame(arena_allocator);
-						ModelLoading::setMaterialTexPathsForLODLevel(*ob->opengl_engine_ob, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator);
+						ModelLoading::setMaterialTexPathsForLODLevel(*ob->opengl_engine_ob, ob_lod_level, ob->materials, ob->lightmap_url, /*tex_format_prefs=*/this->textureFormatPreferences(), *resource_manager, &arena_allocator);
 					}
 					assignLoadedOpenGLTexturesToMats(ob);
 				}
@@ -3018,7 +3030,7 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 
 	{
 		glare::ArenaFrame frame(arena_allocator);
-		ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, ob_lod_level, ob->materials, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, ob_to_world_matrix);
+		ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, ob_lod_level, ob->materials, ob->lightmap_url, /*tex_format_prefs=*/this->textureFormatPreferences(), *resource_manager, &arena_allocator, ob_to_world_matrix);
 	}
 
 	if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
@@ -3137,7 +3149,7 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 	// Create graphics ob
 	glare::ArenaFrame frame(arena_allocator);
 	avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, av_lod_level, avatar->avatar_settings.materials, /*lightmap_url=*/URLString(), 
-		/*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, ob_to_world_matrix);
+		/*tex_format_prefs=*/this->textureFormatPreferences(), *resource_manager, &arena_allocator, ob_to_world_matrix);
 
 	mesh_data->meshDataBecameUsed();
 	avatar->graphics.mesh_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
@@ -3163,7 +3175,7 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 
 	avatar->graphics.build(avatar->our_avatar);
 
-	assignLoadedOpenGLTexturesToAvatarMats(avatar, /*use_basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
+	assignLoadedOpenGLTexturesToAvatarMats(avatar, /*tex_format_prefs=*/this->textureFormatPreferences(), *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
 
 	// Enable materialise effect if needed
 	const float current_time = (float)Clock::getTimeSinceInit();
@@ -3213,7 +3225,7 @@ void GUIClient::loadPresentGearModel(const GearItem* item, EquippedGearGraphics*
 	// Create gl and physics object now
 	glare::ArenaFrame frame(arena_allocator);
 	GLObjectRef gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*opengl_engine, mesh_data->gl_meshdata, av_lod_level, item->materials, /*lightmap_url=*/URLString(), 
-		/*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, Matrix4f::identity());
+		/*tex_format_prefs=*/this->textureFormatPreferences(), *resource_manager, &arena_allocator, Matrix4f::identity());
 
 	equipped_gear_graphics->gear_gl_ob = gl_ob;
 	equipped_gear_graphics->mesh_data = mesh_data;
@@ -3221,7 +3233,7 @@ void GUIClient::loadPresentGearModel(const GearItem* item, EquippedGearGraphics*
 
 	avatar->graphics.updateGearBones();
 
-	assignLoadedOpenGLTexturesToGearItemMats(item, equipped_gear_graphics, /*use_basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
+	assignLoadedOpenGLTexturesToGearItemMats(item, equipped_gear_graphics, /*tex_format_prefs=*/this->textureFormatPreferences(), *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
 
 	const float current_time = (float)Clock::getTimeSinceInit();
 
@@ -5063,7 +5075,7 @@ void GUIClient::handleUploadedTexture(const OpenGLTextureKey& path, const URLStr
 						Avatar* av = res2->second.ptr();
 
 						glare::ArenaFrame frame(arena_allocator);
-						assignLoadedOpenGLTexturesToAvatarMats(av, /*use basis=*/this->server_has_basis_textures, *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
+						assignLoadedOpenGLTexturesToAvatarMats(av, /*tex_format_prefs=*/this->textureFormatPreferences(), *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
 					}
 				}
 				loading_texture_URL_to_avatar_UID_map.erase(res); // Now that this texture has been loaded, remove from map
@@ -5130,7 +5142,7 @@ void GUIClient::updateOurAvatarModel(BatchedMeshRef loaded_mesh, const std::stri
 	// Don't transform to basis URLs, the server will want the original PNG/JPEGs.
 	Avatar::GetDependencyOptions options;
 	options.get_optimised_mesh = false;
-	options.use_basis = false;
+	options.tex_format_prefs = TextureFormatPreferences(/*use_basis=*/false, /*use_bc13_ktx2=*/false);
 
 	DependencyURLSet paths;
 	avatar.getDependencyURLSet(/*ob_lod_level=*/0, options, paths);
@@ -7396,7 +7408,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 								const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
 								for(size_t i=0; i<ob->materials.size(); ++i)
 									if(i < opengl_ob->materials.size())
-										ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &arena_allocator, opengl_ob->materials[i]);
+										ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*tex_format_prefs=*/this->textureFormatPreferences(), *this->resource_manager, &arena_allocator, opengl_ob->materials[i]);
 
 								opengl_engine->objectMaterialsUpdated(*opengl_ob);
 
@@ -7486,7 +7498,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 						glare::ArenaFrame frame(arena_allocator);
 						for(size_t i=0; i<ob->materials.size(); ++i)
 							if(i < opengl_ob->materials.size())
-								ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &arena_allocator, opengl_ob->materials[i]);
+								ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*tex_format_prefs=*/this->textureFormatPreferences(), *this->resource_manager, &arena_allocator, opengl_ob->materials[i]);
 						opengl_engine->objectMaterialsUpdated(*opengl_ob);
 					}
 
@@ -9434,6 +9446,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			TracyMessageL("ClientConnectedToServerMessage received");
 			
 			this->server_has_basis_textures             = BitUtils::isBitSet(this->server_capabilities, Protocol::OBJECT_TEXTURE_BASISU_SUPPORT);
+			this->server_has_bc13_ktx2_textures         = BitUtils::isBitSet(this->server_capabilities, Protocol::TEXTURE_BC13_KTX2_SUPPORT);
 			this->server_has_basisu_terrain_detail_maps = BitUtils::isBitSet(this->server_capabilities, Protocol::TERRAIN_DETAIL_MAPS_BASISU_SUPPORT);
 			this->server_has_optimised_meshes           = BitUtils::isBitSet(this->server_capabilities, Protocol::OPTIMISED_MESH_SUPPORT);
 
@@ -10231,7 +10244,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 								glare::STLArenaAllocator<DependencyURL> stl_arena_allocator(&arena_allocator);
 
 								WorldObject::GetDependencyOptions options;
-								options.use_basis = this->server_has_basis_textures;
+								options.tex_format_prefs = this->textureFormatPreferences();
 								options.include_lightmaps = this->use_lightmaps;
 								options.get_optimised_mesh = this->server_has_optimised_meshes;
 								options.opt_mesh_version = this->server_opt_mesh_version;
@@ -10269,7 +10282,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 								Avatar::GetDependencyOptions options;
 								options.get_optimised_mesh = this->server_has_optimised_meshes;
 								options.opt_mesh_version = this->server_opt_mesh_version;
-								options.use_basis = this->server_has_basis_textures;
+								options.tex_format_prefs = this->textureFormatPreferences();
 
 								DependencyURLSet URL_set(std::less<DependencyURL>(), stl_arena_allocator);
 								av->getDependencyURLSet(av_lod_level, options, URL_set);
@@ -11495,7 +11508,7 @@ void GUIClient::createObject(const std::string& mesh_path, BatchedMeshRef loaded
 
 	// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
 	WorldObject::GetDependencyOptions options;
-	options.use_basis = false; // Server will want the original non-basis textures.
+	options.tex_format_prefs = TextureFormatPreferences(/*use_basis=*/false, /*use_bc13_ktx2=*/false); // Server will want the original non-basis textures.
 	options.include_lightmaps = false;
 	options.get_optimised_mesh = false; // Server will want the original unoptimised mesh.
 	DependencyURLSet paths;
@@ -11685,7 +11698,7 @@ void GUIClient::createObjectLoadedFromXML(WorldObjectRef new_world_object, Print
 	{
 		// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
 		WorldObject::GetDependencyOptions options;
-		options.use_basis = false; // Server will want the original non-basis textures.
+		options.tex_format_prefs = TextureFormatPreferences(/*use_basis=*/false, /*use_bc13_ktx2=*/false); // Server will want the original non-basis textures.
 		options.include_lightmaps = false;
 		options.get_optimised_mesh = false; // Server will want the original unoptimised mesh.
 		DependencyURLSet paths;
@@ -11928,7 +11941,7 @@ void GUIClient::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 						glare::ArenaFrame frame(arena_allocator);
 						for(size_t i=0; i<in_world_ob->materials.size(); ++i)
 							if(i < opengl_ob->materials.size())
-								ModelLoading::setGLMaterialFromWorldMaterial(*in_world_ob->materials[i], ob_lod_level, in_world_ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &arena_allocator, opengl_ob->materials[i]);
+								ModelLoading::setGLMaterialFromWorldMaterial(*in_world_ob->materials[i], ob_lod_level, in_world_ob->lightmap_url, /*tex_format_prefs=*/this->textureFormatPreferences(), *this->resource_manager, &arena_allocator, opengl_ob->materials[i]);
 
 						opengl_engine->objectMaterialsUpdated(*opengl_ob);
 					}
@@ -13214,7 +13227,7 @@ void GUIClient::objectEdited()
 		// Copy all dependencies into resource directory if they are not there already.
 		// URLs will actually be paths from editing for now.
 		WorldObject::GetDependencyOptions options;
-		options.use_basis = this->server_has_basis_textures;
+		options.tex_format_prefs = this->textureFormatPreferences();
 		options.include_lightmaps = this->use_lightmaps;
 		options.get_optimised_mesh = false;//this->server_has_optimised_meshes;
 		DependencyURLVector URLs;
@@ -13284,7 +13297,7 @@ void GUIClient::objectEdited()
 								glare::ArenaFrame frame(arena_allocator);
 
 								for(size_t i=0; i<myMin(opengl_ob->materials.size(), this->selected_ob->materials.size()); ++i)
-									ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], ob_lod_level, this->selected_ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &arena_allocator,
+									ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], ob_lod_level, this->selected_ob->lightmap_url, /*tex_format_prefs=*/this->textureFormatPreferences(), *this->resource_manager, &arena_allocator,
 										opengl_ob->materials[i]
 									);
 
@@ -13500,7 +13513,7 @@ void GUIClient::updateSpotlightGraphicsEngineData(const Matrix4f& ob_to_world_ma
 		glare::ArenaFrame frame(arena_allocator);
 		opengl_ob->materials.resize(2);
 		if(ob->materials.size() >= 2)
-			ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[1], /*lod level=*//*ob_lod_level*/0, /*lightmap URL=*/"", /*use_basis=*/this->server_has_basis_textures, *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
+			ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[1], /*lod level=*//*ob_lod_level*/0, /*lightmap URL=*/"", /*tex_format_prefs=*/this->textureFormatPreferences(), *resource_manager, &arena_allocator, /*open gl mat=*/opengl_ob->materials[0]);
 		else
 			opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.85f));
 
@@ -14845,7 +14858,7 @@ void GUIClient::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob
 		gl_ob->materials.resize(ob->materials.size());
 		for(uint32 i=0; i<ob->materials.size(); ++i)
 		{
-			ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*use_basis=*/this->server_has_basis_textures, *this->resource_manager, &arena_allocator, gl_ob->materials[i]);
+			ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*tex_format_prefs=*/this->textureFormatPreferences(), *this->resource_manager, &arena_allocator, gl_ob->materials[i]);
 			gl_ob->materials[i].gen_planar_uvs = true;
 			gl_ob->materials[i].draw_planar_uv_grid = true;
 		}
@@ -15822,6 +15835,18 @@ GLObjectRef GUIClient::makeSpeakerGLObject()
 }
 
 
+// The URL of the version of a terrain detail map to download and use: the .basis or _bc13.ktx2 version, if the server generates them (see checkForBasisTexturesToGenerateForURL() in MeshLODGenThread.cpp),
+// otherwise the original.
+static URLString getTerrainDetailMapURLToUse(const URLString& URL, bool server_has_basis_detail_maps, bool use_bc13_ktx2)
+{
+	if(use_bc13_ktx2)
+		return removeDotAndExtension(URL) + "_bc13.ktx2";
+	if(!server_has_basis_detail_maps)
+		return URL;
+	return toURLString(eatExtension(toStdString(URL)) + "basis");
+}
+
+
 void GUIClient::updateGroundPlane()
 {
 	if(this->world_state.isNull())
@@ -15868,15 +15893,19 @@ void GUIClient::updateGroundPlane()
 				path_spec.section_specs[i].tree_mask_map_path  = resource_manager->pathForURL(spec.section_specs[i].tree_mask_map_URL);
 		}
 
-		// Convert to .basis extensions if the server supports basis generation of terrain detail maps.
+		// Convert to .basis or _bc13.ktx2 URLs if the server generates them for terrain detail maps.
+		const bool use_bc13_ktx2 = this->textureFormatPreferences().use_bc13_ktx2;
 		URLString use_detail_col_map_URLs[4];
 		URLString use_detail_height_map_URLs[4];
+		URLString use_detail_normal_map_URLs[4];
 		for(int i=0; i<4; ++i)
 		{
 			if(!spec.detail_col_map_URLs[i].empty())
-				use_detail_col_map_URLs[i] = this->server_has_basisu_terrain_detail_maps ? (toURLString(eatExtension(toStdString(spec.detail_col_map_URLs[i])) + "basis")) : spec.detail_col_map_URLs[i];
+				use_detail_col_map_URLs[i] = getTerrainDetailMapURLToUse(spec.detail_col_map_URLs[i], this->server_has_basisu_terrain_detail_maps, use_bc13_ktx2);
 			if(!spec.detail_height_map_URLs[i].empty())
-				use_detail_height_map_URLs[i] = this->server_has_basisu_terrain_detail_maps ? (toURLString(eatExtension(toStdString(spec.detail_height_map_URLs[i])) + "basis")) : spec.detail_height_map_URLs[i];
+				use_detail_height_map_URLs[i] = getTerrainDetailMapURLToUse(spec.detail_height_map_URLs[i], this->server_has_basisu_terrain_detail_maps, use_bc13_ktx2);
+			if(!spec.detail_normal_map_URLs[i].empty())
+				use_detail_normal_map_URLs[i] = getTerrainDetailMapURLToUse(spec.detail_normal_map_URLs[i], this->server_has_basisu_terrain_detail_maps, use_bc13_ktx2);
 		}
 
 		for(int i=0; i<4; ++i)
@@ -15885,6 +15914,8 @@ void GUIClient::updateGroundPlane()
 				path_spec.detail_col_map_paths[i]    = resource_manager->pathForURL(use_detail_col_map_URLs[i]);
 			if(!use_detail_height_map_URLs[i].empty())
 				path_spec.detail_height_map_paths[i] = resource_manager->pathForURL(use_detail_height_map_URLs[i]);
+			if(!use_detail_normal_map_URLs[i].empty())
+				path_spec.detail_normal_map_paths[i] = resource_manager->pathForURL(use_detail_normal_map_URLs[i]);
 		}
 
 		const float terrain_section_width_m = myClamp(spec.terrain_section_width_m, 8.f, 1000000.f);
@@ -15911,6 +15942,11 @@ void GUIClient::updateGroundPlane()
 		maskmap_tex_params.wrapping = OpenGLTexture::Wrapping::Wrapping_Clamp;
 
 		TextureParams detail_colourmap_tex_params;
+
+		// As for WorldMaterial normal maps (see startLoadingTextureForObjectOrAvatar() calls)
+		TextureParams detail_normal_map_tex_params;
+		detail_normal_map_tex_params.use_sRGB = false;
+		detail_normal_map_tex_params.allow_compression = false;
 
 		for(size_t i=0; i<spec.section_specs.size(); ++i)
 		{
@@ -15969,6 +16005,15 @@ void GUIClient::updateGroundPlane()
 				info.used_by_terrain = true;
 				startDownloadingResource(use_detail_height_map_URLs[i], /*centroid_ws=*/Vec4f(0,0,0,1), aabb_ws_longest_len, info);
 			}
+			if(!use_detail_normal_map_URLs[i].empty())
+			{
+				DownloadingResourceInfo info;
+				info.texture_params = detail_normal_map_tex_params;
+				info.pos = Vec3d(0,0,0);
+				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, /*importance_factor=*/1.f);
+				info.used_by_terrain = true;
+				startDownloadingResource(use_detail_normal_map_URLs[i], /*centroid_ws=*/Vec4f(0,0,0,1), aabb_ws_longest_len, info);
+			}
 		}
 		//--------------------------------------------------------------------------------------------------------------------------
 
@@ -16015,6 +16060,12 @@ void GUIClient::updateGroundPlane()
 				load_item_queue.enqueueItem(use_detail_height_map_URLs[i], Vec4f(0,0,0,1), aabb_ws_longest_len, 
 					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_height_map_paths[i], this->resource_manager->getOrCreateResourceForURL(use_detail_height_map_URLs[i]), 
 						heightmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
+					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
+
+			if(!use_detail_normal_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(use_detail_normal_map_URLs[i]))
+				load_item_queue.enqueueItem(use_detail_normal_map_URLs[i], Vec4f(0,0,0,1), aabb_ws_longest_len,
+					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_normal_map_paths[i], this->resource_manager->getOrCreateResourceForURL(use_detail_normal_map_URLs[i]),
+						detail_normal_map_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread),
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 		}
 		//--------------------------------------------------------------------------------------------------------------------------------
@@ -16327,7 +16378,7 @@ void GUIClient::createImageObjectForWidthAndHeight(const std::string& local_imag
 
 	// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
 	WorldObject::GetDependencyOptions options;
-	options.use_basis = false; // Server will want the original non-basis textures.
+	options.tex_format_prefs = TextureFormatPreferences(/*use_basis=*/false, /*use_bc13_ktx2=*/false); // Server will want the original non-basis textures.
 	options.include_lightmaps = false;
 	options.get_optimised_mesh = false; // Server will want the original unoptimised mesh.
 	DependencyURLSet paths;
@@ -16974,8 +17025,8 @@ void GUIClient::applyWorldSettingsToOpenGLEngine()
 {
 	if(opengl_engine)
 	{
-		const float sun_phi   = this->connected_world_settings.sun_phi;
-		const float sun_theta = this->connected_world_settings.sun_theta;
+		const float sun_phi   = this->override_sun_angles ? this->override_sun_phi   : this->connected_world_settings.sun_phi;
+		const float sun_theta = this->override_sun_angles ? this->override_sun_theta : this->connected_world_settings.sun_theta;
 		const Vec4f sun_dir = Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sin(sun_theta), cos(sun_theta), 0);
 		assert(sun_dir.isUnitLength());
 		if(opengl_engine->getSunDir() != sun_dir)

@@ -120,10 +120,14 @@ void WorldSettings::getDependencyURLSet(std::set<DependencyURL>& URLs_out)
 	for(int i=0; i<4; ++i)
 		if(!terrain_spec.detail_height_map_URLs[i].empty())
 			URLs_out.insert(DependencyURL(terrain_spec.detail_height_map_URLs[i]));
+
+	for(int i=0; i<4; ++i)
+		if(!terrain_spec.detail_normal_map_URLs[i].empty())
+			URLs_out.insert(DependencyURL(terrain_spec.detail_normal_map_URLs[i]));
 }
 
 
-static const uint32 WORLDSETTINGS_SERIALISATION_VERSION = 7;
+static const uint32 WORLDSETTINGS_SERIALISATION_VERSION = 8;
 
 
 void WorldSettings::writeToStream(OutStream& stream) const
@@ -172,6 +176,9 @@ void WorldSettings::writeToStream(OutStream& stream) const
 
 	buffer.writeUInt32(flags); // New in v7
 	::writeToStream(spawn_point, buffer); // New in v7
+
+	for(int i=0; i<4; ++i) // New in v8
+		buffer.writeStringLengthFirst(terrain_spec.detail_normal_map_URLs[i]);
 
 	// Go back and write size of buffer to buffer size field
 	const uint32 buffer_size = (uint32)buffer.buf.size();
@@ -267,6 +274,12 @@ void readWorldSettingsFromStream(InStream& stream_, WorldSettings& settings)
 		settings.spawn_point = readVec3FromStream<double>(buffer_stream);
 	}
 
+	if(version >= 8)
+	{
+		for(int i=0; i<4; ++i)
+			settings.terrain_spec.detail_normal_map_URLs[i] = buffer_stream.readStringLengthFirst(/*max_string_length=*/1024);
+	}
+
 	// We effectively skip any remaining data we have not processed by discarding buffer_stream.
 }
 
@@ -283,6 +296,10 @@ bool TerrainSpec::operator==(const TerrainSpec& other) const
 		detail_height_map_URLs[1] == other.detail_height_map_URLs[1] &&
 		detail_height_map_URLs[2] == other.detail_height_map_URLs[2] &&
 		detail_height_map_URLs[3] == other.detail_height_map_URLs[3] &&
+		detail_normal_map_URLs[0] == other.detail_normal_map_URLs[0] &&
+		detail_normal_map_URLs[1] == other.detail_normal_map_URLs[1] &&
+		detail_normal_map_URLs[2] == other.detail_normal_map_URLs[2] &&
+		detail_normal_map_URLs[3] == other.detail_normal_map_URLs[3] &&
 		terrain_section_width_m == other.terrain_section_width_m && 
 		terrain_height_scale == other.terrain_height_scale && 
 		water_z == other.water_z && 

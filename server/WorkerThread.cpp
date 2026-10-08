@@ -424,7 +424,7 @@ void WorkerThread::handleResourceUploadConnection()
 						const WorldObject* ob = it->second.ptr();
 						URLs.clear();
 						WorldObject::GetDependencyOptions options;
-						options.use_basis = false;
+						options.tex_format_prefs = TextureFormatPreferences(/*use_basis=*/false, /*use_bc13_ktx2=*/false);
 						options.get_optimised_mesh = false;
 						ob->getDependencyURLSetForAllLODLevels(options, URLs);
 
@@ -1233,7 +1233,7 @@ void WorkerThread::doRun()
 
 		if(client_protocol_version >= 41) // Sending server_capabilities was added in protocol version 41.
 		{
-			const uint32 server_capabilities = Protocol::OBJECT_TEXTURE_BASISU_SUPPORT | Protocol::TERRAIN_DETAIL_MAPS_BASISU_SUPPORT | Protocol::OPTIMISED_MESH_SUPPORT;
+			const uint32 server_capabilities = Protocol::OBJECT_TEXTURE_BASISU_SUPPORT | Protocol::TERRAIN_DETAIL_MAPS_BASISU_SUPPORT | Protocol::OPTIMISED_MESH_SUPPORT | Protocol::TEXTURE_BC13_KTX2_SUPPORT;
 			socket->writeUInt32(server_capabilities);
 		}
 
@@ -1681,7 +1681,7 @@ void WorkerThread::doRun()
 							DependencyURLSet URLs;
 							Avatar::GetDependencyOptions options;
 							options.get_optimised_mesh = false; // Get non-optimised mesh, optimise on server.
-							options.use_basis = false; // Get non-basis resources, convert to basis on server.
+							options.tex_format_prefs = TextureFormatPreferences(/*use_basis=*/false, /*use_bc13_ktx2=*/false); // Get non-basis resources, convert to basis on server.
 							temp_avatar.getDependencyURLSetBaseLevel(options, URLs); 
 							for(auto it = URLs.begin(); it != URLs.end(); ++it)
 							{
@@ -1732,7 +1732,7 @@ void WorkerThread::doRun()
 							DependencyURLSet URLs;
 							Avatar::GetDependencyOptions options;
 							options.get_optimised_mesh = false; // Get non-optimised mesh, optimise on server.
-							options.use_basis = false; // Get non-basis resources, convert to basis on server.
+							options.tex_format_prefs = TextureFormatPreferences(/*use_basis=*/false, /*use_bc13_ktx2=*/false); // Get non-basis resources, convert to basis on server.
 							temp_avatar.getDependencyURLSetForAllLODLevels(options, URLs);
 							for(auto it = URLs.begin(); it != URLs.end(); ++it)
 							{
@@ -2166,7 +2166,7 @@ void WorkerThread::doRun()
 											// Process resources
 											DependencyURLSet URLs;
 											WorldObject::GetDependencyOptions options;
-											options.use_basis = false; // Get plain textures, convert to basis on server.
+											options.tex_format_prefs = TextureFormatPreferences(/*use_basis=*/false, /*use_bc13_ktx2=*/false); // Get plain textures, convert to basis on server.
 											options.get_optimised_mesh = false;
 											ob->getDependencyURLSetBaseLevel(options, URLs);
 											for(auto it = URLs.begin(); it != URLs.end(); ++it)
@@ -2448,7 +2448,7 @@ void WorkerThread::doRun()
 
 									DependencyURLSet URLs;
 									WorldObject::GetDependencyOptions options;
-									options.use_basis = false; // Get plain textures, convert to basis on server.
+									options.tex_format_prefs = TextureFormatPreferences(/*use_basis=*/false, /*use_bc13_ktx2=*/false); // Get plain textures, convert to basis on server.
 									options.get_optimised_mesh = false;
 									new_ob->getDependencyURLSetBaseLevel(options, URLs);
 									for(auto it = URLs.begin(); it != URLs.end(); ++it)
@@ -3449,6 +3449,7 @@ void WorkerThread::doRun()
 								{
 									server->enqueueMsgForLodGenThread(new CheckGenLodResourcesForURL(world_settings.terrain_spec.detail_col_map_URLs[i]));
 									server->enqueueMsgForLodGenThread(new CheckGenLodResourcesForURL(world_settings.terrain_spec.detail_height_map_URLs[i]));
+									server->enqueueMsgForLodGenThread(new CheckGenLodResourcesForURL(world_settings.terrain_spec.detail_normal_map_URLs[i]));
 								}
 							}
 							else
@@ -3714,9 +3715,7 @@ void WorkerThread::doRun()
 								{
 									WorldStateLock lock(world_state->mutex);
 								
-									const bool use_basis = false; // Get non-basis resources, convert to basis on server.
-
-									const WorldMaterial::GetURLOptions mat_options(use_basis, /*area allocator=*/nullptr);
+									const WorldMaterial::GetURLOptions mat_options(TextureFormatPreferences(/*use_basis=*/false, /*use_bc13_ktx2=*/false), /*area allocator=*/nullptr); // Get non-basis resources, convert to basis on server.
 
 									DependencyURLVector mat_urls;
 									for(size_t i=0; i<new_item->materials.size(); ++i)
@@ -3857,7 +3856,7 @@ void WorkerThread::doRun()
 									new_ob->creator_name = client_user_name;
 
 									WorldObject::GetDependencyOptions options;
-									options.use_basis = false;
+									options.tex_format_prefs = TextureFormatPreferences(/*use_basis=*/false, /*use_bc13_ktx2=*/false);
 									options.get_optimised_mesh = false;
 									new_ob->getDependencyURLSetBaseLevel(options, URLs);
 

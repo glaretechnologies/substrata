@@ -41,12 +41,16 @@ WorldMaterial::~WorldMaterial()
 {}
 
 
-static inline URLString getLODTextureURLForLevel(const URLString& base_texture_url, int material_min_lod_level, int level, bool has_alpha, bool use_basis, glare::ArenaAllocator* arena_allocator)
+static inline URLString getLODTextureURLForLevel(const URLString& base_texture_url, int material_min_lod_level, int level, bool has_alpha, const TextureFormatPreferences& tex_format_prefs, glare::ArenaAllocator* arena_allocator)
 {
 	// Don't do LOD on mp4 (video) textures (for now).
 	// Also don't do LOD with http URLs
 	if(::hasExtension(base_texture_url, "mp4") || hasPrefix(base_texture_url, "http:") || hasPrefix(base_texture_url, "https:"))
-		return URLString(base_texture_url, glare::STLArenaAllocator<char>(arena_allocator)); 
+		return URLString(base_texture_url, glare::STLArenaAllocator<char>(arena_allocator));
+
+	const bool use_basis     = tex_format_prefs.use_basis;
+	const bool use_bc13_ktx2 = tex_format_prefs.use_bc13_ktx2;
+	const char* const basis_or_bc13_suffix = use_bc13_ktx2 ? "_bc13.ktx2" : ".basis";
 
 	if(level <= material_min_lod_level)
 	{
@@ -54,17 +58,17 @@ static inline URLString getLODTextureURLForLevel(const URLString& base_texture_u
 		// If this is the web build, use LOD 1 as the minimum LOD level for gifs.  This is to save RAM as gifs can be quite large (e.g. 20 MB).
 		const bool is_gif = ::hasExtension(base_texture_url, "gif");
 		if(is_gif)
-			return use_basis ? (removeDotAndExtension(base_texture_url) + "_lod1.basis") : (removeDotAndExtension(base_texture_url) + "_lod1.gif");
+			return (use_bc13_ktx2 || use_basis) ? (removeDotAndExtension(base_texture_url) + "_lod1" + basis_or_bc13_suffix) : (removeDotAndExtension(base_texture_url) + "_lod1.gif");
 #endif
-		if(use_basis)
+		if(use_bc13_ktx2 || use_basis)
 		{
 			const string_view root = removeDotAndExtensionStringView(base_texture_url);
 
 			glare::STLArenaAllocator<char> allocator(arena_allocator);
 			URLString res(allocator);
-			res.reserve(root.size() + std::strlen(".basis"));
+			res.reserve(root.size() + std::strlen(basis_or_bc13_suffix));
 			res.append(root);
-			res.append(".basis");
+			res.append(basis_or_bc13_suffix);
 			return res;
 		}
 		else
@@ -72,17 +76,17 @@ static inline URLString getLODTextureURLForLevel(const URLString& base_texture_u
 	}
 	else
 	{
-		if(use_basis)
+		if(use_bc13_ktx2 || use_basis)
 		{
 			const string_view root = removeDotAndExtensionStringView(base_texture_url);
 
 			glare::STLArenaAllocator<char> allocator(arena_allocator);
 			URLString res(allocator);
-			res.reserve(root.size() + std::strlen("_lodX.basis"));
+			res.reserve(root.size() + std::strlen("_lodX") + std::strlen(basis_or_bc13_suffix));
 			res.append(root);
 			res.append("_lod");
 			res += '0' + (char)level;
-			res.append(".basis");
+			res.append(basis_or_bc13_suffix);
 			return res;
 		}
 		else
@@ -103,12 +107,16 @@ static inline URLString getLODTextureURLForLevel(const URLString& base_texture_u
 
 
 #if GUI_CLIENT
-static inline OpenGLTextureKey getLODTexturePathForLevel(const OpenGLTextureKey& base_texture_path, int material_min_lod_level, int level, bool has_alpha, bool use_basis, glare::ArenaAllocator* arena_allocator)
+static inline OpenGLTextureKey getLODTexturePathForLevel(const OpenGLTextureKey& base_texture_path, int material_min_lod_level, int level, bool has_alpha, const TextureFormatPreferences& tex_format_prefs, glare::ArenaAllocator* arena_allocator)
 {
 	// Don't do LOD on mp4 (video) textures (for now).
 	// Also don't do LOD with http URLs
 	if(::hasExtension(base_texture_path, "mp4") || hasPrefix(base_texture_path, "http:") || hasPrefix(base_texture_path, "https:"))
 		return OpenGLTextureKey(base_texture_path, glare::STLArenaAllocator<char>(arena_allocator)); 
+
+	const bool use_basis     = tex_format_prefs.use_basis;
+	const bool use_bc13_ktx2 = tex_format_prefs.use_bc13_ktx2;
+	const char* const basis_or_bc13_suffix = use_bc13_ktx2 ? "_bc13.ktx2" : ".basis";
 
 	if(level <= material_min_lod_level)
 	{
@@ -116,17 +124,17 @@ static inline OpenGLTextureKey getLODTexturePathForLevel(const OpenGLTextureKey&
 		// If this is the web build, use LOD 1 as the minimum LOD level for gifs.  This is to save RAM as gifs can be quite large (e.g. 20 MB).
 		const bool is_gif = ::hasExtension(base_texture_path, "gif");
 		if(is_gif)
-			return use_basis ? (removeDotAndExtension(base_texture_path) + "_lod1.basis") : (removeDotAndExtension(base_texture_path) + "_lod1.gif");
+			return (use_bc13_ktx2 || use_basis) ? (removeDotAndExtension(base_texture_path) + "_lod1" + basis_or_bc13_suffix) : (removeDotAndExtension(base_texture_path) + "_lod1.gif");
 #endif
-		if(use_basis)
+		if(use_bc13_ktx2 || use_basis)
 		{
 			const string_view root = removeDotAndExtensionStringView(base_texture_path);
 
 			glare::STLArenaAllocator<char> stl_allocator(arena_allocator);
 			OpenGLTextureKey res(stl_allocator);
-			res.reserve(root.size() + std::strlen(".basis"));
+			res.reserve(root.size() + std::strlen(basis_or_bc13_suffix));
 			res.append(root);
-			res.append(".basis");
+			res.append(basis_or_bc13_suffix);
 			return res;
 		}
 		else
@@ -134,17 +142,17 @@ static inline OpenGLTextureKey getLODTexturePathForLevel(const OpenGLTextureKey&
 	}
 	else
 	{
-		if(use_basis)
+		if(use_bc13_ktx2 || use_basis)
 		{
 			const string_view root = removeDotAndExtensionStringView(base_texture_path);
 
 			glare::STLArenaAllocator<char> stl_allocator(arena_allocator);
 			OpenGLTextureKey res(stl_allocator);
-			res.reserve(root.size() + std::strlen("_lodX.basis"));
+			res.reserve(root.size() + std::strlen("_lodX") + std::strlen(basis_or_bc13_suffix));
 			res.append(root);
 			res.append("_lod");
 			res += '0' + (char)level;
-			res.append(".basis");
+			res.append(basis_or_bc13_suffix);
 			return res;
 		}
 		else
@@ -168,7 +176,7 @@ static inline OpenGLTextureKey getLODTexturePathForLevel(const OpenGLTextureKey&
 void ScalarVal::appendDependencyURLs(const GetURLOptions& options, int lod_level, DependencyURLVector& paths_out) const
 {
 	if(!texture_url.empty())
-		paths_out.push_back(DependencyURL(getLODTextureURLForLevel(texture_url, options.material_min_lod_level, lod_level, /*has alpha=*/false, options.use_basis, options.arena_allocator), options.tex_use_sRGB));
+		paths_out.push_back(DependencyURL(getLODTextureURLForLevel(texture_url, options.material_min_lod_level, lod_level, /*has alpha=*/false, options.tex_format_prefs, options.arena_allocator), options.tex_use_sRGB));
 }
 
 
@@ -178,7 +186,7 @@ void ScalarVal::appendDependencyURLsAllLODLevels(const GetURLOptions& options, D
 	{
 		paths_out.push_back(DependencyURL(texture_url, options.tex_use_sRGB));
 		for(int i=options.material_min_lod_level+1; i <=2; ++i)
-			paths_out.push_back(DependencyURL(getLODTextureURLForLevel(texture_url, options.material_min_lod_level, i, /*has alpha=*/false, options.use_basis, options.arena_allocator), options.tex_use_sRGB));
+			paths_out.push_back(DependencyURL(getLODTextureURLForLevel(texture_url, options.material_min_lod_level, i, /*has alpha=*/false, options.tex_format_prefs, options.arena_allocator), options.tex_use_sRGB));
 	}
 }
 
@@ -201,13 +209,13 @@ void ScalarVal::convertLocalPathsToURLS(ResourceManager& resource_manager)
 
 URLString WorldMaterial::getLODTextureURLForLevel(const GetURLOptions& options, const URLString& base_texture_url, int level, bool has_alpha) const
 {
-	return ::getLODTextureURLForLevel(base_texture_url, this->minLODLevel(), level, has_alpha, options.use_basis, options.arena_allocator);
+	return ::getLODTextureURLForLevel(base_texture_url, this->minLODLevel(), level, has_alpha, options.tex_format_prefs, options.arena_allocator);
 }
 
 #if GUI_CLIENT
 OpenGLTextureKey WorldMaterial::getLODTexturePathForLevel(const GetURLOptions& options, const OpenGLTextureKey& base_texture_path, int level, bool has_alpha) const
 {
-	return ::getLODTexturePathForLevel(base_texture_path, this->minLODLevel(), level, has_alpha, options.use_basis, options.arena_allocator);
+	return ::getLODTexturePathForLevel(base_texture_path, this->minLODLevel(), level, has_alpha, options.tex_format_prefs, options.arena_allocator);
 }
 #endif
 
@@ -224,7 +232,7 @@ void WorldMaterial::appendDependencyURLs(const GetURLOptions& options, int lod_l
 		paths_out.push_back(DependencyURL(getLODTextureURLForLevel(options, normal_map_url, lod_level, /*has alpha=*/false), /*use sRGB=*/false));
 
 	const int min_lod_level = this->minLODLevel();
-	const ScalarVal::GetURLOptions scalarval_options(/*use sRGB=*/false, options.use_basis, min_lod_level, options.arena_allocator);
+	const ScalarVal::GetURLOptions scalarval_options(/*use sRGB=*/false, options.tex_format_prefs, min_lod_level, options.arena_allocator);
 	roughness.			appendDependencyURLs(scalarval_options, lod_level, paths_out);
 	metallic_fraction.	appendDependencyURLs(scalarval_options, lod_level, paths_out);
 	opacity.			appendDependencyURLs(scalarval_options, lod_level, paths_out);
@@ -256,7 +264,7 @@ void WorldMaterial::appendDependencyURLsAllLODLevels(const GetURLOptions& option
 			paths_out.push_back(DependencyURL(getLODTextureURLForLevel(options, normal_map_url, i, /*has alpha=*/false), /*use sRGB=*/false));
 	}
 
-	const ScalarVal::GetURLOptions scalarval_options(/*use sRGB=*/false, options.use_basis, material_min_lod_level, options.arena_allocator);
+	const ScalarVal::GetURLOptions scalarval_options(/*use sRGB=*/false, options.tex_format_prefs, material_min_lod_level, options.arena_allocator);
 	roughness.			appendDependencyURLsAllLODLevels(scalarval_options, paths_out);
 	metallic_fraction.	appendDependencyURLsAllLODLevels(scalarval_options, paths_out);
 	opacity.			appendDependencyURLsAllLODLevels(scalarval_options, paths_out);
@@ -274,7 +282,7 @@ void WorldMaterial::appendDependencyURLsBaseLevel(const GetURLOptions& options, 
 	if(!normal_map_url.empty())
 		paths_out.push_back(DependencyURL(normal_map_url, /*use sRGB=*/false));
 
-	const ScalarVal::GetURLOptions scalarval_options(/*use sRGB=*/false, options.use_basis, this->minLODLevel(), /*arena_allocator=*/options.arena_allocator);
+	const ScalarVal::GetURLOptions scalarval_options(/*use sRGB=*/false, options.tex_format_prefs, this->minLODLevel(), /*arena_allocator=*/options.arena_allocator);
 	roughness.			appendDependencyURLsBaseLevel(scalarval_options, paths_out);
 	metallic_fraction.	appendDependencyURLsBaseLevel(scalarval_options, paths_out);
 	opacity.			appendDependencyURLsBaseLevel(scalarval_options, paths_out);
@@ -750,7 +758,7 @@ static void doAppendDependencyURLsTestForMat(WorldMaterial& mat, bool is_colour_
 	{
 		mat.flags = 0;
 
-		const WorldMaterial::GetURLOptions options(/*use basis=*/false, allocator);
+		const WorldMaterial::GetURLOptions options(TextureFormatPreferences(/*use_basis=*/false, /*use_bc13_ktx2=*/false), allocator);
 
 		DependencyURLVector urls;
 		mat.appendDependencyURLs(options, /*lod level=*/0, urls);
@@ -797,7 +805,7 @@ static void doAppendDependencyURLsTestForMat(WorldMaterial& mat, bool is_colour_
 	{
 		mat.flags = 0;
 
-		const WorldMaterial::GetURLOptions options(/*use basis=*/true, allocator);
+		const WorldMaterial::GetURLOptions options(TextureFormatPreferences(/*use_basis=*/true, /*use_bc13_ktx2=*/false), allocator);
 
 		DependencyURLVector urls;
 		mat.appendDependencyURLs(options, /*lod level=*/0, urls);
@@ -833,7 +841,7 @@ static void doAppendDependencyURLsTestForMat(WorldMaterial& mat, bool is_colour_
 		mat.flags = 0;
 		BitUtils::setBit(mat.flags, WorldMaterial::MIN_LOD_LEVEL_IS_NEGATIVE_1);
 
-		const WorldMaterial::GetURLOptions options(/*use basis=*/false, allocator);
+		const WorldMaterial::GetURLOptions options(TextureFormatPreferences(/*use_basis=*/false, /*use_bc13_ktx2=*/false), allocator);
 
 		DependencyURLVector urls;
 		mat.appendDependencyURLs(options, /*lod level=*/-1, urls);
@@ -889,7 +897,7 @@ static void doAppendDependencyURLsTestForMat(WorldMaterial& mat, bool is_colour_
 		mat.flags = 0;
 		BitUtils::setBit(mat.flags, WorldMaterial::MIN_LOD_LEVEL_IS_NEGATIVE_1);
 
-		const WorldMaterial::GetURLOptions options(/*use basis=*/true, allocator);
+		const WorldMaterial::GetURLOptions options(TextureFormatPreferences(/*use_basis=*/true, /*use_bc13_ktx2=*/false), allocator);
 
 		DependencyURLVector urls;
 		mat.appendDependencyURLs(options, /*lod level=*/-1, urls);
@@ -928,7 +936,7 @@ static void doAppendDependencyURLsTestForMat(WorldMaterial& mat, bool is_colour_
 	{
 		mat.flags = 0;
 
-		const WorldMaterial::GetURLOptions options(/*use basis=*/false, allocator);
+		const WorldMaterial::GetURLOptions options(TextureFormatPreferences(/*use_basis=*/false, /*use_bc13_ktx2=*/false), allocator);
 
 		DependencyURLVector urls;
 		mat.appendDependencyURLsBaseLevel(options, urls);
@@ -939,7 +947,7 @@ static void doAppendDependencyURLsTestForMat(WorldMaterial& mat, bool is_colour_
 	{
 		mat.flags = 0;
 
-		const WorldMaterial::GetURLOptions options(/*use basis=*/false, allocator);
+		const WorldMaterial::GetURLOptions options(TextureFormatPreferences(/*use_basis=*/false, /*use_bc13_ktx2=*/false), allocator);
 
 		DependencyURLVector urls;
 		mat.appendDependencyURLsAllLODLevels(options, urls);
@@ -1077,7 +1085,7 @@ void WorldMaterial::test()
 
 		//----------------------- Test appendDependencyURLs with different LOD levels -----------------------
 		{
-			const WorldMaterial::GetURLOptions get_url_options(false, allocator);
+			const WorldMaterial::GetURLOptions get_url_options(TextureFormatPreferences(/*use_basis=*/false, /*use_bc13_ktx2=*/false), allocator);
 			DependencyURLVector urls;
 			mat.appendDependencyURLs(get_url_options, /*lod level=*/0, urls);
 			testAssert(urls.size() == 1 && urls[0].URL == "sometex.jpg");
@@ -1097,7 +1105,7 @@ void WorldMaterial::test()
 
 		//----------------------- Test with basis -----------------------
 		{
-			const WorldMaterial::GetURLOptions get_url_options(true, allocator);
+			const WorldMaterial::GetURLOptions get_url_options(TextureFormatPreferences(/*use_basis=*/true, /*use_bc13_ktx2=*/false), allocator);
 			DependencyURLVector urls;
 			mat.appendDependencyURLs(get_url_options, /*lod level=*/0, urls);
 			testAssert(urls.size() == 1 && urls[0].URL == "sometex.basis");

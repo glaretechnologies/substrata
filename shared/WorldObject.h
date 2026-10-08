@@ -187,9 +187,9 @@ public:
 	// Sometimes we are not interested in all dependencies, such as lightmaps.  So make returning those optional.
 	struct GetDependencyOptions
 	{
-		GetDependencyOptions() : include_lightmaps(true), use_basis(true), get_optimised_mesh(false), opt_mesh_version(-1), allocator(nullptr) {}
+		GetDependencyOptions() : include_lightmaps(true), tex_format_prefs(/*use_basis=*/true, /*use_bc13_ktx2=*/false), get_optimised_mesh(false), opt_mesh_version(-1), allocator(nullptr) {}
 		bool include_lightmaps;
-		bool use_basis;
+		TextureFormatPreferences tex_format_prefs;
 		bool get_optimised_mesh;
 		int opt_mesh_version;
 		glare::ArenaAllocator* allocator;

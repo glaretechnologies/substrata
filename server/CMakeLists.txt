@@ -242,6 +242,7 @@ SOURCE_GROUP(secp256k1 FILES ${secp256k1_files})
 SOURCE_GROUP(ethereum FILES ${ethereum_files})
 SOURCE_GROUP(basis_universal/encoder FILES ${basisu_encoder_files})
 SOURCE_GROUP(basis_universal/transcoder FILES ${basisu_transcoder_files})
+SOURCE_GROUP(bc7enc_rdo FILES ${bc7enc_rdo_files})
 SOURCE_GROUP(tracy FILES ${tracy_files})
 SOURCE_GROUP(ai FILES ${ai})
 
@@ -295,6 +296,7 @@ ${substrata_private_webserver}
 ${substrata_private_server}
 ${basisu_encoder_files}
 ${basisu_transcoder_files}
+${bc7enc_rdo_files}
 ${luau_vm}
 ${luau_compiler}
 ${lua}

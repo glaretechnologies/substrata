@@ -559,6 +559,16 @@ ${basisu_dir}/transcoder/basisu_transcoder.h
 ${basisu_dir}/transcoder/basisu.h
 )
 
+# RDO BC1/BC3 encoder, for generating BC1/BC3 KTX2 textures on the server.
+set(bc7enc_rdo_dir ${GLARE_CORE_TRUNK_DIR_ENV}/bc7enc_rdo)
+
+set(bc7enc_rdo_files
+${bc7enc_rdo_dir}/rgbcx.cpp
+${bc7enc_rdo_dir}/rgbcx.h
+${bc7enc_rdo_dir}/ert.cpp
+${bc7enc_rdo_dir}/ert.h
+)
+
 
 
 

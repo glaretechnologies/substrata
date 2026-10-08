@@ -90,6 +90,7 @@ void WorldSettingsWidget::setFromWorldSettings(const WorldSettings& world_settin
 	detailColMapURLs3FileSelectWidget->setFilename(QtUtils::toQString(world_settings.terrain_spec.detail_col_map_URLs[3]));
 
 	detailHeightMapURLs0FileSelectWidget->setFilename(QtUtils::toQString(world_settings.terrain_spec.detail_height_map_URLs[0]));
+	detailNormalMapURLs3FileSelectWidget->setFilename(QtUtils::toQString(world_settings.terrain_spec.detail_normal_map_URLs[3]));
 
 	terrainSectionWidthDoubleSpinBox->setValue(world_settings.terrain_spec.terrain_section_width_m);
 	terrainHeightScaleDoubleSpinBox->setValue(world_settings.terrain_spec.terrain_height_scale);
@@ -164,6 +165,7 @@ void WorldSettingsWidget::toWorldSettings(WorldSettings& world_settings_out)
 	world_settings_out.terrain_spec.detail_col_map_URLs[3] = getURLForFileSelectWidget(detailColMapURLs3FileSelectWidget);
 
 	world_settings_out.terrain_spec.detail_height_map_URLs[0] = getURLForFileSelectWidget(detailHeightMapURLs0FileSelectWidget);
+	world_settings_out.terrain_spec.detail_normal_map_URLs[3] = getURLForFileSelectWidget(detailNormalMapURLs3FileSelectWidget);
 
 	world_settings_out.terrain_spec.terrain_section_width_m = (float)terrainSectionWidthDoubleSpinBox->value();
 	world_settings_out.terrain_spec.terrain_height_scale = (float)terrainHeightScaleDoubleSpinBox->value();
@@ -208,6 +210,7 @@ void WorldSettingsWidget::updateControlsEditable()
 	detailColMapURLs3FileSelectWidget->setReadOnly(!editable);
 	
 	detailHeightMapURLs0FileSelectWidget->setReadOnly(!editable);
+	detailNormalMapURLs3FileSelectWidget->setReadOnly(!editable);
 
 	terrainSectionWidthDoubleSpinBox->setReadOnly(!editable);
 	terrainHeightScaleDoubleSpinBox->setReadOnly(!editable);

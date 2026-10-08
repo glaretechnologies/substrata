@@ -461,6 +461,12 @@ void MainWindow::initialiseUI()
 		ui->glWidget->allow_bindless_textures = false;
 	if(parsed_args.isArgPresent("--no_ssao"))
 		ui->glWidget->allow_SSAO = false;
+	if(parsed_args.isArgPresent("--sun_angles"))
+	{
+		gui_client.override_sun_angles = true;
+		gui_client.override_sun_theta = myClamp(::degreeToRad((float)parsed_args.getArgDoubleValue("--sun_angles", 0)), 0.01f, Maths::pi<float>() - 0.01f);
+		gui_client.override_sun_phi   = ::degreeToRad((float)parsed_args.getArgDoubleValue("--sun_angles", 1));
+	}
 
 	ui->glWidget->setBaseDir(base_dir_path, /*print output=*/this, settings);
 	ui->objectEditor->base_dir_path = base_dir_path;
@@ -5399,6 +5405,7 @@ int main(int argc, char *argv[])
 		syntax["--no_MDI"] = std::vector<ArgumentParser::ArgumentType>(); // Disable MDI in graphics engine
 		syntax["--no_bindless"] = std::vector<ArgumentParser::ArgumentType>(); // Disable bindless textures in graphics engine
 		syntax["--no_ssao"] = std::vector<ArgumentParser::ArgumentType>(); // Disable SSAO for this run, regardless of the saved setting
+		syntax["--sun_angles"] = std::vector<ArgumentParser::ArgumentType>(2, ArgumentParser::ArgumentType_double); // Override the world's sun angles for this run.  Args: angle from vertical, azimuth angle (degrees), as for the sun_vert_angle and sun_azimuth_angle URL parameters.
 		syntax["--use_temp_resources_db"] = std::vector<ArgumentParser::ArgumentType>(); // Use a temporary, fresh resource database.  For testing.
 		// Measure the GPU time of each render pass from a fixed camera, write a report to a file, then exit.  Args: output path, x, y, z, heading, pitch (see CameraController).
 		syntax["--measure_gpu_times"] = { ArgumentParser::ArgumentType_string, ArgumentParser::ArgumentType_double, ArgumentParser::ArgumentType_double, ArgumentParser::ArgumentType_double,
