@@ -348,23 +348,19 @@ a
 
 .top-section {
 	position: relative; /*needed because position: absolute positions relative to 'positioned' ancestor*/
-	height: 60vh;
-	min-height: 400px;
-	max-height: 600px;
+	min-height: clamp(400px, 60vh, 600px); /* Section can grow taller than this if the text needs it (e.g. on narrow mobile screens) */
 	width: 100vw;
+	overflow: hidden;
 }
 
 .top-section-text-container {
-	position: absolute;
+	position: relative; /* In normal flow so that .top-section grows to contain it, and drawn above the absolutely positioned image */
 	width: 75vw;
-	top: 150px;
-	left: 50vw;
-	transform: translate(-50%, 0);
-	
+
 	color: white;
 	border-radius: 0px;
-	margin: 0px;
-	padding: 10px;
+	margin: 0px auto;
+	padding: 150px 10px 20px 10px;
 	font-size: 1.0em;
 }
 
@@ -391,10 +387,11 @@ a
 
 
 .top-image {
-	width: 100vw;
-	height: 60vh;
-	min-height: 400px;
-	max-height: 600px;
+	position: absolute; /* Fill the whole .top-section as a background, however tall it is */
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
 	object-fit: cover;
 }
 
