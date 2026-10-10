@@ -82,7 +82,7 @@ static int rtAudioCallback(void* output_buffer, void* input_buffer, unsigned int
 
 void MicReadThread::doRun()
 {
-	PlatformUtils::setCurrentThreadNameIfTestsEnabled("MicReadThread");
+	PlatformUtils::setCurrentThreadName("MicReadThread");
 
 	conPrint("MicReadThread started...");
 

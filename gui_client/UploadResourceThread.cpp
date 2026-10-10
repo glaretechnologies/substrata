@@ -71,7 +71,7 @@ void UploadResourceThread::killConnection()
 
 void UploadResourceThread::doRun()
 {
-	PlatformUtils::setCurrentThreadNameIfTestsEnabled("UploadResourceThread");
+	PlatformUtils::setCurrentThreadName("UploadResourceThread");
 
 	while(!should_die)
 	{

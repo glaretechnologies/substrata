@@ -1183,7 +1183,7 @@ static void getEquippedGearForUser(const User& user, ServerAllWorldsState* world
 
 void WorkerThread::doRun()
 {
-	PlatformUtils::setCurrentThreadNameIfTestsEnabled("WorkerThread");
+	PlatformUtils::setCurrentThreadName("WorkerThread");
 
 
 	if(CAPTURE_TRACES)

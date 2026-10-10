@@ -24,7 +24,7 @@ GarbageDeleterThread::~GarbageDeleterThread()
 
 void GarbageDeleterThread::doRun()
 {
-	PlatformUtils::setCurrentThreadNameIfTestsEnabled("GarbageDeleterThread");
+	PlatformUtils::setCurrentThreadName("GarbageDeleterThread");
 	
 	while(1)
 	{

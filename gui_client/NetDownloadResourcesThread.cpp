@@ -61,7 +61,7 @@ static const bool VERBOSE = false;
 void NetDownloadResourcesThread::doRun()
 {
 #if !defined(EMSCRIPTEN)
-	PlatformUtils::setCurrentThreadNameIfTestsEnabled("NetDownloadResourcesThread");
+	PlatformUtils::setCurrentThreadName("NetDownloadResourcesThread");
 
 	try
 	{

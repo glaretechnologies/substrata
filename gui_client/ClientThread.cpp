@@ -1380,7 +1380,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 
 void ClientThread::doRun()
 {
-	PlatformUtils::setCurrentThreadNameIfTestsEnabled("ClientThread");
+	PlatformUtils::setCurrentThreadName("ClientThread");
 
 	try
 	{

@@ -26,7 +26,7 @@ StreamerThread::StreamerThread(AudioEngine* audio_engine_) : audio_engine(audio_
 
 void StreamerThread::doRun()
 {
-	PlatformUtils::setCurrentThreadNameIfTestsEnabled("Audio StreamerThread");
+	PlatformUtils::setCurrentThreadName("Audio StreamerThread");
 
 	while(die == 0)
 	{

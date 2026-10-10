@@ -50,7 +50,7 @@ struct AvatarVoiceStreamInfo
 
 void ClientUDPHandlerThread::doRun()
 {
-	PlatformUtils::setCurrentThreadNameIfTestsEnabled("ClientUDPHandlerThread");
+	PlatformUtils::setCurrentThreadName("ClientUDPHandlerThread");
 
 	std::unordered_map<uint32, AvatarVoiceStreamInfo> avatar_stream_info; // Map from avatar UID to AvatarVoiceStreamInfo for that avatar.
 

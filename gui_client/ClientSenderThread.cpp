@@ -31,7 +31,7 @@ void ClientSenderThread::kill()
 
 void ClientSenderThread::doRun()
 {
-	PlatformUtils::setCurrentThreadNameIfTestsEnabled("ClientSenderThread");
+	PlatformUtils::setCurrentThreadName("ClientSenderThread");
 
 	try
 	{

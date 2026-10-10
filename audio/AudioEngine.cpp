@@ -345,7 +345,7 @@ public:
 
 	virtual void doRun() override
 	{
-		PlatformUtils::setCurrentThreadNameIfTestsEnabled("ResonanceThread");
+		PlatformUtils::setCurrentThreadName("ResonanceThread");
 		
 		try
 		{

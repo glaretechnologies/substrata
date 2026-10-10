@@ -24,7 +24,7 @@ SaveResourcesDBThread::~SaveResourcesDBThread()
 
 void SaveResourcesDBThread::doRun()
 {
-	PlatformUtils::setCurrentThreadNameIfTestsEnabled("SaveResourcesDBThread");
+	PlatformUtils::setCurrentThreadName("SaveResourcesDBThread");
 
 	while(1)
 	{

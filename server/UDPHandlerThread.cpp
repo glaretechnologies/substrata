@@ -29,7 +29,7 @@ UDPHandlerThread::~UDPHandlerThread()
 
 void UDPHandlerThread::doRun()
 {
-	PlatformUtils::setCurrentThreadNameIfTestsEnabled("UDPHandlerThread");
+	PlatformUtils::setCurrentThreadName("UDPHandlerThread");
 
 	try
 	{

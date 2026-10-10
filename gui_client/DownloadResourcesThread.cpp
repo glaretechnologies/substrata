@@ -116,7 +116,7 @@ void DownloadResourcesThread::doRun()
 {
 #if !EMSCRIPTEN // Emscripten uses EmscriptenResourceDownloader instead.
 
-	PlatformUtils::setCurrentThreadNameIfTestsEnabled("DownloadResourcesThread");
+	PlatformUtils::setCurrentThreadName("DownloadResourcesThread");
 
 	try
 	{
