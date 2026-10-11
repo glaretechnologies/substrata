@@ -663,6 +663,18 @@ int main(int argc, char** argv)
 			}, true);
 		});
 
+		// Close our server connection when the page is hidden, as the page may be kept alive in the back/forward cache.
+		// If the page is later restored from the cache, its connection is closed and state is stale, so just reload it.
+		EM_ASM({
+			window.addEventListener('pagehide', function(event){
+				Module._onPageHide();
+			});
+			window.addEventListener('pageshow', function(event){
+				if (event.persisted)
+					window.location.reload();
+			});
+		});
+
 		// Set paste event callback.  The lambda function will execute when a paste action is detected in the browser.
 		emscripten_browser_clipboard::paste([](const std::string& paste_data, void* /*callback_data*/){
 			TextInputEvent text_input_event;
@@ -1288,8 +1300,22 @@ static std::string sanitiseString(const std::string& s)
 }
 
 
+// onPageHide is called from the 'pagehide' listener registered in main().
+// The browser may keep this page alive in the back/forward cache after navigating away (e.g. to the login page), which would keep our
+// server connection and avatar alive too, so close the connection.
+extern "C"
+#if EMSCRIPTEN
+EMSCRIPTEN_KEEPALIVE
+#endif
+void onPageHide()
+{
+	if(gui_client && gui_client->client_thread)
+		gui_client->client_thread->kill(); // Closes the websocket.
+}
+
+
 // processFilePickerFile is called from JS code in webclient.html.
-extern "C" 
+extern "C"
 #if EMSCRIPTEN
 EMSCRIPTEN_KEEPALIVE
 #endif
