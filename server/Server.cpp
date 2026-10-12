@@ -926,12 +926,12 @@ int main(int argc, char *argv[])
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
+								conPrint("Removing avatar '" + avatar->name + "' from world_state->avatars");
+
 								// Remove avatar from avatar map
 								auto old_avatar_iterator = i;
 								i++;
 								world_state->getAvatars(lock).erase(old_avatar_iterator);
-
-								conPrint("Removed avatar from world_state->avatars");
 							}
 							else
 							{
