@@ -76,11 +76,15 @@ void CredentialManager::saveToSettings(QSettings& settings)
 	}
 	settings.endArray();
 }
-#endif
+#endif // USE_QT
 
 
 std::string CredentialManager::getUsernameForDomain(const std::string& domain)
 {
+#if defined(EMSCRIPTEN)
+	assert(0); // Shouldn't be called.
+	return std::string();
+#else
 	Lock lock(mutex);
 
 	auto res = credentials.find(domain);
@@ -88,11 +92,16 @@ std::string CredentialManager::getUsernameForDomain(const std::string& domain)
 		return res->second.username;
 	else
 		return std::string();
+#endif
 }
 
 
 std::string CredentialManager::getDecryptedPasswordForDomain(const std::string& domain)
 {
+#if defined(EMSCRIPTEN)
+	assert(0); // Shouldn't be called.
+	return std::string();
+#else
 	Lock lock(mutex);
 
 	auto res = credentials.find(domain);
@@ -100,11 +109,15 @@ std::string CredentialManager::getDecryptedPasswordForDomain(const std::string& 
 		return decryptPassword(res->second.encrypted_password);
 	else
 		return std::string();
+#endif
 }
 
 
 void CredentialManager::setDomainCredentials(const std::string& domain, const std::string& username, const std::string& plaintext_password)
 {
+#if defined(EMSCRIPTEN)
+	assert(0); // Shouldn't be called.
+#else
 	Lock lock(mutex);
 
 	// Update fields in-place, to preserve any other credentials stored for this domain (such as the MCP API key).
@@ -112,9 +125,11 @@ void CredentialManager::setDomainCredentials(const std::string& domain, const st
 	cred.domain = domain;
 	cred.username = username;
 	cred.encrypted_password = encryptPassword(plaintext_password);
+#endif
 }
 
 
+#if !defined(EMSCRIPTEN)
 const std::string CredentialManager::decryptPassword(const std::string& cyphertext_base64)
 {
 	try
@@ -168,3 +183,4 @@ const std::string CredentialManager::encryptPassword(const std::string& password
 		return "";
 	}
 }
+#endif // #if !defined(EMSCRIPTEN)
