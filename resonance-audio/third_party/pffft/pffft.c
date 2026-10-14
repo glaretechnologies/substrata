@@ -128,7 +128,7 @@ inline v4sf ld_ps1(const float *p) { v4sf v=vec_lde(0,p); return vec_splat(vec_p
 /*
   SSE1 support macros
 */
-#elif !defined(PFFFT_SIMD_DISABLE) && (defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(i386) || defined(_M_IX86))
+#elif !defined(PFFFT_SIMD_DISABLE) && (defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(i386) || defined(_M_IX86) || (defined(__EMSCRIPTEN__) && defined(__SSE__))) // GLARE NEW: Emscripten maps SSE intrinsics to WASM SIMD when building with -msimd128 -msse
 
 #include <xmmintrin.h>
 typedef __m128 v4sf;

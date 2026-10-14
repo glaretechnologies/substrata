@@ -11,3 +11,7 @@ Slightly modified resonance_audio\graph\resonance_audio_api_impl.cc to avoid a r
 
 
 Modified some files for Emscripten compilation (search for "GLARE NEW")
+
+
+Modified third_party/pffft/pffft.c to use the SSE code path for Emscripten builds when __SSE__ is defined (we build with -msimd128 -msse4.1, so Emscripten maps the SSE intrinsics to WASM SIMD).
+Previously it fell back to scalar code with a "building with simd disabled" warning.  (Search for "GLARE NEW")
