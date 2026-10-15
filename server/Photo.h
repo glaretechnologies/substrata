@@ -13,8 +13,37 @@ Copyright Glare Technologies Limited 2025 -
 #include <utils/ThreadSafeRefCounted.h>
 #include <utils/Reference.h>
 #include <utils/DatabaseKey.h>
+#include <vector>
 class RandomAccessInStream;
 class RandomAccessOutStream;
+
+
+/*=====================================================================
+PhotoReaction
+-------------
+An emoji reaction that a user gave a photo on the photo web page.
+=====================================================================*/
+struct PhotoReaction
+{
+	// Values are serialised, so only append new emoji types.
+	enum EmojiType
+	{
+		EmojiType_ThumbsUp = 0,
+		EmojiType_Heart = 1,
+		EmojiType_Laughing = 2,
+		EmojiType_Fire = 3,
+		EmojiType_Wow = 4,
+		EmojiType_Clap = 5,
+		EmojiType_Hundred = 6,
+		EmojiType_NumTypes = 7
+	};
+
+	static const char* emojiString(EmojiType emoji_type); // Returns UTF-8 encoded emoji
+	static const char* emojiName(EmojiType emoji_type); // Returns e.g. "Thumbs up"
+
+	EmojiType emoji_type;
+	UserID user_id;
+};
 
 
 /*=====================================================================
@@ -39,6 +68,11 @@ public:
 
 	static const size_t MAX_CAPTION_SIZE = 10000;
 	static const size_t MAX_WORLD_NAME_SIZE = 1000;
+	static const size_t MAX_NUM_REACTIONS = 100000;
+
+	bool toggleReaction(PhotoReaction::EmojiType emoji_type, UserID user_id); // Adds the reaction if the user hasn't given it, otherwise removes it.  Returns true if the user now has the reaction.
+	bool hasReaction(PhotoReaction::EmojiType emoji_type, UserID user_id) const;
+	size_t numReactions(PhotoReaction::EmojiType emoji_type) const;
 
 	uint64 id;
 	UserID creator_id;
@@ -60,6 +94,8 @@ public:
 		State_deleted = 1
 	};
 	State state;
+
+	std::vector<PhotoReaction> reactions;
 
 	DatabaseKey database_key;
 };

@@ -432,6 +432,95 @@ a
 	max-width: 100%;
 }
 
+/* Caption on the left, summary of reactions received on the right */
+.photo-caption-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 16px;
+	margin-top: 4px;
+}
+
+.photo-reaction-summary {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 12px;
+	flex-shrink: 0;
+	max-width: 50%;
+	font-size: 14px;
+}
+
+.photo-reaction-summary-item {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.photo-reaction-summary .photo-reaction-emoji {
+	font-size: 18px;
+}
+
+/* Buttons for the user to give reactions */
+.photo-reactions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+	margin: 10px 0;
+}
+
+.photo-reaction-form {
+	margin: 0;
+}
+
+.photo-reaction {
+	display: inline-flex;
+	align-items: center;
+	line-height: 1;
+	padding: 5px 11px;
+	border: 1px solid #aaa;
+	border-radius: 18px;
+	background: none;
+	color: inherit;
+	cursor: pointer;
+}
+
+.photo-reaction-emoji {
+	font-size: 20px;
+}
+
+.photo-reaction .photo-reaction-emoji {
+	filter: grayscale(1);
+	opacity: 0.6;
+}
+
+.photo-reaction:hover:enabled {
+	border-color: #666;
+}
+
+.photo-reaction:hover:enabled .photo-reaction-emoji {
+	opacity: 1;
+}
+
+.photo-reaction:disabled {
+	cursor: default;
+}
+
+.photo-reaction.reacted {
+	border-color: #666;
+}
+
+.photo-reaction.reacted .photo-reaction-emoji {
+	filter: none;
+	opacity: 1;
+}
+
+.photo-reactions-login {
+	font-size: 14px;
+	margin-left: 6px;
+}
+
 .photo-nav {
 	display: flex;
 	justify-content: space-between;

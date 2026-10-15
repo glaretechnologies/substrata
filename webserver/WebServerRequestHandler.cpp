@@ -350,6 +350,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			PhotoHandlers::handleDeletePhotoPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/photo_reaction_post")
+		{
+			PhotoHandlers::handlePhotoReactionPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/edit_chatbot_post")
 		{
 			ChatBotHandlers::handleEditChatBotPost(*this->world_state, request, reply_info);

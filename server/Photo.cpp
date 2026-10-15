@@ -12,6 +12,39 @@ Copyright Glare Technologies Limited 2025 -
 #include <utils/StringUtils.h>
 
 
+// Emoji are written as UTF-8 byte escapes so the source file encoding doesn't matter.
+const char* PhotoReaction::emojiString(EmojiType emoji_type)
+{
+	switch(emoji_type)
+	{
+	case EmojiType_ThumbsUp: return "\xF0\x9F\x91\x8D";
+	case EmojiType_Heart:    return "\xE2\x9D\xA4\xEF\xB8\x8F";
+	case EmojiType_Laughing: return "\xF0\x9F\x98\x82";
+	case EmojiType_Fire:     return "\xF0\x9F\x94\xA5";
+	case EmojiType_Wow:      return "\xF0\x9F\x98\xAE";
+	case EmojiType_Clap:     return "\xF0\x9F\x91\x8F";
+	case EmojiType_Hundred:  return "\xF0\x9F\x92\xAF";
+	default:                 return "?";
+	}
+}
+
+
+const char* PhotoReaction::emojiName(EmojiType emoji_type)
+{
+	switch(emoji_type)
+	{
+	case EmojiType_ThumbsUp: return "Thumbs up";
+	case EmojiType_Heart:    return "Heart";
+	case EmojiType_Laughing: return "Laughing";
+	case EmojiType_Fire:     return "Fire";
+	case EmojiType_Wow:      return "Wow";
+	case EmojiType_Clap:     return "Clap";
+	case EmojiType_Hundred:  return "100";
+	default:                 return "Unknown";
+	}
+}
+
+
 Photo::Photo()
 {
 	flags = 0;
@@ -23,8 +56,46 @@ Photo::~Photo()
 {}
 
 
-static const uint32 PHOTO_SERIALISATION_VERSION = 2;
+bool Photo::toggleReaction(PhotoReaction::EmojiType emoji_type, UserID user_id)
+{
+	for(size_t i=0; i<reactions.size(); ++i)
+		if(reactions[i].user_id == user_id && reactions[i].emoji_type == emoji_type)
+		{
+			reactions.erase(reactions.begin() + i);
+			return false;
+		}
+
+	PhotoReaction reaction;
+	reaction.emoji_type = emoji_type;
+	reaction.user_id = user_id;
+	if(reactions.size() < MAX_NUM_REACTIONS)
+		reactions.push_back(reaction);
+	return true;
+}
+
+
+bool Photo::hasReaction(PhotoReaction::EmojiType emoji_type, UserID user_id) const
+{
+	for(size_t i=0; i<reactions.size(); ++i)
+		if(reactions[i].user_id == user_id && reactions[i].emoji_type == emoji_type)
+			return true;
+	return false;
+}
+
+
+size_t Photo::numReactions(PhotoReaction::EmojiType emoji_type) const
+{
+	size_t count = 0;
+	for(size_t i=0; i<reactions.size(); ++i)
+		if(reactions[i].emoji_type == emoji_type)
+			count++;
+	return count;
+}
+
+
+static const uint32 PHOTO_SERIALISATION_VERSION = 3;
 // v2: added state
+// v3: added reactions
 
 
 void Photo::writeToStream(RandomAccessOutStream& stream) const
@@ -62,7 +133,15 @@ void Photo::writeToStream(RandomAccessOutStream& stream) const
 
 	stream.writeUInt32((uint32)state);
 
-	
+	runtimeCheck(reactions.size() <= MAX_NUM_REACTIONS);
+	stream.writeUInt32((uint32)reactions.size());
+	for(size_t i=0; i<reactions.size(); ++i)
+	{
+		stream.writeUInt32((uint32)reactions[i].emoji_type);
+		::writeToStream(reactions[i].user_id, stream);
+	}
+
+
 	// Go back and write size of buffer to buffer size field
 	const uint32 buffer_size = (uint32)(stream.getWriteIndex() - initial_write_index);
 
@@ -100,6 +179,26 @@ void readPhotoFromStream(RandomAccessInStream& stream, Photo& photo)
 		if(s > Photo::State_deleted)
 			throw glare::Exception("Invalid state");
 		photo.state = (Photo::State)s;
+	}
+
+	photo.reactions.clear();
+	if(version >= 3)
+	{
+		const uint32 num_reactions = stream.readUInt32();
+		checkProperty(num_reactions <= Photo::MAX_NUM_REACTIONS, "readPhotoFromStream: too many reactions");
+		photo.reactions.reserve(num_reactions);
+		for(uint32 i=0; i<num_reactions; ++i)
+		{
+			const uint32 emoji_type = stream.readUInt32();
+			const UserID user_id = ::readUserIDFromStream(stream);
+			if(emoji_type < PhotoReaction::EmojiType_NumTypes) // Skip emoji types this code doesn't know about.
+			{
+				PhotoReaction reaction;
+				reaction.emoji_type = (PhotoReaction::EmojiType)emoji_type;
+				reaction.user_id = user_id;
+				photo.reactions.push_back(reaction);
+			}
+		}
 	}
 
 	// Discard any remaining unread data

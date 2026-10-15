@@ -35,4 +35,6 @@ namespace PhotoHandlers
 	void handleEditPhotoParcelPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 
 	void handleDeletePhotoPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
-} 
+
+	void handlePhotoReactionPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info); // Toggle an emoji reaction on a photo
+}

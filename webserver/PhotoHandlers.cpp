@@ -35,6 +35,44 @@ const std::string& get_local_thumbnail_filename(const Photo& p) { return p.local
 const std::string& get_local_midsize_filename(const Photo& p)   { return p.local_midsize_filename; }
 
 
+// Inner HTML of the reaction summary: each emoji that has at least one reaction, with its count.
+// The tooltip lists the names of the users who gave the reaction, e.g. "Fire: alice, bob".
+// Requires world_state.mutex to be held.
+static std::string reactionSummaryHTML(ServerAllWorldsState& world_state, const Photo& photo)
+{
+	const size_t max_names_to_list = 20;
+
+	std::string html;
+	for(int t=0; t<PhotoReaction::EmojiType_NumTypes; ++t)
+	{
+		const PhotoReaction::EmojiType emoji_type = (PhotoReaction::EmojiType)t;
+
+		size_t count = 0;
+		std::string names;
+		for(size_t i=0; i<photo.reactions.size(); ++i)
+			if(photo.reactions[i].emoji_type == emoji_type)
+			{
+				if(count < max_names_to_list)
+				{
+					auto user_res = world_state.user_id_to_users.find(photo.reactions[i].user_id);
+					names += (count > 0 ? ", " : "") + ((user_res != world_state.user_id_to_users.end()) ? user_res->second->name : std::string("[unknown user]"));
+				}
+				count++;
+			}
+
+		if(count > 0)
+		{
+			if(count > max_names_to_list)
+				names += " and " + toString(count - max_names_to_list) + " others";
+
+			html += std::string("<span class=\"photo-reaction-summary-item\" title=\"") + PhotoReaction::emojiName(emoji_type) + ": " + web::Escaping::HTMLEscape(names) + "\">"
+				"<span class=\"photo-reaction-emoji\">" + PhotoReaction::emojiString(emoji_type) + "</span>" + toString(count) + "</span>";
+		}
+	}
+	return html;
+}
+
+
 void doHandlePhotoImageRequest(ServerAllWorldsState& world_state, WebDataStore& datastore, const web::RequestInfo& request, web::ReplyInfo& reply_info, 
 	const std::string& path_prefix, // e.g. "/photo_midsize_image/"
 	const std::function<const std::string& (const Photo&)>& get_field_func) // Get local_filename or local_thumbnail_filename or whatever from a Photo.
@@ -226,7 +264,11 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 				// Insert image tag
 				page += "<a href=\"" + fullsize_image_URL + "\"><img src=\"" + midsize_image_URL + "\"  class=\"photo-midsize-img\"/></a>"; // width=\"800px\"
 
+				// Caption on the left, summary of reactions received on the right.
+				page += "<div class=\"photo-caption-row\">\n";
 				page += "<figcaption><i>" + web::Escaping::HTMLEscape(photo->caption) + "</i></figcaption>\n";
+				page += "<div class=\"photo-reaction-summary\">" + reactionSummaryHTML(world_state, *photo) + "</div>\n";
+				page += "</div>\n";
 
 				User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
 				const bool logged_in_user_is_photo_owner = logged_in_user && (photo->creator_id == logged_in_user->id); // If the user is logged in and owns this parcel:
@@ -240,6 +282,25 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 				}
 
 				page += "<p>Photo by <i>" + web::Escaping::HTMLEscape(creator_username) + "</i></p>   \n";
+
+				// Emoji reaction buttons, coloured if the logged-in user has given that reaction.  Each is a form so it works without JS; photo.js submits them with fetch instead to avoid a page reload.
+				page += "<div class=\"photo-reactions\" id=\"reactions\">\n";
+				for(int t=0; t<PhotoReaction::EmojiType_NumTypes; ++t)
+				{
+					const PhotoReaction::EmojiType emoji_type = (PhotoReaction::EmojiType)t;
+					const bool reacted = logged_in_user && photo->hasReaction(emoji_type, logged_in_user->id);
+
+					page += "<form action=\"/photo_reaction_post\" method=\"post\" class=\"photo-reaction-form\">"
+						"<input type=\"hidden\" name=\"photo_id\" value=\"" + toString(photo_id) + "\">"
+						"<input type=\"hidden\" name=\"emoji_type\" value=\"" + toString(t) + "\">"
+						"<button type=\"submit\" class=\"photo-reaction" + std::string(reacted ? " reacted" : "") + "\" title=\"" + PhotoReaction::emojiName(emoji_type) + "\"" +
+						(logged_in_user ? "" : " disabled") + ">" +
+						"<span class=\"photo-reaction-emoji\">" + PhotoReaction::emojiString(emoji_type) + "</span></button>"
+						"</form>";
+				}
+				if(!logged_in_user)
+					page += "<span class=\"photo-reactions-login\"><a href=\"/login\">Log in</a> to react</span>";
+				page += "</div>\n";
 
 
 				// Look up parcel it was taken in, if any
@@ -509,6 +570,66 @@ void handleDeletePhotoPost(ServerAllWorldsState& world_state, const web::Request
 		if(!request.fuzzing)
 			conPrint("handleDeletePhotoPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+// If the 'ajax' post field is present (sent by photo.js), replies with JSON like {"reacted":true,"summary_html":"..."}, otherwise redirects back to the photo page.
+void handlePhotoReactionPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	const bool ajax = !request.getPostField("ajax").str().empty();
+	try
+	{
+		if(world_state.isInReadOnlyMode())
+			throw glare::Exception("Server is in read-only mode, editing disabled currently.");
+
+		const int photo_id = request.getPostIntField("photo_id");
+		const int emoji_type = request.getPostIntField("emoji_type");
+		if(emoji_type < 0 || emoji_type >= PhotoReaction::EmojiType_NumTypes)
+			throw glare::Exception("Invalid emoji type");
+
+		bool reacted = false;
+		std::string summary_html;
+		{ // Lock scope
+			Lock lock(world_state.mutex);
+
+			const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+			if(!logged_in_user)
+				throw glare::Exception("You must be logged in to react to a photo.");
+
+			const auto res = world_state.photos.find((uint64)photo_id);
+			if(res == world_state.photos.end())
+				throw glare::Exception("Couldn't find photo");
+
+			Photo* photo = res->second.ptr();
+			if(photo->state != Photo::State_published)
+				throw glare::Exception("Photo was deleted.");
+
+			reacted = photo->toggleReaction((PhotoReaction::EmojiType)emoji_type, logged_in_user->id);
+			summary_html = reactionSummaryHTML(world_state, *photo);
+
+			world_state.addPhotoAsDBDirty(photo);
+		} // End lock scope
+
+		if(ajax)
+		{
+			const std::string json = "{\"reacted\":" + std::string(reacted ? "true" : "false") + ",\"summary_html\":\"" + web::Escaping::JSONEscape(summary_html) + "\"}";
+			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, json.data(), json.size(), "application/json");
+		}
+		else
+			web::ResponseUtils::writeRedirectTo(reply_info, "/photo/" + toString(photo_id) + "#reactions");
+	}
+	catch(glare::Exception& e)
+	{
+		if(!request.fuzzing)
+			conPrint("handlePhotoReactionPost error: " + e.what());
+		if(ajax)
+		{
+			const std::string json = "{\"error\":\"" + web::Escaping::JSONEscape(e.what()) + "\"}";
+			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, json.data(), json.size(), "application/json");
+		}
+		else
+			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
 
