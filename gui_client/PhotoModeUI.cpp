@@ -252,6 +252,79 @@ PhotoModeUI::PhotoModeUI(GUIClient* gui_client_, GLUIRef gl_ui_, const Reference
 
 	grid_container->addWidgetOnNewRow(env_group);
 
+	//----------------------------------- Add video settings --------------------------------------------
+	{
+		GLUICollapsableGroupBox::CreateArgs args;
+		args.title = "Video Settings";
+		args.padding_px = 5;
+		args.background_colour = group_background_col;
+		args.background_alpha = group_background_alpha;
+		args.initially_expanded = false;
+		video_group = new GLUICollapsableGroupBox(*gl_ui_, args);
+		video_group->debug_name = "Video Settings collapsable group box";
+	}
+
+	{
+		GLUIGridContainer::CreateArgs args;
+		args.interior_cell_x_padding_px = 5;
+		args.interior_cell_y_padding_px = 5;
+		args.background_alpha = 0.0;
+		video_grid_container = new GLUIGridContainer(*gl_ui_, args);
+		video_grid_container->debug_name = "video grid container";
+
+		video_group->setBodyWidget(video_grid_container);
+	}
+
+	{
+		// Video frame rate buttons.  Only one is toggled at a time.
+		GLUIGridContainer::CreateArgs grid_args;
+		grid_args.background_alpha = 0.2f;
+		grid_args.background_colour = Colour3f(0.2f);
+		grid_args.interior_cell_y_padding_px = 2;
+		GLUIGridContainerRef video_frame_rate_grid = new GLUIGridContainer(*gl_ui_, grid_args);
+		video_frame_rate_grid->debug_name = "video frame rate grid";
+
+		{
+			GLUITextView::CreateArgs text_view_args;
+			text_view_args.background_alpha = 0;
+			text_view_args.text_colour = Colour3f(0.9f);
+			text_view_args.tooltip = "Frame rate of recorded videos";
+
+			video_frame_rate_label = new GLUITextView(*gl_ui, "Frame rate", Vec2f(0), text_view_args);
+			video_frame_rate_grid->setCellWidget(0, 0, video_frame_rate_label);
+		}
+		{
+			GLUITextButton::CreateArgs args;
+			args.tooltip = "60 fps if rendering at about 60 fps or faster when recording starts, otherwise 30 fps.";
+			video_frame_rate_auto_button = new GLUITextButton(*gl_ui_, "Auto", Vec2f(0), args);
+			video_frame_rate_auto_button->handler = this;
+			video_frame_rate_grid->setCellWidget(1, 0, video_frame_rate_auto_button);
+		}
+		{
+			GLUITextButton::CreateArgs args;
+			args.tooltip = "Record videos at 30 frames per second.";
+			video_frame_rate_30_button = new GLUITextButton(*gl_ui_, "30 fps", Vec2f(0), args);
+			video_frame_rate_30_button->handler = this;
+			video_frame_rate_grid->setCellWidget(2, 0, video_frame_rate_30_button);
+		}
+		{
+			GLUITextButton::CreateArgs args;
+			args.tooltip = "Record videos at 60 frames per second.  Frames are repeated if rendering is slower than 60 fps.";
+			video_frame_rate_60_button = new GLUITextButton(*gl_ui_, "60 fps", Vec2f(0), args);
+			video_frame_rate_60_button->handler = this;
+			video_frame_rate_grid->setCellWidget(3, 0, video_frame_rate_60_button);
+		}
+
+		const int frame_rate = settings->getIntValue("video/frame_rate", /*default=*/0);
+		video_frame_rate_auto_button->setToggled(frame_rate != 30 && frame_rate != 60);
+		video_frame_rate_30_button->setToggled(frame_rate == 30);
+		video_frame_rate_60_button->setToggled(frame_rate == 60);
+
+		video_grid_container->addWidgetOnNewRow(video_frame_rate_grid);
+	}
+
+	grid_container->addWidgetOnNewRow(video_group);
+
 	{
 		// Take photo and record video buttons, side by side
 		GLUIGridContainer::CreateArgs grid_args;
@@ -392,6 +465,16 @@ bool PhotoModeUI::lastSavedItemIsVideo() const
 }
 
 
+void PhotoModeUI::setVideoFrameRateSetting(int frame_rate)
+{
+	settings->setIntValue("video/frame_rate", frame_rate);
+
+	video_frame_rate_auto_button->setToggled(frame_rate == 0);
+	video_frame_rate_30_button->setToggled(frame_rate == 30);
+	video_frame_rate_60_button->setToggled(frame_rate == 60);
+}
+
+
 void PhotoModeUI::setVideoRecordingState(bool recording)
 {
 	if(record_video_button)
@@ -521,6 +604,9 @@ void PhotoModeUI::viewportResized(int w, int h)
 		reset_button->rebuild();
 		autofocus_off_button->rebuild();
 		autofocus_eye_button->rebuild();
+		video_frame_rate_auto_button->rebuild();
+		video_frame_rate_30_button->rebuild();
+		video_frame_rate_60_button->rebuild();
 		show_screenshots_button->rebuild();
 		upload_photo_button->rebuild();
 		hide_ui_button->rebuild();
@@ -635,6 +721,21 @@ void PhotoModeUI::eventOccurred(GLUICallbackEvent& event)
 			// The button toggles itself when clicked, so set it to the actual recording state, in case recording didn't start.
 			record_video_button->setToggled(gui_client->isVideoRecording());
 
+			event.accepted = true;
+		}
+		else if(event.widget == video_frame_rate_auto_button.ptr())
+		{
+			setVideoFrameRateSetting(0);
+			event.accepted = true;
+		}
+		else if(event.widget == video_frame_rate_30_button.ptr())
+		{
+			setVideoFrameRateSetting(30);
+			event.accepted = true;
+		}
+		else if(event.widget == video_frame_rate_60_button.ptr())
+		{
+			setVideoFrameRateSetting(60);
 			event.accepted = true;
 		}
 		else if(event.widget == show_screenshots_button.ptr())

@@ -82,6 +82,7 @@ private:
 	void hideUploadPhotoWidget();
 	void uploadPhoto();
 	bool lastSavedItemIsVideo() const;
+	void setVideoFrameRateSetting(int frame_rate); // frame_rate is 30, 60, or 0 for automatic.  Saves the setting and updates the buttons.
 
 	GUIClient* gui_client;
 
@@ -94,6 +95,9 @@ private:
 
 	GLUICollapsableGroupBoxRef env_group;
 	GLUIGridContainerRef env_grid_container;
+
+	GLUICollapsableGroupBoxRef video_group;
+	GLUIGridContainerRef video_grid_container;
 
 	GLUITextButtonRef standard_cam_button;
 	GLUITextButtonRef selfie_cam_button;
@@ -108,6 +112,10 @@ private:
 
 	GLUIButtonRef take_screenshot_button;
 	GLUIButtonRef record_video_button;
+	GLUITextViewRef video_frame_rate_label;
+	GLUITextButtonRef video_frame_rate_auto_button;
+	GLUITextButtonRef video_frame_rate_30_button;
+	GLUITextButtonRef video_frame_rate_60_button;
 	GLUITextButtonRef show_screenshots_button;
 	GLUITextButtonRef upload_photo_button;
 	GLUITextButtonRef hide_ui_button;

@@ -17753,6 +17753,11 @@ void GUIClient::startVideoRecording()
 		return;
 	}
 
+	// The video/frame_rate setting is 30 or 60, or 0 to choose from the recent rendering frame rate.
+	const int frame_rate_setting = settings->getIntValue("video/frame_rate", /*default=*/0);
+	const int fps = (frame_rate_setting == 30 || frame_rate_setting == 60) ? frame_rate_setting : ((last_fps >= 58) ? 60 : 30);
+	const uint32 bitrate = (fps == 60) ? 12'000'000 : 8'000'000;
+
 	try
 	{
 		const std::string base_path = this->appdata_path + "/screenshots/substrata_video_" + toString((uint64)Clock::getSecsSince1970());
@@ -17767,7 +17772,7 @@ void GUIClient::startVideoRecording()
 		stop_video_recording_requested = false;
 
 		Reference<VideoEncodeTask> task = new VideoEncodeTask();
-		task->job = video_recorder.startRecording(base_path + ".mp4", video_w, video_h, /*cur time=*/Clock::getTimeSinceInit(), /*fps=*/30, /*max duration (s)=*/15, /*bitrate=*/8'000'000);
+		task->job = video_recorder.startRecording(base_path + ".mp4", video_w, video_h, /*cur time=*/Clock::getTimeSinceInit(), fps, /*max duration (s)=*/15, bitrate);
 		task->poster_path = base_path + "_poster.jpg";
 		task->out_msg_queue = &this->msg_queue;
 		video_encode_task_manager->addTask(task);
@@ -17785,7 +17790,7 @@ void GUIClient::startVideoRecording()
 		photo_mode_ui->setVideoRecordingState(true);
 
 	// Notifications are UI overlay objects, which aren't included in grabbed frames.
-	showInfoNotification("Recording video.  Press [Shift+V] or [ESC] to stop.");
+	showInfoNotification("Recording video (" + toString(fps) + " fps).  Press [Shift+V] or [ESC] to stop.");
 #endif
 }
 
