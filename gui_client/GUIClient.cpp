@@ -97,6 +97,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../networking/Networking.h"
 #include "../networking/URL.h"
 #include "../graphics/ImageMap.h"
+#include "../graphics/jpegdecoder.h"
 #include "../graphics/SRGBUtils.h"
 #include "../graphics/BasisDecoder.h"
 #include "../graphics/FormatDecoderSubVox.h"
@@ -213,6 +214,11 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	cur_loading_model_lod_level(-1),
 	obs_with_scripts(/*empty val=*/WorldObjectRef()),
 	ui_hidden(false),
+	video_w(0),
+	video_h(0),
+	stop_video_recording_requested(false),
+	saving_video(false),
+	video_encode_task_manager(nullptr),
 	only_load_most_important_obs(false),
 	last_ping_send_time(-1000),
 	gear_item_update_sender(/*send period=*/2.0),
@@ -980,6 +986,11 @@ void GUIClient::shutdown()
 
 	model_and_texture_loader_task_manager.removeQueuedTasks();
 	model_and_texture_loader_task_manager.waitForTasksToComplete();
+
+	// End any recording in progress, so the VideoEncodeTask finalises the video file and finishes.  Then wait for it.
+	video_recorder.stopRecording(/*stop time=*/Clock::getTimeSinceInit());
+	delete video_encode_task_manager;
+	video_encode_task_manager = nullptr;
 
 	opengl_worker_thread_manager.killThreadsBlocking();
 
@@ -6076,6 +6087,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	if(opengl_engine.isNull())
 		return;
 
+	updateVideoRecording();
+
 	if((connection_state == ServerConnectionState_NotConnected) && (retry_connection_timer.elapsed() > 10.0))
 	{
 		// Try and connect
@@ -9881,6 +9894,30 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 		{
 			const ErrorMessage* m = checkedDowncastPtr<const ErrorMessage>(msg);
 			showErrorNotification(m->msg);
+		}
+		break;
+		case Msg_VideoSavedMessage:
+		{
+			const VideoSavedMessage* m = checkedDowncastPtr<const VideoSavedMessage>(msg);
+			saving_video = false;
+			if(m->succeeded)
+			{
+				// The upload button in the photo mode UI uploads the last saved item.  Setting photo/last_saved_photo_path to the poster
+				// frame image, and video/last_saved_video_poster_path to the same path, marks the video as the last saved item.  See PhotoModeUI::lastSavedItemIsVideo().
+				settings->setStringValue("video/last_saved_video_path", m->video_path);
+				settings->setStringValue("video/last_saved_video_poster_path", m->poster_path);
+				settings->setStringValue("photo/last_saved_photo_path", m->poster_path);
+				if(photo_mode_ui)
+					photo_mode_ui->updateUploadButtonText();
+
+				logMessage("Saved video to " + m->video_path);
+				showInfoNotification("Saved video to " + m->video_path);
+			}
+			else
+			{
+				logMessage("Failed to save video: " + m->error_msg);
+				showErrorNotification("Failed to save video: " + m->error_msg);
+			}
 		}
 		break;
 		case Msg_LogMessage:
@@ -17193,6 +17230,9 @@ void GUIClient::keyPressed(KeyEvent& e)
 			deselectParcel();
 
 		unhideUIIfHidden();
+
+		if(video_recorder.isRecording())
+			stop_video_recording_requested = true;
 	}
 
 	if(selected_ob.nonNull() && selected_ob->web_view_data.nonNull()) // If we have a web-view object selected, send keyboard input to it:
@@ -17307,7 +17347,10 @@ void GUIClient::keyPressed(KeyEvent& e)
 	}
 	else if(e.key == Key::Key_V)
 	{
-		ui_interface->toggleThirdPersonCameraMode();
+		if(BitUtils::isBitSet(e.modifiers, (uint32)Modifiers::Shift))
+			toggleVideoRecording();
+		else
+			ui_interface->toggleThirdPersonCameraMode();
 	}
 	else if(e.key == Key::Key_B)
 	{
@@ -17635,6 +17678,170 @@ void GUIClient::unhideUIIfHidden()
 			minimap->setVisible(true);
 
 		ui_hidden = false;
+	}
+}
+
+
+void GUIClient::toggleVideoRecording()
+{
+	if(video_recorder.isRecording())
+		stop_video_recording_requested = true; // Handled in updateVideoRecording(), where the GL context is current.
+	else
+		startVideoRecording();
+}
+
+
+// Encodes a video while it's being recorded, then saves the poster frame image.  Runs for the length of the recording.  Posts a VideoSavedMessage when done.
+class VideoEncodeTask : public glare::Task
+{
+public:
+	virtual void run(size_t thread_index) override
+	{
+		Reference<VideoSavedMessage> msg = new VideoSavedMessage();
+		msg->video_path = job->path;
+		msg->poster_path = poster_path;
+		try
+		{
+			job->run();
+
+			// Save the poster frame image, which is uploaded with the video and used for thumbnails on the website.
+			const VideoEncodeJob::FrameRef poster_frame = job->getPosterFrame();
+			ImageMapUInt8Ref poster = new ImageMapUInt8(job->width, job->height, 3);
+			std::memcpy(poster->getData(), poster_frame->data.data(), (size_t)job->width * job->height * 3);
+			JPEGDecoder::save(poster, poster_path, JPEGDecoder::SaveOptions(/*quality=*/95));
+
+			msg->succeeded = true;
+		}
+		catch(glare::Exception& e)
+		{
+			msg->error_msg = e.what();
+		}
+
+		job = nullptr; // Free the poster frame now rather than when the task is destroyed.
+
+		out_msg_queue->enqueue(msg);
+	}
+
+	VideoEncodeJobRef job;
+	std::string poster_path;
+	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
+};
+
+
+void GUIClient::startVideoRecording()
+{
+#if EMSCRIPTEN
+	showErrorNotification("Video recording is not supported in the web client yet.");
+#else
+	const int viewport_w = opengl_engine->getViewPortWidth();
+	const int viewport_h = opengl_engine->getViewPortHeight();
+	if(viewport_w <= 0 || viewport_h <= 0)
+		return;
+
+	// Scale down to at most 1280 pixels wide, keeping the aspect ratio.  H.264 needs even dimensions.
+	const int max_video_w = 1280;
+	const int w = myMin(viewport_w, max_video_w);
+	const int h = (int)((double)w * viewport_h / viewport_w);
+	video_w = w & ~1;
+	video_h = h & ~1;
+	if(video_w < 16 || video_h < 16)
+		return;
+
+	if(saving_video)
+	{
+		showErrorNotification("Still saving the previous video, please wait.");
+		return;
+	}
+
+	try
+	{
+		const std::string base_path = this->appdata_path + "/screenshots/substrata_video_" + toString((uint64)Clock::getSecsSince1970());
+		FileUtils::createDirIfDoesNotExist(FileUtils::getDirectory(base_path));
+
+		if(video_frame_grabber.isNull())
+			video_frame_grabber = new AsyncFrameGrabber(opengl_engine.ptr());
+
+		if(!video_encode_task_manager)
+			video_encode_task_manager = new glare::TaskManager("video encode task manager", /*num threads=*/1);
+
+		stop_video_recording_requested = false;
+
+		Reference<VideoEncodeTask> task = new VideoEncodeTask();
+		task->job = video_recorder.startRecording(base_path + ".mp4", video_w, video_h, /*cur time=*/Clock::getTimeSinceInit(), /*fps=*/30, /*max duration (s)=*/15, /*bitrate=*/8'000'000);
+		task->poster_path = base_path + "_poster.jpg";
+		task->out_msg_queue = &this->msg_queue;
+		video_encode_task_manager->addTask(task);
+
+		saving_video = true;
+	}
+	catch(glare::Exception& e)
+	{
+		logMessage("Failed to start video recording: " + e.what());
+		showErrorNotification("Failed to start video recording: " + e.what());
+		return;
+	}
+
+	if(photo_mode_ui)
+		photo_mode_ui->setVideoRecordingState(true);
+
+	// Notifications are UI overlay objects, which aren't included in grabbed frames.
+	showInfoNotification("Recording video.  Press [Shift+V] or [ESC] to stop.");
+#endif
+}
+
+
+void GUIClient::stopVideoRecordingAndSave()
+{
+	if(photo_mode_ui)
+		photo_mode_ui->setVideoRecordingState(false);
+	opengl_engine->requestFrameGrab(/*grabber=*/nullptr, 0, 0, 0); // Cancel any pending grab request.
+
+	// Add frames from any grabs still in flight, before ending the recording.  This needs the GL context, so is done here on the main thread.
+	temp_grabbed_frames.clear();
+	video_frame_grabber->waitForAllFrames(temp_grabbed_frames);
+	for(size_t i=0; i<temp_grabbed_frames.size(); ++i)
+		video_recorder.addFrame(temp_grabbed_frames[i].data, temp_grabbed_frames[i].width, temp_grabbed_frames[i].height, temp_grabbed_frames[i].frame_time);
+	temp_grabbed_frames.clear();
+
+	const bool encoding_failed = video_recorder.encodingFailed();
+
+	video_recorder.stopRecording(/*stop time=*/Clock::getTimeSinceInit());
+
+	if(video_recorder.getNumDroppedFrames() > 0)
+		logMessage("Video recording: dropped " + toString(video_recorder.getNumDroppedFrames()) + " frames because the encoder fell behind.");
+
+	if(!encoding_failed) // If encoding failed, the VideoEncodeTask posts a VideoSavedMessage with the error.
+		showInfoNotification("Saving video...");
+}
+
+
+// Called at the start of timerEvent(), before the frame is drawn.
+void GUIClient::updateVideoRecording()
+{
+	if(video_frame_grabber.isNull())
+		return;
+
+	// Add any completed frame grabs to the recorder.
+	temp_grabbed_frames.clear();
+	video_frame_grabber->pollCompletedFrames(temp_grabbed_frames);
+	for(size_t i=0; i<temp_grabbed_frames.size(); ++i)
+		video_recorder.addFrame(temp_grabbed_frames[i].data, temp_grabbed_frames[i].width, temp_grabbed_frames[i].height, temp_grabbed_frames[i].frame_time);
+	temp_grabbed_frames.clear();
+
+	if(video_recorder.isRecording())
+	{
+		const double cur_time = Clock::getTimeSinceInit();
+
+		if(stop_video_recording_requested || video_recorder.reachedMaxDuration(cur_time) || video_recorder.encodingFailed())
+		{
+			stop_video_recording_requested = false;
+			stopVideoRecordingAndSave();
+		}
+		else if(video_recorder.shouldCaptureFrame(cur_time))
+		{
+			// The frame about to be drawn in this timerEvent is the first in a new output frame slot, so grab it.
+			opengl_engine->requestFrameGrab(video_frame_grabber.ptr(), video_w, video_h, /*frame time=*/cur_time);
+		}
 	}
 }
 

@@ -474,19 +474,37 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/hitinfo.h
 set(fft2d "../libs/fft2d/fft4f2d.c")
 
 
-set(video 
+set(video
 ${GLARE_CORE_TRUNK_DIR_ENV}/video/VideoReader.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/video/VideoReader.h
+${GLARE_CORE_TRUNK_DIR_ENV}/video/VideoWriter.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/video/VideoWriter.h
+${GLARE_CORE_TRUNK_DIR_ENV}/video/VideoRecorder.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/video/VideoRecorder.h
+${GLARE_CORE_TRUNK_DIR_ENV}/video/MP4FastStart.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/video/MP4FastStart.h
 )
 
 if(WIN32)
-set(video 
+set(video
 ${video}
 ${GLARE_CORE_TRUNK_DIR_ENV}/video/WMFVideoReader.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/video/WMFVideoReader.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/video/WMFVideoReaderCallback.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/video/WMFVideoReaderCallback.h
+${GLARE_CORE_TRUNK_DIR_ENV}/video/WMFVideoWriter.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/video/WMFVideoWriter.h
 )
+endif()
+
+if(APPLE)
+set(video
+${video}
+${GLARE_CORE_TRUNK_DIR_ENV}/video/AVFVideoWriter.mm
+${GLARE_CORE_TRUNK_DIR_ENV}/video/AVFVideoWriter.h
+)
+# Compile as Objective-C++, since the project doesn't enable the OBJCXX language.
+set_source_files_properties(${GLARE_CORE_TRUNK_DIR_ENV}/video/AVFVideoWriter.mm PROPERTIES COMPILE_FLAGS "-x objective-c++")
 endif()
 
 

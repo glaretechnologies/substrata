@@ -55,6 +55,7 @@ enum GuiClientThreadMessages
 	Msg_BuilderAIErrorMessage,
 	Msg_TerrainQueriesToProcessMessage,
 	Msg_ModelLoadFailedThreadMessage,
+	Msg_VideoSavedMessage,
 	Msg_TextureUploadedMessage = 1000, // Should match the values from <opengl/OpenGLUploadThread.h>
 	Msg_AnimatedTextureUpdated = 1001,
 	Msg_GeometryUploadedMessage = 1002,
@@ -83,6 +84,18 @@ class ErrorMessage : public ThreadMessage
 public:
 	ErrorMessage(const std::string& msg_) : ThreadMessage(Msg_ErrorMessage), msg(msg_) {}
 	std::string msg;
+};
+
+
+// Posted by the video encoding thread when it has finished, successfully or not.
+class VideoSavedMessage : public ThreadMessage
+{
+public:
+	VideoSavedMessage() : ThreadMessage(Msg_VideoSavedMessage), succeeded(false) {}
+	bool succeeded;
+	std::string video_path;
+	std::string poster_path;
+	std::string error_msg; // Set if !succeeded
 };
 
 

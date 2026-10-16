@@ -35,6 +35,8 @@ Copyright Glare Technologies Limited 2024 -
 #include "../opengl/TextureLoading.h"
 #include "../opengl/PBOAsyncTextureUploader.h"
 #include "../opengl/AsyncGeometryUploader.h"
+#include "../opengl/AsyncFrameGrabber.h"
+#include "../video/VideoRecorder.h"
 //#include "../opengl/TransformGizmo.h"
 #include "../shared/WorldObject.h"
 #include "../shared/LuaScriptEvaluator.h"
@@ -307,6 +309,11 @@ public:
 	void setNotificationsVisible(bool visible);
 	void hideUI();
 	void unhideUIIfHidden();
+	void toggleVideoRecording(); // Starts recording, or requests that recording stops.
+	bool isVideoRecording() const { return video_recorder.isRecording() && !stop_video_recording_requested; }
+	void startVideoRecording();
+	void stopVideoRecordingAndSave();
+	void updateVideoRecording();
 	void updateParcelGraphics();
 	void assignLODChunkSubMeshPlaceholderToOb(const LODChunk* chunk, WorldObject* const ob);
 	void updateLODChunkGraphics();
@@ -996,6 +1003,15 @@ public:
 	URLWhitelist url_whitelist;
 
 	bool ui_hidden;
+
+	// Video recording (Shift+V)
+	VideoRecorder video_recorder;
+	AsyncFrameGrabberRef video_frame_grabber;
+	std::vector<AsyncFrameGrabber::GrabbedFrame> temp_grabbed_frames;
+	int video_w, video_h;
+	bool stop_video_recording_requested; // Set by key handlers, handled in updateVideoRecording() where the GL context is current.
+	bool saving_video; // True from the start of a recording until its VideoEncodeTask has finished encoding and saving the video.
+	glare::TaskManager* video_encode_task_manager; // Runs VideoEncodeTasks.  Lazily created.
 
 	bool only_load_most_important_obs;
 

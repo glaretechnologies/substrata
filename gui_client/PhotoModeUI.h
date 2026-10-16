@@ -59,6 +59,11 @@ public:
 
 	void think();
 
+	// The upload button uploads the last saved photo or video.  Sets its text to 'Upload photo' or 'Upload video' accordingly.
+	void updateUploadButtonText();
+
+	void setVideoRecordingState(bool recording); // Shows the record video button as toggled while recording.
+
 	void viewportResized(int w, int h);
 
 	virtual void eventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
@@ -76,6 +81,7 @@ private:
 	void showUploadPhotoWidget();
 	void hideUploadPhotoWidget();
 	void uploadPhoto();
+	bool lastSavedItemIsVideo() const;
 
 	GUIClient* gui_client;
 
@@ -101,6 +107,7 @@ private:
 	GLUITextButtonRef autofocus_eye_button;
 
 	GLUIButtonRef take_screenshot_button;
+	GLUIButtonRef record_video_button;
 	GLUITextButtonRef show_screenshots_button;
 	GLUITextButtonRef upload_photo_button;
 	GLUITextButtonRef hide_ui_button;
@@ -132,6 +139,7 @@ private:
 	double im_to_upload_aspect_ratio;
 
 	std::string upload_image_jpeg_path;
+	std::string upload_video_path; // Non-empty if the upload dialog is for a video, in which case upload_image_jpeg_path is the poster frame image.
 	ThreadManager upload_thread_manager;
 
 	std::string last_caption;

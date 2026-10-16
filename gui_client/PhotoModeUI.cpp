@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2025 -
 #include <utils/StringUtils.h>
 #include <utils/PlatformUtils.h>
 #include <utils/FileChecksum.h>
+#include <utils/FileUtils.h>
 #include <utils/MemMappedFile.h>
 #include <utils/MessageableThread.h>
 #if EMSCRIPTEN
@@ -252,15 +253,39 @@ PhotoModeUI::PhotoModeUI(GUIClient* gui_client_, GLUIRef gl_ui_, const Reference
 	grid_container->addWidgetOnNewRow(env_group);
 
 	{
-		GLUIButton::CreateArgs args;
-		args.tooltip = "Take photo";
-		args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
-		args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
-		args.fixed_size = Vec2f(50.f);
-		take_screenshot_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + "/buttons/Selfie.png", args);
-		//take_screenshot_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + "/buttons/minimap_icon.png", Vec2f(0), Vec2f(0.1f, 0.1f),args);
-		take_screenshot_button->handler = this;
-		grid_container->addWidgetOnNewRow(take_screenshot_button);
+		// Take photo and record video buttons, side by side
+		GLUIGridContainer::CreateArgs grid_args;
+		grid_args.background_alpha = 0;
+		grid_args.interior_cell_x_padding_px = 10;
+		GLUIGridContainerRef capture_buttons_grid = new GLUIGridContainer(*gl_ui_, grid_args);
+		capture_buttons_grid->debug_name = "capture buttons grid";
+
+		{
+			GLUIButton::CreateArgs args;
+			args.tooltip = "Take photo";
+			args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
+			args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
+			args.fixed_size = Vec2f(50.f);
+			take_screenshot_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + "/buttons/Selfie.png", args);
+			take_screenshot_button->handler = this;
+			capture_buttons_grid->setCellWidget(0, 0, take_screenshot_button);
+		}
+		{
+			GLUIButton::CreateArgs args;
+			args.tooltip = "Record video (Shift+V).  Click again or press [ESC] to stop.";
+			args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
+			args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
+			args.fixed_size = Vec2f(50.f);
+			args.toggled_colour = toLinearSRGB(Colour3f(1.f, 0.55f, 0.55f)); // Tint red while recording
+			args.mouseover_toggled_colour = toLinearSRGB(Colour3f(1.f, 0.65f, 0.65f));
+			record_video_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + "/buttons/record_video.png", args);
+			record_video_button->toggleable = true;
+			record_video_button->setToggled(gui_client->isVideoRecording());
+			record_video_button->handler = this;
+			capture_buttons_grid->setCellWidget(1, 0, record_video_button);
+		}
+
+		grid_container->addWidgetOnNewRow(capture_buttons_grid);
 	}
 	{
 		GLUITextButton::CreateArgs args;
@@ -270,9 +295,11 @@ PhotoModeUI::PhotoModeUI(GUIClient* gui_client_, GLUIRef gl_ui_, const Reference
 		grid_container->addWidgetOnNewRow(show_screenshots_button);
 	}
 	{
+		// The button uploads the last saved photo or video.  See updateUploadButtonText().
+		const bool is_video = lastSavedItemIsVideo();
 		GLUITextButton::CreateArgs args;
-		args.tooltip = "Upload photo to the website";
-		upload_photo_button = new GLUITextButton(*gl_ui_, "Upload photo", Vec2f(0), args);
+		args.tooltip = is_video ? "Upload the last recorded video to the website" : "Upload photo to the website";
+		upload_photo_button = new GLUITextButton(*gl_ui_, is_video ? "Upload video" : "Upload photo", Vec2f(0), args);
 		upload_photo_button->handler = this;
 		grid_container->addWidgetOnNewRow(upload_photo_button);
 	}
@@ -350,6 +377,37 @@ void PhotoModeUI::setVisible(bool visible)
 {
 	if(window)
 		window->setVisible(visible);
+
+	if(visible)
+		updateUploadButtonText(); // A photo or video may have been saved since the photo mode UI was last shown.
+}
+
+
+// When a video is saved, photo/last_saved_photo_path is set to its poster frame image, so the last saved item is a video
+// if photo/last_saved_photo_path is the poster frame of the last video.  Taking a screenshot sets photo/last_saved_photo_path to the screenshot.
+bool PhotoModeUI::lastSavedItemIsVideo() const
+{
+	const std::string last_saved_photo_path = settings->getStringValue("photo/last_saved_photo_path", "");
+	return !last_saved_photo_path.empty() && (last_saved_photo_path == settings->getStringValue("video/last_saved_video_poster_path", ""));
+}
+
+
+void PhotoModeUI::setVideoRecordingState(bool recording)
+{
+	if(record_video_button)
+		record_video_button->setToggled(recording);
+}
+
+
+void PhotoModeUI::updateUploadButtonText()
+{
+	if(upload_photo_button)
+	{
+		const bool is_video = lastSavedItemIsVideo();
+		upload_photo_button->setText(is_video ? "Upload video" : "Upload photo");
+		upload_photo_button->setTooltip(is_video ? "Upload the last recorded video to the website" : "Upload photo to the website");
+		updateWidgetPositions();
+	}
 }
 
 
@@ -566,6 +624,16 @@ void PhotoModeUI::eventOccurred(GLUICallbackEvent& event)
 		else if(event.widget == take_screenshot_button.ptr())
 		{
 			gui_client->ui_interface->takeScreenshot();
+			updateUploadButtonText();
+
+			event.accepted = true;
+		}
+		else if(event.widget == record_video_button.ptr())
+		{
+			gui_client->toggleVideoRecording();
+
+			// The button toggles itself when clicked, so set it to the actual recording state, in case recording didn't start.
+			record_video_button->setToggled(gui_client->isVideoRecording());
 
 			event.accepted = true;
 		}
@@ -769,13 +837,22 @@ void PhotoModeUI::showUploadPhotoWidget()
 		std::string jpeg_path;
 		try
 		{
-			// Get last image
+			// Get last image.  If the last saved item was a video, this is the video's poster frame image.
 			const std::string last_saved_photo_path = settings->getStringValue("photo/last_saved_photo_path", "");
 
 			if(last_saved_photo_path.empty())
 			{
 				gui_client->showErrorNotification("Take a photo first!");
 				return;
+			}
+
+			this->upload_video_path.clear();
+			if(lastSavedItemIsVideo())
+			{
+				const std::string last_saved_video_path = settings->getStringValue("video/last_saved_video_path", "");
+				if(last_saved_video_path.empty() || !FileUtils::fileExists(last_saved_video_path))
+					throw glare::Exception("Couldn't find last saved video '" + last_saved_video_path + "'");
+				this->upload_video_path = last_saved_video_path;
 			}
 
 			const uint64 hash = FileChecksum::fileChecksum(last_saved_photo_path);
@@ -897,7 +974,8 @@ public:
 
 			socket->writeUInt32(Protocol::CyberspaceHello); // Write hello
 			socket->writeUInt32(Protocol::CyberspaceProtocolVersion); // Write protocol version
-			socket->writeUInt32(Protocol::ConnectionTypeUploadPhoto); // Write connection type
+			const bool is_video = !upload_video_path.empty();
+			socket->writeUInt32(is_video ? Protocol::ConnectionTypeUploadVideo : Protocol::ConnectionTypeUploadPhoto); // Write connection type
 			socket->flush();
 
 			conPrint("UploadPhotoThread: reading hello...");
@@ -923,6 +1001,9 @@ public:
 
 			// Read server protocol version
 			const uint32 server_protocol_version = socket->readUInt32();
+
+			if(is_video && (server_protocol_version < 56)) // ConnectionTypeUploadVideo was added in protocol version 56.
+				throw glare::Exception("This server does not support video uploads yet.");
 
 			// Read server capabilities
 			[[maybe_unused]] uint32 server_capabilities = 0;
@@ -960,16 +1041,29 @@ public:
 			socket->writeData(file.fileData(), file.fileSize());
 			conPrint("UploadPhotoThread: Sent file '" + upload_image_jpeg_path + "' (" + toString(file.fileSize()) + " B)");
 
+			// For videos, the photo above is the poster frame, and the MP4 data follows.
+			if(is_video)
+			{
+				MemMappedFile video_file(upload_video_path);
+
+				socket->writeUInt64(video_file.fileSize());
+				socket->writeData(video_file.fileData(), video_file.fileSize());
+				conPrint("UploadPhotoThread: Sent file '" + upload_video_path + "' (" + toString(video_file.fileSize()) + " B)");
+			}
+			socket->flush();
+
+			const std::string item_name = is_video ? "Video" : "Photo";
+
 			// Read result: PhotoUploadSucceeded or PhotoUploadFailed
 			const uint32 upload_result = socket->readUInt32();
 			if(upload_result == Protocol::PhotoUploadSucceeded)
 			{
-				out_msg_queue->enqueue(new InfoMessage("Photo Uploaded"));
+				out_msg_queue->enqueue(new InfoMessage(item_name + " Uploaded"));
 			}
 			else if(upload_result == Protocol::PhotoUploadFailed)
 			{
 				const std::string msg = socket->readStringLengthFirst(10000);
-				out_msg_queue->enqueue(new InfoMessage("Photo upload failed: " + msg));
+				out_msg_queue->enqueue(new InfoMessage(item_name + " upload failed: " + msg));
 			}
 			else
 				throw glare::Exception("Expected to read PhotoUploadSucceeded or PhotoUploadFailed");
@@ -978,11 +1072,12 @@ public:
 		{
 			conPrint("UploadPhotoThread glare::Exception: " + e.what());
 
-			out_msg_queue->enqueue(new ErrorMessage("Photo upload failed: " + e.what()));
+			out_msg_queue->enqueue(new ErrorMessage(std::string(upload_video_path.empty() ? "Photo" : "Video") + " upload failed: " + e.what()));
 		}
 	}
 
 	std::string upload_image_jpeg_path;
+	std::string upload_video_path; // If non-empty, uploads this MP4 video, with upload_image_jpeg_path as the poster frame.
 	std::string world_name;
 	ParcelID parcel_id;
 	Vec3d cam_pos, cam_angles;
@@ -1019,6 +1114,7 @@ void PhotoModeUI::uploadPhoto()
 	thread->cam_pos = gui_client->cam_controller.getPosition();
 	thread->cam_angles = gui_client->cam_controller.getAngles();
 	thread->upload_image_jpeg_path = upload_image_jpeg_path;
+	thread->upload_video_path = upload_video_path;
 	thread->hostname = gui_client->server_hostname;
 	thread->port = gui_client->server_port;
 	thread->username = username;
