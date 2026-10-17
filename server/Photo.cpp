@@ -48,6 +48,7 @@ const char* PhotoReaction::emojiName(EmojiType emoji_type)
 Photo::Photo()
 {
 	flags = 0;
+	type = Type_Image;
 	state = State_published;
 }
 
@@ -93,9 +94,10 @@ size_t Photo::numReactions(PhotoReaction::EmojiType emoji_type) const
 }
 
 
-static const uint32 PHOTO_SERIALISATION_VERSION = 3;
+static const uint32 PHOTO_SERIALISATION_VERSION = 4;
 // v2: added state
 // v3: added reactions
+// v4: added type, local_video_filename
 
 
 void Photo::writeToStream(RandomAccessOutStream& stream) const
@@ -140,6 +142,10 @@ void Photo::writeToStream(RandomAccessOutStream& stream) const
 		stream.writeUInt32((uint32)reactions[i].emoji_type);
 		::writeToStream(reactions[i].user_id, stream);
 	}
+
+	stream.writeUInt32((uint32)type);
+	runtimeCheck(local_video_filename.size() <= 10000);
+	stream.writeStringLengthFirst(local_video_filename);
 
 
 	// Go back and write size of buffer to buffer size field
@@ -199,6 +205,17 @@ void readPhotoFromStream(RandomAccessInStream& stream, Photo& photo)
 				photo.reactions.push_back(reaction);
 			}
 		}
+	}
+
+	photo.type = Photo::Type_Image;
+	photo.local_video_filename.clear();
+	if(version >= 4)
+	{
+		const uint32 t = stream.readUInt32();
+		if(t > Photo::Type_Video)
+			throw glare::Exception("Invalid photo type");
+		photo.type = (Photo::Type)t;
+		photo.local_video_filename = stream.readStringLengthFirst(10000);
 	}
 
 	// Discard any remaining unread data

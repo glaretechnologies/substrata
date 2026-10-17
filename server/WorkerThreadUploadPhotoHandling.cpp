@@ -29,6 +29,7 @@ Copyright Glare Technologies Limited 2025 -
 #include <RuntimeCheck.h>
 #include <Timer.h>
 #include <utils/TestUtils.h>
+#include <cstring>
 
 
 namespace WorkerThreadUploadPhotoHandling
@@ -38,9 +39,22 @@ namespace WorkerThreadUploadPhotoHandling
 static const int MAX_STRING_LEN = 10000;
 
 
-void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* server, const web::RequestInfo& websocket_request_info, bool fuzzing)
+static const uint64 MAX_VIDEO_SIZE_B = 50'000'000;
+
+
+// Checks the data looks like an MP4 file: it starts with an 'ftyp' box.  This stops arbitrary data from being served as video/mp4.
+static bool looksLikeMP4(const std::vector<uint8>& data)
 {
-	conPrint("handlePhotoUploadConnection()");
+	if(data.size() < 8)
+		return false;
+	const uint32 box_size = ((uint32)data[0] << 24) | ((uint32)data[1] << 16) | ((uint32)data[2] << 8) | (uint32)data[3];
+	return (box_size >= 8) && (box_size <= data.size()) && (std::memcmp(data.data() + 4, "ftyp", 4) == 0);
+}
+
+
+void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* server, const web::RequestInfo& websocket_request_info, bool fuzzing, bool is_video)
+{
+	conPrint("handlePhotoUploadConnection() (is_video: " + boolToString(is_video) + ")");
 
 	socket->flush();
 
@@ -160,6 +174,36 @@ void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* serv
 
 		conPrint("Received photo of " + toString(data_len) + " B");
 
+		// For videos, read the MP4 data, which follows the poster frame JPEG.
+		std::vector<uint8> video_data;
+		std::string video_filename;
+		if(is_video)
+		{
+			const uint64 video_data_len = socket->readUInt64();
+			if(video_data_len > MAX_VIDEO_SIZE_B)
+			{
+				socket->writeUInt32(Protocol::PhotoUploadFailed);
+				socket->writeStringLengthFirst("Video was too large (max size is " + toString(MAX_VIDEO_SIZE_B / 1'000'000) + " MB)");
+				socket->flush();
+				return;
+			}
+
+			conPrint("Receiving video of " + toString(video_data_len) + " B");
+			video_data.resize(video_data_len);
+			socket->readData(video_data.data(), video_data_len);
+			conPrint("Received video of " + toString(video_data_len) + " B");
+
+			if(!looksLikeMP4(video_data))
+			{
+				socket->writeUInt32(Protocol::PhotoUploadFailed);
+				socket->writeStringLengthFirst("Video is not an MP4 file.");
+				socket->flush();
+				return;
+			}
+
+			video_filename = "video_" + random_path_hex_str + ".mp4";
+		}
+
 		std::string midsize_filename, thumbnail_filename;
 
 		// Save photo to path
@@ -185,6 +229,9 @@ void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* serv
 			{
 				// Save original/full resolution photo to disk.  Do this after making other photo sizes, which will check it's a valid JPEG file.
 				FileUtils::writeEntireFile(photo_path, data);
+
+				if(is_video)
+					FileUtils::writeEntireFile(server->photo_dir + "/" + video_filename, video_data);
 			}
 			catch(glare::Exception& e)
 			{
@@ -211,6 +258,8 @@ void handlePhotoUploadConnection(Reference<SocketInterface> socket, Server* serv
 		photo->local_filename = photo_filename;
 		photo->local_thumbnail_filename = thumbnail_filename;
 		photo->local_midsize_filename = midsize_filename;
+		photo->type = is_video ? Photo::Type_Video : Photo::Type_Image;
+		photo->local_video_filename = video_filename;
 
 		// Add to server DB
 		{

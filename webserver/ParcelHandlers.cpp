@@ -77,7 +77,7 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 				const Photo* photo = it->second.ptr();
 				if((photo->parcel_id.value() == parcel_id) && (photo->state == Photo::State_published))
 				{
-					images_html += "<a href=\"/photo/" + toString(photo->id) + "\"><img class=\"generic-image\" src=\"" + photo->midSizeImageURLPath() + "\" alt=\"photo\" /></a>   \n";
+					images_html += "<a href=\"/photo/" + toString(photo->id) + "\"" + (photo->isVideo() ? " class=\"video-thumb\"" : "") + "><img class=\"generic-image\" src=\"" + photo->midSizeImageURLPath() + "\" alt=\"photo\" /></a>   \n";
 
 					if(first_image_path.empty())
 						first_image_path = photo->midSizeImageURLPath();

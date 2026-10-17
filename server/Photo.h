@@ -65,6 +65,7 @@ public:
 	std::string fullSizeImageURLPath()       const { return "/photo_image/"         + toString(id); }
 	std::string midSizeImageURLPath()        const { return "/photo_midsize_image/" + toString(id); }
 	std::string thumbnailSizeImageURLPath()  const { return "/photo_thumb_image/"   + toString(id); }
+	std::string videoURLPath()               const { return "/photo_video/"         + toString(id); }
 
 	static const size_t MAX_CAPTION_SIZE = 10000;
 	static const size_t MAX_WORLD_NAME_SIZE = 1000;
@@ -87,6 +88,17 @@ public:
 	std::string local_filename; // file name on disk of full resolution saved photo
 	std::string local_thumbnail_filename; // file name on disk of thumbnail (200 px wide)
 	std::string local_midsize_filename; // file name on disk of mid-size image (max 1000px wide)
+
+	// A Photo can be a video.  In that case the image files above are made from a poster frame uploaded with the video.
+	enum Type
+	{
+		Type_Image = 0,
+		Type_Video = 1
+	};
+	Type type;
+	std::string local_video_filename; // file name on disk of the MP4 video, if type is Type_Video.
+
+	bool isVideo() const { return type == Type_Video; }
 
 	enum State
 	{

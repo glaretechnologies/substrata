@@ -1262,7 +1262,11 @@ void WorkerThread::doRun()
 		}
 		else if(connection_type == Protocol::ConnectionTypeUploadPhoto)
 		{
-			WorkerThreadUploadPhotoHandling::handlePhotoUploadConnection(socket, server, websocket_request_info, fuzzing);
+			WorkerThreadUploadPhotoHandling::handlePhotoUploadConnection(socket, server, websocket_request_info, fuzzing, /*is_video=*/false);
+		}
+		else if(connection_type == Protocol::ConnectionTypeUploadVideo)
+		{
+			WorkerThreadUploadPhotoHandling::handlePhotoUploadConnection(socket, server, websocket_request_info, fuzzing, /*is_video=*/true);
 		}
 		else if(connection_type == Protocol::ConnectionTypeUpdates)
 		{

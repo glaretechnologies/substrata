@@ -432,6 +432,24 @@ a
 	max-width: 100%;
 }
 
+/* Link around a video thumbnail: draws a play symbol over the image */
+.video-thumb {
+	position: relative;
+	display: block;
+}
+
+.video-thumb::after {
+	content: "\25B6\FE0E"; /* Play symbol, with text presentation selector so it's not drawn as an emoji */
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	font-size: 40px;
+	color: white;
+	text-shadow: 0 0 8px rgba(0, 0, 0, 0.7);
+	pointer-events: none;
+}
+
 /* Caption on the left, summary of reactions received on the right */
 .photo-caption-row {
 	display: flex;

@@ -231,6 +231,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 			{
 				photos_html += "<a href=\"/photo/";
 				photos_html += toString(photo->id);
+				photos_html += photo->isVideo() ? "\" class=\"video-thumb" : "";
 				photos_html += "\"><img src=\"/photo_thumb_image/";
 				photos_html += toString(photo->id);
 				photos_html += "\" class=\"root-photo-img\" title=\"";

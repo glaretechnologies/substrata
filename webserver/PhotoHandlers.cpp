@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2025 -
 #include "WebServerResponseUtils.h"
 #include "LoginHandlers.h"
 #include "../server/ServerWorldState.h"
+#include <maths/CheckedMaths.h>
 #include <ConPrint.h>
 #include <Exception.h>
 #include <Lock.h>
@@ -154,6 +155,92 @@ void handlePhotoThumbnailImageRequest(ServerAllWorldsState& world_state, WebData
 }
 
 
+// Serves the MP4 file for a video.  Supports single-range requests, which browsers use for video playback and seeking (Safari requires them).
+void handlePhotoVideoRequest(ServerAllWorldsState& world_state, WebDataStore& datastore, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	try
+	{
+		// Parse photo id from request path
+		Parser parser(request.path);
+		if(!parser.parseString("/photo_video/"))
+			throw glare::Exception("Failed to parse '/photo_video/'");
+
+		uint64 photo_id;
+		if(!parser.parseUInt64(photo_id))
+			throw glare::Exception("Failed to parse photo_id");
+
+		std::string local_video_filename;
+		{ // lock scope
+			Lock lock(world_state.mutex);
+
+			auto res = world_state.photos.find(photo_id);
+			if(res == world_state.photos.end())
+				throw glare::Exception("Couldn't find photo");
+
+			const Photo* photo = res->second.ptr();
+			if(!photo->isVideo() || (photo->state != Photo::State_published))
+				throw glare::Exception("Not a published video");
+
+			local_video_filename = photo->local_video_filename;
+		} // end lock scope
+
+		MemMappedFile file(datastore.photo_dir + "/" + local_video_filename);
+		const int64 file_size = (int64)file.fileSize();
+
+		const std::string common_headers =
+			"Content-Type: video/mp4\r\n"
+			"X-Content-Type-Options: nosniff\r\n"
+			"Accept-Ranges: bytes\r\n"
+			"Cache-Control: max-age=31449600\r\n" // 1 year
+			"Connection: Keep-Alive\r\n";
+
+		if(request.ranges.size() == 1)
+		{
+			const web::Range range = request.ranges[0];
+			if(range.start < 0 || range.start >= file_size)
+				throw glare::Exception("invalid range");
+
+			int64 range_size;
+			if(range.end_incl == -1) // If the range is to the end of the file:
+				range_size = file_size - range.start;
+			else
+			{
+				if((range.start > range.end_incl) || (range.end_incl == std::numeric_limits<int64>::max()))
+					throw glare::Exception("invalid range");
+				range_size = myMin(range.end_incl + 1, file_size) - range.start; // Clamp the end to the file size, as allowed by RFC 9110.
+			}
+
+			const std::string response =
+				"HTTP/1.1 206 Partial Content\r\n" +
+				common_headers +
+				"Content-Range: bytes " + toString(range.start) + "-" + toString(range.start + range_size - 1) + "/" + toString(file_size) + "\r\n" // Note that ranges are inclusive, hence the - 1.
+				"Content-Length: " + toString(range_size) + "\r\n"
+				"\r\n";
+			reply_info.socket->writeData(response.c_str(), response.size());
+
+			runtimeCheck((range.start >= 0) && (range_size >= 0) && (CheckedMaths::addSignedInts(range.start, range_size) <= file_size));
+			reply_info.socket->writeData((const uint8*)file.fileData() + range.start, range_size);
+		}
+		else
+		{
+			const std::string response =
+				"HTTP/1.1 200 OK\r\n" +
+				common_headers +
+				"Content-Length: " + toString(file_size) + "\r\n"
+				"\r\n";
+			reply_info.socket->writeData(response.c_str(), response.size());
+			reply_info.socket->writeData(file.fileData(), file.fileSize());
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		if(!request.fuzzing)
+			conPrint("handlePhotoVideoRequest error: " + e.what());
+		web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Video not found.");
+	}
+}
+
+
 void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& datastore, const web::RequestInfo& request, web::ReplyInfo& reply_info)
 {
 	try
@@ -234,15 +321,21 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 
 				const std::string this_page_url = "https://" + request.getHostHeader() + "/photo/" + toString(photo_id);
 
+				const std::string photo_or_video = photo->isVideo() ? "Video" : "Photo";
+
 				// Add some meta tags for 'Twitter cards' which allow an image-based preview for tweets that refer to this page.  See https://developer.x.com/en/docs/x-for-websites/cards/overview/summary-card-with-large-image
-				const std::string meta_header_tags = 
-					"\t\t<meta property=\"og:title\" content=\"Photo by " + web::Escaping::HTMLEscape(creator_username) + " in Substrata\" />      \n"
+				std::string meta_header_tags =
+					"\t\t<meta property=\"og:title\" content=\"" + photo_or_video + " by " + web::Escaping::HTMLEscape(creator_username) + " in Substrata\" />      \n"
 					"\t\t<meta property=\"og:description\" content=\"" +  web::Escaping::HTMLEscape(photo->caption) + "\" />		 \n"
 					"\t\t<meta property=\"og:image\" content=\"https://" + request.getHostHeader() + midsize_image_URL + "\" />		\n"
 					"\t\t<meta property=\"og:url\" content=\"" + this_page_url + "\" />	  \n"
 					"\t\t<meta property=\"og:type\" content=\"article\" />		  \n"
 					"\t\t<meta name=\"twitter:card\" content=\"summary_large_image\" />	   \n"
 					"\t\t<meta name=\"twitter:site\" content=\"@SubstrataVr\" />	 ";
+				if(photo->isVideo())
+					meta_header_tags += "\n"
+						"\t\t<meta property=\"og:video\" content=\"https://" + request.getHostHeader() + photo->videoURLPath() + "\" />		\n"
+						"\t\t<meta property=\"og:video:type\" content=\"video/mp4\" />		";
 
 				page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*//*"Photo #" + toString(photo_id) + ""*/"", /*extra header tags=*/meta_header_tags);
 				page += "<div class=\"main\">   \n";
@@ -261,8 +354,18 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 					"</div>\n";
 
 
-				// Insert image tag
-				page += "<a href=\"" + fullsize_image_URL + "\"><img src=\"" + midsize_image_URL + "\"  class=\"photo-midsize-img\"/></a>"; // width=\"800px\"
+				if(photo->isVideo())
+				{
+					// Insert video tag, using the midsize poster frame image as the poster.
+					// Browsers only allow autoplay without user interaction if the video is muted.  (Recorded videos don't have audio currently anyway.)
+					page += "<video controls autoplay muted loop playsinline preload=\"auto\" poster=\"" + midsize_image_URL + "\" class=\"photo-midsize-img\">"
+						"<source src=\"" + photo->videoURLPath() + "\" type=\"video/mp4\"></video>";
+				}
+				else
+				{
+					// Insert image tag
+					page += "<a href=\"" + fullsize_image_URL + "\"><img src=\"" + midsize_image_URL + "\"  class=\"photo-midsize-img\"/></a>"; // width=\"800px\"
+				}
 
 				// Caption on the left, summary of reactions received on the right.
 				page += "<div class=\"photo-caption-row\">\n";
@@ -281,7 +384,7 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 						page += "<div class=\"msg\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
 				}
 
-				page += "<p>Photo by <i>" + web::Escaping::HTMLEscape(creator_username) + "</i></p>   \n";
+				page += "<p>" + photo_or_video + " by <i>" + web::Escaping::HTMLEscape(creator_username) + "</i></p>   \n";
 
 				// Emoji reaction buttons, coloured if the logged-in user has given that reaction.  Each is a form so it works without JS; photo.js submits them with fetch instead to avoid a page reload.
 				page += "<div class=\"photo-reactions\" id=\"reactions\">\n";
@@ -406,6 +509,7 @@ void handlePhotosPageRequest(ServerAllWorldsState& world_state, WebDataStore& da
 				{
 					page += "<a href=\"/photo/";
 					page += toString(photo->id);
+					page += photo->isVideo() ? "\" class=\"video-thumb" : "";
 					page += "\"><img src=\"/photo_thumb_image/";
 					page += toString(photo->id);
 					page += "\" class=\"root-photo-img\" title=\"";

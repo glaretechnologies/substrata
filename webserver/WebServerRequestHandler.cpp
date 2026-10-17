@@ -645,6 +645,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			PhotoHandlers::handlePhotoThumbnailImageRequest(*world_state, *data_store, request, reply_info);
 		}
+		else if(::hasPrefix(request.path, "/photo_video/")) // Photo ID follows
+		{
+			PhotoHandlers::handlePhotoVideoRequest(*world_state, *data_store, request, reply_info);
+		}
 		else if(request.path == "/edit_photo_parcel")
 		{
 			PhotoHandlers::renderEditPhotoParcelPage(*world_state, request, reply_info);

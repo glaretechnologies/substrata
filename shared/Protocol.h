@@ -51,13 +51,14 @@ CyberspaceProtocolVersion
 53: Added ObjectMoveTo and ObjectRotateTo messages (for scripted moveTo/rotateTo).
 54: Added the Builder AI messages.
 55: Added CreateObjectResponse message, sent to a client for each CreateObject message it sends.
+56: Added ConnectionTypeUploadVideo.
 */
 namespace Protocol
 {
 
 const uint32 CyberspaceHello = 1357924680;
 
-const uint32 CyberspaceProtocolVersion = 55;
+const uint32 CyberspaceProtocolVersion = 56;
 
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
@@ -75,6 +76,7 @@ const uint32 ConnectionTypeDownloadResources	= 502;
 const uint32 ConnectionTypeScreenshotBot		= 504; // A connection from the screenshot bot.
 const uint32 ConnectionTypeEthBot				= 505; // A connection from the Ethereum bot.
 const uint32 ConnectionTypeUploadPhoto			= 506;
+const uint32 ConnectionTypeUploadVideo			= 507; // Like ConnectionTypeUploadPhoto, but the JPEG is a poster frame and is followed by the MP4 video data.  Replies with PhotoUploadSucceeded or PhotoUploadFailed.
 
 const uint32 ChangeToDifferentWorld			= 600;
 
