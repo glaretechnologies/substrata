@@ -404,6 +404,7 @@ PhotoModeUI::~PhotoModeUI()
 	checkRemoveAndDeleteWidget(gl_ui, caption_line_edit);
 	checkRemoveAndDeleteWidget(gl_ui, ok_button);
 	checkRemoveAndDeleteWidget(gl_ui, cancel_button);
+	checkRemoveAndDeleteWidget(gl_ui, upload_progress_view);
 }
 
 
@@ -519,6 +520,19 @@ void PhotoModeUI::autofocusDistSet(double dist)
 
 void PhotoModeUI::think()
 {
+	if(upload_progress)
+	{
+		if(upload_progress->finished) // If upload thread has finished:
+		{
+			upload_progress = nullptr;
+			checkRemoveAndDeleteWidget(gl_ui, upload_progress_view);
+		}
+		else if(upload_progress_view)
+		{
+			upload_progress_view->setText("Uploading... (" + toString((int64)upload_progress->percent_sent) + "%)");
+			updateUploadProgressViewPos();
+		}
+	}
 }
 
 
@@ -587,6 +601,8 @@ void PhotoModeUI::updateWidgetPositions()
 			upload_background_ob->setPosAndDims(Vec2f(upload_dialog_x - margin, upload_dialog_y - margin), Vec2f(background_w, background_h));
 		}
 	}
+
+	updateUploadProgressViewPos();
 
 	in_update_widget_positions = false;
 }
@@ -1133,23 +1149,26 @@ public:
 			// Write caption
 			socket->writeStringLengthFirst(caption);
 
-			// Load resource from disk
+			// Load files from disk
 			MemMappedFile file(upload_image_jpeg_path);
+			SharedMemMappedFileRef video_file;
+			if(is_video)
+				video_file = new SharedMemMappedFile(upload_video_path);
+
+			total_bytes = file.fileSize() + (is_video ? video_file->fileSize() : 0);
 
 			socket->writeUInt64(file.fileSize()); // Write file size
 
 			// Send the photo
-			socket->writeData(file.fileData(), file.fileSize());
+			sendDataWithProgress(file.fileData(), file.fileSize());
 			conPrint("UploadPhotoThread: Sent file '" + upload_image_jpeg_path + "' (" + toString(file.fileSize()) + " B)");
 
 			// For videos, the photo above is the poster frame, and the MP4 data follows.
 			if(is_video)
 			{
-				MemMappedFile video_file(upload_video_path);
-
-				socket->writeUInt64(video_file.fileSize());
-				socket->writeData(video_file.fileData(), video_file.fileSize());
-				conPrint("UploadPhotoThread: Sent file '" + upload_video_path + "' (" + toString(video_file.fileSize()) + " B)");
+				socket->writeUInt64(video_file->fileSize());
+				sendDataWithProgress(video_file->fileData(), video_file->fileSize());
+				conPrint("UploadPhotoThread: Sent file '" + upload_video_path + "' (" + toString(video_file->fileSize()) + " B)");
 			}
 			socket->flush();
 
@@ -1175,6 +1194,21 @@ public:
 
 			out_msg_queue->enqueue(new ErrorMessage(std::string(upload_video_path.empty() ? "Photo" : "Video") + " upload failed: " + e.what()));
 		}
+
+		progress->finished = 1;
+	}
+
+	// Sends data in chunks, updating progress->percent_sent after each chunk.
+	void sendDataWithProgress(const void* data, size_t size)
+	{
+		const size_t CHUNK_SIZE = 256 * 1024;
+		for(size_t offset=0; offset<size; offset += CHUNK_SIZE)
+		{
+			const size_t chunk_size = myMin(CHUNK_SIZE, size - offset);
+			socket->writeData((const uint8*)data + offset, chunk_size);
+			bytes_sent += chunk_size;
+			progress->percent_sent = (glare::atomic_int)(bytes_sent * 100 / myMax<size_t>(1, total_bytes));
+		}
 	}
 
 	std::string upload_image_jpeg_path;
@@ -1186,6 +1220,9 @@ public:
 	std::string hostname;
 	int port;
 	std::string username, password;
+	Reference<PhotoUploadProgress> progress;
+	size_t bytes_sent = 0;
+	size_t total_bytes = 0; // Total size of the files to upload.
 	glare::AtomicInt should_die;
 	struct tls_config* config;
 	SocketInterfaceRef socket;
@@ -1195,6 +1232,14 @@ public:
 
 void PhotoModeUI::uploadPhoto()
 {
+	const bool is_video = !upload_video_path.empty();
+
+	if(upload_progress)
+	{
+		gui_client->showErrorNotification("Please wait for the current upload to finish.");
+		return;
+	}
+
 	const std::string username = gui_client->ui_interface->getUsernameForDomain(gui_client->server_hostname);
 	const std::string password = gui_client->ui_interface->getDecryptedPasswordForDomain(gui_client->server_hostname);
 
@@ -1223,7 +1268,39 @@ void PhotoModeUI::uploadPhoto()
 	thread->config = gui_client->client_tls_config;
 	thread->out_msg_queue = &gui_client->msg_queue;
 
+	upload_progress = new PhotoUploadProgress();
+	thread->progress = upload_progress;
+
 	upload_thread_manager.addThread(thread);
+
+	gui_client->showInfoNotification(is_video ? "Uploading video..." : "Uploading photo...");
+
+	{
+		GLUITextView::CreateArgs args;
+		args.background_colour = Colour3f(0.1f);
+		args.background_alpha = 0.8f;
+		args.background_corner_radius_px = 6;
+		args.text_colour = Colour3f(0.9f);
+		args.font_size_px = 16;
+		args.text_selectable = false;
+		args.z = -0.4f;
+		checkRemoveAndDeleteWidget(gl_ui, upload_progress_view);
+		upload_progress_view = new GLUITextView(*gl_ui, "Uploading... (0%)", Vec2f(0), args);
+		gl_ui->addWidget(upload_progress_view);
+		updateUploadProgressViewPos();
+	}
+}
+
+
+// Centre the upload progress view horizontally, below the first 3 notifications and the video recording indicator.
+void PhotoModeUI::updateUploadProgressViewPos()
+{
+	if(upload_progress_view)
+	{
+		const float top_margin = gl_ui->getUIWidthForDevIndepPixelWidth(190);
+		const Vec2f dims = upload_progress_view->rect.getWidths();
+		upload_progress_view->setPos(Vec2f(-dims.x / 2, gl_ui->getViewportMinMaxY() - top_margin - dims.y));
+	}
 }
 
 

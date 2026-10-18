@@ -19,10 +19,20 @@ Copyright Glare Technologies Limited 2025 -
 #include <opengl/ui/GLUIGridContainer.h>
 #include <opengl/ui/GLUICollapsableGroupBox.h>
 #include <utils/ThreadManager.h>
+#include <utils/ThreadSafeRefCounted.h>
+#include <utils/AtomicInt.h>
 
 
 class GUIClient;
 class SettingsStore;
+
+
+// Progress of a photo or video upload.  Written by the upload thread, read by PhotoModeUI::think().
+struct PhotoUploadProgress : public ThreadSafeRefCounted
+{
+	glare::AtomicInt percent_sent; // Percentage of the upload data sent, [0, 100].
+	glare::AtomicInt finished; // Set to 1 when the upload thread has finished, whether it succeeded or failed.
+};
 
 
 struct PhotoModeSlider
@@ -81,6 +91,7 @@ private:
 	void showUploadPhotoWidget();
 	void hideUploadPhotoWidget();
 	void uploadPhoto();
+	void updateUploadProgressViewPos();
 	bool lastSavedItemIsVideo() const;
 	void setVideoFrameRateSetting(int frame_rate); // frame_rate is 30, 60, or 0 for automatic.  Saves the setting and updates the buttons.
 
@@ -149,6 +160,9 @@ private:
 	std::string upload_image_jpeg_path;
 	std::string upload_video_path; // Non-empty if the upload dialog is for a video, in which case upload_image_jpeg_path is the poster frame image.
 	ThreadManager upload_thread_manager;
+
+	Reference<PhotoUploadProgress> upload_progress; // Progress of the upload in progress, or null if not uploading.
+	GLUITextViewRef upload_progress_view; // Shows upload progress at the top middle of the screen while uploading.
 
 	std::string last_caption;
 

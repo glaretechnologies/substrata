@@ -1012,6 +1012,7 @@ public:
 	bool stop_video_recording_requested; // Set by key handlers, handled in updateVideoRecording() where the GL context is current.
 	bool saving_video; // True from the start of a recording until its VideoEncodeTask has finished encoding and saving the video.
 	glare::TaskManager* video_encode_task_manager; // Runs VideoEncodeTasks.  Lazily created.
+	GLUITextViewRef video_recording_indicator; // Shows 'REC' and the elapsed time at the top middle of the screen while recording.
 
 	bool only_load_most_important_obs;
 

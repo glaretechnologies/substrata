@@ -1041,6 +1041,8 @@ void GUIClient::shutdown()
 		gl_ui->removeWidget(it->text_view); 
 	notifications.clear();
 
+	checkRemoveAndDeleteWidget(gl_ui, video_recording_indicator);
+
 	// Remove the script_messages from the UI
 	for(auto it = script_messages.begin(); it != script_messages.end(); ++it)
 		gl_ui->removeWidget(it->text_view); 
@@ -6327,6 +6329,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	
 	gesture_ui.think();
 	hud_ui.think();
+	if(photo_mode_ui)
+		photo_mode_ui->think();
 	if(gear_inventory_ui)
 	{
 		gear_inventory_ui->think();
@@ -17799,6 +17803,7 @@ void GUIClient::stopVideoRecordingAndSave()
 {
 	if(photo_mode_ui)
 		photo_mode_ui->setVideoRecordingState(false);
+	checkRemoveAndDeleteWidget(gl_ui, video_recording_indicator);
 	opengl_engine->requestFrameGrab(/*grabber=*/nullptr, 0, 0, 0); // Cancel any pending grab request.
 
 	// Add frames from any grabs still in flight, before ending the recording.  This needs the GL context, so is done here on the main thread.
@@ -17842,10 +17847,36 @@ void GUIClient::updateVideoRecording()
 			stop_video_recording_requested = false;
 			stopVideoRecordingAndSave();
 		}
-		else if(video_recorder.shouldCaptureFrame(cur_time))
+		else
 		{
-			// The frame about to be drawn in this timerEvent is the first in a new output frame slot, so grab it.
-			opengl_engine->requestFrameGrab(video_frame_grabber.ptr(), video_w, video_h, /*frame time=*/cur_time);
+			if(video_recorder.shouldCaptureFrame(cur_time))
+			{
+				// The frame about to be drawn in this timerEvent is the first in a new output frame slot, so grab it.
+				opengl_engine->requestFrameGrab(video_frame_grabber.ptr(), video_w, video_h, /*frame time=*/cur_time);
+			}
+
+			// Update the recording indicator.  Like notifications, it's a UI overlay object, so isn't included in grabbed frames.
+			if(!video_recording_indicator)
+			{
+				GLUITextView::CreateArgs args;
+				args.background_colour = toLinearSRGB(Colour3f(0.75f, 0.1f, 0.1f));
+				args.background_alpha = 0.9f;
+				args.background_corner_radius_px = 6;
+				args.text_colour = Colour3f(1.f);
+				args.font_size_px = 16;
+				args.text_selectable = false;
+				args.z = -0.4f;
+				video_recording_indicator = new GLUITextView(*gl_ui, "REC 0:00", Vec2f(0), args);
+				gl_ui->addWidget(video_recording_indicator);
+			}
+
+			const int elapsed_s = (int)video_recorder.getElapsedTime(cur_time);
+			video_recording_indicator->setText("REC " + toString(elapsed_s / 60) + ":" + leftPad(toString(elapsed_s % 60), '0', 2));
+
+			// Centre horizontally, below the first 3 notifications.  Done every frame so it stays centred if the viewport is resized.
+			const float top_margin = gl_ui->getUIWidthForDevIndepPixelWidth(140);
+			const Vec2f dims = video_recording_indicator->rect.getWidths();
+			video_recording_indicator->setPos(Vec2f(-dims.x / 2, gl_ui->getViewportMinMaxY() - top_margin - dims.y));
 		}
 	}
 }
