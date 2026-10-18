@@ -17760,7 +17760,7 @@ void GUIClient::startVideoRecording()
 	// The video/frame_rate setting is 30 or 60, or 0 to choose from the recent rendering frame rate.
 	const int frame_rate_setting = settings->getIntValue("video/frame_rate", /*default=*/0);
 	const int fps = (frame_rate_setting == 30 || frame_rate_setting == 60) ? frame_rate_setting : ((last_fps >= 58) ? 60 : 30);
-	const uint32 bitrate = (fps == 60) ? 12'000'000 : 8'000'000;
+	const uint32 bitrate = (fps == 60) ? 8'000'000 : 6'000'000;
 
 	try
 	{
@@ -17825,6 +17825,13 @@ void GUIClient::stopVideoRecordingAndSave()
 }
 
 
+// Formats a duration as e.g. "1:05".
+static std::string minsAndSecsString(int secs)
+{
+	return toString(secs / 60) + ":" + leftPad(toString(secs % 60), '0', 2);
+}
+
+
 // Called at the start of timerEvent(), before the frame is drawn.
 void GUIClient::updateVideoRecording()
 {
@@ -17866,12 +17873,11 @@ void GUIClient::updateVideoRecording()
 				args.font_size_px = 16;
 				args.text_selectable = false;
 				args.z = -0.4f;
-				video_recording_indicator = new GLUITextView(*gl_ui, "REC 0:00", Vec2f(0), args);
+				video_recording_indicator = new GLUITextView(*gl_ui, "REC", Vec2f(0), args);
 				gl_ui->addWidget(video_recording_indicator);
 			}
 
-			const int elapsed_s = (int)video_recorder.getElapsedTime(cur_time);
-			video_recording_indicator->setText("REC " + toString(elapsed_s / 60) + ":" + leftPad(toString(elapsed_s % 60), '0', 2));
+			video_recording_indicator->setText("REC " + minsAndSecsString((int)video_recorder.getElapsedTime(cur_time)) + " / " + minsAndSecsString((int)video_recorder.getMaxDuration()));
 
 			// Centre horizontally, below the first 3 notifications.  Done every frame so it stays centred if the viewport is resized.
 			const float top_margin = gl_ui->getUIWidthForDevIndepPixelWidth(140);
