@@ -3,7 +3,7 @@
 <div class="top-logo-section"><img src="/files/logo_main_page.png" width="100px"/></div>
 <div class="top-section">
 	
-	<img id="top-image" src="/files/night_hillside.jpg" class="top-image" />
+	TOP_IMAGE_HTML
 
 	<div class="top-section-text-container">
 		<div class="top-intro-section">
@@ -11,19 +11,11 @@ Our mission is to create the metaverse.  Substrata is open-source, with as few t
 Experience long view distances and massive worlds.
 		</div>
 
-		<div class="play-webclient-div"><a href="/webclient">Enter Substrata in your browser</a></div>
+		<div class="play-webclient-div"><a href="/visit">Enter Substrata in your browser</a></div>
 	</div>
 </div>
 
-<div class="hidden" id="top-image-paths">
-/files/night_hillside.jpg,
-/files/screenshot_1707832339.jpg,
-/files/hillside.jpg
-</div>
-
-<link rel="prefetch" href="/files/night_hillside.jpg" as="image" />
-<link rel="prefetch" href="/files/screenshot_1707832339.jpg" as="image" />
-<link rel="prefetch" href="/files/hillside.jpg" as="image" />
+TOP_IMAGES_DATA_HTML
 
 
 <p>
@@ -58,15 +50,15 @@ PHOTOS_HTML
 </p>
 
 <h2 id="downloads">Downloads</h2>
-<p>You can enter <a href="/webclient">Substrata in your browser</a>.  Alternatively, explore Substrata with the faster native client:</p>
+<p>You can enter <a href="/visit">Substrata in your browser</a>.  Alternatively, explore Substrata with the faster native client:</p>
 <p>
-Windows - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.7.2_Setup.exe">Substrata_v1.7.2_Setup.exe</a>
+Windows - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.8.5_Setup.exe">Substrata_v1.8.5_Setup.exe</a>
 </p>
 <p>	
-MacOS - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.7.2_x64.pkg">Substrata_v1.7.2_x64.pkg</a>
+MacOS - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.8.5_x64.pkg">Substrata_v1.8.5_x64.pkg</a>
 </p>	
 <p>	
-Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.7.2.tar.gz">Substrata_v1.7.2.tar.gz</a>
+Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v1.8.5.tar.gz">Substrata_v1.8.5.tar.gz</a>
 </p>
 
 
@@ -118,7 +110,7 @@ EVENTS_HTML
 <p><a href="/about_scripting">Scripting in Substrata</a></p>
 <p><a href="/running_your_own_server">Running your own Substrata server</a></p>
 <p><a href="/about_chatbots">Chatbots in Substrata</a></p>
-<p><a href="/about_MCP">MCP support in Substrata</a></p>
+<p><a href="/about_MCP">MCP support - building in Substrata with AI</a></p>
 
 <br/><br/>
 

@@ -70,7 +70,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 	//page_out += "<img src=\"/files/logo_main_page.png\" alt=\"substrata logo\" class=\"logo-root-page\" />";
 
 
-	std::string auction_html, latest_news_html, events_html, photos_html;
+	std::string auction_html, latest_news_html, events_html, photos_html, top_image_html, top_images_data_html;
 	{ // lock scope
 		WorldStateLock lock(world_state.mutex);
 
@@ -244,6 +244,41 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 
 		photos_html += "</div>\n";
 
+
+		//------------------------------- Build top banner HTML --------------------------
+		// The banner shows the last few photos featured by an admin, newest first.  root-page.js fades between them.
+		// The first photo is shown in the top-image img element, and data for all of them goes in the top-images-data element.
+		top_images_data_html += "<div class=\"hidden\" id=\"top-images-data\">\n";
+		const int max_num_banner_photos = 5;
+		int num_banner_photos = 0;
+		for(auto it = world_state.photos.rbegin(); (it != world_state.photos.rend()) && (num_banner_photos < max_num_banner_photos); ++it)
+		{
+			const Photo* photo = it->second.ptr();
+			if(photo->isFeaturedOnBanner() && (photo->state == Photo::State_published) && !photo->isVideo())
+			{
+				// Credit the user who took the photo, unless it's one of the admin accounts (user ids 0 and 1).
+				std::string credit;
+				if(photo->creator_id.value() > 1)
+				{
+					auto user_res = world_state.user_id_to_users.find(photo->creator_id);
+					if(user_res != world_state.user_id_to_users.end())
+						credit = "Photo by " + user_res->second->name;
+				}
+
+				const std::string src = photo->fullSizeImageURLPath();
+				const std::string link = "/photo/" + toString(photo->id);
+
+				top_images_data_html += "<span data-src=\"" + src + "\" data-link=\"" + link + "\" data-credit=\"" + web::Escaping::HTMLEscape(credit) + "\"></span>\n";
+
+				if(num_banner_photos == 0)
+					top_image_html = "<img id=\"top-image\" src=\"" + src + "\" class=\"top-image\" />\n"
+						"\t<a id=\"top-image-credit\" class=\"top-image-credit\" href=\"" + link + "\">" + web::Escaping::HTMLEscape(credit) + "</a>\n";
+
+				num_banner_photos++;
+			}
+		}
+		top_images_data_html += "</div>\n";
+
 	} // end lock scope
 
 
@@ -260,6 +295,10 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 	StringUtils::replaceFirstInPlace(page_out, "EVENTS_HTML", events_html);
 
 	StringUtils::replaceFirstInPlace(page_out, "PHOTOS_HTML", photos_html);
+
+	StringUtils::replaceFirstInPlace(page_out, "TOP_IMAGE_HTML", top_image_html);
+
+	StringUtils::replaceFirstInPlace(page_out, "TOP_IMAGES_DATA_HTML", top_images_data_html);
 
 	page_out += "<script src=\"/files/root-page.js\"></script>";
 	

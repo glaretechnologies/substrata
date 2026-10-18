@@ -354,6 +354,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			PhotoHandlers::handlePhotoReactionPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/set_photo_featured_post")
+		{
+			PhotoHandlers::handleSetPhotoFeaturedPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/edit_chatbot_post")
 		{
 			ChatBotHandlers::handleEditChatBotPost(*this->world_state, request, reply_info);

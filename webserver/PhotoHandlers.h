@@ -38,4 +38,6 @@ namespace PhotoHandlers
 	void handleDeletePhotoPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 
 	void handlePhotoReactionPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info); // Toggle an emoji reaction on a photo
+
+	void handleSetPhotoFeaturedPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info); // Feature or unfeature a photo on the home page banner (admin only)
 }

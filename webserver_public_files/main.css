@@ -412,6 +412,29 @@ a
 	opacity: 0;
 }
 
+/* Credit for the user who took the current banner photo, in the bottom right corner of the banner. */
+.top-image-credit {
+	position: absolute;
+	right: 27px; /* .top-section is 100vw wide, which includes the width of any vertical scrollbar, so leave room for the scrollbar */
+	bottom: 10px;
+	z-index: 1; /* Above .top-section-text-container, which may overlap it */
+	padding: 3px 8px;
+	background-color: rgba(0, 0, 0, 0.1);
+	color: white;
+	font-size: 0.85em;
+	text-decoration: none;
+	opacity: 1;
+	transition: opacity 2s;
+}
+
+.top-image-credit:empty {
+	display: none; /* No credit is shown for photos taken by admin accounts */
+}
+
+.top-image-credit.fadeOut {
+	opacity: 0;
+}
+
 
 .photo-container {
 	display: grid;

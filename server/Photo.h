@@ -85,6 +85,9 @@ public:
 	uint32 flags;
 	std::string world_name;
 
+	static const uint32 FEATURED_ON_BANNER_FLAG = 1; // Set by an admin.  The last few featured photos are shown in the banner at the top of the home page.
+	bool isFeaturedOnBanner() const { return (flags & FEATURED_ON_BANNER_FLAG) != 0; }
+
 	std::string local_filename; // file name on disk of full resolution saved photo
 	std::string local_thumbnail_filename; // file name on disk of thumbnail (200 px wide)
 	std::string local_midsize_filename; // file name on disk of mid-size image (max 1000px wide)

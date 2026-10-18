@@ -24,6 +24,7 @@ Copyright Glare Technologies Limited 2025 -
 #include <PlatformUtils.h>
 #include <Parser.h>
 #include <MemMappedFile.h>
+#include <BitUtils.h>
 #include <functional>
 
 
@@ -465,6 +466,18 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 					page += "<input type=\"submit\" class=\"delete-photo\" value=\"Delete photo\"\">"; // photo.js adds a confirm dialog to this button.
 					page += "</form>";
 				}
+
+				// Admin-only button for featuring the photo in the home page banner, or removing it from the banner.  Videos aren't shown in the banner.
+				if(logged_in_user_is_god_user && !photo->isVideo())
+				{
+					const bool featured = photo->isFeaturedOnBanner();
+					page += "<form action=\"/set_photo_featured_post\" method=\"post\">"
+						"<input type=\"hidden\" name=\"photo_id\" value=\"" + toString(photo_id) + "\"><br>" +
+						std::string(featured ? "<p>This photo is featured on the home page banner.</p>" : "") +
+						"<input type=\"hidden\" name=\"featured\" value=\"" + std::string(featured ? "0" : "1") + "\">"
+						"<input type=\"submit\" value=\"" + std::string(featured ? "Remove from home page banner" : "Feature on home page banner") + "\">"
+						"</form>\n";
+				}
 			}
 		} // end lock scope
 
@@ -673,6 +686,47 @@ void handleDeletePhotoPost(ServerAllWorldsState& world_state, const web::Request
 	{
 		if(!request.fuzzing)
 			conPrint("handleDeletePhotoPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+// Sets or clears the photo's FEATURED_ON_BANNER_FLAG, depending on the 'featured' field (1 or 0).  Admin only.
+void handleSetPhotoFeaturedPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	try
+	{
+		if(world_state.isInReadOnlyMode())
+			throw glare::Exception("Server is in read-only mode, editing disabled currently.");
+
+		const int photo_id = request.getPostIntField("photo_id");
+		const bool featured = request.getPostIntField("featured") != 0;
+
+		{ // Lock scope
+			Lock lock(world_state.mutex);
+
+			const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+			if(!logged_in_user || !isGodUser(logged_in_user->id))
+				throw glare::Exception("Only admins can feature photos.");
+
+			const auto res = world_state.photos.find((uint64)photo_id);
+			if(res == world_state.photos.end())
+				throw glare::Exception("Couldn't find photo");
+
+			Photo* photo = res->second.ptr();
+			BitUtils::setOrZeroBit(photo->flags, Photo::FEATURED_ON_BANNER_FLAG, /*should set=*/featured);
+
+			world_state.setUserWebMessage(logged_in_user->id, featured ? "Photo featured on home page banner." : "Photo removed from home page banner.");
+
+			world_state.addPhotoAsDBDirty(photo);
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/photo/" + toString(photo_id));
+	}
+	catch(glare::Exception& e)
+	{
+		if(!request.fuzzing)
+			conPrint("handleSetPhotoFeaturedPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
