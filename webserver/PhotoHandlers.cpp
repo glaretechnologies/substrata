@@ -122,8 +122,8 @@ void doHandlePhotoImageRequest(ServerAllWorldsState& world_state, WebDataStore& 
 			assert(web::ResponseUtils::getContentTypeForPath(local_path) == "image/jpeg");
 			const std::string content_type = "image/jpeg";
 
-			// Send it to client
-			web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file.fileData(), file.fileSize(), content_type, 3600*24*52); // cache max age = 1 year
+			// Send it to client.  The image for a given photo id never changes, so mark it immutable, so browsers don't revalidate it on reload.
+			web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheControl(reply_info, file.fileData(), file.fileSize(), content_type, "max-age=31536000, immutable"); // cache max age = 1 year
 		}
 		catch(glare::Exception& e)
 		{
