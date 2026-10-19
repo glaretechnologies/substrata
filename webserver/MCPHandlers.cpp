@@ -19,7 +19,16 @@ Copyright Glare Technologies Limited 2026 -
 #include "../shared/LODChunk.h"
 #include "../shared/RateLimiter.h"
 #include "../shared/LODGeneration.h"
+#include "../shared/ImageDecoding.h"
+#include "WebDataStore.h"
+#include <graphics/jpegdecoder.h>
+#include <graphics/ImageMap.h>
 #include <JSONParser.h>
+#include <Base64.h>
+#include <BufferOutStream.h>
+#include <FileUtils.h>
+#include <IncludeXXHash.h>
+#include <Lock.h>
 #include <ConPrint.h>
 #include <Exception.h>
 #include <StringUtils.h>
@@ -820,6 +829,308 @@ static const std::string tool_deleteObject(ServerAllWorldsState& all_worlds, con
 }
 
 
+//===================== Admin tools =====================
+
+// Admin tools are only available to the god user, over the /mcp endpoint (see handleToolCall()).  They are not available to the in-world Builder AI.
+
+static const size_t MAX_NEWS_POST_TITLE_SIZE         = 1000;
+static const size_t MAX_NEWS_POST_CONTENT_SIZE       = 100000; // readNewsPostFromStream() reads at most 100000 bytes for each string.
+static const size_t MAX_NEWS_POST_THUMBNAIL_URL_SIZE = 10000;
+
+static const size_t MAX_NEWS_IMAGE_FILE_SIZE = 7000000; // The webserver accepts request bodies up to 10 MB, which allows a base64-encoded file of about 7.5 MB.
+static const int MAX_NEWS_IMAGE_DIM          = 8192; // Max width or height of an uploaded image.
+static const int NEWS_IMAGE_MAX_OUTPUT_WIDTH = 1600; // Wider images are scaled down to this width.
+static const int NEWS_THUMBNAIL_WIDTH        = 460; // 2x the size the thumbnail is shown at on the home page (see .root-news-thumbnail in main.css), for high-DPI screens.
+static const int NEWS_THUMBNAIL_HEIGHT       = 262;
+
+
+// Summary of a news post, without the content.
+static const std::string newsPostSummaryJSON(const NewsPost& post)
+{
+	return "{\"id\":" + toString(post.id) +
+		",\"title\":\"" + web::Escaping::JSONEscape(post.title) + "\"" +
+		",\"state\":\"" + web::Escaping::JSONEscape(NewsPost::stateString(post.state)) + "\"" +
+		",\"created\":\"" + post.created_time.dayAndTimeStringUTC() + "\"" +
+		",\"last_modified\":\"" + post.last_modified_time.dayAndTimeStringUTC() + "\"" +
+		",\"thumbnail_url\":\"" + web::Escaping::JSONEscape(post.thumbnail_URL) + "\"" +
+		",\"url\":\"/news_post/" + toString(post.id) + "\"}";
+}
+
+
+static void checkNewsPostFieldSizes(const std::string& title, const std::string& content, const std::string& thumbnail_URL)
+{
+	if(title.size() > MAX_NEWS_POST_TITLE_SIZE)
+		throw glare::Exception("title is too long (max " + toString(MAX_NEWS_POST_TITLE_SIZE) + " bytes).");
+	if(content.size() > MAX_NEWS_POST_CONTENT_SIZE)
+		throw glare::Exception("content is too long (max " + toString(MAX_NEWS_POST_CONTENT_SIZE) + " bytes).");
+	if(thumbnail_URL.size() > MAX_NEWS_POST_THUMBNAIL_URL_SIZE)
+		throw glare::Exception("thumbnail_url is too long (max " + toString(MAX_NEWS_POST_THUMBNAIL_URL_SIZE) + " bytes).");
+}
+
+
+static NewsPost* getNewsPost(ServerAllWorldsState& all_worlds, uint64 post_id, WorldStateLock& /*lock*/) REQUIRES(all_worlds.mutex)
+{
+	auto res = all_worlds.news_posts.find(post_id);
+	if(res == all_worlds.news_posts.end())
+		throw glare::Exception("No news post with id " + toString(post_id));
+	return res->second.ptr();
+}
+
+
+static const std::string tool_listNewsPosts(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args)
+{
+	const int limit = myClamp(args.getChildIntValueWithDefaultVal(parser, "limit", /*default=*/20), 1, 100);
+
+	WorldStateLock lock(all_worlds.mutex);
+
+	std::string s = "[";
+	int num_added = 0;
+	for(auto it = all_worlds.news_posts.rbegin(); (it != all_worlds.news_posts.rend()) && (num_added < limit); ++it) // Newest first
+	{
+		const NewsPost* post = it->second.ptr();
+		if(post->state != NewsPost::State_deleted)
+		{
+			s += std::string(num_added > 0 ? "," : "") + newsPostSummaryJSON(*post);
+			num_added++;
+		}
+	}
+	s += "]";
+	return s;
+}
+
+
+static const std::string tool_getNewsPost(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args)
+{
+	const uint64 post_id = (uint64)args.getChildDoubleValue(parser, "id");
+
+	WorldStateLock lock(all_worlds.mutex);
+	const NewsPost* post = getNewsPost(all_worlds, post_id, lock);
+
+	return "{\"id\":" + toString(post->id) +
+		",\"title\":\"" + web::Escaping::JSONEscape(post->title) + "\"" +
+		",\"content\":\"" + web::Escaping::JSONEscape(post->content) + "\"" +
+		",\"state\":\"" + web::Escaping::JSONEscape(NewsPost::stateString(post->state)) + "\"" +
+		",\"created\":\"" + post->created_time.dayAndTimeStringUTC() + "\"" +
+		",\"last_modified\":\"" + post->last_modified_time.dayAndTimeStringUTC() + "\"" +
+		",\"thumbnail_url\":\"" + web::Escaping::JSONEscape(post->thumbnail_URL) + "\"" +
+		",\"url\":\"/news_post/" + toString(post->id) + "\"}";
+}
+
+
+// Creates a news post in the draft state.  Posts are published from the website (the edit news post page), not via MCP.
+static const std::string tool_createNewsPost(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args, const UserID acting_user_id)
+{
+	const std::string title         = args.getChildStringValue(parser, "title");
+	const std::string content       = args.getChildStringValue(parser, "content");
+	const std::string thumbnail_URL = args.getChildStringValueWithDefaultVal(parser, "thumbnail_url", /*default=*/"");
+	checkNewsPostFieldSizes(title, content, thumbnail_URL);
+
+	if(all_worlds.isInReadOnlyMode())
+		throw glare::Exception("Server is in read-only mode, editing disabled currently.");
+
+	WorldStateLock lock(all_worlds.mutex);
+
+	NewsPostRef post = new NewsPost();
+	post->id = all_worlds.getNextNewsPostUID();
+	post->creator_id = acting_user_id; // The edit page and draft preview are only available to the creator.
+	post->created_time = TimeStamp::currentTime();
+	post->last_modified_time = post->created_time;
+	post->title = title;
+	post->content = content;
+	post->thumbnail_URL = thumbnail_URL;
+	post->state = NewsPost::State_draft;
+
+	all_worlds.news_posts.insert(std::make_pair(post->id, post));
+	all_worlds.addNewsPostAsDBDirty(post);
+	all_worlds.markAsChanged();
+
+	return newsPostSummaryJSON(*post);
+}
+
+
+// Edits the title, content and/or thumbnail URL of a news post.  Doesn't change the post state.
+static const std::string tool_editNewsPost(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args)
+{
+	const uint64 post_id = (uint64)args.getChildDoubleValue(parser, "id");
+
+	if(all_worlds.isInReadOnlyMode())
+		throw glare::Exception("Server is in read-only mode, editing disabled currently.");
+
+	WorldStateLock lock(all_worlds.mutex);
+	NewsPost* post = getNewsPost(all_worlds, post_id, lock);
+	if(post->state == NewsPost::State_deleted)
+		throw glare::Exception("News post " + toString(post_id) + " was deleted.");
+
+	const std::string title         = args.hasChild("title")         ? args.getChildStringValue(parser, "title")         : post->title;
+	const std::string content       = args.hasChild("content")       ? args.getChildStringValue(parser, "content")       : post->content;
+	const std::string thumbnail_URL = args.hasChild("thumbnail_url") ? args.getChildStringValue(parser, "thumbnail_url") : post->thumbnail_URL;
+	checkNewsPostFieldSizes(title, content, thumbnail_URL);
+
+	post->title = title;
+	post->content = content;
+	post->thumbnail_URL = thumbnail_URL;
+	post->last_modified_time = TimeStamp::currentTime();
+
+	all_worlds.addNewsPostAsDBDirty(post);
+	all_worlds.markAsChanged();
+
+	return newsPostSummaryJSON(*post);
+}
+
+
+// Returns the filename with the extension removed, and any characters other than letters, digits and underscores replaced with underscores.  Truncated to 40 chars.
+static std::string sanitisedFilenameStem(const std::string& filename)
+{
+	std::string stem = ::removeDotAndExtension(filename).substr(0, 40);
+	for(size_t i=0; i<stem.size(); ++i)
+		if(!(::isAlphaNumeric(stem[i]) || (stem[i] == '_')))
+			stem[i] = '_';
+	return stem.empty() ? "image" : stem;
+}
+
+
+static ImageMapUInt8Ref resizeImage(const ImageMapUInt8Ref& image, int new_w, int new_h)
+{
+	Map2DRef resized = image->resizeMidQuality(new_w, new_h, /*task_manager=*/nullptr);
+	if(!resized.isType<ImageMapUInt8>())
+		throw glare::Exception("Resized image was not ImageMapUInt8");
+	return resized.downcast<ImageMapUInt8>();
+}
+
+
+// Encodes the image as a JPEG and saves it in public_images_dir, named by a hash of the JPEG data.  Returns the filename.
+static std::string saveNewsImageAsJPEG(ServerAllWorldsState& all_worlds, const ImageMapUInt8Ref& image, const std::string& filename_prefix, size_t& jpeg_size_out)
+{
+	BufferOutStream jpeg_data;
+	JPEGDecoder::saveToStream(image, JPEGDecoder::SaveOptions(/*quality=*/90), jpeg_data);
+
+	const uint64 hash = XXH64(jpeg_data.buf.data(), jpeg_data.buf.size(), /*seed=*/1);
+	const std::string image_filename = filename_prefix + "_" + toString(hash) + ".jpg";
+	const std::string path = all_worlds.web_data_store->public_images_dir + "/" + image_filename;
+
+	if(!FileUtils::fileExists(path)) // If the same image was uploaded before, the file will already exist.
+		FileUtils::writeEntireFileAtomically(path, (const char*)jpeg_data.buf.data(), jpeg_data.buf.size());
+
+	{
+		Lock lock(all_worlds.web_data_store->mutex);
+		all_worlds.web_data_store->public_image_filenames.insert(image_filename); // So the image is served from /images/ straight away.
+	}
+
+	jpeg_size_out = jpeg_data.buf.size();
+	return image_filename;
+}
+
+
+// Decodes an uploaded JPEG or PNG image, scales it down if it's wider than NEWS_IMAGE_MAX_OUTPUT_WIDTH, re-encodes it as a JPEG,
+// and saves it in public_images_dir, named by a hash of the JPEG data.  Returns the URL path of the image.
+// Re-encoding means only valid images are saved, and gives consistent, reasonably sized files.
+// Also saves a thumbnail, cropped to the aspect ratio of the news post thumbnails on the home page.
+static const std::string tool_uploadNewsImage(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args)
+{
+	const std::string filename = args.getChildStringValue(parser, "filename");
+	const std::string& data_base64 = args.getChildStringValue(parser, "data_base64");
+
+	if(all_worlds.isInReadOnlyMode())
+		throw glare::Exception("Server is in read-only mode, editing disabled currently.");
+
+	if(data_base64.size() > MAX_NEWS_IMAGE_FILE_SIZE / 3 * 4 + 4)
+		throw glare::Exception("Image file is too large (max " + toString(MAX_NEWS_IMAGE_FILE_SIZE) + " bytes).");
+
+	std::vector<unsigned char> data;
+	Base64::decode(data_base64, data);
+	if(data.size() > MAX_NEWS_IMAGE_FILE_SIZE)
+		throw glare::Exception("Image file is too large (max " + toString(MAX_NEWS_IMAGE_FILE_SIZE) + " bytes).");
+
+	// The filename extension gives the image format.  Check the data matches it.
+	const string_view extension = ::getExtensionStringView(filename);
+	if(!(StringUtils::equalCaseInsensitive(extension, "jpg") || StringUtils::equalCaseInsensitive(extension, "jpeg") || StringUtils::equalCaseInsensitive(extension, "png")))
+		throw glare::Exception("Image must be a JPEG or PNG file, with a .jpg, .jpeg or .png filename extension.");
+	if(!ImageDecoding::areMagicBytesValid(data.data(), data.size(), extension))
+		throw glare::Exception("Image data is not a valid file of the type given by the filename extension.");
+
+	Map2DRef im = ImageDecoding::decodeImageFromBuffer(/*indigo_base_dir=*/".", filename, ArrayRef<uint8>(data.data(), data.size()));
+
+	if(!im.isType<ImageMapUInt8>())
+		throw glare::Exception("Unsupported image format (16-bit images are not supported).");
+	ImageMapUInt8Ref image = im.downcast<ImageMapUInt8>();
+
+	if((image->getWidth() < 1) || (image->getHeight() < 1) || (image->getWidth() > (size_t)MAX_NEWS_IMAGE_DIM) || (image->getHeight() > (size_t)MAX_NEWS_IMAGE_DIM))
+		throw glare::Exception("Invalid image size (max " + toString(MAX_NEWS_IMAGE_DIM) + " pixels wide or high).");
+
+	if(image->getN() == 4)
+		image = image->extract3ChannelImage(); // Remove alpha, as JPEGs don't support it.
+	else if((image->getN() != 1) && (image->getN() != 3))
+		throw glare::Exception("Unsupported number of image channels: " + toString(image->getN()));
+
+	if(image->getWidth() > (size_t)NEWS_IMAGE_MAX_OUTPUT_WIDTH)
+	{
+		const int new_h = myMax(1, (int)((double)NEWS_IMAGE_MAX_OUTPUT_WIDTH * image->getHeight() / image->getWidth()));
+		image = resizeImage(image, NEWS_IMAGE_MAX_OUTPUT_WIDTH, new_h);
+	}
+
+	const std::string stem = sanitisedFilenameStem(filename);
+
+	size_t jpeg_size;
+	const std::string image_filename = saveNewsImageAsJPEG(all_worlds, image, /*filename_prefix=*/"news_" + stem, jpeg_size);
+
+	// Make the thumbnail: crop the centre of the image to the thumbnail aspect ratio, then scale it down to the thumbnail size if it's larger.
+	const int w = (int)image->getWidth();
+	const int h = (int)image->getHeight();
+	const int crop_w = myClamp((int)((double)h * NEWS_THUMBNAIL_WIDTH  / NEWS_THUMBNAIL_HEIGHT), 1, w);
+	const int crop_h = myClamp((int)((double)w * NEWS_THUMBNAIL_HEIGHT / NEWS_THUMBNAIL_WIDTH),  1, h);
+	ImageMapUInt8Ref thumbnail = image->cropImage(/*start_x=*/(w - crop_w) / 2, /*start_y=*/(h - crop_h) / 2, crop_w, crop_h);
+	if(crop_w > NEWS_THUMBNAIL_WIDTH)
+		thumbnail = resizeImage(thumbnail, NEWS_THUMBNAIL_WIDTH, NEWS_THUMBNAIL_HEIGHT);
+
+	size_t thumbnail_jpeg_size;
+	const std::string thumbnail_filename = saveNewsImageAsJPEG(all_worlds, thumbnail, /*filename_prefix=*/"news_thumb_" + stem, thumbnail_jpeg_size);
+
+	return "{\"url\":\"/images/" + image_filename + "\"" +
+		",\"width\":" + toString(image->getWidth()) +
+		",\"height\":" + toString(image->getHeight()) +
+		",\"size_B\":" + toString(jpeg_size) +
+		",\"thumbnail_url\":\"/images/" + thumbnail_filename + "\"}";
+}
+
+
+static const std::string tool_listPhotos(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args)
+{
+	const int limit = myClamp(args.getChildIntValueWithDefaultVal(parser, "limit", /*default=*/20), 1, 100);
+
+	WorldStateLock lock(all_worlds.mutex);
+
+	// Iterate newest first, starting from the newest photo with id < before_id if before_id is given.
+	auto it = args.hasChild("before_id") ?
+		std::map<uint64, PhotoRef>::reverse_iterator(all_worlds.photos.lower_bound((uint64)args.getChildDoubleValue(parser, "before_id"))) :
+		all_worlds.photos.rbegin();
+
+	std::string s = "[";
+	int num_added = 0;
+	for(; (it != all_worlds.photos.rend()) && (num_added < limit); ++it)
+	{
+		const Photo* photo = it->second.ptr();
+		if(photo->state == Photo::State_published)
+		{
+			auto user_res = all_worlds.user_id_to_users.find(photo->creator_id);
+			const std::string creator_name = (user_res != all_worlds.user_id_to_users.end()) ? user_res->second->name : std::string();
+
+			s += std::string(num_added > 0 ? "," : "") +
+				"{\"id\":" + toString(photo->id) +
+				",\"caption\":\"" + web::Escaping::JSONEscape(photo->caption) + "\"" +
+				",\"creator\":\"" + web::Escaping::JSONEscape(creator_name) + "\"" +
+				",\"created\":\"" + photo->created_time.dayAndTimeStringUTC() + "\"" +
+				",\"is_video\":" + boolToString(photo->isVideo()) +
+				",\"midsize_image_url\":\"" + photo->midSizeImageURLPath() + "\"" +
+				",\"full_image_url\":\"" + photo->fullSizeImageURLPath() + "\"" +
+				",\"page_url\":\"/photo/" + toString(photo->id) + "\"}";
+			num_added++;
+		}
+	}
+	s += "]";
+	return s;
+}
+
+
 // The static list of tools.
 // Each tool's argument schema is stored separately, as JSON text, so that it can be served both as part of an MCP
 // tools/list response (see makeToolsListJSON()) and to an LLM API for tool calling (see getToolSpecs()).
@@ -1070,16 +1381,110 @@ static const ToolDef TOOL_DEFS[] =
 static const size_t NUM_TOOL_DEFS = sizeof(TOOL_DEFS) / sizeof(TOOL_DEFS[0]);
 
 
+// Tools only available to the god user over the /mcp endpoint.  Not given to the in-world Builder AI.
+static const ToolDef ADMIN_TOOL_DEFS[] =
+{
+{
+	"list_news_posts",
+	"List news posts on the Substrata website, newest first, including drafts.  Doesn't include post content; use get_news_post for that.",
+	R"SCHEMA({
+		"type": "object",
+		"properties": { "limit": { "type": "number", "description": "Maximum number of posts to return (default 20, max 100)." } },
+		"required": []
+	})SCHEMA"
+},
+{
+	"get_news_post",
+	"Get a news post, including its HTML content.",
+	R"SCHEMA({
+		"type": "object",
+		"properties": { "id": { "type": "number", "description": "The news post id." } },
+		"required": ["id"]
+	})SCHEMA"
+},
+{
+	"create_news_post",
+	"Create a news post on the Substrata website.  The post is created as a draft, visible only to you at the returned url.  Posts are published from the website, not with this tool.  Content is HTML, inserted into the page as-is.",
+	R"SCHEMA({
+		"type": "object",
+		"properties": {
+			"title": { "type": "string", "description": "Post title." },
+			"content": { "type": "string", "description": "Post content, as HTML.  Max 100000 bytes." },
+			"thumbnail_url": { "type": "string", "description": "URL of an image to use as the post thumbnail (optional)." }
+		},
+		"required": ["title", "content"]
+	})SCHEMA"
+},
+{
+	"edit_news_post",
+	"Edit a news post.  Only the provided fields are changed.  Doesn't change whether the post is published.",
+	R"SCHEMA({
+		"type": "object",
+		"properties": {
+			"id": { "type": "number", "description": "The news post id." },
+			"title": { "type": "string" },
+			"content": { "type": "string", "description": "Post content, as HTML.  Max 100000 bytes." },
+			"thumbnail_url": { "type": "string" }
+		},
+		"required": ["id"]
+	})SCHEMA"
+},
+{
+	"upload_news_image",
+	"Upload a JPEG or PNG image for use in news posts.  Images wider than 1600 pixels are scaled down, and the image is saved as a JPEG.  Returns the image url, width and height, and the url of a thumbnail, cropped from the centre of the image, suitable for use as a news post thumbnail_url.  The image file is passed base64-encoded (max 7 MB before encoding): encode the file and build the request with a shell command rather than writing the base64 data out yourself.",
+	R"SCHEMA({
+		"type": "object",
+		"properties": {
+			"filename": { "type": "string", "description": "Original filename, e.g. 'new_bridge.png'.  Must have a .jpg, .jpeg or .png extension matching the file type.  Used as part of the saved image filename." },
+			"data_base64": { "type": "string", "description": "The image file contents, base64-encoded." }
+		},
+		"required": ["filename", "data_base64"]
+	})SCHEMA"
+},
+{
+	"list_photos",
+	"List photos and videos that users have uploaded to the Substrata website, newest first, with image urls that can be used in news posts.",
+	R"SCHEMA({
+		"type": "object",
+		"properties": {
+			"limit": { "type": "number", "description": "Maximum number of photos to return (default 20, max 100)." },
+			"before_id": { "type": "number", "description": "If given, only list photos with an id less than this, for paging back through older photos." }
+		},
+		"required": []
+	})SCHEMA"
+}
+};
+
+static const size_t NUM_ADMIN_TOOL_DEFS = sizeof(ADMIN_TOOL_DEFS) / sizeof(ADMIN_TOOL_DEFS[0]);
+
+
+static bool isAdminTool(const std::string& tool_name)
+{
+	for(size_t i=0; i<NUM_ADMIN_TOOL_DEFS; ++i)
+		if(tool_name == ADMIN_TOOL_DEFS[i].name)
+			return true;
+	return false;
+}
+
+
+static void appendToolDefsJSON(const ToolDef* defs, size_t num_defs, std::string& s)
+{
+	for(size_t i=0; i<num_defs; ++i)
+	{
+		s += std::string((s.size() > 1) ? "," : "") + "{\"name\":\"" + web::Escaping::JSONEscape(defs[i].name) + "\","
+			"\"description\":\"" + web::Escaping::JSONEscape(defs[i].description) + "\","
+			"\"inputSchema\":" + defs[i].input_schema_json + "}";
+	}
+}
+
+
 // Build the tools array in the format expected by an MCP tools/list response.
-static const std::string makeToolsListJSON()
+static const std::string makeToolsListJSON(bool include_admin_tools)
 {
 	std::string s = "[";
-	for(size_t i=0; i<NUM_TOOL_DEFS; ++i)
-	{
-		s += std::string(i > 0 ? "," : "") + "{\"name\":\"" + web::Escaping::JSONEscape(TOOL_DEFS[i].name) + "\","
-			"\"description\":\"" + web::Escaping::JSONEscape(TOOL_DEFS[i].description) + "\","
-			"\"inputSchema\":" + TOOL_DEFS[i].input_schema_json + "}";
-	}
+	appendToolDefsJSON(TOOL_DEFS, NUM_TOOL_DEFS, s);
+	if(include_admin_tools)
+		appendToolDefsJSON(ADMIN_TOOL_DEFS, NUM_ADMIN_TOOL_DEFS, s);
 	s += "]";
 	return s;
 }
@@ -1124,6 +1529,26 @@ static const std::string dispatchTool(ServerAllWorldsState& all_worlds, const JS
 }
 
 
+// Dispatch a call to an admin tool.  The caller must check the acting user is the god user.
+static const std::string dispatchAdminTool(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args, const std::string& tool_name, const UserID acting_user_id)
+{
+	if(tool_name == "list_news_posts")
+		return tool_listNewsPosts(all_worlds, parser, args);
+	else if(tool_name == "get_news_post")
+		return tool_getNewsPost(all_worlds, parser, args);
+	else if(tool_name == "create_news_post")
+		return tool_createNewsPost(all_worlds, parser, args, acting_user_id);
+	else if(tool_name == "edit_news_post")
+		return tool_editNewsPost(all_worlds, parser, args);
+	else if(tool_name == "upload_news_image")
+		return tool_uploadNewsImage(all_worlds, parser, args);
+	else if(tool_name == "list_photos")
+		return tool_listPhotos(all_worlds, parser, args);
+	else
+		throw glare::Exception("Unknown tool '" + tool_name + "'");
+}
+
+
 // Dispatch a tools/call request.  Returns the CallToolResult JSON.  Tool-level errors are returned as an error result (isError=true), not thrown.
 static const std::string handleToolCall(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& params, const UserID acting_user_id, const std::string& acting_user_name)
 {
@@ -1140,7 +1565,11 @@ static const std::string handleToolCall(ServerAllWorldsState& all_worlds, const 
 
 	try
 	{
-		return makeToolResult(dispatchTool(all_worlds, parser, args, tool_name, acting_user_id, acting_user_name), /*is_error=*/false);
+		// Admin tools are only available to the god user.  For other users they are unknown tools.
+		const std::string result = (isAdminTool(tool_name) && isGodUser(acting_user_id)) ?
+			dispatchAdminTool(all_worlds, parser, args, tool_name, acting_user_id) :
+			dispatchTool(all_worlds, parser, args, tool_name, acting_user_id, acting_user_name);
+		return makeToolResult(result, /*is_error=*/false);
 	}
 	catch(glare::Exception& e)
 	{
@@ -1204,11 +1633,11 @@ void handleMCPRequest(ServerAllWorldsState& world_state, const web::RequestInfo&
 	std::string username, password;
 	for(size_t i=0; i<request.headers.size(); ++i)
 	{
-		if(StringUtils::equalCaseInsensitive(request.headers[i].key, "authorization"))
+		if(StringUtils::equalCaseInsensitive(request.headers[i].key.str(), "authorization"))
 		{
 			try
 			{
-				Parser parser(request.headers[i].value.data(), request.headers[i].value.size());
+				Parser parser(request.headers[i].value.str().data(), request.headers[i].value.str().size());
 				string_view auth_type, auth_val;
 				if(!parser.parseNonWSToken(auth_type))
 					throw glare::Exception("Invalid authorization header.");
@@ -1406,7 +1835,7 @@ void handleMCPRequest(ServerAllWorldsState& world_state, const web::RequestInfo&
 		}
 		else if(method == "tools/list")
 		{
-			writeResult(reply_info, id, "{\"tools\":" + makeToolsListJSON() + "}");
+			writeResult(reply_info, id, "{\"tools\":" + makeToolsListJSON(/*include_admin_tools=*/isGodUser(user_id)) + "}");
 		}
 		else if(method == "tools/call")
 		{

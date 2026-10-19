@@ -114,12 +114,12 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 			// Add some meta tags for 'Twitter cards' which allow an image-based preview for tweets that refer to this page.  See https://developer.x.com/en/docs/x-for-websites/cards/overview/summary-card-with-large-image
 			if(!first_image_path.empty())
 			{
-				const std::string this_page_url = "https://" + request.getHostHeader() + "/parcel/" + toString(parcel_id);
+				const std::string this_page_url = "https://" + request.getHostHeader().str() + "/parcel/" + toString(parcel_id);
 
 				extra_header_tags += 
 					"\t\t<meta property=\"og:title\" content=\"" + web::Escaping::HTMLEscape(use_parcel_title) + "\" />      \n"
 					"\t\t<meta property=\"og:description\" content=\"" +  web::Escaping::HTMLEscape(parcel->description) + "\" />		 \n"
-					"\t\t<meta property=\"og:image\" content=\"https://" + request.getHostHeader() + first_image_path + "\" />		\n"
+					"\t\t<meta property=\"og:image\" content=\"https://" + request.getHostHeader().str() + first_image_path + "\" />		\n"
 					"\t\t<meta property=\"og:url\" content=\"" + this_page_url + "\" />	  \n"
 					"\t\t<meta property=\"og:type\" content=\"article\" />		  \n"
 					"\t\t<meta name=\"twitter:card\" content=\"summary_large_image\" />	   \n"
@@ -143,10 +143,10 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 			page += images_html;
 
-			const std::string hostname = request.getHostHeader(); // Find the hostname the request was sent to
+			const web::UnsafeString hostname = request.getHostHeader(); // Find the hostname the request was sent to
 
 			const std::string webclient_URL = "/visit/parcel/" + toString(parcel_id);
-			const std::string sub_URL = "sub://" + hostname + "/parcel/" + toString(parcel_id);
+			const std::string sub_URL = "sub://" + hostname.str() + "/parcel/" + toString(parcel_id);
 			
 			page += "<p><a href=\"" + webclient_URL + "\">Visit in web browser</a><br/></p>   \n";
 			//page += "<p>For the best experience, enter this URL into the location bar in the Substrata client: " + sub_URL + "</p>";

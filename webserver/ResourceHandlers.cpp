@@ -118,7 +118,7 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 				// Since resources have content hashes in URLs, the content for a given resource doesn't change.
 				// Therefore we can always return HTTP 304 not modified responses.
 				for(size_t i=0; i<request.headers.size(); ++i)
-					if(StringUtils::equalCaseInsensitive(request.headers[i].key, "if-modified-since"))
+					if(StringUtils::equalCaseInsensitive(request.headers[i].key.str(), "if-modified-since"))
 					{
 						conPrint("returning 304 Not Modified...");
 						

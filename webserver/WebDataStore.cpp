@@ -51,7 +51,7 @@ static void compressFile(Reference<WebDataStoreFile> file, const std::string& pa
 			&dest_len, // dest len
 			(Bytef*)file->uncompressed_data.data(), // source
 			(uLong)file->uncompressed_data.size(), // source len
-			(use_high_compression_level ? Z_BEST_COMPRESSION : Z_BEST_SPEED)
+			(use_high_compression_level ? Z_BEST_COMPRESSION : /*Z_BEST_SPEED*/Z_NO_COMPRESSION)
 		);
 
 		if(result != Z_OK)
@@ -209,6 +209,21 @@ void WebDataStore::loadAndCompressFiles()
 		{
 			conPrint("WebDataStore::loadAndCompressFiles: warning: " + e.what());
 		}
+	}
+
+	//-------------- Get public image filenames --------------
+	// The image files aren't loaded, as they are served from disk.
+	try
+	{
+		const std::vector<std::string> filenames = FileUtils::getFilesInDir(this->public_images_dir);
+
+		Lock lock(mutex);
+		public_image_filenames.clear();
+		public_image_filenames.insert(filenames.begin(), filenames.end());
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("WebDataStore::loadAndCompressFiles: warning: " + e.what());
 	}
 
 	//conPrint("WebDataStore::loadAndCompressFiles done.");

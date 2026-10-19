@@ -320,7 +320,7 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 						creator_username = user_res->second->name;
 				}
 
-				const std::string this_page_url = "https://" + request.getHostHeader() + "/photo/" + toString(photo_id);
+				const std::string this_page_url = "https://" + request.getHostHeader().str() + "/photo/" + toString(photo_id);
 
 				const std::string photo_or_video = photo->isVideo() ? "Video" : "Photo";
 
@@ -328,14 +328,14 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 				std::string meta_header_tags =
 					"\t\t<meta property=\"og:title\" content=\"" + photo_or_video + " by " + web::Escaping::HTMLEscape(creator_username) + " in Substrata\" />      \n"
 					"\t\t<meta property=\"og:description\" content=\"" +  web::Escaping::HTMLEscape(photo->caption) + "\" />		 \n"
-					"\t\t<meta property=\"og:image\" content=\"https://" + request.getHostHeader() + midsize_image_URL + "\" />		\n"
+					"\t\t<meta property=\"og:image\" content=\"https://" + request.getHostHeader().str() + midsize_image_URL + "\" />		\n"
 					"\t\t<meta property=\"og:url\" content=\"" + this_page_url + "\" />	  \n"
 					"\t\t<meta property=\"og:type\" content=\"article\" />		  \n"
 					"\t\t<meta name=\"twitter:card\" content=\"summary_large_image\" />	   \n"
 					"\t\t<meta name=\"twitter:site\" content=\"@SubstrataVr\" />	 ";
 				if(photo->isVideo())
 					meta_header_tags += "\n"
-						"\t\t<meta property=\"og:video\" content=\"https://" + request.getHostHeader() + photo->videoURLPath() + "\" />		\n"
+						"\t\t<meta property=\"og:video\" content=\"https://" + request.getHostHeader().str() + photo->videoURLPath() + "\" />		\n"
 						"\t\t<meta property=\"og:video:type\" content=\"video/mp4\" />		";
 
 				page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*//*"Photo #" + toString(photo_id) + ""*/"", /*extra header tags=*/meta_header_tags);
@@ -439,7 +439,7 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 
 				// See GUIClient::getCurrentWebClientURLPath()
 				const Vec3d pos = photo->cam_pos;
-				const std::string hostname = request.getHostHeader(); // Find the hostname the request was sent to
+				const std::string hostname = request.getHostHeader().str(); // Find the hostname the request was sent to
 				const double heading_deg = Maths::doubleMod(::radToDegree(photo->cam_angles.x), 360.0);
 
 				const std::string pos_and_heading_part = "x=" + doubleToStringMaxNDecimalPlaces(pos.x, 1) + "&y=" + doubleToStringMaxNDecimalPlaces(pos.y, 1) + "&z=" + doubleToStringMaxNDecimalPlaces(pos.z, 2) + 

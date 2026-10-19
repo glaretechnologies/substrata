@@ -51,6 +51,21 @@ WebServerRequestHandler::~WebServerRequestHandler()
 {}
 
 
+// Checks a filename requested from public_images_dir is a plain filename with an image extension, so it can't be used to read files outside the dir.
+static bool isSafePublicImageFilename(const std::string& filename)
+{
+	if(filename.empty() || (filename.size() > 256) || (filename[0] == '.'))
+		return false;
+
+	for(size_t i=0; i<filename.size(); ++i)
+		if(!(::isAlphaNumeric(filename[i]) || (filename[i] == '-') || (filename[i] == '_') || (filename[i] == '.')))
+			return false;
+
+	const string_view extension = ::getExtensionStringView(filename);
+	return (extension == "jpg") || (extension == "jpeg") || (extension == "png") || (extension == "gif"); // Extensions that web::ResponseUtils::getContentTypeForPath() gives an image content type for.
+}
+
+
 /*static bool isLetsEncryptFileQuerySafe(const std::string& s)
 {
 	for(size_t i=0; i<s.size(); ++i)
@@ -78,8 +93,8 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		// Find the hostname the request was sent to - look through the headers for 'host'.
 		std::string hostname;
 		for(size_t i=0; i<request.headers.size(); ++i)
-			if(StringUtils::equalCaseInsensitive(request.headers[i].key, "host"))
-				hostname = toString(request.headers[i].value);
+			if(StringUtils::equalCaseInsensitive(request.headers[i].key.str(), "host"))
+				hostname = request.headers[i].value.str();
 		if(hostname != "localhost")
 		{
 			const std::string response = 
@@ -743,6 +758,35 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 				}
 			}
 			else
+			{
+				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "No such file found or invalid filename");
+				return;
+			}
+		}
+		else if(::hasPrefix(request.path, "/images/"))
+		{
+			// Serve an image from public_images_dir, e.g. an image for a news post.  Served from disk via a memory-mapped file, rather than held in memory like public_files.
+			const std::string filename = ::eatPrefix(request.path, "/images/");
+			bool file_present;
+			{
+				Lock lock(data_store->mutex);
+				file_present = data_store->public_image_filenames.count(filename) > 0;
+			}
+
+			if(!isSafePublicImageFilename(filename) || !file_present)
+			{
+				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "No such file found or invalid filename");
+				return;
+			}
+
+			try
+			{
+				MemMappedFile file(data_store->public_images_dir + "/" + filename);
+				// Files in public_images_dir must not be replaced with different content under the same filename, as they are cached indefinitely.
+				// The upload_news_image MCP tool names files by a hash of their content.
+				web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file.fileData(), file.fileSize(), web::ResponseUtils::getContentTypeForPath(filename), /*max age (s)=*/1000000000);
+			}
+			catch(glare::Exception&)
 			{
 				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "No such file found or invalid filename");
 				return;

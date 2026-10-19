@@ -53,10 +53,11 @@ public:
 
 	//std::string letsencrypt_webroot;
 	std::string fragments_dir; // For HTML fragments
-	std::string public_files_dir;
+	std::string public_files_dir; // Holds stuff like main.css, map.js, logo_main_page.png etc. from webserver_public_files
 	std::string webclient_dir; // Dir that webclient files are in - client.html, webclient.js etc..
-	std::string screenshot_dir;
-	std::string photo_dir;
+	std::string screenshot_dir; // Dir generated screenshots (taken by the screenshot bot) will be saved to.
+	std::string photo_dir; // Dir uploaded photos taken by users will be saved to.
+	std::string public_images_dir; // Images served from the URLs /images/<filename>, e.g. images for news posts.  Served from disk, not held in memory like public_files.
 
 	std::map<std::string, Reference<WebDataStoreFile>> fragment_files		GUARDED_BY(mutex);
 
@@ -65,6 +66,8 @@ public:
 	std::map<std::string, Reference<WebDataStoreFile>> webclient_dir_files	GUARDED_BY(mutex);
 
 	std::map<std::string, Reference<GenericPage>> generic_pages				GUARDED_BY(mutex); // Map from URL path to page
+
+	std::set<std::string> public_image_filenames							GUARDED_BY(mutex); // Names of the files in public_images_dir.  Only these files are served from /images/.
 
 	Mutex mutex;
 
