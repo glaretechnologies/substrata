@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2026 -
 #include "MainWindow.h"
 #include "MCPRenderRequest.h"
 #include "LuaBuildScript.h"
+#include "CreateObjectTracker.h"
 #include <webserver/RequestInfo.h>
 #include <webserver/ResponseUtils.h>
 #include <webserver/Escaping.h>
@@ -399,7 +400,7 @@ void MCPClientRequestHandler::handleRunLuaBuildScript(const JSONParser& parser, 
 		main_window->gui_client.msg_queue.enqueue(new InfoMessage("Running MCP Lua build script..."));
 
 		LuaBuildScriptResults results;
-		LuaBuildScript::run(&main_window->gui_client, main_window->gui_client.lua_builder_state.ptr(), script_src, build_options, results);
+		LuaBuildScript::run(&main_window->gui_client, main_window->gui_client.create_object_tracker.ptr(), script_src, build_options, results);
 
 		// Report the run as text: what the script printed, then how it finished.  Agents fix what they can read, so the error text
 		// (which carries source locations) goes in the result rather than just the log.

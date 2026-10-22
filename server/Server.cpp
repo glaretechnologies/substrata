@@ -1498,6 +1498,37 @@ void Server::enqueuePacketToBroadcastForAllWorlds(const SocketBufferOutStream& p
 }
 
 
+void Server::textureGenerationQueued(const URLString& URL)
+{
+	{
+		Lock lock(texture_URLs_being_generated_mutex);
+		texture_URLs_being_generated.insert(URL);
+	}
+
+	// Tell clients, so they can show a placeholder for the texture until it is generated.
+	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+	MessageUtils::initPacket(packet, Protocol::ResourceBeingProcessed);
+	packet.writeStringLengthFirst(URL);
+	MessageUtils::updatePacketLengthField(packet);
+
+	enqueuePacketToBroadcastForAllWorlds(packet);
+}
+
+
+void Server::removeTextureURLBeingGenerated(const URLString& URL)
+{
+	Lock lock(texture_URLs_being_generated_mutex);
+	texture_URLs_being_generated.erase(URL);
+}
+
+
+bool Server::isTextureURLBeingGenerated(const URLString& URL)
+{
+	Lock lock(texture_URLs_being_generated_mutex);
+	return texture_URLs_being_generated.count(URL) > 0;
+}
+
+
 void Server::clientDisconnected(WorkerThread* worker_thread)
 {
 	conPrint("Server::clientDisconnected(): worker_thread: 0x" + toHexString((uint64)worker_thread));

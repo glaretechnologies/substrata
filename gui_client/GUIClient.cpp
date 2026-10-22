@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <settings/SettingsStore.h>
 #include "ClientThread.h"
 #include "LuaBuildScript.h"
+#include "CreateObjectTracker.h"
 #include "ModelLoading.h"
 #include "MeshBuilding.h"
 #include "ThreadMessages.h"
@@ -230,6 +231,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	resources_dir_path = base_dir_path + "/data/resources";
 
 	scripted_ob_proximity_checker.gui_client = this;
+
+	create_object_tracker = new CreateObjectTracker();
 
 	imgui_drawing = new ImGUIDrawing(this);
 
@@ -528,6 +531,9 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	default_array_tex = new OpenGLTexture(4, 4, opengl_engine.ptr(),
 		tex_data, OpenGLTextureFormat::Format_SRGB_Uint8, OpenGLTexture::Filtering_Nearest,
 		OpenGLTexture::Wrapping_Repeat, false, -1, /* num array images=*/1);
+
+
+	this->processing_placeholder_texture = opengl_engine->getTexture(base_dir_path + "/data/resources/processing.basis");
 
 
 	animated_texture_manager->init(opengl_engine.ptr());
@@ -1049,6 +1055,7 @@ void GUIClient::shutdown()
 	script_messages.clear();
 
 	default_array_tex = nullptr;
+	processing_placeholder_texture = nullptr;
 
 	misc_info_ui.destroy();
 
@@ -1901,8 +1908,10 @@ static inline bool isNonEmptyAndNotMp4(const string_view path)
 }
 
 
-static void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const WorldMaterial* world_mat, const URLString& texture_URL, const OpenGLTextureKey& desired_tex_path, GLObject* ob, size_t mat_index, OpenGLEngine& opengl_engine, 
-	ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator, const TextureFormatPreferences& tex_format_prefs, bool tex_has_alpha, bool use_sRGB, bool& mat_changed_out)
+// Check the current OpenGL texture assigned to a material, and update the assignment if there is a better possible assignment.
+// Assign a placeholder texture if the texture is being processed on the server.
+void GUIClient::checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const WorldMaterial* world_mat, const URLString& texture_URL, const OpenGLTextureKey& desired_tex_path, GLObject* ob, size_t mat_index,
+	glare::ArenaAllocator* allocator, bool tex_has_alpha, bool use_sRGB, bool& mat_changed_out)
 {
 	if(isNonEmptyAndNotMp4(desired_tex_path))
 	{
@@ -1910,23 +1919,32 @@ static void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const
 		{
 			if(!opengl_texture || (opengl_texture->key != desired_tex_path)) // If the desired texture is not currently assigned:
 			{
-				OpenGLTextureRef new_tex = opengl_engine.getTextureIfLoaded(desired_tex_path); // Try and get desired texture
+				OpenGLTextureRef new_tex = opengl_engine->getTextureIfLoaded(desired_tex_path); // Try and get desired texture
 
 				// If the desired texture isn't loaded, try and use a different LOD level of the texture, that is actually loaded.
 				if(!new_tex && world_mat)
 				{
 					glare::STLArenaAllocator<char> stl_allocator(allocator);
 					OpenGLTextureKey base_tex_path(stl_allocator);
-					resource_manager.getTexPathForURL(texture_URL, /*path out=*/base_tex_path);
+					resource_manager->getTexPathForURL(texture_URL, /*path out=*/base_tex_path);
 
-					new_tex = getBestTextureLOD(*world_mat, base_tex_path, tex_has_alpha, /*use_sRGB=*/use_sRGB, tex_format_prefs, opengl_engine, allocator); 
+					new_tex = getBestTextureLOD(*world_mat, base_tex_path, tex_has_alpha, /*use_sRGB=*/use_sRGB, tex_format_prefs, *opengl_engine, allocator); 
+				}
+
+				// If no LOD level of the texture is loaded, and the server didn't have the one we asked for, show the placeholder until it arrives.
+				// The real texture replaces it once downloaded.  Keep a placeholder that is already showing while the texture downloads, rather than showing nothing.
+				if(!new_tex)
+				{
+					if((opengl_texture == this->processing_placeholder_texture) || // If currently showing placeholder texture, keep showing it.
+						(tex_paths_being_server_processed.count(desired_tex_path) > 0))
+						new_tex = this->processing_placeholder_texture;
 				}
 
 				if(new_tex != opengl_texture) // If we have a new texture to assign to opengl_texture:
 				{
 					// If old texture was animated, remove use of the animated texture from the animated texture manager
 					if(opengl_texture && opengl_texture->hasMultiFrameTextureData())
-						animated_texture_manager.removeTextureUse(opengl_texture, ob, mat_index);
+						animated_texture_manager->removeTextureUse(opengl_texture, ob, mat_index);
 
 					opengl_texture = new_tex;
 
@@ -1934,7 +1952,7 @@ static void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const
 
 					// If new texture is animated, add use to animated texture manager
 					if(opengl_texture && opengl_texture->hasMultiFrameTextureData())
-						animated_texture_manager.checkAddTextureUse(opengl_texture, ob, mat_index);
+						animated_texture_manager->checkAddTextureUse(opengl_texture, ob, mat_index);
 				}
 			}
 		}
@@ -1947,21 +1965,20 @@ static void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const
 
 
 // Returns true if mat changed, false otherwise
-static bool doAssignLoadedOpenGLTexturesToMaterial(OpenGLMaterial& opengl_mat, const WorldMaterial* world_mat, GLObject* gl_ob, size_t mat_index, OpenGLEngine& opengl_engine, 
-	ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator, const TextureFormatPreferences& tex_format_prefs)
+bool GUIClient::doAssignLoadedOpenGLTexturesToMaterial(OpenGLMaterial& opengl_mat, const WorldMaterial* world_mat, GLObject* gl_ob, size_t mat_index, glare::ArenaAllocator* allocator)
 {
 	bool mat_changed = false;
 
-	checkAssignBestOpenGLTexture(opengl_mat.albedo_texture, world_mat, world_mat ? world_mat->colour_texture_url : URLString(), opengl_mat.tex_path, gl_ob, mat_index, opengl_engine, resource_manager, animated_texture_manager, allocator, tex_format_prefs, 
+	checkAssignBestOpenGLTexture(opengl_mat.albedo_texture, world_mat, world_mat ? world_mat->colour_texture_url : URLString(), opengl_mat.tex_path, gl_ob, mat_index, allocator,
 		/*tex has alpha=*/world_mat ? world_mat->colourTexHasAlpha() : false, /*use sRBB=*/true, mat_changed);
 
-	checkAssignBestOpenGLTexture(opengl_mat.emission_texture, world_mat, world_mat ? world_mat->emission_texture_url : URLString(), opengl_mat.emission_tex_path, gl_ob, mat_index, opengl_engine, resource_manager, animated_texture_manager, allocator, tex_format_prefs, 
+	checkAssignBestOpenGLTexture(opengl_mat.emission_texture, world_mat, world_mat ? world_mat->emission_texture_url : URLString(), opengl_mat.emission_tex_path, gl_ob, mat_index, allocator, 
 		/*tex has alpha=*/false, /*use sRBB=*/true, mat_changed);
 
-	checkAssignBestOpenGLTexture(opengl_mat.metallic_roughness_texture, world_mat, world_mat ? world_mat->roughness.texture_url : URLString(), opengl_mat.metallic_roughness_tex_path, gl_ob, mat_index, opengl_engine, resource_manager, animated_texture_manager, allocator, tex_format_prefs, 
+	checkAssignBestOpenGLTexture(opengl_mat.metallic_roughness_texture, world_mat, world_mat ? world_mat->roughness.texture_url : URLString(), opengl_mat.metallic_roughness_tex_path, gl_ob, mat_index, allocator, 
 		/*tex has alpha=*/false, /*use sRBB=*/false, mat_changed);
 
-	checkAssignBestOpenGLTexture(opengl_mat.normal_map, world_mat, world_mat ? world_mat->normal_map_url : URLString(), opengl_mat.normal_map_path, gl_ob, mat_index, opengl_engine, resource_manager, animated_texture_manager, allocator, tex_format_prefs, 
+	checkAssignBestOpenGLTexture(opengl_mat.normal_map, world_mat, world_mat ? world_mat->normal_map_url : URLString(), opengl_mat.normal_map_path, gl_ob, mat_index, allocator, 
 		/*tex has alpha=*/false, /*use_sRGB=*/false, mat_changed);
 
 	return mat_changed;
@@ -1971,8 +1988,7 @@ static bool doAssignLoadedOpenGLTexturesToMaterial(OpenGLMaterial& opengl_mat, c
 // Update textures to correct LOD-level textures.
 // Try and use the texture with the target LOD level first (given by e.g. opengl_mat.tex_path).
 // If that texture is not currently loaded into the OpenGL Engine, then use another texture LOD that is loaded, as chosen in getBestTextureLOD().
-static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, const TextureFormatPreferences& tex_format_prefs, bool use_lightmaps, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, 
-	AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator)
+void GUIClient::doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, glare::ArenaAllocator* allocator)
 {
 	ZoneScoped; // Tracy profiler
 
@@ -1984,23 +2000,23 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, const TextureFor
 		OpenGLMaterial& opengl_mat = ob->opengl_engine_ob->materials[z];
 		const WorldMaterial* world_mat = (z < ob->materials.size()) ? ob->materials[z].ptr() : NULL;
 
-		bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, ob->opengl_engine_ob.ptr(), z, opengl_engine, resource_manager, animated_texture_manager, allocator, tex_format_prefs);
+		bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, ob->opengl_engine_ob.ptr(), z, allocator);
 
-		if(use_lightmaps && isValidLightMapURL(opengl_engine, opengl_mat.lightmap_path))
+		if(use_lightmaps && isValidLightMapURL(*opengl_engine, opengl_mat.lightmap_path))
 		{
 			try
 			{
 				if(!opengl_mat.lightmap_texture || (opengl_mat.lightmap_texture->key != opengl_mat.lightmap_path)) // If the desired texture it not loaded:
 				{
-					OpenGLTextureRef new_tex = opengl_engine.getTextureIfLoaded(opengl_mat.lightmap_path);
+					OpenGLTextureRef new_tex = opengl_engine->getTextureIfLoaded(opengl_mat.lightmap_path);
 					if(!new_tex) // If this texture is not loaded into the OpenGL engine:
 					{
 						// Get local base tex path for lightmap URL
 						glare::STLArenaAllocator<char> stl_allocator(allocator);
 						OpenGLTextureKey base_tex_path(stl_allocator);
-						resource_manager.getTexPathForURL(ob->lightmap_url, /*path out=*/base_tex_path);
+						resource_manager->getTexPathForURL(ob->lightmap_url, /*path out=*/base_tex_path);
 
-						new_tex = getBestLightmapLOD(base_tex_path, opengl_engine); // Try and use a different LOD level of the lightmap, that is actually loaded.
+						new_tex = getBestLightmapLOD(base_tex_path, *opengl_engine); // Try and use a different LOD level of the lightmap, that is actually loaded.
 					}
 
 					if(new_tex != opengl_mat.lightmap_texture)
@@ -2019,7 +2035,7 @@ static void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, const TextureFor
 			opengl_mat.lightmap_texture = NULL;
 
 		if(mat_changed)
-			opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
+			opengl_engine->materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
 	}
 }
 
@@ -2030,12 +2046,12 @@ void GUIClient::assignLoadedOpenGLTexturesToMats(WorldObject* ob)
 
 	glare::ArenaFrame frame(arena_allocator);
 
-	doAssignLoadedOpenGLTexturesToMats(ob, /*tex_format_prefs=*/this->tex_format_prefs, this->use_lightmaps, *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
+	doAssignLoadedOpenGLTexturesToMats(ob, &arena_allocator);
 }
 
 
 // For avatars
-static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, const TextureFormatPreferences& tex_format_prefs, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator)
+void GUIClient::assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, glare::ArenaAllocator* allocator)
 {
 	ZoneScoped; // Tracy profiler
 
@@ -2047,9 +2063,9 @@ static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, const TextureForm
 			OpenGLMaterial& opengl_mat = avatar_gl_ob->materials[z];
 			const WorldMaterial* world_mat = (z < av->avatar_settings.materials.size()) ? av->avatar_settings.materials[z].ptr() : NULL;
 
-			const bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, avatar_gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, tex_format_prefs);
+			const bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, avatar_gl_ob, z, allocator);
 			if(mat_changed)
-				opengl_engine.materialTextureChanged(*avatar_gl_ob, opengl_mat);
+				opengl_engine->materialTextureChanged(*avatar_gl_ob, opengl_mat);
 		}
 	}
 
@@ -2066,16 +2082,16 @@ static void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, const TextureForm
 				OpenGLMaterial& opengl_mat = gl_ob->materials[z];
 				const WorldMaterial* world_mat = (z < item->materials.size()) ? item->materials[z].ptr() : NULL;
 
-				const bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, tex_format_prefs);
+				const bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, gl_ob, z, allocator);
 				if(mat_changed)
-					opengl_engine.materialTextureChanged(*gl_ob, opengl_mat);
+					opengl_engine->materialTextureChanged(*gl_ob, opengl_mat);
 			}
 		}
 	}
 }
 
 
-static void assignLoadedOpenGLTexturesToGearItemMats(const GearItem* item, EquippedGearGraphics* equipped_gear, const TextureFormatPreferences& tex_format_prefs, OpenGLEngine& opengl_engine, ResourceManager& resource_manager, AnimatedTextureManager& animated_texture_manager, glare::ArenaAllocator* allocator)
+void GUIClient::assignLoadedOpenGLTexturesToGearItemMats(const GearItem* item, EquippedGearGraphics* equipped_gear, glare::ArenaAllocator* allocator)
 {
 	ZoneScoped; // Tracy profiler
 
@@ -2087,9 +2103,9 @@ static void assignLoadedOpenGLTexturesToGearItemMats(const GearItem* item, Equip
 			OpenGLMaterial& opengl_mat = gl_ob->materials[z];
 			const WorldMaterial* world_mat = (z < item->materials.size()) ? item->materials[z].ptr() : NULL;
 
-			const bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, gl_ob, z, opengl_engine, resource_manager, animated_texture_manager, allocator, tex_format_prefs);
+			const bool mat_changed = doAssignLoadedOpenGLTexturesToMaterial(opengl_mat, world_mat, gl_ob, z, allocator);
 			if(mat_changed)
-				opengl_engine.materialTextureChanged(*gl_ob, opengl_mat);
+				opengl_engine->materialTextureChanged(*gl_ob, opengl_mat);
 		}
 	}
 }
@@ -3191,7 +3207,7 @@ void GUIClient::loadPresentAvatarModel(Avatar* avatar, int av_lod_level, const R
 
 	avatar->graphics.build(avatar->our_avatar);
 
-	assignLoadedOpenGLTexturesToAvatarMats(avatar, /*tex_format_prefs=*/this->tex_format_prefs, *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
+	assignLoadedOpenGLTexturesToAvatarMats(avatar, &arena_allocator);
 
 	// Enable materialise effect if needed
 	const float current_time = (float)Clock::getTimeSinceInit();
@@ -3249,7 +3265,7 @@ void GUIClient::loadPresentGearModel(const GearItem* item, EquippedGearGraphics*
 
 	avatar->graphics.updateGearBones();
 
-	assignLoadedOpenGLTexturesToGearItemMats(item, equipped_gear_graphics, /*tex_format_prefs=*/this->tex_format_prefs, *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
+	assignLoadedOpenGLTexturesToGearItemMats(item, equipped_gear_graphics, &arena_allocator);
 
 	const float current_time = (float)Clock::getTimeSinceInit();
 
@@ -4194,11 +4210,11 @@ std::string GUIClient::getSceneLoadingStatus()
 // hold up every MCP render.
 size_t GUIClient::numBuiltObjectsInProximityWithoutModel()
 {
-	if(world_state.isNull() || lua_builder_state.isNull())
+	if(world_state.isNull())
 		return 0;
 
 	std::vector<UID> built_uids;
-	lua_builder_state->getBuiltObjectUIDs(built_uids);
+	create_object_tracker->getBuiltObjectUIDs(built_uids);
 
 	WorldStateLock lock(world_state->mutex);
 
@@ -5091,7 +5107,7 @@ void GUIClient::handleUploadedTexture(const OpenGLTextureKey& path, const URLStr
 						Avatar* av = res2->second.ptr();
 
 						glare::ArenaFrame frame(arena_allocator);
-						assignLoadedOpenGLTexturesToAvatarMats(av, /*tex_format_prefs=*/this->tex_format_prefs, *opengl_engine, *resource_manager, *animated_texture_manager, &arena_allocator);
+						assignLoadedOpenGLTexturesToAvatarMats(av, &arena_allocator);
 					}
 				}
 				loading_texture_URL_to_avatar_UID_map.erase(res); // Now that this texture has been loaded, remove from map
@@ -9222,6 +9238,33 @@ void GUIClient::cancelBuilderAI()
 }
 
 
+// The server is generating the resource.  For a texture, record its path, and reassign textures for the objects that are waiting for it, so they show
+// the placeholder (see checkAssignBestOpenGLTexture()).
+void GUIClient::handleResourceBeingProcessedOnServer(const URLString& URL)
+{
+	if(world_state && ImageDecoding::hasSupportedImageExtension(URL))
+	{
+		// conPrint("GUIClient::handleResourceBeingProcessedOnServer: Adding '" + toStdString(URL) + "' to tex_paths_being_server_processed...");
+
+		tex_paths_being_server_processed.insert(OpenGLTextureKey(resource_manager->pathForURL(URL)));
+
+		auto res = URL_to_downloading_info.find(URL);
+		if(res != URL_to_downloading_info.end())
+		{
+			const DownloadingResourceInfo& info = res->second;
+
+			Lock lock(this->world_state->mutex);
+			for(size_t i=0; i<info.using_objects.using_object_uids.size(); ++i)
+			{
+				auto ob_res = world_state->objects.find(info.using_objects.using_object_uids[i]);
+				if(ob_res != world_state->objects.end())
+					assignLoadedOpenGLTexturesToMats(ob_res.getValue().ptr());
+			}
+		}
+	}
+}
+
+
 void GUIClient::handleMessages(double global_time, double cur_time)
 {
 	PERFORMANCEAPI_INSTRUMENT("handle msgs");
@@ -10176,11 +10219,11 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 			// for a create it refused, so this is where the user finds out an object they made wasn't created.
 			const CreateObjectResponseMessage* m = checkedDowncastPtr<const CreateObjectResponseMessage>(msg);
 
-			// A build script reports the outcome of its own objects, so don't also show the user an error for each one: a build
-			// aimed somewhere it may not write would otherwise raise a notification per object.
-			const bool handled_by_build_script = lua_builder_state.nonNull() && lua_builder_state->handleCreateObjectResponse(m->result, m->client_token, m->object_uid, m->error_msg);
+			// Bulk creates (build scripts, parcel imports) report the outcome of their own objects, so don't also show the user an error for
+			// each one: a build aimed somewhere it may not write would otherwise raise a notification per object.
+			const bool handled_by_tracker = create_object_tracker->handleCreateObjectResponse(m->result, m->client_token, m->object_uid, m->error_msg);
 
-			if(!handled_by_build_script && (m->result != Protocol::CreateObjectResult_Success))
+			if(!handled_by_tracker && (m->result != Protocol::CreateObjectResult_Success))
 				showErrorNotification(m->error_msg);
 		}
 		break;
@@ -10263,6 +10306,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 				// A download of this resource may have failed earlier, but should succeed now.
 				resource_manager->removeFromDownloadFailedURLs(m->URL);
+				tex_paths_being_server_processed.erase(OpenGLTextureKey(resource_manager->pathForURL(m->URL)));
 
 				if(ResourceManager::isValidURL(m->URL))
 				{
@@ -10362,6 +10406,21 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 					}
 				}
 			}
+		}
+		break;
+		case Msg_ResourceDownloadFailedMessage:
+		{
+			const ResourceDownloadFailedMessage* m = checkedDowncastPtr<const ResourceDownloadFailedMessage>(msg);
+
+			if(m->reason == ResourceDownloadFailedMessage::Reason_BeingProcessed)
+				handleResourceBeingProcessedOnServer(m->URL);
+		}
+		break;
+		case Msg_ResourceBeingProcessedMessage:
+		{
+			const ResourceBeingProcessedMessage* m = checkedDowncastPtr<const ResourceBeingProcessedMessage>(msg);
+
+			handleResourceBeingProcessedOnServer(m->URL);
 		}
 		break;
 		case Msg_ResourceDownloadedMessage:
@@ -13994,6 +14053,8 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 	models_processing.clear();
 	audio_processing.clear();
 	script_content_processing.clear();
+
+	tex_paths_being_server_processed.clear();
 }
 
 

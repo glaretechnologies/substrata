@@ -500,8 +500,16 @@ void WorkerThread::handleResourceDownloadConnection()
 						const ResourceRef resource = server->world_state->resource_manager->getExistingResourceForURL(URL);
 						if(resource.isNull() || (resource->getState() != Resource::State_Present))
 						{
-							conPrintIfNotFuzzing("\tRequested URL was not present on disk.");
-							socket->writeUInt32(1); // write error msg to client
+							if(server->isTextureURLBeingGenerated(URL))
+							{
+								conPrintIfNotFuzzing("\tRequested URL is being generated.");
+								socket->writeUInt32(2); // Tell client the resource is being processed
+							}
+							else
+							{
+								conPrintIfNotFuzzing("\tRequested URL was not present on disk.");
+								socket->writeUInt32(1); // write error msg to client
+							}
 						}
 						else
 						{

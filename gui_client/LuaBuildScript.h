@@ -18,6 +18,7 @@ Copyright Glare Technologies Limited 2026 -
 #include <map>
 #include <set>
 class GUIClient;
+class CreateObjectTracker;
 
 
 /*=====================================================================
@@ -49,63 +50,6 @@ public:
 	TerrainQueriesToProcessMessage(const TerrainHeightQueryRef& query_) : ThreadMessage(Msg_TerrainQueriesToProcessMessage), query(query_) {}
 	TerrainHeightQueryRef query;
 };
-
-
-/*=====================================================================
-LuaBuilderState
----------------
-What the server said about the objects build scripts asked it to create.
-Owned by GUIClient, because the responses arrive in its message queue, and
-can do so after the script that made the objects has finished running.
-
-A script puts a token in the UID field of each CreateObject message, which the
-server echoes back in its CreateObjectResponse (see Protocol.h).  Tokens are
-handed out in order, so a run's objects occupy a contiguous range and can be
-looked up with one pass.
-
-State only: it does no waiting, and the run polls it however suits.
-=====================================================================*/
-class LuaBuilderState : public ThreadSafeRefCounted
-{
-public:
-	LuaBuilderState() : next_token(1) {}
-
-	struct Outcome
-	{
-		Outcome() : result(0) {}
-		uint32 result; // One of Protocol::CreateObjectResult_*.
-		UID created_ob_uid; // The UID the server assigned, valid when result is CreateObjectResult_Success.
-		std::string error_msg; // Empty unless the object was refused.
-	};
-
-	uint64 makeToken(); // Token 0 is never handed out, so it can't be confused with a create that isn't from a build script.
-
-	// Returns whether this was a token we handed out, i.e. whether a build script is responsible for reporting it.
-	bool handleCreateObjectResponse(uint32 result, uint64 client_token, UID created_ob_uid, const std::string& error_msg);
-
-	// Returns whether a response has arrived for this token yet, and if so what it said.  A run polls this when it needs the UID the
-	// server assigned to an object it just asked for, as getOrCreateGroup() does.
-	bool getOutcomeForToken(uint64 client_token, Outcome& outcome_out) const;
-
-	// Counts the responses that have arrived for tokens in [begin_token, end_token), and gives the first refusal message.
-	void getOutcomesForRange(uint64 begin_token, uint64 end_token, size_t& num_responses_out, size_t& num_refused_out, std::string& first_error_out) const;
-
-	// Gets the UIDs the server gave the objects it created for tokens in [begin_token, end_token), from the responses that have arrived.
-	void getCreatedUIDsForRange(uint64 begin_token, uint64 end_token, std::vector<UID>& uids_out) const;
-
-	void forgetRange(uint64 begin_token, uint64 end_token);
-
-	// The objects build scripts have created this session.  render_view waits for these to show their models before rendering.
-	void addBuiltObjectUIDs(const std::vector<UID>& uids);
-	void getBuiltObjectUIDs(std::vector<UID>& uids_out) const;
-
-private:
-	mutable Mutex mutex;
-	uint64 next_token   GUARDED_BY(mutex);
-	std::map<uint64, Outcome> outcomes  GUARDED_BY(mutex);
-	std::set<UID> built_object_uids  GUARDED_BY(mutex);
-};
-typedef Reference<LuaBuilderState> LuaBuilderStateRef;
 
 
 /*=====================================================================
@@ -163,7 +107,7 @@ class LuaBuildScript
 {
 public:
 	// Runs script_src to completion.  Does not throw: failures are reported in results_out.
-	static void run(GUIClient* gui_client, LuaBuilderState* builder_state, const std::string& script_src, const LuaBuildScriptOptions& options, LuaBuildScriptResults& results_out);
+	static void run(GUIClient* gui_client, CreateObjectTracker* builder_state, const std::string& script_src, const LuaBuildScriptOptions& options, LuaBuildScriptResults& results_out);
 
 	static void test();
 };

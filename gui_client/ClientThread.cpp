@@ -1163,6 +1163,15 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			out_msg_queue->enqueue(new NewResourceOnServerMessage(url));
 			break;
 		}
+	case Protocol::ResourceBeingProcessed:
+		{
+			const URLString url = toURLString(msg_buffer.readStringLengthFirst(MAX_STRING_LEN));
+
+			// conPrint("Received ResourceBeingProcessed message from server, url: " + toStdString(url));
+
+			out_msg_queue->enqueue(new ResourceBeingProcessedMessage(url));
+			break;
+		}
 	case Protocol::ChatMessageID:
 		{
 			//conPrint("ChatMessage");

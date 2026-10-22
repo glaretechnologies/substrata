@@ -40,6 +40,22 @@ public:
 };
 
 
+// The server couldn't send the resource, so it has been added to the resource manager's download-failed URLs.
+class ResourceDownloadFailedMessage : public ThreadMessage
+{
+public:
+	enum Reason
+	{
+		Reason_NotFound,
+		Reason_BeingProcessed // The server is generating the resource, e.g. a LOD or basis version of a texture.  A NewResourceOnServerMessage follows when it is done.
+	};
+
+	ResourceDownloadFailedMessage(const URLString& URL_, Reason reason_) : ThreadMessage(Msg_ResourceDownloadFailedMessage), URL(URL_), reason(reason_) {}
+	URLString URL;
+	Reason reason;
+};
+
+
 /*=====================================================================
 DownloadResourcesThread
 -----------------------

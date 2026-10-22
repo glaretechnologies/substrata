@@ -93,7 +93,7 @@ class TextRendererFontFace;
 class Resource;
 class AsyncTextureLoader;
 class SubstrataLuaVM;
-class LuaBuilderState;
+class CreateObjectTracker;
 struct LoadedBuffer;
 struct AsyncUploadedGeometryInfo;
 struct PBOAsyncUploadedTextureInfo;
@@ -320,6 +320,7 @@ public:
 	void updateAvatarGraphics(double cur_time, double dt, const Vec3d& cam_angles, bool our_move_impulse_zero);
 	void setThirdPersonCameraPosition(double dt);
 	void handleMessages(double global_time, double cur_time);
+	void handleResourceBeingProcessedOnServer(const URLString& URL);
 
 	// Builder AI panel:
 	void toggleBuilderAIPanel(); // Show/hide the panel.
@@ -473,6 +474,12 @@ public:
 	void handleLODChunkMeshLoaded(const URLString& mesh_URL, Reference<MeshData> mesh_data, WorldStateLock& lock) REQUIRES(world_state->mutex);
 
 	void assignLoadedOpenGLTexturesToMats(WorldObject* ob);
+	void checkAssignBestOpenGLTexture(OpenGLTextureRef& opengl_texture, const WorldMaterial* world_mat, const URLString& texture_URL, const OpenGLTextureKey& desired_tex_path, GLObject* ob, size_t mat_index,
+		glare::ArenaAllocator* allocator, bool tex_has_alpha, bool use_sRGB, bool& mat_changed_out);
+	bool doAssignLoadedOpenGLTexturesToMaterial(OpenGLMaterial& opengl_mat, const WorldMaterial* world_mat, GLObject* gl_ob, size_t mat_index, glare::ArenaAllocator* allocator);
+	void doAssignLoadedOpenGLTexturesToMats(WorldObject* ob, glare::ArenaAllocator* allocator);
+	void assignLoadedOpenGLTexturesToAvatarMats(Avatar* av, glare::ArenaAllocator* allocator);
+	void assignLoadedOpenGLTexturesToGearItemMats(const GearItem* item, EquippedGearGraphics* equipped_gear, glare::ArenaAllocator* allocator);
 
 	void handleUploadedMeshData(const URLString& lod_model_url, int loaded_model_lod_level, PhysicsObject::ShapeType physics_shape_type, OpenGLMeshRenderDataRef mesh_data, PhysicsShape& physics_shape, 
 		int voxel_subsample_factor);
@@ -577,11 +584,10 @@ public:
 	// once an object referencing it is created.  Threadsafe: Lua build scripts call this from an MCP handler thread.
 	URLString writeMeshToResourceDirGetURL(const BatchedMeshRef& mesh, const std::string& name);
 
-	// What the server said about objects Lua build scripts asked it to create.  Lives here because the responses arrive in this
-	// object's message queue, and is read by the MCP handler thread that runs the scripts.
-	// Null until the local MCP endpoint is first started (see MainWindow::startMCPClientServerIfEnabled), and kept after it is stopped,
-	// since responses to a script's creates can arrive after that.
-	Reference<LuaBuilderState> lua_builder_state;
+	// What the server said about objects created in bulk by other threads, such as build scripts and the Voxels parcel importer.  Lives here
+	// because the responses arrive in this object's message queue.  Made in the constructor and never replaced, so other threads can use it
+	// without locking.
+	Reference<CreateObjectTracker> create_object_tracker;
 
 
 	// NOTE: these object sets need to be cleared in connectToServer(), also when removing a dead object in ob->state == WorldObject::State_Dead case in timerEvent, the object needs to be removed
@@ -1021,4 +1027,11 @@ public:
 	TimerQueue timer_queue;
 
 	bool draw_chunks; // Just for debugging
+
+	// Local paths of textures the server is generating (e.g. the basis or LOD versions of a newly uploaded texture).  Objects show a placeholder for these.
+	// Added to on ResourceBeingProcessedMessage, or ResourceDownloadFailedMessage with Reason_BeingProcessed.  Removed from on NewResourceOnServerMessage.
+	// Main thread only.
+	std::unordered_set<OpenGLTextureKey, OpenGLTextureKeyHasher> tex_paths_being_server_processed;
+
+	OpenGLTextureRef processing_placeholder_texture;
 };

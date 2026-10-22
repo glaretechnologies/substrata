@@ -98,6 +98,15 @@ public:
 };
 
 
+// The server is generating the resource, e.g. a LOD or basis version of a texture.  A NewResourceOnServerMessage follows when it is done.
+class ResourceBeingProcessedMessage : public ThreadMessage
+{
+public:
+	ResourceBeingProcessedMessage(const URLString& URL_) : ThreadMessage(Msg_ResourceBeingProcessedMessage), URL(URL_) {}
+	URLString URL;
+};
+
+
 class AvatarCreatedMessage : public ThreadMessage
 {
 public:

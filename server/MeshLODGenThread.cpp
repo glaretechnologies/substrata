@@ -470,7 +470,7 @@ static void checkMaterialFlags(ServerAllWorldsState* world_state, ServerWorldSta
 
 
 // Make tasks for generating LOD level textures.
-static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered, //std::map<std::string, MeshLODGenThreadTexInfo>& tex_info,
+static void checkForLODTexturesToGenerate(Server* server, ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered, //std::map<std::string, MeshLODGenThreadTexInfo>& tex_info,
 	CircularBuffer<LODTextureToGen>& textures_to_gen)
 {
 	for(size_t z=0; z<ob->materials.size(); ++z)
@@ -521,6 +521,8 @@ static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, Ser
 									tex_to_gen.lod_URL = lod_URL;
 									tex_to_gen.owner_id = base_resource->owner_id;
 									textures_to_gen.push_back(tex_to_gen);
+
+									server->textureGenerationQueued(lod_URL);
 								}
 							}
 						}
@@ -533,7 +535,7 @@ static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, Ser
 
 
 // Make tasks for generating Basis level textures.
-static void checkForBasisAndBC13KTXTexturesToGenerateForMaterials(ServerAllWorldsState* world_state, const std::vector<WorldMaterialRef>& materials, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered,
+static void checkForBasisAndBC13KTXTexturesToGenerateForMaterials(Server* server, ServerAllWorldsState* world_state, const std::vector<WorldMaterialRef>& materials, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered,
 	CircularBuffer<BasisTextureToGen>& basis_textures_to_gen)
 {
 	for(size_t z=0; z<materials.size(); ++z)
@@ -556,11 +558,12 @@ static void checkForBasisAndBC13KTXTexturesToGenerateForMaterials(ServerAllWorld
 				if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
 				{
 					for(int lvl = mat->minLODLevel(); lvl <= 2; ++lvl)
-					for(int bc13 = 0; bc13 <= 1; ++bc13) // Generate the .basis texture and the _bc13.ktx2 texture.
+					for(int bc13_basis = 0; bc13_basis <= 1; ++bc13_basis) // Generate the _bc13.ktx2 texture and the .basis texture.
 					{
-						WorldMaterial::GetURLOptions options(TextureFormatPreferences(/*use_basis=*/true, /*use_bc13_ktx2=*/bc13 != 0), /*arena allocator=*/nullptr);
+						const bool gen_BC13 = bc13_basis == 0; // Generate BC1/BC3 texture first before basis texture (more likely to be used on desktop)
+						WorldMaterial::GetURLOptions options(TextureFormatPreferences(/*use_basis=*/true, /*use_bc13_ktx2=*/gen_BC13), /*arena allocator=*/nullptr);
 						const URLString basis_lod_URL = mat->getLODTextureURLForLevel(options, texture_URL, lvl, /*has_alpha=*/false);  // Lod URL without ktx extension (jpg or PNG)
-						const bool is_generated_URL = bc13 ? hasSuffix(basis_lod_URL, "_bc13.ktx2") : hasExtension(basis_lod_URL, "basis");
+						const bool is_generated_URL = gen_BC13 ? hasSuffix(basis_lod_URL, "_bc13.ktx2") : hasExtension(basis_lod_URL, "basis");
 						if(is_generated_URL)
 						{
 							if(lod_URLs_considered.count(basis_lod_URL) == 0)
@@ -577,11 +580,13 @@ static void checkForBasisAndBC13KTXTexturesToGenerateForMaterials(ServerAllWorld
 									tex_to_gen.source_tex_abs_path = tex_abs_path; // source texture abs path
 									tex_to_gen.basis_tex_abs_path = basis_abs_path; // abs path to write Basis texture to.
 									tex_to_gen.basis_URL = basis_lod_URL;
-									tex_to_gen.bc13_ktx2 = bc13 != 0;
+									tex_to_gen.bc13_ktx2 = gen_BC13;
 									tex_to_gen.base_lod_level = mat->minLODLevel();
 									tex_to_gen.lod_level = lvl;
 									tex_to_gen.owner_id = base_resource->owner_id;
 									basis_textures_to_gen.push_back(tex_to_gen);
+
+									server->textureGenerationQueued(basis_lod_URL);
 								}
 							}
 						}
@@ -594,15 +599,15 @@ static void checkForBasisAndBC13KTXTexturesToGenerateForMaterials(ServerAllWorld
 
 
 // Make tasks for generating Basis level textures.
-static void checkForBasisAndBC13KTXTexturesToGenerateForOb(ServerAllWorldsState* world_state, WorldObject* ob, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered,
+static void checkForBasisAndBC13KTXTexturesToGenerateForOb(Server* server, ServerAllWorldsState* world_state, WorldObject* ob, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered,
 	CircularBuffer<BasisTextureToGen>& basis_textures_to_gen)
 {
-	checkForBasisAndBC13KTXTexturesToGenerateForMaterials(world_state, /*world, */ob->materials, lod_URLs_considered, basis_textures_to_gen);
+	checkForBasisAndBC13KTXTexturesToGenerateForMaterials(server, world_state, /*world, */ob->materials, lod_URLs_considered, basis_textures_to_gen);
 }
 
 
 // Make tasks for generating Basis level textures.
-static void checkForBasisAndBC13KTXTexturesToGenerateForURL(const URLString& URL, ResourceManager* resource_manager, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered,
+static void checkForBasisAndBC13KTXTexturesToGenerateForURL(Server* server, const URLString& URL, ResourceManager* resource_manager, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered,
 	CircularBuffer<BasisTextureToGen>& basis_textures_to_gen)
 {
 	const URLString base_texture_URL = URL;
@@ -635,6 +640,8 @@ static void checkForBasisAndBC13KTXTexturesToGenerateForURL(const URLString& URL
 						tex_to_gen.lod_level = lvl;
 						tex_to_gen.owner_id = base_resource->owner_id;
 						basis_textures_to_gen.push_back(tex_to_gen);
+
+						server->textureGenerationQueued(basis_lod_URL);
 					}
 				}
 			}
@@ -952,8 +959,8 @@ void MeshLODGenThread::doRun()
 								checkMaterialFlags(world_state, world, ob, tex_info);
 
 							checkForLODAndOptimisedMeshesToGenerate(world_state, world, ob, queued_low_priority_URLs, meshes_to_gen_low_priority);
-							checkForLODTexturesToGenerate(world_state, world, ob, queued_low_priority_URLs, lod_textures_to_gen_low_priority);
-							checkForBasisAndBC13KTXTexturesToGenerateForOb(world_state, ob, queued_low_priority_URLs, basis_textures_to_gen_low_priority);
+							checkForLODTexturesToGenerate(server, world_state,world, ob, queued_low_priority_URLs, lod_textures_to_gen_low_priority);
+							checkForBasisAndBC13KTXTexturesToGenerateForOb(server, world_state,ob, queued_low_priority_URLs, basis_textures_to_gen_low_priority);
 						}
 						catch(glare::Exception& e)
 						{
@@ -965,13 +972,13 @@ void MeshLODGenThread::doRun()
 					for(int i=0; i<4; ++i)
 					{
 						const URLString detail_col_map_URL = world->world_settings.terrain_spec.detail_col_map_URLs[i];
-						checkForBasisAndBC13KTXTexturesToGenerateForURL(detail_col_map_URL, world_state->resource_manager.ptr(), queued_high_priority_URLs, basis_textures_to_gen);
+						checkForBasisAndBC13KTXTexturesToGenerateForURL(server, detail_col_map_URL, world_state->resource_manager.ptr(), queued_high_priority_URLs, basis_textures_to_gen);
 
 						const URLString detail_height_map_URL = world->world_settings.terrain_spec.detail_height_map_URLs[i];
-						checkForBasisAndBC13KTXTexturesToGenerateForURL(detail_height_map_URL, world_state->resource_manager.ptr(), queued_high_priority_URLs, basis_textures_to_gen);
+						checkForBasisAndBC13KTXTexturesToGenerateForURL(server, detail_height_map_URL, world_state->resource_manager.ptr(), queued_high_priority_URLs, basis_textures_to_gen);
 
 						const URLString detail_normal_map_URL = world->world_settings.terrain_spec.detail_normal_map_URLs[i];
-						checkForBasisAndBC13KTXTexturesToGenerateForURL(detail_normal_map_URL, world_state->resource_manager.ptr(), queued_high_priority_URLs, basis_textures_to_gen);
+						checkForBasisAndBC13KTXTexturesToGenerateForURL(server, detail_normal_map_URL, world_state->resource_manager.ptr(), queued_high_priority_URLs, basis_textures_to_gen);
 					}
 
 					// Check chatbot avatars.  A chatbot has its own copy of the avatar settings it was created with, so the model and textures it uses
@@ -981,7 +988,7 @@ void MeshLODGenThread::doRun()
 						const ChatBot* chatbot = it->second.ptr();
 						checkForOptimisedMeshToGenerateForURL(chatbot->avatar_settings.model_url, /*max_lod_lvl=*/0, world_state->resource_manager.ptr(), queued_low_priority_URLs, meshes_to_gen_low_priority);
 
-						checkForBasisAndBC13KTXTexturesToGenerateForMaterials(world_state, chatbot->avatar_settings.materials, queued_low_priority_URLs, basis_textures_to_gen_low_priority);
+						checkForBasisAndBC13KTXTexturesToGenerateForMaterials(server, world_state,chatbot->avatar_settings.materials, queued_low_priority_URLs, basis_textures_to_gen_low_priority);
 					}
 				}
 
@@ -991,7 +998,7 @@ void MeshLODGenThread::doRun()
 					const User* user = it->second.ptr();
 					checkForOptimisedMeshToGenerateForURL(user->avatar_settings.model_url, /*max_lod_lvl=*/0, world_state->resource_manager.ptr(), queued_low_priority_URLs, meshes_to_gen_low_priority);
 
-					checkForBasisAndBC13KTXTexturesToGenerateForMaterials(world_state, user->avatar_settings.materials, queued_low_priority_URLs, basis_textures_to_gen_low_priority);
+					checkForBasisAndBC13KTXTexturesToGenerateForMaterials(server, world_state,user->avatar_settings.materials, queued_low_priority_URLs, basis_textures_to_gen_low_priority);
 				}
 
 				// Check vehicle meshes (put in high priority queue)
@@ -1079,8 +1086,8 @@ void MeshLODGenThread::doRun()
 							{
 								checkObjectFlags(world_state, world, ob, mesh_info, lock);
 								checkForLODAndOptimisedMeshesToGenerate(world_state, world, ob, queued_high_priority_URLs, meshes_to_gen);
-								checkForLODTexturesToGenerate(world_state, world, ob, queued_high_priority_URLs, lod_textures_to_gen);
-								checkForBasisAndBC13KTXTexturesToGenerateForOb(world_state, ob, queued_high_priority_URLs, basis_textures_to_gen);
+								checkForBasisAndBC13KTXTexturesToGenerateForOb(server, world_state,ob, queued_high_priority_URLs, basis_textures_to_gen);
+								checkForLODTexturesToGenerate(server, world_state,world, ob, queued_high_priority_URLs, lod_textures_to_gen);
 							}
 							catch(glare::Exception& e)
 							{
@@ -1093,7 +1100,7 @@ void MeshLODGenThread::doRun()
 				for(auto it = URLs_to_check.begin(); it != URLs_to_check.end(); ++it)
 				{
 					const URLString URL_to_check = *it;
-					checkForBasisAndBC13KTXTexturesToGenerateForURL(URL_to_check, world_state->resource_manager.ptr(), queued_high_priority_URLs, basis_textures_to_gen);
+					checkForBasisAndBC13KTXTexturesToGenerateForURL(server, URL_to_check,world_state->resource_manager.ptr(), queued_high_priority_URLs, basis_textures_to_gen);
 					checkForOptimisedMeshToGenerateForURL(URL_to_check, /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), queued_high_priority_URLs, meshes_to_gen);
 				}
 			}
@@ -1120,6 +1127,7 @@ void MeshLODGenThread::doRun()
 					lod_textures_to_gen.front());
 
 				queued_high_priority_URLs.erase(lod_textures_to_gen.front().lod_URL);
+				server->removeTextureURLBeingGenerated(lod_textures_to_gen.front().lod_URL);
 				lod_textures_to_gen.pop_front();
 				done_work = true;
 			}
@@ -1132,6 +1140,7 @@ void MeshLODGenThread::doRun()
 					basis_textures_to_gen.front());
 
 				queued_high_priority_URLs.erase(basis_textures_to_gen.front().basis_URL);
+				server->removeTextureURLBeingGenerated(basis_textures_to_gen.front().basis_URL);
 				basis_textures_to_gen.pop_front();
 				done_work = true;
 			}
@@ -1157,6 +1166,7 @@ void MeshLODGenThread::doRun()
 					lod_textures_to_gen_low_priority.front());
 
 				queued_low_priority_URLs.erase(lod_textures_to_gen_low_priority.front().lod_URL);
+				server->removeTextureURLBeingGenerated(lod_textures_to_gen_low_priority.front().lod_URL);
 				lod_textures_to_gen_low_priority.pop_front();
 				done_work = true;
 			}
@@ -1169,6 +1179,7 @@ void MeshLODGenThread::doRun()
 					basis_textures_to_gen_low_priority.front());
 
 				queued_low_priority_URLs.erase(basis_textures_to_gen_low_priority.front().basis_URL);
+				server->removeTextureURLBeingGenerated(basis_textures_to_gen_low_priority.front().basis_URL);
 				basis_textures_to_gen_low_priority.pop_front();
 				done_work = true;
 			}

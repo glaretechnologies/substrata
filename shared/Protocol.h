@@ -52,13 +52,14 @@ CyberspaceProtocolVersion
 54: Added the Builder AI messages.
 55: Added CreateObjectResponse message, sent to a client for each CreateObject message it sends.
 56: Added ConnectionTypeUploadVideo.
+57: Added ResourceBeingProcessed message, and GetFiles result code 2 (resource is being processed).
 */
 namespace Protocol
 {
 
 const uint32 CyberspaceHello = 1357924680;
 
-const uint32 CyberspaceProtocolVersion = 56;
+const uint32 CyberspaceProtocolVersion = 57;
 
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
@@ -187,6 +188,7 @@ const uint32 GetFile				= 4000;
 const uint32 GetFiles				= 4001; // Client wants to download multiple resources from the server.
 
 const uint32 NewResourceOnServer	= 4100; // A file has been uploaded to the server
+const uint32 ResourceBeingProcessed	= 4101; // The server has started generating a resource, e.g. a LOD or basis version of a texture.  NewResourceOnServer is sent when it is done.
 
 
 const uint32 UploadAllowed			= 5100;

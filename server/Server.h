@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <IPAddress.h>
 #include <utils/UniqueRef.h>
 #include <utils/Timer.h>
+#include <unordered_set>
 class WorkerThread;
 class SubstrataLuaVM;
 class LuaHTTPRequestManager;
@@ -127,6 +128,12 @@ public:
 	// Thread-safe, can be called from any thread.
 	void enqueuePacketToBroadcastForAllWorlds(const SocketBufferOutStream& packet_buffer);
 
+	// Tracks URLs of textures that MeshLODGenThread has queued to generate, and hasn't finished with yet.  A client that asks for one of these is told it is being processed.
+	// Thread-safe.
+	void textureGenerationQueued(const URLString& URL); // Records the URL as being generated, and tells connected clients.
+	void removeTextureURLBeingGenerated(const URLString& URL);
+	bool isTextureURLBeingGenerated(const URLString& URL);
+
 
 	Reference<ServerAllWorldsState> world_state;
 
@@ -147,6 +154,9 @@ public:
 	std::string photo_dir;
 
 	ServerConfig config;
+
+	Mutex texture_URLs_being_generated_mutex;
+	std::unordered_set<URLString, URLStringHasher> texture_URLs_being_generated GUARDED_BY(texture_URLs_being_generated_mutex);
 
 	Mutex connected_clients_mutex;
 	std::map<WorkerThread*, ServerConnectedClientInfo> connected_clients;
