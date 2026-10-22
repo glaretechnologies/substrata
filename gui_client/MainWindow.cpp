@@ -83,6 +83,8 @@ Copyright Glare Technologies Limited 2024 -
 #include "../utils/IndigoXMLDoc.h"
 #include "MCPClientHandler.h"
 #include "LuaBuildScript.h"
+#include "VoxelsParcelImporter.h"
+#include "VoxelsParcelImportDialog.h"
 #include <webserver/WebListenerThread.h>
 #include "../utils/LimitedAllocator.h"
 #include "../networking/MySocket.h"
@@ -861,6 +863,9 @@ void MainWindow::closeEvent(QCloseEvent* event)
 
 
 	stopMCPClientServer();
+
+	voxels_parcel_import_thread_manager.killThreadsBlocking(); // Uses gui_client's connection, so stop it before gui_client shuts down.
+	delete voxels_parcel_import_dialog; // Saves its geometry to settings.
 
 	gui_client.shutdown();
 
@@ -3535,10 +3540,6 @@ void MainWindow::startMCPClientServerIfEnabled()
 		return;
 	}
 
-	// Created here, before the listener thread starts, so the MCP handler threads never see it change.
-	if(gui_client.lua_builder_state.isNull())
-		gui_client.lua_builder_state = new LuaBuilderState();
-
 	try
 	{
 		Reference<MCPClientSharedRequestHandler> shared_handler = new MCPClientSharedRequestHandler(this, username, password);
@@ -3599,6 +3600,9 @@ void MainWindow::clientConnectedToServer()
 void MainWindow::clientDisconnectingFromServer()
 {
 	stopMCPClientServer();
+
+	// An import sends to gui_client's connection and reads its world state, both of which are about to be cleared or replaced.
+	voxels_parcel_import_thread_manager.killThreadsBlocking();
 }
 
 
@@ -4034,6 +4038,77 @@ void MainWindow::on_actionLoad_Objects_From_Disk_triggered()
 			task_manager.cancelAndWaitForTasksToComplete(); // Interrupt the LoadObjectsFromXMLTask if it hasn't completed already.
 		}
 	}
+}
+
+
+void MainWindow::on_actionImport_Voxels_Parcel_triggered()
+{
+	if(gui_client.connection_state != GUIClient::ServerConnectionState_Connected)
+	{
+		showErrorNotification("You need to be connected to a server to import a parcel.");
+		return;
+	}
+	if(!gui_client.logged_in_user_id.valid())
+	{
+		showErrorNotification("You need to be logged in to import a parcel.");
+		return;
+	}
+	if(voxels_parcel_import_thread_manager.getNumThreads() > 0)
+	{
+		showErrorNotification("A Voxels parcel import is already in progress.");
+		if(voxels_parcel_import_dialog)
+		{
+			voxels_parcel_import_dialog->show();
+			voxels_parcel_import_dialog->raise();
+		}
+		return;
+	}
+
+	// The parcel is centred where the user is standing, with its base at their feet.
+	const double EYE_HEIGHT = 1.67;
+	const Vec3d origin = gui_client.cam_controller.getFirstPersonPosition() - Vec3d(0, 0, EYE_HEIGHT);
+
+	bool origin_in_parcel;
+	if(!gui_client.haveParcelObjectCreatePermissions(origin, origin_in_parcel))
+	{
+		if(origin_in_parcel)
+			showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+		else
+			showErrorNotification("Stand in a parcel that you have write permissions for: the Voxels parcel is centred where you are standing.");
+		return;
+	}
+
+	const QString last_dir = settings->value("mainwindow/lastVoxelsParcelDir").toString();
+
+	QFileDialog::Options options;
+	QString selected_filter;
+	const QString selected_filename = QFileDialog::getOpenFileName(this,
+		tr("Select Voxels parcel JSON file..."),
+		last_dir,
+		tr("JSON file (*.json)"),
+		&selected_filter,
+		options
+	);
+
+	if(selected_filename.isEmpty())
+		return;
+
+	settings->setValue("mainwindow/lastVoxelsParcelDir", QtUtils::toQString(FileUtils::getDirectory(QtUtils::toIndString(selected_filename))));
+
+	// Replace the dialog from a previous import, if it's still open, since the new import's log lines go through the same queue.
+	delete voxels_parcel_import_dialog;
+	voxels_parcel_import_log_queue.clear();
+
+	voxels_parcel_import_dialog = new VoxelsParcelImportDialog(this, settings, &voxels_parcel_import_log_queue, &voxels_parcel_import_thread_manager);
+	voxels_parcel_import_dialog->show(); // Non-modal, so the client can be used during the import.
+
+	VoxelsParcelImportOptions import_options;
+	import_options.origin = origin;
+	import_options.log_queue = &voxels_parcel_import_log_queue;
+	import_options.server_hostname = gui_client.server_hostname;
+	import_options.server_worldname = gui_client.server_worldname;
+
+	voxels_parcel_import_thread_manager.addThread(new VoxelsParcelImportThread(&gui_client, QtUtils::toIndString(selected_filename), import_options));
 }
 
 

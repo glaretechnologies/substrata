@@ -17,7 +17,9 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/ComObHandle.h>
 #include <utils/SocketBufferOutStream.h>
 #include <utils/UniqueRef.h>
+#include <utils/ThreadSafeQueue.h>
 #include <QtWidgets/QMainWindow>
+#include <QtCore/QPointer>
 #include <string>
 namespace Ui { class MainWindow; }
 namespace glare { class TaskManager; }
@@ -35,6 +37,7 @@ class RenderStatsWidget;
 class MiniDmpSender;
 class MCPRenderRequest;
 class GPUTimeMeasurement;
+class VoxelsParcelImportDialog;
 
 
 class MainWindow final : public QMainWindow, public PrintOutput, public UIInterface
@@ -113,6 +116,7 @@ private slots:;
 	void on_actionSave_Object_To_Disk_triggered();
 	void on_actionSave_Parcel_Objects_To_Disk_triggered();
 	void on_actionLoad_Objects_From_Disk_triggered();
+	void on_actionImport_Voxels_Parcel_triggered();
 	void on_actionDelete_All_Parcel_Objects_triggered();
 	void on_actionEnter_Fullscreen_triggered();
 	void on_actionGo_Back_triggered();
@@ -200,6 +204,10 @@ private:
 	Reference<MCPRenderRequest> mcp_active_render_request; // The request currently being processed (GUI-thread only).  Null if none.
 	ThreadManager mcp_web_thread_manager; // Runs the WebListenerThread for the local MCP endpoint, if enabled.
 
+	ThreadManager voxels_parcel_import_thread_manager; // Runs a VoxelsParcelImportThread while an Edit > Import Voxels Parcel import is in progress.
+	ThreadSafeQueue<std::string> voxels_parcel_import_log_queue; // Log lines from the VoxelsParcelImportThread to the VoxelsParcelImportDialog.
+	QPointer<VoxelsParcelImportDialog> voxels_parcel_import_dialog; // Null once the user has closed it, as it deletes itself.
+
 	virtual void dragEnterEvent(QDragEnterEvent* event) override;
 	virtual void dropEvent(QDropEvent* event) override;
 
@@ -220,7 +228,7 @@ public:
 	virtual void logMessage(const std::string& msg) override; // Appends to LogWindow log display.
 
 	virtual void clientConnectedToServer() override; // (Re)starts the local MCP endpoint, so it forwards to the server we just connected to.
-	virtual void clientDisconnectingFromServer() override; // Stops the local MCP endpoint.
+	virtual void clientDisconnectingFromServer() override; // Stops the local MCP endpoint and any Voxels parcel import.
 
 	// Lua scripting:
 	// A lua script created by the logged in user printed something

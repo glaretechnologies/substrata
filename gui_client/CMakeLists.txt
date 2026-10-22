@@ -101,6 +101,7 @@ if(NOT USE_SDL)
 	addMocFileRule(gui_client TerrainSpecSectionWidget)
 	addMocFileRule(gui_client WorldSettingsWidget)
 	addMocFileRule(gui_client CreateObjectsDialog)
+	addMocFileRule(gui_client VoxelsParcelImportDialog)
 
 	addMocFileRule(qt FileSelectWidget)
 	addMocFileRule(qt RealControl)
@@ -135,6 +136,7 @@ if(NOT USE_SDL)
 	addUIFileRule(gui_client TerrainSpecSectionWidget)
 	addUIFileRule(gui_client WorldSettingsWidget)
 	addUIFileRule(gui_client CreateObjectsDialog)
+	addUIFileRule(gui_client VoxelsParcelImportDialog)
 
 	addUIFileRule(qt FileSelectWidget)
 	addUIFileRule(qt RealControl)
@@ -175,6 +177,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/ClientThread.h
 ${CMAKE_SOURCE_DIR}/gui_client/ClientUDPHandlerThread.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/ClientUDPHandlerThread.h
 ${CMAKE_SOURCE_DIR}/gui_client/CMakeLists.txt
+${CMAKE_SOURCE_DIR}/gui_client/CreateObjectTracker.cpp
+${CMAKE_SOURCE_DIR}/gui_client/CreateObjectTracker.h
 ${CMAKE_SOURCE_DIR}/gui_client/CredentialManager.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/CredentialManager.h
 ${CMAKE_SOURCE_DIR}/gui_client/DownloadingResourceQueue.cpp
@@ -269,6 +273,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/URLParser.h
 ${CMAKE_SOURCE_DIR}/gui_client/URLWhitelist.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/URLWhitelist.h
 ${CMAKE_SOURCE_DIR}/gui_client/VehiclePhysics.h
+${CMAKE_SOURCE_DIR}/gui_client/VoxelsParcelImporter.cpp
+${CMAKE_SOURCE_DIR}/gui_client/VoxelsParcelImporter.h
 ${CMAKE_SOURCE_DIR}/gui_client/WebViewData.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/WebViewData.h
 ${CMAKE_SOURCE_DIR}/gui_client/WinterShaderEvaluator.cpp
@@ -420,6 +426,9 @@ else()
 		${CMAKE_SOURCE_DIR}/gui_client/CreateObjectsDialog.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/CreateObjectsDialog.h
 		${CMAKE_SOURCE_DIR}/gui_client/CreateObjectsDialog.ui
+		${CMAKE_SOURCE_DIR}/gui_client/VoxelsParcelImportDialog.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/VoxelsParcelImportDialog.h
+		${CMAKE_SOURCE_DIR}/gui_client/VoxelsParcelImportDialog.ui
 	)
 endif()
 
@@ -457,6 +466,7 @@ if(NOT USE_SDL)
 	${CMAKE_SOURCE_DIR}/gui_client/moc_TerrainSpecSectionWidget.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_WorldSettingsWidget.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_CreateObjectsDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_VoxelsParcelImportDialog.cpp
 
 	${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_AddVideoDialog.h
@@ -485,6 +495,7 @@ if(NOT USE_SDL)
 	${CMAKE_SOURCE_DIR}/gui_client/ui_TerrainSpecSectionWidget.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_WorldSettingsWidget.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_CreateObjectsDialog.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_VoxelsParcelImportDialog.h
 	)
 
 
