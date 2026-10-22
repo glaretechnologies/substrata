@@ -31,8 +31,10 @@ Copyright Glare Technologies Limited 2026 -
 #include <utils/StringUtils.h>
 #include <utils/ConPrint.h>
 #include <utils/Timer.h>
+#include <utils/Clock.h>
 #include <utils/Lock.h>
 #include <utils/BitUtils.h>
+#include <utils/ContainerUtils.h>
 #include <utils/SocketBufferOutStream.h>
 #include <utils/Exception.h>
 #include <utils/IncludeXXHash.h>
@@ -415,6 +417,8 @@ static const std::string sniffExtension(const std::string& data)
 		return "webp";
 	if(data.size() >= 8 && std::memcmp(data.data(), "VOX ", 4) == 0)
 		return "vox";
+	if(data.size() >= 12 && std::memcmp(data.data() + 4, "ftyp", 4) == 0) // An MP4 file starts with an ftyp box.
+		return "mp4";
 	return std::string();
 }
 
@@ -447,6 +451,14 @@ static const URLString resourceURLForSourceURL(const std::string& url_string, co
 namespace
 {
 
+enum AssetType
+{
+	AssetType_Image,
+	AssetType_Vox,
+	AssetType_MP4
+};
+
+
 struct DownloadedAsset
 {
 	bool ok;
@@ -460,17 +472,43 @@ struct DownloadedAsset
 };
 
 
-// Checks that a downloaded file is a valid image or .vox file, and for an image, gets its size and whether it has alpha.  Throws glare::Exception if not valid.
-static void readAssetInfo(const std::string& path, bool is_image, DownloadedAsset& asset)
+// The file extensions an asset of the given type may have.
+static const std::vector<std::string> extensionsForAssetType(AssetType type)
 {
-	if(is_image)
+	switch(type)
+	{
+	case AssetType_Image: return std::vector<std::string>({"png", "jpg", "gif", "webp"});
+	case AssetType_Vox:   return std::vector<std::string>({"vox"});
+	case AssetType_MP4:   return std::vector<std::string>({"mp4"});
+	}
+	return std::vector<std::string>();
+}
+
+
+static const std::string descriptionForAssetType(AssetType type)
+{
+	switch(type)
+	{
+	case AssetType_Image: return "a PNG, JPEG, GIF or WebP image";
+	case AssetType_Vox:   return "a .vox file";
+	case AssetType_MP4:   return "an MP4 video";
+	}
+	return std::string();
+}
+
+
+// Checks that a downloaded file is a valid image or .vox file, and for an image, gets its size and whether it has alpha.  Throws glare::Exception if not valid.
+// MP4 files are only checked by sniffExtension().
+static void readAssetInfo(const std::string& path, AssetType type, DownloadedAsset& asset)
+{
+	if(type == AssetType_Image)
 	{
 		Map2DRef map = ImFormatDecoder::decodeImage(".", path); // Throws if the image is invalid.
 		asset.width  = map->getMapWidth();
 		asset.height = map->getMapHeight();
 		asset.has_alpha = LODGeneration::textureHasAlphaChannel(path, map);
 	}
-	else
+	else if(type == AssetType_Vox)
 	{
 		if(!FormatDecoderVox::isValidVoxFile(path))
 			throw glare::Exception("the .vox file is invalid");
@@ -681,7 +719,7 @@ public:
 
 	// Returns the asset for a URL stored in a feature, downloading it and putting it in the resource system the first time it is asked for.
 	// A URL that can't be used is remembered as such, with the reason, and isn't tried again.
-	const DownloadedAsset& getOrDownloadAsset(const std::string& url, bool want_image)
+	const DownloadedAsset& getOrDownloadAsset(const std::string& url, AssetType type)
 	{
 		auto res = assets.find(url);
 		if(res != assets.end())
@@ -699,7 +737,7 @@ public:
 			ResourceManager& resource_manager = *gui_client->resource_manager;
 
 			// Look for the asset from an earlier download, under each resource URL it could have.  See resourceURLForSourceURL().
-			const std::vector<std::string> possible_extensions = want_image ? std::vector<std::string>({"png", "jpg", "gif", "webp"}) : std::vector<std::string>({"vox"});
+			const std::vector<std::string> possible_extensions = extensionsForAssetType(type);
 			for(size_t i=0; i<possible_extensions.size(); ++i)
 			{
 				const URLString resource_URL = resourceURLForSourceURL(url, possible_extensions[i]);
@@ -713,7 +751,7 @@ public:
 
 			if(!asset.resource_URL.empty())
 			{
-				readAssetInfo(asset.local_path, want_image, asset);
+				readAssetInfo(asset.local_path, type, asset);
 				log("Already downloaded " + url + " -> " + asset.local_path);
 			}
 			else
@@ -725,24 +763,22 @@ public:
 				downloadWithRetries(download_url, data, download_time);
 
 				const std::string extension = sniffExtension(data);
-				if(want_image && !(extension == "png" || extension == "jpg" || extension == "gif" || extension == "webp"))
-					throw glare::Exception("the download isn't a PNG, JPEG, GIF or WebP image");
-				if(!want_image && extension != "vox")
-					throw glare::Exception("the download isn't a .vox file");
+				if(!ContainerUtils::contains(possible_extensions, extension))
+					throw glare::Exception("the download isn't " + descriptionForAssetType(type));
 
 				asset.resource_URL = resourceURLForSourceURL(url, extension);
 
 				// Check the file before putting it in the resource system, so a bad download isn't found and used by later imports.
 				const std::string temp_path = temp_dir + "/" + toStdString(asset.resource_URL);
 				FileUtils::writeEntireFile(temp_path, data);
-				readAssetInfo(temp_path, want_image, asset);
+				readAssetInfo(temp_path, type, asset);
 
 				resource_manager.copyLocalFileToResourceDir(temp_path, asset.resource_URL);
 				asset.local_path = resource_manager.pathForURLForPresentResource(asset.resource_URL);
 				results->num_assets_downloaded++;
 
 				log("    Got " + toString(data.size() / 1024) + " KB in " + doubleToStringNSigFigs(download_time, 3) + " s (" +
-					toString((int)(data.size() / 1024 / myMax(download_time, 0.001))) + " KB/s)" + (want_image ? (", " + toString(asset.width) + " x " + toString(asset.height)) : std::string()) +
+					toString((int)(data.size() / 1024 / myMax(download_time, 0.001))) + " KB/s)" + ((type == AssetType_Image) ? (", " + toString(asset.width) + " x " + toString(asset.height)) : std::string()) +
 					" -> " + asset.local_path);
 			}
 
@@ -1034,7 +1070,7 @@ static void makeCubeObject(ImportContext& context, const JSONParser& parser, con
 	const std::string url = getStringField(parser, feature, "url");
 	if(!url.empty())
 	{
-		const DownloadedAsset& asset = context.getOrDownloadAsset(url, /*want_image=*/true);
+		const DownloadedAsset& asset = context.getOrDownloadAsset(url, AssetType_Image);
 		if(asset.ok)
 		{
 			mat->colour_texture_url = asset.resource_URL;
@@ -1061,10 +1097,28 @@ static void makeCubeObject(ImportContext& context, const JSONParser& parser, con
 }
 
 
+// Places an object using the image cube mesh, as image and video objects do, so its image face is a w by h plane centred on the feature's position
+// in the feature's local x-y plane, seen from its -z side.
+static void setImagePlaneTransform(const Vec3d& origin, const Vec3d& position, const Vec3d& rotation, float w, float h, WorldObject& ob)
+{
+	const float depth = 0.01f;
+
+	// The image cube mesh covers [0,1]^3, with the image on its y = 0 face, seen from -y.  Voxels local -z, which the image is seen from, is
+	// Substrata local +y, so turn the cube around z to face it that way.  The face is put slightly in front of the plane so it isn't lost
+	// in a wall the plane is on.
+	const Matrix4f rot = featureRotation(rotation) * Matrix4f::rotationAroundZAxis(Maths::pi<float>());
+	const Vec4f offset_ws = rot * Vec4f(-w / 2, -0.01f, -h / 2, 0);
+
+	ob.pos = origin + voxelsToSubstrataPos(position) + Vec3d(offset_ws[0], offset_ws[1], offset_ws[2]);
+	ob.scale = Vec3f(w, depth, h);
+	setAxisAndAngle(rot, ob);
+}
+
+
 // For image and nft-image features.  target_url, if not empty, is the page the object links to.
 static void makeImageObject(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin, const std::string& image_url, const std::string& target_url)
 {
-	const DownloadedAsset& asset = context.getOrDownloadAsset(image_url, /*want_image=*/true);
+	const DownloadedAsset& asset = context.getOrDownloadAsset(image_url, AssetType_Image);
 	if(!asset.ok)
 		throw glare::Exception(asset.skip_reason);
 
@@ -1084,21 +1138,12 @@ static void makeImageObject(ImportContext& context, const JSONParser& parser, co
 		else
 			w = h * image_aspect;
 	}
-	const float depth = 0.01f;
-
-	// The image cube mesh covers [0,1]^3, with the image on its y = 0 face, seen from -y.  Voxels local -z, which the image is seen from, is
-	// Substrata local +y, so turn the cube around z to face it that way.  The face is put slightly in front of the plane so it isn't lost
-	// in a wall the plane is on.
-	const Matrix4f rot = featureRotation(rotation) * Matrix4f::rotationAroundZAxis(Maths::pi<float>());
-	const Vec4f offset_ws = rot * Vec4f(-w / 2, -0.01f, -h / 2, 0);
 
 	WorldObjectRef ob = new WorldObject();
 	ob->object_type = WorldObject::ObjectType_Generic;
 	ob->model_url = "image_cube_5438347426447337425.bmesh";
 	ob->max_model_lod_level = 0;
-	ob->pos = origin + voxelsToSubstrataPos(position) + Vec3d(offset_ws[0], offset_ws[1], offset_ws[2]);
-	ob->scale = Vec3f(w, depth, h);
-	setAxisAndAngle(rot, *ob);
+	setImagePlaneTransform(origin, position, rotation, w, h, *ob);
 	ob->setAABBOS(js::AABBox(Vec4f(0,0,0,1), Vec4f(1,1,1,1)));
 	ob->setCollidable(getBoolField(parser, feature, "collidable", false));
 	if(target_url.size() <= WorldObject::MAX_URL_SIZE)
@@ -1131,10 +1176,374 @@ static void makeNFTImageObject(ImportContext& context, const JSONParser& parser,
 }
 
 
+// Returns the URL of the YouTube video that url_string links to, in the form https://www.youtube.com/watch?v=<video id>, which BrowserVidPlayer
+// accepts.  Handles watch, embed, shorts and live URLs, and youtu.be links.  Other parameters, such as a playlist, are dropped.
+// Throws glare::Exception if url_string isn't a YouTube video URL.
+static const std::string getCanonicalYouTubeURL(const std::string& url_string)
+{
+	URL url;
+	try
+	{
+		url = URL::parseURL(url_string);
+	}
+	catch(glare::Exception& e)
+	{
+		throw glare::Exception("couldn't parse URL: " + e.what());
+	}
+
+	const std::string host = ::toLowerCase(url.host);
+	std::string video_id;
+	if(host == "youtu.be")
+	{
+		video_id = ::eatSuffix(::eatPrefix(url.path, "/"), "/");
+	}
+	else if(host == "youtube.com" || host == "www.youtube.com" || host == "m.youtube.com" || host == "music.youtube.com")
+	{
+		const std::vector<std::string> parts = ::split(url.path, '/'); // parts[0] is the empty string before the leading slash.
+		if(url.path == "/watch")
+		{
+			const std::map<std::string, std::string> params = URL::parseQuery(url.query);
+			const auto res = params.find("v");
+			if(res != params.end())
+				video_id = res->second;
+		}
+		else if(parts.size() >= 3 && (parts[1] == "embed" || parts[1] == "shorts" || parts[1] == "live" || parts[1] == "v"))
+			video_id = parts[2];
+	}
+	else
+		throw glare::Exception("not a YouTube URL");
+
+	if(video_id.empty())
+		throw glare::Exception("couldn't find the video ID in the URL");
+	for(size_t i=0; i<video_id.size(); ++i)
+		if(!(::isAlphaNumeric(video_id[i]) || video_id[i] == '-' || video_id[i] == '_'))
+			throw glare::Exception("invalid video ID");
+
+	return "https://www.youtube.com/watch?v=" + video_id;
+}
+
+
+// For video and youtube features.  video_URL is a resource URL for an MP4 file, or a YouTube URL.  The video is stretched to fill scale.x by
+// scale.y, as Voxels does.
+static void makeVideoObjectForURL(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin, const URLString& video_URL)
+{
+	const Vec3d position = getVec3Field(parser, feature, "position", Vec3d(0.0));
+	const Vec3d rotation = getVec3Field(parser, feature, "rotation", Vec3d(0.0));
+	const Vec3d scale    = getVec3Field(parser, feature, "scale",    Vec3d(1.0));
+
+	WorldObjectRef ob = new WorldObject();
+	ob->object_type = WorldObject::ObjectType_Video;
+	ob->max_model_lod_level = 0;
+	setImagePlaneTransform(origin, position, rotation, (float)std::fabs(nonZeroScale(scale.x)), (float)std::fabs(nonZeroScale(scale.y)), *ob);
+	ob->setAABBOS(WorldObject::getVideoAABBos());
+	ob->setCollidable(getBoolField(parser, feature, "collidable", false));
+	context.setTargetURLFromLink(parser, feature, *ob);
+
+	BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_AUTOPLAY, getBoolField(parser, feature, "autoplay", false));
+	BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_LOOP,     getBoolField(parser, feature, "loop", false));
+	if(feature.hasChild("volume") && feature.getChildNode(parser, "volume").type == JSONNode::Type_Number)
+		ob->audio_volume = (float)myClamp(getNumberField(parser, feature, "volume"), 0.0, 1.0);
+
+	// As in MainWindow::on_actionAdd_Video_triggered(): the video URL goes in emission_texture_url, so it is a resource dependency.
+	ob->materials.resize(2);
+	ob->materials[0] = new WorldMaterial();
+	ob->materials[0]->colour_rgb = Colour3f(0.f);
+	ob->materials[0]->emission_lum_flux_or_lum = 20000;
+	ob->materials[0]->emission_rgb = Colour3f(1.f);
+	ob->materials[0]->emission_texture_url = video_URL;
+	ob->materials[1] = new WorldMaterial();
+
+	checkTransformOK(ob.ptr());
+	context.sendCreateObject(*ob);
+}
+
+
+// A video feature's url is an MP4 file, which is downloaded and put in the resource system.
+static void makeVideoObject(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin)
+{
+	const DownloadedAsset& asset = context.getOrDownloadAsset(getStringField(parser, feature, "url"), AssetType_MP4);
+	if(!asset.ok)
+		throw glare::Exception(asset.skip_reason);
+
+	makeVideoObjectForURL(context, parser, feature, origin, asset.resource_URL);
+}
+
+
+// A youtube feature's url is a YouTube page.  The video object streams it from YouTube.
+static void makeYouTubeObject(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin)
+{
+	const std::string youtube_URL = getCanonicalYouTubeURL(getStringField(parser, feature, "url"));
+
+	makeVideoObjectForURL(context, parser, feature, origin, toURLString(youtube_URL));
+}
+
+
+// Text object layout, in units of the font size, which is 1 at scale 1.  See GUIClient::createGLAndPhysicsObsForText() and GLUIText::makeMeshDataForText().
+// Glyphs can't be measured off the main thread, so text widths are worked out from Arial's advance widths, which Voxels' font is close to.
+// Substrata's font is wider: from screenshots, text is 1.12 to 1.32 times as wide as in Arial at the same size, about 1.22 for prose.
+static const float TEXT_WIDTH_PER_ARIAL_EM = 1.3f; // For checking that text fits, so on the wide side.
+static const float TEXT_LINE_HEIGHT = 1.2f;
+static const float TEXT_ASCENT      = 0.9f; // Above the baseline of the first line.
+static const float TEXT_DESCENT     = 0.25f; // Below the baseline of the last line.
+
+
+// The width of s in Arial, in ems.  Characters outside ASCII are taken to be as wide as a digit.
+static float arialWidth(const std::string& s)
+{
+	// Advance widths in 1/1000 em of the printable ASCII characters, from ' ' (32) to '~' (126).
+	static const uint16 widths[95] = {
+		278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, // ' ' to '/'
+		556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556, // '0' to '?'
+		1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, // '@' to 'O'
+		667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556, // 'P' to '_'
+		333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, // '`' to 'o'
+		556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584        // 'p' to '~'
+	};
+
+	uint32 total = 0;
+	for(size_t i=0; i<s.size(); ++i)
+	{
+		const unsigned char c = (unsigned char)s[i];
+		if(c >= 32 && c <= 126)
+			total += widths[c - 32];
+		else if((c & 0xC0) != 0x80) // A control character, or the first byte of a multi-byte UTF-8 character.
+			total += 556;
+	}
+	return total * 0.001f;
+}
+
+
+// Word-wraps text into lines at most max_width ems wide in Arial, keeping its line breaks.  A word wider than that gets a line of its own.
+static void wrapText(const std::string& text, float max_width, std::vector<std::string>& lines_out)
+{
+	lines_out.clear();
+	const std::vector<std::string> paragraphs = ::split(text, '\n');
+	for(size_t p=0; p<paragraphs.size(); ++p)
+	{
+		const std::vector<std::string> words = ::split(::stripHeadAndTailWhitespace(paragraphs[p]), ' ');
+		std::string line;
+		for(size_t w=0; w<words.size(); ++w)
+		{
+			if(words[w].empty())
+				continue;
+			if(!line.empty() && arialWidth(line + " " + words[w]) > max_width)
+			{
+				lines_out.push_back(line);
+				line.clear();
+			}
+			line += (line.empty() ? "" : " ") + words[w];
+		}
+		lines_out.push_back(line);
+	}
+}
+
+
+struct TextLayout
+{
+	std::string text; // With newlines between lines.
+	size_t num_lines;
+	float max_line_arial_width; // In ems.
+	float scale; // Object scale, which is the font size in metres.
+
+	float width()  const { return max_line_arial_width * TEXT_WIDTH_PER_ARIAL_EM * scale; }
+	float height() const { return ((num_lines - 1) * TEXT_LINE_HEIGHT + TEXT_ASCENT + TEXT_DESCENT) * scale; }
+};
+
+
+// Makes a layout of the given lines, at the largest scale up to max_scale at which it fits in a w by h rectangle.
+static TextLayout makeTextLayout(const std::vector<std::string>& lines, float max_scale, float w, float h)
+{
+	TextLayout layout;
+	layout.num_lines = myMax((size_t)1, lines.size());
+	layout.max_line_arial_width = 0.1f;
+	for(size_t i=0; i<lines.size(); ++i)
+	{
+		layout.max_line_arial_width = myMax(layout.max_line_arial_width, arialWidth(lines[i]));
+		layout.text += (i > 0 ? "\n" : "") + lines[i];
+	}
+
+	layout.scale = 1;
+	layout.scale = myMax(0.001f, myMin(max_scale, w / layout.width(), h / layout.height())); // width() and height() are for a scale of 1 here.
+	return layout;
+}
+
+
+// Lays out text at the given font size without wrapping it, shrinking it if it is then wider than w or taller than h.
+static TextLayout layoutTextUnwrapped(const std::string& text, float font_size, float w, float h)
+{
+	std::vector<std::string> lines = ::split(::stripHeadAndTailWhitespace(text), '\n');
+	for(size_t i=0; i<lines.size(); ++i)
+		lines[i] = ::stripHeadAndTailWhitespace(lines[i]);
+	return makeTextLayout(lines, font_size, w, h);
+}
+
+
+// Voxels draws richtext in a font of about VOXELS_RICHTEXT_FONT_SIZE metres, wrapped to VOXELS_RICHTEXT_WRAP_FRACTION of the panel width, from
+// screenshots of 1.8 m and 1 m wide panels.  A 1 x 0.5 m panel wrapped narrower than that, so the wrap width may depend on the panel height too.
+static const float VOXELS_RICHTEXT_FONT_SIZE = 0.064f;
+static const float VOXELS_RICHTEXT_WRAP_FRACTION = 0.8f;
+
+// Wraps richtext into lines as Voxels does on a panel w metres wide.
+static void wrapRichText(const std::string& text, float w, std::vector<std::string>& lines_out)
+{
+	wrapText(::stripHeadAndTailWhitespace(text), VOXELS_RICHTEXT_WRAP_FRACTION * w / VOXELS_RICHTEXT_FONT_SIZE, lines_out);
+}
+
+
+enum TextPanelStyle
+{
+	TextPanelStyle_Sign, // Text on one line, centred.
+	TextPanelStyle_RichText // Text wrapped to the panel width, aligned to the top left.
+};
+
+
+// Makes a flat panel of w by h centred on the feature's position in its local x-y plane, seen from its -z side, as signs and richtext are:
+// text_col text on a thin box in background_col if draw_background is set.  Sign text is at font_size, unless it has to shrink to fit.
+static void makeTextPanel(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin, const std::string& text,
+	const Colour3f& text_col, bool draw_background, const Colour3f& background_col, TextPanelStyle style, float font_size)
+{
+	const Vec3d position = getVec3Field(parser, feature, "position", Vec3d(0.0));
+	const Vec3d rotation = getVec3Field(parser, feature, "rotation", Vec3d(0.0));
+	const Vec3d scale    = getVec3Field(parser, feature, "scale",    Vec3d(1.0));
+	const float w = (float)std::fabs(nonZeroScale(scale.x));
+	const float h = (float)std::fabs(nonZeroScale(scale.y));
+
+	// As in setImagePlaneTransform(): in panel space x is across, z is up, and the panel is seen from -y.  The panel is put slightly in front of
+	// the feature's plane so it isn't lost in a wall the plane is on, with the text in front of the panel.
+	const Matrix4f panel_rot = featureRotation(rotation) * Matrix4f::rotationAroundZAxis(Maths::pi<float>());
+	const Vec3d centre = origin + voxelsToSubstrataPos(position);
+	const float depth = 0.01f;
+
+	if(draw_background)
+	{
+		const Vec4f offset_ws = panel_rot * Vec4f(0, -0.01f - depth / 2, 0, 0);
+
+		WorldObjectRef ob = new WorldObject();
+		ob->object_type = WorldObject::ObjectType_Generic;
+		ob->model_url = "Cube_obj_12971581758459554602.bmesh";
+		ob->max_model_lod_level = 0;
+		ob->materials.push_back(new WorldMaterial());
+		ob->materials[0]->colour_rgb = background_col;
+		ob->pos = centre + Vec3d(offset_ws[0], offset_ws[1], offset_ws[2]);
+		ob->scale = Vec3f(w, depth, h);
+		setAxisAndAngle(panel_rot, *ob);
+		ob->setAABBOS(js::AABBox(Vec4f(-0.5f, -0.5f, -0.5f, 1), Vec4f(0.5f, 0.5f, 0.5f, 1)));
+		ob->setCollidable(getBoolField(parser, feature, "collidable", false));
+		context.setTargetURLFromLink(parser, feature, *ob);
+		checkTransformOK(ob.ptr());
+		context.sendCreateObject(*ob);
+	}
+
+	if(::stripHeadAndTailWhitespace(text).empty())
+		return;
+
+	// Richtext has a margin of 0.12 m, as in Voxels, or less on a panel too narrow for that and its wrap width.  Sign text has a margin of 5%
+	// of the smaller side.
+	const float margin = (style == TextPanelStyle_RichText) ? myMin(0.12f, (1 - VOXELS_RICHTEXT_WRAP_FRACTION) / 2 * w) : (0.05f * myMin(w, h));
+	const float avail_w = w - 2 * margin;
+	const float avail_h = h - 2 * margin;
+
+	TextLayout layout;
+	if(style == TextPanelStyle_RichText)
+	{
+		// Keep Voxels' line breaks, at a size that makes the lines about as wide as in Voxels, shrunk if needed to fit.
+		std::vector<std::string> lines;
+		wrapRichText(text, w, lines);
+		layout = makeTextLayout(lines, /*max_scale=*/VOXELS_RICHTEXT_FONT_SIZE / 1.22f, avail_w, avail_h);
+	}
+	else
+		layout = layoutTextUnwrapped(text, font_size, avail_w, avail_h);
+
+	// The text object's origin is at the start of the first line's baseline, with the text in its x-y plane, seen from +z.  Turn that upright
+	// in panel space, then put the text block in the top left of the space inside the margin, or centre it.
+	const Matrix4f text_rot = panel_rot * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
+	const float block_left = (style == TextPanelStyle_RichText) ? (-avail_w / 2) : (-layout.width() / 2);
+	const float block_top  = (style == TextPanelStyle_RichText) ? (avail_h / 2)  : (layout.height() / 2);
+	const Vec4f offset_ws = panel_rot * Vec4f(block_left, -0.01f - depth - 0.005f, block_top - TEXT_ASCENT * layout.scale, 0);
+
+	WorldObjectRef ob = new WorldObject();
+	ob->object_type = WorldObject::ObjectType_Text;
+	ob->content = layout.text.substr(0, WorldObject::MAX_CONTENT_SIZE);
+	ob->pos = centre + Vec3d(offset_ws[0], offset_ws[1], offset_ws[2]);
+	ob->scale = Vec3f(layout.scale);
+	setAxisAndAngle(text_rot, *ob);
+	ob->setAABBOS(js::AABBox(Vec4f(0, -((layout.num_lines - 1) * TEXT_LINE_HEIGHT + TEXT_DESCENT), 0, 1), Vec4f(layout.max_line_arial_width * TEXT_WIDTH_PER_ARIAL_EM, TEXT_ASCENT, 0.01f, 1)));
+	ob->setCollidable(false);
+	context.setTargetURLFromLink(parser, feature, *ob);
+
+	ob->materials.resize(1);
+	ob->materials[0] = new WorldMaterial();
+	ob->materials[0]->colour_rgb = text_col;
+	ob->materials[0]->flags = WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG | WorldMaterial::DOUBLE_SIDED_FLAG;
+
+	checkTransformOK(ob.ptr());
+	context.sendCreateObject(*ob);
+}
+
+
+// A sign is a short piece of text on a panel, in its own colours, on one line, centred, at a size given by its fontSize.
+// The metres per fontSize unit was chosen so the text is as wide as in Voxels (from a screenshot of a fontSize 20 sign); Substrata's font is
+// wider than Voxels', so the text is a little shorter.
+static void makeSignObject(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin)
+{
+	const double METRES_PER_FONT_SIZE = 0.003;
+	const double font_size = (feature.hasChild("fontSize") && feature.getChildNode(parser, "fontSize").type == JSONNode::Type_Number) ?
+		myClamp(getNumberField(parser, feature, "fontSize"), 1.0, 200.0) : 20.0;
+
+	makeTextPanel(context, parser, feature, origin, getStringField(parser, feature, "text"),
+		parseHexColour(getStringField(parser, feature, "color"), Colour3f(0.f)), /*draw_background=*/true, parseHexColour(getStringField(parser, feature, "background"), Colour3f(1.f)),
+		TextPanelStyle_Sign, (float)(font_size * METRES_PER_FONT_SIZE));
+}
+
+
+// Richtext is a longer piece of text with nothing behind it, black, or white if inverted, wrapped as Voxels wraps it and aligned to the top left.
+static void makeRichTextObject(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin)
+{
+	const bool inverted = getBoolField(parser, feature, "inverted", false);
+	makeTextPanel(context, parser, feature, origin, getStringField(parser, feature, "text"), Colour3f(inverted ? 1.f : 0.f), /*draw_background=*/false, Colour3f(0.f),
+		TextPanelStyle_RichText, /*font_size=*/0);
+}
+
+
+// A lantern feature is a point light.  Substrata has spotlights rather than point lights, so it becomes a spotlight with a cone that covers all
+// directions.
+static void makeLanternObject(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin)
+{
+	// Voxels strength to Substrata luminous flux.  Substrata worlds are usually in daylight, so lights need to be bright to show.  Strength 70, the
+	// usual value, gives 2.8 million lm, which spread over all directions is about as bright as the default spotlight from Add Spotlight
+	// (100,000 lm in a cone of about 0.38 rad), and reaches about 12 m.
+	const double LUMENS_PER_STRENGTH = 40000;
+
+	const Vec3d position = getVec3Field(parser, feature, "position", Vec3d(0.0));
+	const double strength = (feature.hasChild("strength") && feature.getChildNode(parser, "strength").type == JSONNode::Type_Number) ?
+		myClamp(getNumberField(parser, feature, "strength"), 0.0, 1000.0) : 70.0;
+
+	WorldObjectRef ob = new WorldObject();
+	ob->object_type = WorldObject::ObjectType_Spotlight;
+	ob->pos = origin + voxelsToSubstrataPos(position);
+	ob->axis = Vec3f(0, 0, 1);
+	ob->angle = 0;
+	ob->scale = Vec3f(1.f);
+	ob->type_data.spotlight_data.cone_start_angle = Maths::pi<float>() - 0.01f;
+	ob->type_data.spotlight_data.cone_end_angle   = Maths::pi<float>();
+	ob->setAABBOS(WorldObject::getSpotlightAABBos());
+	ob->setCollidable(false);
+
+	ob->materials.resize(2);
+	ob->materials[0] = new WorldMaterial(); // Emitting material
+	ob->materials[0]->colour_rgb = parseHexColour(getStringField(parser, feature, "color"), Colour3f(1.f));
+	ob->materials[0]->emission_lum_flux_or_lum = (float)(strength * LUMENS_PER_STRENGTH);
+	ob->materials[1] = new WorldMaterial(); // Housing
+
+	checkTransformOK(ob.ptr());
+	context.sendCreateObject(*ob);
+}
+
+
 // For vox-model and megavox features, which differ in how large a model Voxels allows, not in how it is placed.
 static void makeVoxModelObject(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin)
 {
-	const DownloadedAsset& asset = context.getOrDownloadAsset(getStringField(parser, feature, "url"), /*want_image=*/false);
+	const DownloadedAsset& asset = context.getOrDownloadAsset(getStringField(parser, feature, "url"), AssetType_Vox);
 	if(!asset.ok)
 		throw glare::Exception(asset.skip_reason);
 
@@ -1173,8 +1582,12 @@ static void makeVoxModelObject(ImportContext& context, const JSONParser& parser,
 	}
 
 	// The model is centred on x and y, and sits on z = 0, or hangs below it for a negative y scale.
+	// Voxels puts a flipX model FLIPX_X_OFFSET_VOXELS voxels further along its local +x (Substrata local -x) than that.  Found from frames, a TV
+	// and laptops in parcel 2824 with images placed on them, all flipX and 32 voxels wide, so whether the offset depends on the model's width
+	// isn't known.
+	const double FLIPX_X_OFFSET_VOXELS = 4;
 	const Vec3f local_origin(
-		(float)(-std::fabs(ex) * model.size_x / 2),
+		(float)(-std::fabs(ex) * (model.size_x / 2 + (flip_x ? FLIPX_X_OFFSET_VOXELS : 0))), // NOTE: size_x / 2 rounds down for odd widths.
 		(float)(-std::fabs(ey) * model.size_y / 2),
 		(ez > 0) ? 0.f : (float)(-std::fabs(ez) * model.size_z));
 
@@ -1196,47 +1609,99 @@ static void makeVoxModelObject(ImportContext& context, const JSONParser& parser,
 }
 
 
-// Finds this user's group with the given name, empties it, and moves it to pos, or makes a new group there if there isn't one.
-static void getEmptyGroup(ImportContext& context, const std::string& name, const Vec3d& pos)
+void VoxelsParcelImporter::findPreviousImport(GUIClient* gui_client, const std::string& group_name, UID& group_uid_out, std::vector<UID>& member_uids_out)
 {
-	GUIClient* gui_client = context.gui_client;
+	group_uid_out = UID::invalidUID();
+	member_uids_out.clear();
+
+	Lock lock(gui_client->world_state->mutex);
 
 	// Lowest UID wins, as in getOrCreateGroup() in LuaBuildScript.cpp.
-	UID group_uid = UID::invalidUID();
-	std::vector<UID> uids_to_delete;
+	for(auto it = gui_client->world_state->objects.valuesBegin(); it != gui_client->world_state->objects.valuesEnd(); ++it)
 	{
-		Lock lock(gui_client->world_state->mutex);
+		const WorldObject* ob = it.getValue().ptr();
+		if((ob->object_type == WorldObject::ObjectType_Group) && (ob->creator_id == gui_client->logged_in_user_id) && (ob->content == group_name))
+			if(ob->uid < group_uid_out)
+				group_uid_out = ob->uid;
+	}
 
-		for(auto it = gui_client->world_state->objects.valuesBegin(); it != gui_client->world_state->objects.valuesEnd(); ++it)
+	// Collect the members, including the members of member groups.
+	if(group_uid_out.valid())
+	{
+		std::vector<UID> groups_to_scan(1, group_uid_out);
+		for(size_t g=0; g<groups_to_scan.size(); ++g) // NOTE: groups_to_scan grows as sub-groups are found.
 		{
-			const WorldObject* ob = it.getValue().ptr();
-			if((ob->object_type == WorldObject::ObjectType_Group) && (ob->creator_id == gui_client->logged_in_user_id) && (ob->content == name))
-				if(ob->uid < group_uid)
-					group_uid = ob->uid;
-		}
-
-		// Collect the members, including the members of member groups.
-		if(group_uid.valid())
-		{
-			std::vector<UID> groups_to_scan(1, group_uid);
-			for(size_t g=0; g<groups_to_scan.size(); ++g) // NOTE: groups_to_scan grows as sub-groups are found.
+			for(auto it = gui_client->world_state->objects.valuesBegin(); it != gui_client->world_state->objects.valuesEnd(); ++it)
 			{
-				for(auto it = gui_client->world_state->objects.valuesBegin(); it != gui_client->world_state->objects.valuesEnd(); ++it)
+				const WorldObject* ob = it.getValue().ptr();
+				if((ob->group_id == groups_to_scan[g]) && (ob->creator_id == gui_client->logged_in_user_id))
 				{
-					const WorldObject* ob = it.getValue().ptr();
-					if((ob->group_id == groups_to_scan[g]) && (ob->creator_id == gui_client->logged_in_user_id))
-					{
-						uids_to_delete.push_back(ob->uid);
-						if((ob->object_type == WorldObject::ObjectType_Group) && (std::find(groups_to_scan.begin(), groups_to_scan.end(), ob->uid) == groups_to_scan.end()))
-							groups_to_scan.push_back(ob->uid);
-					}
+					member_uids_out.push_back(ob->uid);
+					if((ob->object_type == WorldObject::ObjectType_Group) && (std::find(groups_to_scan.begin(), groups_to_scan.end(), ob->uid) == groups_to_scan.end()))
+						groups_to_scan.push_back(ob->uid);
 				}
 			}
 		}
 	}
+}
+
+
+// Saves the group and its members to an XML file in backup_dir, in the same format as GUIClient::serialiseAllObjectsInParcelToXML().
+static std::string backUpPreviousImport(ImportContext& context, const std::string& backup_dir, const std::string& name, const UID& group_uid, const std::vector<UID>& member_uids)
+{
+	GUIClient* gui_client = context.gui_client;
+
+	std::string xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+	xml += "<objects>\n";
+	{
+		Lock lock(gui_client->world_state->mutex);
+
+		std::vector<UID> uids(1, group_uid);
+		uids.insert(uids.end(), member_uids.begin(), member_uids.end());
+		for(size_t i=0; i<uids.size(); ++i)
+		{
+			auto res = gui_client->world_state->objects.find(uids[i]);
+			if(res != gui_client->world_state->objects.end())
+			{
+				xml += res.getValue()->serialiseToXML(/*tab_depth=*/1);
+				xml += "\n";
+			}
+		}
+	}
+	xml += "</objects>\n";
+
+	FileUtils::createDirIfDoesNotExist(backup_dir);
+	const std::string path = backup_dir + "/" + FileUtils::makeOSFriendlyFilename(name) + "_" + toString((uint64)Clock::getSecsSince1970()) + ".xml";
+	FileUtils::writeEntireFileTextMode(path, xml);
+	return path;
+}
+
+
+// Finds this user's group with the given name, empties it, and moves it to pos, or makes a new group there if there isn't one.
+// Throws glare::Exception without changing anything if the group has members and replace_previous_import is false.
+static void getEmptyGroup(ImportContext& context, const std::string& name, const Vec3d& pos, bool replace_previous_import, const std::string& backup_dir)
+{
+	GUIClient* gui_client = context.gui_client;
+
+	UID group_uid;
+	std::vector<UID> uids_to_delete;
+	VoxelsParcelImporter::findPreviousImport(gui_client, name, group_uid, uids_to_delete);
 
 	if(group_uid.valid())
 	{
+		if(!uids_to_delete.empty())
+		{
+			if(!replace_previous_import)
+				throw glare::Exception("There are " + toString(uids_to_delete.size()) + " objects from an earlier import of this parcel in the group '" + name +
+					"', and replacing them wasn't allowed.");
+
+			if(!backup_dir.empty())
+			{
+				context.results->backup_path = backUpPreviousImport(context, backup_dir, name, group_uid, uids_to_delete);
+				context.log("Saved the " + toString(uids_to_delete.size()) + " objects from the previous import to " + context.results->backup_path);
+			}
+		}
+
 		for(size_t i=0; i<uids_to_delete.size(); ++i)
 		{
 			MessageUtils::initPacket(context.packet, Protocol::DestroyObject);
@@ -1306,6 +1771,39 @@ static void getEmptyGroup(ImportContext& context, const std::string& name, const
 }
 
 
+static void getParcelIDAndName(const JSONParser& parser, const JSONNode& parcel_node, bool is_api_response, int& parcel_id_out, std::string& parcel_name_out)
+{
+	parcel_id_out = is_api_response ? (int)getNumberField(parser, parcel_node, "id") :
+		(parcel_node.hasChild("parcel_id") ? (int)getNumberField(parser, parcel_node, "parcel_id") : 0);
+	parcel_name_out = getStringField(parser, parcel_node, "name");
+}
+
+
+static std::string groupNameForParcel(int parcel_id, const std::string& parcel_name)
+{
+	const std::string name = "Voxels parcel " + toString(parcel_id) + (parcel_name.empty() ? std::string() : (": " + parcel_name));
+	return (name.size() > WorldObject::MAX_CONTENT_SIZE) ? name.substr(0, WorldObject::MAX_CONTENT_SIZE) : name;
+}
+
+
+std::string VoxelsParcelImporter::getGroupNameForParcelFile(const std::string& json_path)
+{
+	JSONParser parser;
+	parser.parseFile(json_path);
+	if(parser.nodes.empty() || parser.nodes[0].type != JSONNode::Type_Object)
+		throw glare::Exception("The parcel file isn't a JSON object.");
+
+	const JSONNode& root = parser.nodes[0];
+	const bool is_api_response = root.hasChild("parcel");
+	const JSONNode& parcel_node = is_api_response ? root.getChildObject(parser, "parcel") : root;
+
+	int parcel_id;
+	std::string parcel_name;
+	getParcelIDAndName(parser, parcel_node, is_api_response, parcel_id, parcel_name);
+	return groupNameForParcel(parcel_id, parcel_name);
+}
+
+
 void VoxelsParcelImporter::importParcel(GUIClient* gui_client, const std::string& json_path, const VoxelsParcelImportOptions& options,
 	VoxelsParcelImportResults& results_out)
 {
@@ -1342,13 +1840,10 @@ void VoxelsParcelImporter::importParcel(GUIClient* gui_client, const std::string
 	const JSONNode& parcel_node = is_api_response ? root.getChildObject(parser, "parcel") : root;
 	const JSONNode& content_node = parcel_node.getChildObject(parser, "content");
 
-	const int parcel_id = is_api_response ? (int)getNumberField(parser, parcel_node, "id") :
-		(parcel_node.hasChild("parcel_id") ? (int)getNumberField(parser, parcel_node, "parcel_id") : 0);
-	const std::string parcel_name = getStringField(parser, parcel_node, "name");
-
-	results_out.group_name = "Voxels parcel " + toString(parcel_id) + (parcel_name.empty() ? std::string() : (": " + parcel_name));
-	if(results_out.group_name.size() > WorldObject::MAX_CONTENT_SIZE)
-		results_out.group_name = results_out.group_name.substr(0, WorldObject::MAX_CONTENT_SIZE);
+	int parcel_id;
+	std::string parcel_name;
+	getParcelIDAndName(parser, parcel_node, is_api_response, parcel_id, parcel_name);
+	results_out.group_name = groupNameForParcel(parcel_id, parcel_name);
 
 	// Decode the voxels
 	std::vector<uint16> voxel_data;
@@ -1455,7 +1950,7 @@ void VoxelsParcelImporter::importParcel(GUIClient* gui_client, const std::string
 		}
 	}
 
-	getEmptyGroup(context, results_out.group_name, origin);
+	getEmptyGroup(context, results_out.group_name, origin, options.replace_previous_import, options.backup_dir);
 
 	if(!voxel_data.empty())
 		makeParcelVoxelsObject(context, voxel_data, X, Y, Z, palette, origin);
@@ -1490,6 +1985,16 @@ void VoxelsParcelImporter::importParcel(GUIClient* gui_client, const std::string
 						makeNFTImageObject(context, parser, feature, origin);
 					else if(type == "vox-model" || type == "megavox")
 						makeVoxModelObject(context, parser, feature, origin);
+					else if(type == "video")
+						makeVideoObject(context, parser, feature, origin);
+					else if(type == "youtube")
+						makeYouTubeObject(context, parser, feature, origin);
+					else if(type == "lantern")
+						makeLanternObject(context, parser, feature, origin);
+					else if(type == "sign")
+						makeSignObject(context, parser, feature, origin);
+					else if(type == "richtext")
+						makeRichTextObject(context, parser, feature, origin);
 					else
 						throw glare::Exception("not supported");
 
@@ -1580,7 +2085,7 @@ std::string VoxelsParcelImportResults::summary() const
 	std::string s = "Imported '" + group_name + "' in " + doubleToStringNSigFigs(elapsed_s, 3) + " s.\n";
 	s += "Voxel grid: " + toString(voxels_x) + " x " + toString(voxels_y) + " x " + toString(voxels_z) + " voxels" + (dims_were_inferred ? " (worked out from the voxel data)" : "") + ".\n";
 	if(num_objects_deleted > 0)
-		s += "Removed " + toString(num_objects_deleted) + " object(s) from the previous import.\n";
+		s += "Removed " + toString(num_objects_deleted) + " object(s) from the previous import" + (backup_path.empty() ? std::string() : (", saved to " + backup_path)) + ".\n";
 	s += "Sent " + toString(num_objects_sent) + " object(s); the server answered " + toString(num_creates_answered) + " and refused " + toString(num_creates_refused) +
 		(first_refusal_msg.empty() ? std::string() : (" (first refusal: " + first_refusal_msg + ")")) + ".\n";
 	s += "Downloaded " + toString(num_assets_downloaded) + " asset(s).\n";
@@ -1696,6 +2201,52 @@ void VoxelsParcelImporter::test()
 		testAssert(getDownloadURL("https://www.dropbox.com/s/abc/x.vox?dl=0") == "https://www.dropbox.com/s/abc/x.vox?dl=1");
 		testAssert(getDownloadURL("https://www.dropbox.com/scl/fi/abc/x.png?rlkey=k&dl=0") == "https://www.dropbox.com/scl/fi/abc/x.png?rlkey=k&dl=1");
 		testAssert(getDownloadURL("https://www.dropbox.com/s/abc/x.png") == "https://www.dropbox.com/s/abc/x.png?dl=1");
+	}
+
+	// YouTube URLs
+	{
+		const std::string expected = "https://www.youtube.com/watch?v=2AC6F5ernCQ";
+		testAssert(getCanonicalYouTubeURL("https://www.youtube.com/watch?v=2AC6F5ernCQ&list=PLqXUCTynIUXf-OuTl-q5krmDf8IZ5uW8r") == expected);
+		testAssert(getCanonicalYouTubeURL("https://youtube.com/watch?v=2AC6F5ernCQ") == expected);
+		testAssert(getCanonicalYouTubeURL("https://m.youtube.com/watch?v=2AC6F5ernCQ") == expected);
+		testAssert(getCanonicalYouTubeURL("https://youtu.be/2AC6F5ernCQ") == expected);
+		testAssert(getCanonicalYouTubeURL("https://www.youtube.com/embed/2AC6F5ernCQ") == expected);
+		testAssert(getCanonicalYouTubeURL("https://www.youtube.com/shorts/2AC6F5ernCQ") == expected);
+		testExceptionExpected([&]() { getCanonicalYouTubeURL("https://vimeo.com/123"); });
+		testExceptionExpected([&]() { getCanonicalYouTubeURL("https://www.youtube.com/@channel"); });
+		testExceptionExpected([&]() { getCanonicalYouTubeURL("https://www.youtube.com/watch?v=abc'def"); });
+		testExceptionExpected([&]() { getCanonicalYouTubeURL(""); });
+	}
+
+	// Text wrapping and fitting
+	{
+		testAssert(epsEqual(arialWidth("the quick"), 4.002f));
+		testAssert(epsEqual(arialWidth("a\xC3\xA9" "b"), 1.668f)); // A multi-byte character counts once.
+
+		std::vector<std::string> lines;
+		wrapText("the quick brown fox", 4.5f, lines);
+		testAssert(lines.size() == 2 && lines[0] == "the quick" && lines[1] == "brown fox");
+
+		wrapText("  a\n\nb  c ", 100, lines); // Line breaks are kept, and whitespace around paragraphs is dropped.
+		testAssert(lines.size() == 3 && lines[0] == "a" && lines[1] == "" && lines[2] == "b c");
+
+		wrapText("abcdefghijkl x", 2.0f, lines); // A long word gets a line of its own.
+		testAssert(lines.size() == 2 && lines[0] == "abcdefghijkl" && lines[1] == "x");
+
+		// Voxels' line breaks on a 1 m richtext panel.
+		wrapRichText("2025 art continues above then on the wall at your right (North wall)", 1.f, lines);
+		testAssert(lines.size() == 3 && lines[0] == "2025 art continues above" && lines[1] == "then on the wall at your" && lines[2] == "right (North wall)");
+
+		// Shrinks to fit.
+		wrapText("a b c d e f g h i j k l m n o p", 0.5f, lines);
+		const TextLayout shrunk = makeTextLayout(lines, 0.075f, 0.1f, 0.3f);
+		testAssert(shrunk.scale < 0.075f && shrunk.height() <= 0.3f + 1.0e-4f);
+
+		// Sign text stays on one line, shrinking if it's too wide.
+		const TextLayout sign = layoutTextUnwrapped("Mescaline HyperDream (collab)", 0.06f, 1.45f, 0.45f);
+		testAssert(sign.num_lines == 1 && sign.scale == 0.06f);
+		const TextLayout long_sign = layoutTextUnwrapped("Mescaline HyperDream (collab)", 0.06f, 0.5f, 0.45f);
+		testAssert(long_sign.num_lines == 1 && long_sign.scale < 0.06f && long_sign.width() <= 0.5f + 1.0e-4f);
 	}
 
 	// Voxels teleport coords

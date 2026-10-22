@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2026 -
 #pragma once
 
 
+#include "../shared/UID.h"
 #include <networking/HTTPClient.h> // Needed for Reference<HTTPClient>, since VoxelsParcelImportStopper's destructor is inline.
 #include <maths/vec3.h>
 #include <utils/Platform.h>
@@ -42,7 +43,7 @@ private:
 
 struct VoxelsParcelImportOptions
 {
-	VoxelsParcelImportOptions() : origin(0,0,0), voxels_x(0), voxels_y(0), voxels_z(0), stopper(NULL), log_queue(NULL) {}
+	VoxelsParcelImportOptions() : origin(0,0,0), voxels_x(0), voxels_y(0), voxels_z(0), replace_previous_import(false), stopper(NULL), log_queue(NULL) {}
 
 	// Where the parcel goes: the Substrata position of the parcel's horizontal centre, at ground level.  The parcel is placed one voxel lower than
 	// this, as Voxels builds usually have their bottom layer of voxels below the ground.
@@ -51,6 +52,13 @@ struct VoxelsParcelImportOptions
 	// Dimensions of the parcel's voxel grid, in voxels (2 per metre).  0 to take them from the parcel bounds in the JSON, or, for a
 	// snapshot, which has no bounds, to work them out from the voxel data.
 	int voxels_x, voxels_y, voxels_z;
+
+	// Whether the objects from an earlier import of the same parcel may be deleted.  If false and there are any, the import fails before
+	// changing anything.
+	bool replace_previous_import;
+
+	// If non-empty, objects from an earlier import are saved to an XML file in this directory before being deleted.
+	std::string backup_dir;
 
 	// If non-null, can be used to stop the import.
 	VoxelsParcelImportStopper* stopper;
@@ -75,6 +83,7 @@ struct VoxelsParcelImportResults
 
 	size_t num_objects_sent; // Including the group object if one was made.
 	size_t num_objects_deleted; // Objects from an earlier import of the same parcel, removed first.
+	std::string backup_path; // Where those objects were saved, if any were.
 	size_t num_assets_downloaded;
 
 	std::vector<std::string> feature_type_counts; // e.g. "cube: 375 imported", "sign: 68 skipped (not supported)"
@@ -98,7 +107,8 @@ connected world, from the parcel JSON: either a /api/parcels/N.json
 response or a snapshot export.
 
 Makes a VoxelGroup for the parcel voxels, and objects for the cube, image,
-nft-image, vox-model and megavox features, all in one object group named
+nft-image, vox-model, megavox, video, youtube, lantern, sign and richtext
+features, all in one object group named
 after the parcel.  Importing the same parcel again replaces what the last
 import made.
 
@@ -118,6 +128,13 @@ public:
 	// Throws glare::Exception on failures that stop the import.  Problems with individual features are listed in the results instead.
 	static void importParcel(GUIClient* gui_client, const std::string& json_path, const VoxelsParcelImportOptions& options,
 		VoxelsParcelImportResults& results_out);
+
+	// The name of the object group an import of the parcel file goes in.  Throws glare::Exception if the file can't be read.
+	static std::string getGroupNameForParcelFile(const std::string& json_path);
+
+	// Finds this user's group with the given name in the world state, and the objects in it, including those in groups within it.
+	// group_uid_out is invalid if there's no such group.  Locks the world state mutex.
+	static void findPreviousImport(GUIClient* gui_client, const std::string& group_name, UID& group_uid_out, std::vector<UID>& member_uids_out);
 
 	// Picks the grid dimensions, x outermost and z innermost, under which neighbouring voxels most often match.  Each must be even
 	// (whole metres) and at least 8 voxels.  Throws glare::Exception if no dimensions fit num_voxels.

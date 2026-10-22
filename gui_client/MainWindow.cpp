@@ -4095,6 +4095,31 @@ void MainWindow::on_actionImport_Voxels_Parcel_triggered()
 
 	settings->setValue("mainwindow/lastVoxelsParcelDir", QtUtils::toQString(FileUtils::getDirectory(QtUtils::toIndString(selected_filename))));
 
+	// Importing a parcel again replaces the objects from the previous import, so check before doing that.
+	bool replace_previous_import = false;
+	try
+	{
+		const std::string group_name = VoxelsParcelImporter::getGroupNameForParcelFile(QtUtils::toIndString(selected_filename));
+		UID group_uid;
+		std::vector<UID> member_uids;
+		VoxelsParcelImporter::findPreviousImport(&gui_client, group_name, group_uid, member_uids);
+		if(!member_uids.empty())
+		{
+			const QMessageBox::StandardButton res = QMessageBox::question(this, "Replace previous import?",
+				QtUtils::toQString("'" + group_name + "' has been imported before.  Importing it again will delete the " + toString(member_uids.size()) +
+					" objects in that group and move the group here.\n\nThe deleted objects will be saved to an XML file first.\n\nReplace the previous import?"),
+				QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
+			if(res != QMessageBox::Yes)
+				return;
+			replace_previous_import = true;
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		showErrorNotification("Couldn't read the parcel file: " + e.what());
+		return;
+	}
+
 	// Replace the dialog from a previous import, if it's still open, since the new import's log lines go through the same queue.
 	delete voxels_parcel_import_dialog;
 	voxels_parcel_import_log_queue.clear();
@@ -4105,6 +4130,8 @@ void MainWindow::on_actionImport_Voxels_Parcel_triggered()
 	VoxelsParcelImportOptions import_options;
 	import_options.origin = origin;
 	import_options.log_queue = &voxels_parcel_import_log_queue;
+	import_options.replace_previous_import = replace_previous_import;
+	import_options.backup_dir = this->appdata_path + "/voxels_import_backups";
 	import_options.server_hostname = gui_client.server_hostname;
 	import_options.server_worldname = gui_client.server_worldname;
 
