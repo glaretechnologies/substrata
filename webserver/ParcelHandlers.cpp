@@ -326,6 +326,14 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 				page += "<h2>Admin tools</h2>  \n";
 				page += "<p><a href=\"/admin_set_parcel_owner/" + parcel->id.toString() + "\">Set parcel owner</a></p>";
 
+				page += "<p>Num screenshots: " + toString(parcel->screenshot_ids.size()) + "</p>";
+
+				page += "<form action=\"/admin_regenerate_multiple_parcel_screenshots\" method=\"post\">";
+				page += "<input type=\"hidden\" name=\"start_parcel_id\" value=\"" + parcel->id.toString() + "\">";
+				page += "<input type=\"hidden\" name=\"end_parcel_id\" value=\"" + parcel->id.toString() + "\">";
+				page += "<input type=\"submit\" value=\"Create screenshots\"> (Creates screenshots if the parcel has none, otherwise regenerates them)";
+				page += "</form>";
+
 				page += "<form action=\"/admin_regenerate_parcel_screenshots\" method=\"post\">";
 				page += "<input type=\"hidden\" name=\"parcel_id\" value=\"" + parcel->id.toString() + "\">";
 				page += "<input type=\"submit\" value=\"Regenerate screenshots\">";
