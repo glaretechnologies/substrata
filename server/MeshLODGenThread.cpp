@@ -988,7 +988,7 @@ void MeshLODGenThread::doRun()
 						const ChatBot* chatbot = it->second.ptr();
 						checkForOptimisedMeshToGenerateForURL(chatbot->avatar_settings.model_url, /*max_lod_lvl=*/0, world_state->resource_manager.ptr(), queued_low_priority_URLs, meshes_to_gen_low_priority);
 
-						checkForBasisAndBC13KTXTexturesToGenerateForMaterials(server, world_state,chatbot->avatar_settings.materials, queued_low_priority_URLs, basis_textures_to_gen_low_priority);
+						checkForBasisAndBC13KTXTexturesToGenerateForMaterials(server, world_state, chatbot->avatar_settings.materials, queued_low_priority_URLs, basis_textures_to_gen_low_priority);
 					}
 				}
 
@@ -998,7 +998,16 @@ void MeshLODGenThread::doRun()
 					const User* user = it->second.ptr();
 					checkForOptimisedMeshToGenerateForURL(user->avatar_settings.model_url, /*max_lod_lvl=*/0, world_state->resource_manager.ptr(), queued_low_priority_URLs, meshes_to_gen_low_priority);
 
-					checkForBasisAndBC13KTXTexturesToGenerateForMaterials(server, world_state,user->avatar_settings.materials, queued_low_priority_URLs, basis_textures_to_gen_low_priority);
+					checkForBasisAndBC13KTXTexturesToGenerateForMaterials(server, world_state, user->avatar_settings.materials, queued_low_priority_URLs, basis_textures_to_gen_low_priority);
+				}
+
+				// Check gear items.
+				for(auto it = world_state->gear_items.begin(); it != world_state->gear_items.end(); ++it)
+				{
+					const GearItem* gear_item = it->second.ptr();
+					checkForOptimisedMeshToGenerateForURL(gear_item->model_url, /*max_lod_lvl=*/2, world_state->resource_manager.ptr(), queued_low_priority_URLs, meshes_to_gen_low_priority);
+
+					checkForBasisAndBC13KTXTexturesToGenerateForMaterials(server, world_state, gear_item->materials, queued_low_priority_URLs, basis_textures_to_gen_low_priority);
 				}
 
 				// Check vehicle meshes (put in high priority queue)
