@@ -470,6 +470,8 @@ static void checkMaterialFlags(ServerAllWorldsState* world_state, ServerWorldSta
 
 
 // Make tasks for generating LOD level textures.
+// NOTE: Raw LOD textures shouldn't be requested any more by clients, clients should always request .basis or .ktx2 LOD textures.
+#if 0
 static void checkForLODTexturesToGenerate(Server* server, ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<URLString, URLStringHasher>& lod_URLs_considered, //std::map<std::string, MeshLODGenThreadTexInfo>& tex_info,
 	CircularBuffer<LODTextureToGen>& textures_to_gen)
 {
@@ -532,6 +534,7 @@ static void checkForLODTexturesToGenerate(Server* server, ServerAllWorldsState* 
 		}
 	}
 }
+#endif
 
 
 // Make tasks for generating Basis level textures.
@@ -959,7 +962,7 @@ void MeshLODGenThread::doRun()
 								checkMaterialFlags(world_state, world, ob, tex_info);
 
 							checkForLODAndOptimisedMeshesToGenerate(world_state, world, ob, queued_low_priority_URLs, meshes_to_gen_low_priority);
-							checkForLODTexturesToGenerate(server, world_state,world, ob, queued_low_priority_URLs, lod_textures_to_gen_low_priority);
+							//checkForLODTexturesToGenerate(server, world_state,world, ob, queued_low_priority_URLs, lod_textures_to_gen_low_priority);
 							checkForBasisAndBC13KTXTexturesToGenerateForOb(server, world_state,ob, queued_low_priority_URLs, basis_textures_to_gen_low_priority);
 						}
 						catch(glare::Exception& e)
@@ -1096,7 +1099,7 @@ void MeshLODGenThread::doRun()
 								checkObjectFlags(world_state, world, ob, mesh_info, lock);
 								checkForLODAndOptimisedMeshesToGenerate(world_state, world, ob, queued_high_priority_URLs, meshes_to_gen);
 								checkForBasisAndBC13KTXTexturesToGenerateForOb(server, world_state,ob, queued_high_priority_URLs, basis_textures_to_gen);
-								checkForLODTexturesToGenerate(server, world_state,world, ob, queued_high_priority_URLs, lod_textures_to_gen);
+								//checkForLODTexturesToGenerate(server, world_state,world, ob, queued_high_priority_URLs, lod_textures_to_gen);
 							}
 							catch(glare::Exception& e)
 							{
