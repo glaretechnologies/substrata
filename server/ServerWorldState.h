@@ -47,6 +47,8 @@ class WebDataStore;
 struct OpenSeaParcelListing
 {
 	ParcelID parcel_id;
+	double price; // Current listing price in units of price_currency (e.g. ETH, not wei).  Negative if unknown.
+	std::string price_currency; // e.g. "ETH" or "WETH"
 };
 
 

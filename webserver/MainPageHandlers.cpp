@@ -142,8 +142,16 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 
 					const std::string opensea_url = "https://opensea.io/assets/ethereum/0xa4535f84e8d746462f9774319e75b25bc151ba1d/" + listing.parcel_id.toString();
 
-					auction_html += "<div class=\"root-auction-div\"><a href=\"/parcel/" + parcel->id.toString() + "\"><img src=\"/screenshot/" + toString(shot_id) + "\" class=\"root-auction-thumbnail\" alt=\"screenshot\" /></a>  <br/>"
-						"<a href=\"" + opensea_url + "\">View&nbsp;on&nbsp;OpenSea</a></div>";
+					auction_html += "<div class=\"root-auction-div\"><a href=\"/parcel/" + parcel->id.toString() + "\"><img src=\"/screenshot/" + toString(shot_id) + "\" class=\"root-auction-thumbnail\" alt=\"screenshot\" /></a>  <br/>";
+
+					if(listing.price >= 0)
+					{
+						if((listing.price_currency == "ETH" || listing.price_currency == "WETH") && world_state.ETH_per_EUR > 0)
+							auction_html += "&euro;" + doubleToStringNDecimalPlaces(listing.price / world_state.ETH_per_EUR, 2) + " / ";
+						auction_html += doubleToStringNSigFigs(listing.price, 2) + "&nbsp;" + web::Escaping::HTMLEscape(listing.price_currency) + "<br/>";
+					}
+
+					auction_html += "<a href=\"" + opensea_url + "\">View&nbsp;on&nbsp;OpenSea</a></div>";
 
 				}
 

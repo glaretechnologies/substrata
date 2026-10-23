@@ -263,7 +263,27 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 				}
 			}
 			if(num == 0)
-				page += "This parcel is not up for auction on this site.";
+			{
+				// See if the parcel is listed for sale on OpenSea by the Substrata account.
+				const OpenSeaParcelListing* opensea_listing = nullptr;
+				for(size_t i=0; i<world_state.opensea_parcel_listings.size(); ++i)
+					if(world_state.opensea_parcel_listings[i].parcel_id == parcel->id)
+						opensea_listing = &world_state.opensea_parcel_listings[i];
+
+				if(opensea_listing)
+				{
+					page += "<a href=\"https://opensea.io/assets/ethereum/0xa4535f84e8d746462f9774319e75b25bc151ba1d/" + parcel->id.toString() + "\">Parcel for sale on OpenSea</a>";
+					if(opensea_listing->price >= 0)
+					{
+						page += ", price ";
+						if((opensea_listing->price_currency == "ETH" || opensea_listing->price_currency == "WETH") && world_state.ETH_per_EUR > 0)
+							page += "&euro;" + doubleToStringNDecimalPlaces(opensea_listing->price / world_state.ETH_per_EUR, 2) + " / ";
+						page += doubleToStringNSigFigs(opensea_listing->price, 2) + "&nbsp;" + web::Escaping::HTMLEscape(opensea_listing->price_currency);
+					}
+				}
+				else
+					page += "This parcel is not up for auction on this site.";
+			}
 
 			/* // Don't show past auctions for now.
 			
