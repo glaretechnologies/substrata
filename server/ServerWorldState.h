@@ -52,6 +52,15 @@ struct OpenSeaParcelListing
 };
 
 
+struct OpenSeaParcelSale
+{
+	ParcelID parcel_id;
+	double price; // Sale price in units of price_currency (e.g. ETH, not wei).  Negative if unknown.
+	std::string price_currency; // e.g. "ETH" or "WETH"
+	TimeStamp sale_time;
+};
+
+
 struct TileInfo
 {
 	ScreenshotRef cur_tile_screenshot;
@@ -428,6 +437,7 @@ public:
 
 	// Ephemeral state that is not serialised to disk.  Set by OpenSeaPollerThread.
 	std::vector<OpenSeaParcelListing> opensea_parcel_listings GUARDED_BY(mutex);
+	std::vector<OpenSeaParcelSale> opensea_parcel_sales GUARDED_BY(mutex); // Sales of parcels by the Substrata account on OpenSea.
 
 	// Ephemeral state
 	TimeStamp last_screenshot_bot_contact_time GUARDED_BY(mutex);
