@@ -207,6 +207,9 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 			{
 				events_html += "<div class=\"root-event-div\">";
 
+				if(!event->images.empty())
+					events_html += "<div class=\"root-event-thumb-div\"><a href=\"/event/" + toString(event->id) + "\"><img src=\"/images/" + web::Escaping::HTMLEscape(event->images[0].thumbnail_filename) + "\" class=\"root-event-thumbnail\" /></a></div>";
+
 				events_html += "<div class=\"root-event-title\"><a href=\"/event/" + toString(event->id) + "\">" + web::Escaping::HTMLEscape(event->title) + "</a></div>";
 
 				events_html += "<div class=\"root-event-description\">";

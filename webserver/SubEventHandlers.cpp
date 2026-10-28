@@ -13,6 +13,8 @@ Copyright Glare Technologies Limited 2025 -
 #include "ResponseUtils.h"
 #include "WebServerResponseUtils.h"
 #include "LoginHandlers.h"
+#include "WebDataStore.h"
+#include "UploadedImageProcessing.h"
 #include "../server/ServerWorldState.h"
 #include "../server/Order.h"
 #include <ConPrint.h>
@@ -25,6 +27,13 @@ Copyright Glare Technologies Limited 2025 -
 
 namespace SubEventHandlers
 {
+
+
+static const size_t MAX_EVENT_IMAGE_FILE_SIZE = 9000000; // The webserver accepts request bodies up to 10 MB.
+static const int MAX_EVENT_IMAGE_DIM          = 8192; // Max width or height of an uploaded image.
+static const int EVENT_IMAGE_MAX_OUTPUT_WIDTH = 1600; // Wider images are scaled down to this width.
+static const int EVENT_THUMBNAIL_WIDTH        = 460; // 2x the size of .root-event-thumbnail in main.css, for high-DPI screens.
+static const int EVENT_THUMBNAIL_HEIGHT       = 262;
 
 
 void renderEventPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info) // Shows a single event
@@ -74,6 +83,9 @@ void renderEventPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 						creator_username = res2->second->name;
 				}
 
+				if(event->state == SubEvent::State_draft) // Only the event creator can see draft events.
+					page += "<p class=\"event-draft-notice\"><b>This event is a draft, and is only visible to you.</b>  To make it public, <a href=\"/edit_event?event_id=" + toString(event->id) + "\">edit the event</a> and check 'Published'.</p>\n";
+
 				page += "<table>\n"; // Event data table
 
 				if(logged_in_user_is_event_owner)
@@ -106,6 +118,12 @@ void renderEventPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 				page += "<div class=\"event-description\">\n";
 				page += StringUtils::replaceAll(web::Escaping::HTMLEscape(event->description), "\n", "<br>");
 				page += "</div>\n";
+
+				for(size_t i=0; i<event->images.size(); ++i)
+				{
+					const std::string image_URL = "/images/" + web::Escaping::HTMLEscape(event->images[i].image_filename);
+					page += "<div><a href=\"" + image_URL + "\"><img src=\"" + image_URL + "\" class=\"event-image\" /></a></div>\n";
+				}
 
 				if(logged_in_user_is_event_owner)
 				{
@@ -169,6 +187,28 @@ void renderAllEventsPage(ServerAllWorldsState& world_state, const web::RequestIn
 
 			Lock lock(world_state.mutex);
 
+			// Show the logged-in user's draft events, which aren't in the list of published events below, so they can find them again.
+			const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+			if(logged_in_user && (start == 0))
+			{
+				std::string drafts_html;
+				for(auto draft_it = world_state.events.rbegin(); draft_it != world_state.events.rend(); ++draft_it)
+				{
+					const SubEvent* event = draft_it->second.ptr();
+					if((event->creator_id == logged_in_user->id) && (event->state == SubEvent::State_draft))
+						drafts_html += "<div><a href=\"/event/" + toString(event->id) + "\">" + web::Escaping::HTMLEscape(event->title) + "</a> " +
+							"(<a href=\"/edit_event?event_id=" + toString(event->id) + "\">edit</a>)</div>\n";
+				}
+
+				if(!drafts_html.empty())
+				{
+					page += "<h2>Your draft events</h2>\n";
+					page += "<p>Draft events are only visible to you.  Edit an event and check 'Published' to make it public.</p>\n";
+					page += drafts_html;
+					page += "<h2>Published events</h2>\n";
+				}
+			}
+
 			// Advance to 'start' offset.  Use reverse iterators to show most recent posts first.
 			auto it = world_state.events.rbegin();
 			for(int i=0; it != world_state.events.rend() && i < start; ++it, ++i)
@@ -180,6 +220,14 @@ void renderAllEventsPage(ServerAllWorldsState& world_state, const web::RequestIn
 				const SubEvent* event = it->second.ptr();
 				if(event->state == SubEvent::State_published)
 				{
+					// Thumbnail (if any) on the left, title, description and time on the right.
+					page += "<div class=\"event-list-item\">";
+
+					if(!event->images.empty())
+						page += "<div class=\"event-thumb-div\"><a href=\"/event/" + toString(event->id) + "\"><img src=\"/images/" + web::Escaping::HTMLEscape(event->images[0].thumbnail_filename) + "\" class=\"root-event-thumbnail\" /></a></div>";
+
+					page += "<div class=\"event-list-item-text\">";
+
 					page += "<h2 class=\"event-title\"><a href=\"/event/" + toString(event->id) + "\">" + web::Escaping::HTMLEscape(event->title) + "</a></h2>";
 
 					page += "<div class=\"event-description\">";
@@ -188,8 +236,11 @@ void renderAllEventsPage(ServerAllWorldsState& world_state, const web::RequestIn
 					if(event->description.size() > MAX_DESCRIP_SHOW_LEN)
 						page += "...";
 					page += "</div>";
-					
+
 					page += "<div class=\"event-time\">" + event->start_time.dayAndTimeStringUTC() + "</div>";
+
+					page += "</div>"; // end event-list-item-text
+					page += "</div>\n"; // end event-list-item
 
 					num_displayed++;
 				}
@@ -301,7 +352,7 @@ void renderEditEventPage(ServerAllWorldsState& world_state, const web::RequestIn
 					const std::string start_time_str = event->start_time.HTTPDateTimeFormattedStringUTC();
 					const std::string end_time_str   = event->end_time.HTTPDateTimeFormattedStringUTC();
 
-					page += "<form action=\"/edit_event_post\" method=\"post\" id=\"usrform\">";
+					page += "<form action=\"/edit_event_post\" method=\"post\" id=\"usrform\" enctype=\"multipart/form-data\">";
 					page += "<input type=\"hidden\" name=\"event_id\" value=\"" + toString(event_id) + "\"><br>";
 					page += "Title: <textarea rows=\"1\" cols=\"80\" name=\"title\" form=\"usrform\">"    + web::Escaping::HTMLEscape(event->title) +   "</textarea><br>";
 					page += "Description: <textarea rows=\"30\" cols=\"80\" name=\"description\" form=\"usrform\">" + web::Escaping::HTMLEscape(event->description) + "</textarea><br>";
@@ -311,7 +362,21 @@ void renderEditEventPage(ServerAllWorldsState& world_state, const web::RequestIn
 					page += "End time (UTC): <input type=\"datetime-local\" name=\"end_time\" value=\"" + end_time_str + "\"><br/>";
 					//page += "timezone offset: <input id=\"timezone-offset-input\" type=\"hidden\" name=\"timezone_offset\" value=\"\"><br/>";
 					page += std::string("Published: <input type=\"checkbox\" name=\"published\" value=\"checked\" ") + ((event->state == SubEvent::State_published) ? "checked" : "") + "><br/>\n";
-					page += "<input type=\"submit\" value=\"Edit event\">";
+
+					// Show existing images, with a checkbox to remove each one.
+					if(!event->images.empty())
+					{
+						page += "Images:<br/>\n";
+						for(size_t i=0; i<event->images.size(); ++i)
+						{
+							const SubEventImage& image = event->images[i];
+							page += "<div><img src=\"/images/" + web::Escaping::HTMLEscape(image.thumbnail_filename) + "\" class=\"root-event-thumbnail\" /> "
+								"<label><input type=\"checkbox\" name=\"remove_image_" + web::Escaping::HTMLEscape(image.image_filename) + "\" value=\"checked\"> Remove</label></div>\n";
+						}
+					}
+					page += "Attach images (JPEG or PNG, max " + toString(SubEvent::MAX_NUM_IMAGES) + " images): <input type=\"file\" name=\"file\" accept=\".jpg,.jpeg,.png\" multiple><br/>\n";
+
+					page += "<input type=\"submit\" value=\"Save changes\">";
 					page += "</form>";
 				}
 				else
@@ -472,6 +537,66 @@ void handleEditEventPost(ServerAllWorldsState& world_state, const web::RequestIn
 		const TimeStamp start_time_UTC = start_time_str.empty() ? TimeStamp::currentTime() : parseHTTPDateTime(start_time_str);
 		const TimeStamp end_time_UTC   = end_time_str.empty()   ? TimeStamp::currentTime() : parseHTTPDateTime(end_time_str);
 
+		// Get any attached image files
+		std::vector<Reference<web::FormField>> image_fields;
+		if(!request.fuzzing) // Don't write to disk while fuzzing
+		{
+			for(size_t i=0; i<request.post_fields.size(); ++i)
+			{
+				const Reference<web::FormField>& field = request.post_fields[i];
+				if((field->key == "file") && !field->filename.empty() && !field->content.empty())
+					image_fields.push_back(field);
+			}
+		}
+
+		std::vector<UploadedImageProcessing::SavedImage> saved_images;
+		std::string image_error_msg;
+		if(!image_fields.empty())
+		{
+			// Check the user created this event, and that there is room for the new images, before processing them.
+			{
+				Lock lock(world_state.mutex);
+
+				const auto res = world_state.events.find(event_id);
+				if(res == world_state.events.end())
+					throw glare::Exception("Couldn't find event");
+				const SubEvent* event = res->second.ptr();
+
+				const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+				if(!(logged_in_user && (event->creator_id == logged_in_user->id)))
+					throw glare::Exception("Access forbidden");
+
+				size_t num_images_kept = 0;
+				for(size_t i=0; i<event->images.size(); ++i)
+					if(request.getPostField("remove_image_" + event->images[i].image_filename) != "checked")
+						num_images_kept++;
+
+				if(num_images_kept + image_fields.size() > SubEvent::MAX_NUM_IMAGES)
+					throw glare::Exception("Too many images, an event can have at most " + toString(SubEvent::MAX_NUM_IMAGES) + " images.");
+			}
+
+			// Decode, resize and save the images.  Done without holding world_state.mutex, as it can take a while.
+			UploadedImageProcessing::ImageSizeLimits limits;
+			limits.max_file_size    = MAX_EVENT_IMAGE_FILE_SIZE;
+			limits.max_dim          = MAX_EVENT_IMAGE_DIM;
+			limits.max_output_width = EVENT_IMAGE_MAX_OUTPUT_WIDTH;
+			limits.thumbnail_width  = EVENT_THUMBNAIL_WIDTH;
+			limits.thumbnail_height = EVENT_THUMBNAIL_HEIGHT;
+
+			for(size_t i=0; i<image_fields.size(); ++i)
+			{
+				try
+				{
+					saved_images.push_back(UploadedImageProcessing::processAndSaveUploadedImage(*world_state.web_data_store, image_fields[i]->filename.str(),
+						ArrayRef<uint8>(image_fields[i]->content.data(), image_fields[i]->content.size()), /*filename_prefix=*/"event", limits));
+				}
+				catch(glare::Exception& e)
+				{
+					image_error_msg += " Failed to add image '" + image_fields[i]->filename.str() + "': " + e.what();
+				}
+			}
+		}
+
 		{ // Lock scope
 			Lock lock(world_state.mutex);
 
@@ -493,9 +618,20 @@ void handleEditEventPost(ServerAllWorldsState& world_state, const web::RequestIn
 					event->last_modified_time = TimeStamp::currentTime();
 					event->state = new_published ? SubEvent::State_published : SubEvent::State_draft;
 
+					// Remove any images with the remove checkbox checked.  The image files are left in public_images_dir, as they may be used elsewhere.
+					std::vector<SubEventImage> kept_images;
+					for(size_t i=0; i<event->images.size(); ++i)
+						if(request.getPostField("remove_image_" + event->images[i].image_filename) != "checked")
+							kept_images.push_back(event->images[i]);
+					event->images = kept_images;
+
+					// Add newly uploaded images
+					for(size_t i=0; (i < saved_images.size()) && (event->images.size() < SubEvent::MAX_NUM_IMAGES); ++i)
+						event->images.push_back(SubEventImage{saved_images[i].image_filename, saved_images[i].thumbnail_filename});
+
 					world_state.addEventAsDBDirty(event);
 
-					world_state.setUserWebMessage(logged_in_user->id, "Updated event.");
+					world_state.setUserWebMessage(logged_in_user->id, "Updated event." + image_error_msg);
 				}
 			}
 		} // End lock scope

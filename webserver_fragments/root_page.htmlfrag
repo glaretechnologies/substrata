@@ -49,6 +49,12 @@ PHOTOS_HTML
 <a href="/photos">View all photos</a>
 </p>
 
+<h2>Events</h2>
+
+EVENTS_HTML
+
+<a href="/events">See all events</a> or <a href="/create_event">Create an event</a>
+
 <h2 id="downloads">Downloads</h2>
 <p>You can enter <a href="/visit">Substrata in your browser</a>.  Alternatively, explore Substrata with the faster native client:</p>
 <p>
@@ -98,12 +104,6 @@ LAND_PARCELS_FOR_SALE_HTML
 <a href="https://twitter.com/SubstrataVr" ><img width="60px" src="/files/twitter.png" />@SubstrataVr</a>
 </p>
 -->
-
-<h2>Events</h2>
-
-EVENTS_HTML
-
-<a href="/events">See all events</a> or <a href="/create_event">Create an event</a>
 
 <h2>Docs</h2>
 <p><a href="/about_substrata">Read about our goals and plans for Substrata</a></p>

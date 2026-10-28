@@ -15,6 +15,21 @@ Copyright Glare Technologies Limited 2025 -
 #include <utils/DatabaseKey.h>
 #include <utils/Reference.h>
 #include <unordered_set>
+#include <vector>
+
+
+/*=====================================================================
+SubEventImage
+-------------
+An image attached to an event.  Files are in public_images_dir, served from /images/<filename>.
+=====================================================================*/
+struct SubEventImage
+{
+	std::string image_filename;
+	std::string thumbnail_filename;
+
+	bool operator == (const SubEventImage& other) const { return (image_filename == other.image_filename) && (thumbnail_filename == other.thumbnail_filename); }
+};
 
 
 /*=====================================================================
@@ -41,6 +56,7 @@ public:
 	std::string title;
 	std::string description;
 	std::unordered_set<UserID, UserIDHasher> attendee_ids;
+	std::vector<SubEventImage> images;
 
 	enum State
 	{
@@ -54,6 +70,8 @@ public:
 	static const size_t MAX_WORLD_NAME_SIZE                 = 1000;
 	static const size_t MAX_TITLE_SIZE                      = 1000;
 	static const size_t MAX_DESCRIPTION_SIZE                = 10000;
+	static const size_t MAX_IMAGE_FILENAME_SIZE             = 1000;
+	static const size_t MAX_NUM_IMAGES                      = 5;
 
 	static std::string stateString(State s);
 

@@ -18,7 +18,46 @@ if(NOT SUBSTRATA_PRIVATE_REPO_PATH STREQUAL "")
 endif()
 
 FILE(GLOB server "./*.cpp" "./*.h")
-FILE(GLOB webserver "../webserver/*.cpp" "../webserver/*.h")
+SET(webserver
+../webserver/AccountHandlers.cpp
+../webserver/AccountHandlers.h
+../webserver/AdminHandlers.cpp
+../webserver/AdminHandlers.h
+../webserver/ChatBotHandlers.cpp
+../webserver/ChatBotHandlers.h
+../webserver/LoginHandlers.cpp
+../webserver/LoginHandlers.h
+../webserver/MCPHandlers.cpp
+../webserver/MCPHandlers.h
+../webserver/MainPageHandlers.cpp
+../webserver/MainPageHandlers.h
+../webserver/NewsPostHandlers.cpp
+../webserver/NewsPostHandlers.h
+../webserver/ParcelHandlers.cpp
+../webserver/ParcelHandlers.h
+../webserver/PhotoHandlers.cpp
+../webserver/PhotoHandlers.h
+../webserver/ResourceHandlers.cpp
+../webserver/ResourceHandlers.h
+../webserver/ScreenshotHandlers.cpp
+../webserver/ScreenshotHandlers.h
+../webserver/SubEventHandlers.cpp
+../webserver/SubEventHandlers.h
+../webserver/UploadedImageProcessing.cpp
+../webserver/UploadedImageProcessing.h
+../webserver/WebDataFileWatcherThread.cpp
+../webserver/WebDataFileWatcherThread.h
+../webserver/WebDataStore.cpp
+../webserver/WebDataStore.h
+../webserver/WebServerRequestHandler.cpp
+../webserver/WebServerRequestHandler.h
+../webserver/WebServerRequestHandlerTests.cpp
+../webserver/WebServerRequestHandlerTests.h
+../webserver/WebServerResponseUtils.cpp
+../webserver/WebServerResponseUtils.h
+../webserver/WorldHandlers.cpp
+../webserver/WorldHandlers.h
+)
 SET(shared_files
 ../shared/Avatar.cpp
 ../shared/Avatar.h

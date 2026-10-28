@@ -26,7 +26,7 @@ SubEvent::~SubEvent()
 }
 
 
-static const uint32 SUBEVENT_CHUNK_SERIALISATION_VERSION = 2;
+static const uint32 SUBEVENT_CHUNK_SERIALISATION_VERSION = 3; // Version 3: added images
 
 
 void SubEvent::writeToStream(RandomAccessOutStream& stream) const
@@ -55,6 +55,14 @@ void SubEvent::writeToStream(RandomAccessOutStream& stream) const
 	stream.writeUInt64(attendee_ids.size());
 	for(auto it=attendee_ids.begin(); it != attendee_ids.end(); ++it)
 		::writeToStream(*it, stream);
+
+	// Write images
+	stream.writeUInt32((uint32)images.size());
+	for(size_t i=0; i<images.size(); ++i)
+	{
+		stream.writeStringLengthFirst(images[i].image_filename);
+		stream.writeStringLengthFirst(images[i].thumbnail_filename);
+	}
 
 	// Go back and write size of buffer to buffer size field
 	const uint32 buffer_size = (uint32)(stream.getWriteIndex() - initial_write_index);
@@ -108,6 +116,21 @@ void readSubEventFromStream(RandomAccessInStream& stream, SubEvent& event)
 			event.attendee_ids.insert(readUserIDFromStream(stream));
 	}
 
+	if(version >= 3)
+	{
+		// Read images
+		const uint32 num_images = stream.readUInt32();
+		if(num_images > SubEvent::MAX_NUM_IMAGES)
+			throw glare::Exception("invalid num images");
+
+		event.images.resize(num_images);
+		for(size_t i=0; i<num_images; ++i)
+		{
+			event.images[i].image_filename     = stream.readStringLengthFirst(SubEvent::MAX_IMAGE_FILENAME_SIZE);
+			event.images[i].thumbnail_filename = stream.readStringLengthFirst(SubEvent::MAX_IMAGE_FILENAME_SIZE);
+		}
+	}
+
 	// Discard any remaining unread data
 	const size_t read_B = stream.getReadIndex() - initial_read_index; // Number of bytes we have read so far
 	if(read_B < buffer_size)
@@ -132,6 +155,8 @@ void SubEvent::test()
 		ev.attendee_ids.insert(UserID(100));
 		ev.attendee_ids.insert(UserID(101));
 		ev.attendee_ids.insert(UserID(102));
+		ev.images.push_back(SubEventImage{"event_a_123.jpg", "event_thumb_a_456.jpg"});
+		ev.images.push_back(SubEventImage{"event_b_789.jpg", "event_thumb_b_012.jpg"});
 
 		BufferOutStream stream;
 		ev.writeToStream(stream);
@@ -145,6 +170,7 @@ void SubEvent::test()
 		testAssert(ev2.description == ev.description);
 		testAssert(ev2.state == ev.state);
 		testAssert(ev2.attendee_ids == ev.attendee_ids);
+		testAssert(ev2.images == ev.images);
 	}
 
 	{
@@ -162,6 +188,7 @@ void SubEvent::test()
 		testAssert(ev2.description == ev.description);
 		testAssert(ev2.state == ev.state);
 		testAssert(ev2.attendee_ids == ev.attendee_ids);
+		testAssert(ev2.images == ev.images);
 	}
 }
 
