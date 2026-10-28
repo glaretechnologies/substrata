@@ -20,6 +20,13 @@ Copyright Glare Technologies Limited 2022 -
 #include <maths/mathstypes.h>
 #include <stdlib.h> // for NULL
 #include <fstream>
+#include <limits>
+
+
+ImageDecoding::ImageDecodingOptions::ImageDecodingOptions()
+:	ETC_support(false),
+	max_num_pixels(std::numeric_limits<size_t>::max())
+{}
 
 
 Reference<Map2D> ImageDecoding::decodeImage(const std::string& indigo_base_dir, const std::string& path, glare::Allocator* mem_allocator, const ImageDecodingOptions& options) // throws ImFormatExcep on failure
@@ -48,11 +55,15 @@ Reference<Map2D> ImageDecoding::decodeImageFromBuffer(const std::string& indigo_
 {
 	if(hasExtension(path, "jpg") || hasExtension(path, "jpeg"))
 	{
-		return JPEGDecoder::decodeFromBuffer(texture_data_buf.data(), texture_data_buf.size(), indigo_base_dir, mem_allocator);
+		JPEGDecoder::JPEGDecoderOptions jpeg_options;
+		jpeg_options.max_num_pixels = myMin(jpeg_options.max_num_pixels, options.max_num_pixels);
+		return JPEGDecoder::decodeFromBuffer(texture_data_buf.data(), texture_data_buf.size(), indigo_base_dir, mem_allocator, jpeg_options);
 	}
 	else if(hasExtension(path, "png"))
 	{
-		return PNGDecoder::decodeFromBuffer(texture_data_buf.data(), texture_data_buf.size(), mem_allocator);
+		PNGDecoder::PNGDecoderOptions png_options;
+		png_options.max_num_pixels = myMin(png_options.max_num_pixels, options.max_num_pixels);
+		return PNGDecoder::decodeFromBuffer(texture_data_buf.data(), texture_data_buf.size(), mem_allocator, png_options);
 	}
 	// Disable TIFF loading until we fuzz it etc.
 	/*else if(hasExtension(path, "tif") || hasExtension(path, "tiff"))

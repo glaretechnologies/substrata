@@ -30,7 +30,7 @@ namespace SubEventHandlers
 
 
 static const size_t MAX_EVENT_IMAGE_FILE_SIZE = 9000000; // The webserver accepts request bodies up to 10 MB.
-static const int MAX_EVENT_IMAGE_DIM          = 8192; // Max width or height of an uploaded image.
+static const int MAX_EVENT_IMAGE_DIM          = 4096; // Max width or height of an uploaded image.
 static const int EVENT_IMAGE_MAX_OUTPUT_WIDTH = 1600; // Wider images are scaled down to this width.
 static const int EVENT_THUMBNAIL_WIDTH        = 460; // 2x the size of .root-event-thumbnail in main.css, for high-DPI screens.
 static const int EVENT_THUMBNAIL_HEIGHT       = 262;

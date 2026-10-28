@@ -27,8 +27,9 @@ public:
 
 	struct ImageDecodingOptions
 	{
-		ImageDecodingOptions() : ETC_support(false) {}
+		ImageDecodingOptions();
 		bool ETC_support;
+		size_t max_num_pixels; // Images with more pixels than this are rejected before being decoded, if the decoder supports it (currently PNG and JPEG).  Decoders also have their own limits.
 	};
 
 	// Decode image from disk
