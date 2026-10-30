@@ -294,6 +294,11 @@ else() # Linux
 	SET(CMAKE_C_FLAGS_RELWITHDEBINFO	"${CMAKE_C_FLAGS_RELWITHDEBINFO}	${COMMON_C_CXX_OPTIONS_RELWITHDEBINFO}")
 endif()
 
+# Turn on lifetime safety analysis for Clang.
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wlifetime-safety-permissive")
+endif()
+
 
 # Append BUILD_TEST=1 preprocessor def for debug + release with debug info, all platforms.
 SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO	"${CMAKE_CXX_FLAGS_RELWITHDEBINFO}	-DBUILD_TESTS=1")
