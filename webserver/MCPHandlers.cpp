@@ -171,11 +171,11 @@ static const std::string vec3ToJSON(const Vec3d& v)
 
 // Returns the (non-null) world state for the given world name, throwing glare::Exception if there is no such world.
 // The returned pointer is owned by all_worlds and is valid as long as the world state lock is held.
-static ServerWorldState* getWorld(ServerAllWorldsState& all_worlds, const std::string& world_name, WorldStateLock& /*lock*/) REQUIRES(all_worlds.mutex)
+static ServerWorldState* getWorld(ServerAllWorldsState& all_worlds, const string_view world_name, WorldStateLock& /*lock*/) REQUIRES(all_worlds.mutex)
 {
-	auto res = all_worlds.world_states.find(world_name);
+	auto res = all_worlds.world_states.find(toString(world_name));
 	if(res == all_worlds.world_states.end())
-		throw glare::Exception("No world with name '" + world_name + "'");
+		throw glare::Exception("No world with name '" + toString(world_name) + "'");
 	return res->second.ptr();
 }
 
@@ -208,7 +208,7 @@ static const std::string tool_listWorlds(ServerAllWorldsState& all_worlds)
 
 static const std::string tool_getWorldInfo(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args)
 {
-	const std::string world_name = args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/"");
+	const string_view world_name = args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/"");
 
 	WorldStateLock lock(all_worlds.mutex);
 	ServerWorldState* world = getWorld(all_worlds, world_name, lock);
@@ -223,7 +223,7 @@ static const std::string tool_getWorldInfo(ServerAllWorldsState& all_worlds, con
 
 static const std::string tool_listAvatars(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args)
 {
-	const std::string world_name = args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/"");
+	const string_view world_name = args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/"");
 
 	WorldStateLock lock(all_worlds.mutex);
 	ServerWorldState* world = getWorld(all_worlds, world_name, lock);
@@ -247,7 +247,7 @@ static const std::string tool_listAvatars(ServerAllWorldsState& all_worlds, cons
 
 static const std::string tool_listObjectsNear(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args)
 {
-	const std::string world_name = args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/"");
+	const string_view world_name = args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/"");
 	const Vec3d centre(args.getChildDoubleValue(parser, "x"), args.getChildDoubleValue(parser, "y"), args.getChildDoubleValue(parser, "z"));
 	const double radius = args.getChildDoubleValue(parser, "radius");
 	const size_t limit = (size_t)args.getChildDoubleValueWithDefaultVal(parser, "limit", /*default=*/50);
@@ -278,7 +278,7 @@ static const std::string tool_listObjectsNear(ServerAllWorldsState& all_worlds, 
 
 static const std::string tool_getObject(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args)
 {
-	const std::string world_name = args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/"");
+	const string_view world_name = args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/"");
 	const UID uid((uint64)args.getChildDoubleValue(parser, "uid"));
 
 	WorldStateLock lock(all_worlds.mutex);
@@ -286,7 +286,7 @@ static const std::string tool_getObject(ServerAllWorldsState& all_worlds, const 
 
 	auto res = world->getObjects(lock).find(uid);
 	if(res == world->getObjects(lock).end())
-		throw glare::Exception("No object with UID " + toString(uid.value()) + " in world '" + world_name + "'");
+		throw glare::Exception("No object with UID " + toString(uid.value()) + " in world '" + toString(world_name) + "'");
 
 	return res->second->serialiseToJSON();
 }
@@ -324,7 +324,7 @@ static void markLODChunkNeedsRebuild(ServerWorldState* world, const WorldObject*
 // Enforce object-count limits on MCP-created objects, to stop an agent from filling up a world or parcel.  God users are
 // exempt (consistent with permission checks).  Throws glare::Exception if a limit would be exceeded.
 // NOTE: the world state mutex must be held.
-static void checkObjectCountLimits(const WorldObject& ob, const std::string& world_name, ServerWorldState& world, const UserID acting_user_id, WorldStateLock& lock)
+static void checkObjectCountLimits(const WorldObject& ob, const string_view world_name, ServerWorldState& world, const UserID acting_user_id, WorldStateLock& lock)
 {
 	if(isGodUser(acting_user_id))
 		return;
@@ -364,7 +364,7 @@ static void checkObjectCountLimits(const WorldObject& ob, const std::string& wor
 
 // Insert a fully-constructed object (object_type, model_url, content, pos, axis, angle, scale, materials all set)
 // into the given world as the acting user, after checking creation permissions.  Returns the new object's UID as JSON.
-static const std::string createObjectInWorld(ServerAllWorldsState& all_worlds, const std::string& world_name, WorldObjectRef ob,
+static const std::string createObjectInWorld(ServerAllWorldsState& all_worlds, const string_view world_name, WorldObjectRef ob,
 	const UserID acting_user_id, const std::string& acting_user_name)
 {
 	checkTransformOK(ob.ptr()); // Check transform is valid (e.g. not inf or NaN). Throw glare::Exception on invalid transform.
@@ -731,7 +731,7 @@ static const std::string tool_editObject(ServerAllWorldsState& all_worlds, const
 	if(all_worlds.isInReadOnlyMode())
 		throw glare::Exception("Server is in read-only mode; cannot edit objects.");
 
-	const std::string world_name = args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/"");
+	const string_view world_name = args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/"");
 	const UID uid((uint64)args.getChildDoubleValue(parser, "uid"));
 
 	WorldStateLock lock(all_worlds.mutex);
@@ -739,7 +739,7 @@ static const std::string tool_editObject(ServerAllWorldsState& all_worlds, const
 
 	auto res = world->getObjects(lock).find(uid);
 	if(res == world->getObjects(lock).end())
-		throw glare::Exception("No object with UID " + toString(uid.value()) + " in world '" + world_name + "'");
+		throw glare::Exception("No object with UID " + toString(uid.value()) + " in world '" + toString(world_name) + "'");
 	WorldObject* ob = res->second.ptr();
 
 	if(!userHasObjectWritePermissions(*ob, acting_user_id, acting_user_name, *world, /*allow_light_mapper_bot_full_perms=*/false, lock))
@@ -804,7 +804,7 @@ static const std::string tool_deleteObject(ServerAllWorldsState& all_worlds, con
 	if(all_worlds.isInReadOnlyMode())
 		throw glare::Exception("Server is in read-only mode; cannot delete objects.");
 
-	const std::string world_name = args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/"");
+	const string_view world_name = args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/"");
 	const UID uid((uint64)args.getChildDoubleValue(parser, "uid"));
 
 	WorldStateLock lock(all_worlds.mutex);
@@ -812,7 +812,7 @@ static const std::string tool_deleteObject(ServerAllWorldsState& all_worlds, con
 
 	auto res = world->getObjects(lock).find(uid);
 	if(res == world->getObjects(lock).end())
-		throw glare::Exception("No object with UID " + toString(uid.value()) + " in world '" + world_name + "'");
+		throw glare::Exception("No object with UID " + toString(uid.value()) + " in world '" + toString(world_name) + "'");
 	WorldObject* ob = res->second.ptr();
 
 	if(!userHasObjectWritePermissions(*ob, acting_user_id, /*user_name=*/std::string(), *world, /*allow_light_mapper_bot_full_perms=*/false, lock))
@@ -858,7 +858,7 @@ static const std::string newsPostSummaryJSON(const NewsPost& post)
 }
 
 
-static void checkNewsPostFieldSizes(const std::string& title, const std::string& content, const std::string& thumbnail_URL)
+static void checkNewsPostFieldSizes(const string_view title, const string_view content, const string_view thumbnail_URL)
 {
 	if(title.size() > MAX_NEWS_POST_TITLE_SIZE)
 		throw glare::Exception("title is too long (max " + toString(MAX_NEWS_POST_TITLE_SIZE) + " bytes).");
@@ -921,9 +921,9 @@ static const std::string tool_getNewsPost(ServerAllWorldsState& all_worlds, cons
 // Creates a news post in the draft state.  Posts are published from the website (the edit news post page), not via MCP.
 static const std::string tool_createNewsPost(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args, const UserID acting_user_id)
 {
-	const std::string title         = args.getChildStringValue(parser, "title");
-	const std::string content       = args.getChildStringValue(parser, "content");
-	const std::string thumbnail_URL = args.getChildStringValueWithDefaultVal(parser, "thumbnail_url", /*default=*/"");
+	const string_view title         = args.getChildStringValue(parser, "title");
+	const string_view content       = args.getChildStringValue(parser, "content");
+	const string_view thumbnail_URL = args.getChildStringValueWithDefaultVal(parser, "thumbnail_url", /*default=*/"");
 	checkNewsPostFieldSizes(title, content, thumbnail_URL);
 
 	if(all_worlds.isInReadOnlyMode())
@@ -962,14 +962,17 @@ static const std::string tool_editNewsPost(ServerAllWorldsState& all_worlds, con
 	if(post->state == NewsPost::State_deleted)
 		throw glare::Exception("News post " + toString(post_id) + " was deleted.");
 
-	const std::string title         = args.hasChild("title")         ? args.getChildStringValue(parser, "title")         : post->title;
-	const std::string content       = args.hasChild("content")       ? args.getChildStringValue(parser, "content")       : post->content;
-	const std::string thumbnail_URL = args.hasChild("thumbnail_url") ? args.getChildStringValue(parser, "thumbnail_url") : post->thumbnail_URL;
+	const string_view title         = args.hasChild("title")         ? args.getChildStringValue(parser, "title")         : post->title;
+	const string_view content       = args.hasChild("content")       ? args.getChildStringValue(parser, "content")       : post->content;
+	const string_view thumbnail_URL = args.hasChild("thumbnail_url") ? args.getChildStringValue(parser, "thumbnail_url") : post->thumbnail_URL;
 	checkNewsPostFieldSizes(title, content, thumbnail_URL);
 
-	post->title = title;
-	post->content = content;
-	post->thumbnail_URL = thumbnail_URL;
+	if(args.hasChild("title"))
+		post->title = title;
+	if(args.hasChild("content"))
+		post->content = content;
+	if(args.hasChild("thumbnail_url"))
+		post->thumbnail_URL = thumbnail_URL;
 	post->last_modified_time = TimeStamp::currentTime();
 
 	all_worlds.addNewsPostAsDBDirty(post);
@@ -985,8 +988,8 @@ static const std::string tool_editNewsPost(ServerAllWorldsState& all_worlds, con
 // See UploadedImageProcessing::processAndSaveUploadedImage().
 static const std::string tool_uploadNewsImage(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args)
 {
-	const std::string filename = args.getChildStringValue(parser, "filename");
-	const std::string& data_base64 = args.getChildStringValue(parser, "data_base64");
+	const string_view filename    = args.getChildStringValue(parser, "filename");
+	const string_view data_base64 = args.getChildStringValue(parser, "data_base64");
 
 	if(all_worlds.isInReadOnlyMode())
 		throw glare::Exception("Server is in read-only mode, editing disabled currently.");
@@ -1004,7 +1007,7 @@ static const std::string tool_uploadNewsImage(ServerAllWorldsState& all_worlds, 
 	limits.thumbnail_width  = NEWS_THUMBNAIL_WIDTH;
 	limits.thumbnail_height = NEWS_THUMBNAIL_HEIGHT;
 
-	const UploadedImageProcessing::SavedImage saved = UploadedImageProcessing::processAndSaveUploadedImage(*all_worlds.web_data_store, filename, ArrayRef<uint8>(data.data(), data.size()),
+	const UploadedImageProcessing::SavedImage saved = UploadedImageProcessing::processAndSaveUploadedImage(*all_worlds.web_data_store, toString(filename), ArrayRef<uint8>(data.data(), data.size()),
 		/*filename_prefix=*/"news", limits);
 
 	return "{\"url\":\"/images/" + saved.image_filename + "\"" +
@@ -1476,7 +1479,7 @@ static const std::string handleToolCall(ServerAllWorldsState& all_worlds, const 
 {
 	if(!params.hasChild("name"))
 		throw glare::Exception("tools/call is missing 'name'");
-	const std::string tool_name = params.getChildStringValue(parser, "name");
+	const std::string tool_name = toString(params.getChildStringValue(parser, "name"));
 
 	conPrint("MCP: tools/call tool: '" + tool_name + "'");
 
@@ -1731,9 +1734,9 @@ void handleMCPRequest(ServerAllWorldsState& world_state, const web::RequestInfo&
 		writeError(reply_info, id, JSONRPC_INVALID_REQUEST, "Missing 'method'.");
 		return;
 	}
-	const std::string method = root.getChildStringValue(parser, "method");
+	const string_view method = root.getChildStringValue(parser, "method");
 
-	conPrint("MCP: request method: '" + method + "'");
+	conPrint("MCP: request method: '" + toString(method) + "'");
 
 	// A request without an id is a notification (e.g. notifications/initialized); we just acknowledge it with an empty body.
 	if(id.type == RequestID::Type_None)
@@ -1771,12 +1774,12 @@ void handleMCPRequest(ServerAllWorldsState& world_state, const web::RequestInfo&
 		}
 		else
 		{
-			writeError(reply_info, id, JSONRPC_METHOD_NOT_FOUND, "Method not found: " + method);
+			writeError(reply_info, id, JSONRPC_METHOD_NOT_FOUND, "Method not found: " + toString(method));
 		}
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("MCP: error handling method '" + method + "': " + e.what());
+		conPrint("MCP: error handling method '" + toString(method) + "': " + e.what());
 		writeError(reply_info, id, JSONRPC_INTERNAL_ERROR, e.what());
 	}
 }

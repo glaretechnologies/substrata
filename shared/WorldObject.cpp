@@ -514,7 +514,7 @@ std::string WorldObject::objectTypeString(ObjectType t)
 	}
 }
 
-WorldObject::ObjectType WorldObject::objectTypeForString(const std::string& ob_type_string)
+WorldObject::ObjectType WorldObject::objectTypeForString(const string_view ob_type_string)
 {
 	if(ob_type_string == "generic") return ObjectType_Generic;
 	if(ob_type_string == "hypercard") return ObjectType_Hypercard;
@@ -528,7 +528,7 @@ WorldObject::ObjectType WorldObject::objectTypeForString(const std::string& ob_t
 	if(ob_type_string == "gear item") return ObjectType_GearItem;
 	if(ob_type_string == "splat") return ObjectType_Splat;
 	if(ob_type_string == "group") return ObjectType_Group;
-	throw glare::Exception("Unknown object type '" + ob_type_string + "'");
+	throw glare::Exception("Unknown object type '" + toString(ob_type_string) + "'");
 }
 
 

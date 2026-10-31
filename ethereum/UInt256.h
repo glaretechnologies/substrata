@@ -42,7 +42,7 @@ struct UInt256
 
 	const std::string toHexString() const; // Without 0x prefix.
 
-	static UInt256 parseFromHexString(const std::string& hex_string);
+	static UInt256 parseFromHexString(const string_view hex_string);
 
 	static void test();
 

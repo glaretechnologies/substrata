@@ -17,9 +17,9 @@ const std::string UInt256::toHexString() const
 
 
 // hex_string_ optionally has a "0x" prefix.
-UInt256 UInt256::parseFromHexString(const std::string& hex_string_)
+UInt256 UInt256::parseFromHexString(const string_view hex_string_)
 {
-	std::string hex_string = hex_string_;
+	std::string hex_string(hex_string_);
 
 	if(hasPrefix(hex_string, "0x"))
 		hex_string = hex_string.substr(2); // Remove 0x prefix

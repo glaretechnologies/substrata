@@ -193,13 +193,13 @@ EthAddress Infura::doEthCallReturningAddress(const InfuraCredentials& credential
 
 		if(parser.nodes[0].hasChild("result"))
 		{
-			const std::string result = parser.nodes[0].getChildStringValue(parser, "result");
+			const string_view result = parser.nodes[0].getChildStringValue(parser, "result");
 
 			if(result.size() != 2 + 64)
 				throw glare::Exception("Unexpected result length.");
 
 			// Address is last 20 bytes (40 hex chars) of the result value
-			const std::string result_address = "0x" + result.substr(2 + 24);
+			const std::string result_address = "0x" + std::string(result.substr(2 + 24));
 
 			return EthAddress::parseFromHexString(result_address);
 		}
@@ -207,9 +207,9 @@ EthAddress Infura::doEthCallReturningAddress(const InfuraCredentials& credential
 		{
 			const JSONNode& error_node = parser.nodes[0].getChildObject(parser, "error");
 
-			const std::string message = error_node.getChildStringValue(parser, "message");
+			const string_view message = error_node.getChildStringValue(parser, "message");
 
-			throw glare::Exception("Transaction was submitted, but then reverted: " + message);
+			throw glare::Exception("Transaction was submitted, but then reverted: " + std::string(message));
 		}
 		else
 			throw glare::Exception("Neither result nor error found in response JSON.");
@@ -279,7 +279,7 @@ UInt256 Infura::doEthCallReturningTransactionHash(const InfuraCredentials& crede
 
 		if(parser.nodes[0].hasChild("result"))
 		{
-			const std::string result = parser.nodes[0].getChildStringValue(parser, "result");
+			const string_view result = parser.nodes[0].getChildStringValue(parser, "result");
 
 			if(result.size() != 2 + 64)
 				throw glare::Exception("Unexpected result length.");
@@ -290,9 +290,9 @@ UInt256 Infura::doEthCallReturningTransactionHash(const InfuraCredentials& crede
 		{
 			const JSONNode& error_node = parser.nodes[0].getChildObject(parser, "error");
 
-			const std::string message = error_node.getChildStringValue(parser, "message");
+			const string_view message = error_node.getChildStringValue(parser, "message");
 
-			throw glare::Exception("Transaction was submitted, but then reverted: " + message);
+			throw glare::Exception("Transaction was submitted, but then reverted: " + toString(message));
 		}
 		else
 			throw glare::Exception("Neither result nor error found in response JSON.");
@@ -341,7 +341,7 @@ UInt256 Infura::sendRawTransaction(const InfuraCredentials& credentials, const s
 
 		if(parser.nodes[0].hasChild("result"))
 		{
-			const std::string result = parser.nodes[0].getChildStringValue(parser, "result");
+			const string_view result = parser.nodes[0].getChildStringValue(parser, "result");
 
 			if(result.size() != 2 + 64)
 				throw glare::Exception("Unexpected result length.");
@@ -352,9 +352,9 @@ UInt256 Infura::sendRawTransaction(const InfuraCredentials& credentials, const s
 		{
 			const JSONNode& error_node = parser.nodes[0].getChildObject(parser, "error");
 
-			const std::string message = error_node.getChildStringValue(parser, "message");
+			const string_view message = error_node.getChildStringValue(parser, "message");
 
-			throw glare::Exception("Transaction was submitted, but then reverted: " + message);
+			throw glare::Exception("Transaction was submitted, but then reverted: " + toString(message));
 		}
 		else
 			throw glare::Exception("Neither result nor error found in response JSON.");
@@ -395,7 +395,7 @@ uint64 Infura::getCurrentGasPrice(const InfuraCredentials& credentials, const st
 	if(parser.nodes[0].getChildDoubleValue(parser, "id") != 1.0)
 		throw glare::Exception("Invalid id response.");
 
-	const std::string result = parser.nodes[0].getChildStringValue(parser, "result");
+	const string_view result = parser.nodes[0].getChildStringValue(parser, "result");
 	if(!hasPrefix(result, "0x"))
 		throw glare::Exception("result did not have 0x prefix.");
 
@@ -469,7 +469,7 @@ Infura::TransactionReceipt Infura::getTransactionReceipt(const InfuraCredentials
 
 	const JSONNode& result_node = parser.nodes[0].getChildObject(parser, "result");
 
-	const std::string contractAddress = result_node.getChildStringValue(parser, "contractAddress");
+	const string_view contractAddress = result_node.getChildStringValue(parser, "contractAddress");
 
 	Infura::TransactionReceipt receipt;
 	receipt.contract_address = EthAddress::parseFromHexString(contractAddress);

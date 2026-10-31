@@ -874,8 +874,8 @@ static void pushJSONLuaNode(lua_State* state, const JSONParser& parser, const JS
 	}
 	case JSONNode::Type_String:
 	{
-		const std::string& string_val = node.getStringValue();
-		lua_pushlstring(state, string_val.c_str(), string_val.size());
+		const string_view string_val = node.getStringValue();
+		lua_pushlstring(state, string_val.data(), string_val.size());
 		break;	
 	}
 	case JSONNode::Type_Boolean:

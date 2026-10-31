@@ -377,7 +377,7 @@ void MCPClientRequestHandler::handleRunLuaBuildScript(const JSONParser& parser, 
 		LuaBuildScriptOptions build_options;
 		if(has_script_path)
 		{
-			const std::string script_path = args.getChildStringValue(parser, "script_path");
+			const std::string script_path = toString(args.getChildStringValue(parser, "script_path"));
 
 			// The agent's working directory and this client's are unrelated, so a relative path would resolve somewhere the
 			// caller didn't mean.
@@ -474,7 +474,7 @@ void MCPClientRequestHandler::handleRequest(const web::RequestInfo& request_info
 			const JSONNode& params = root.getChildObject(parser, "params");
 			if(params.hasChild("name"))
 			{
-				const std::string tool_name = params.getChildStringValue(parser, "name");
+				const string_view tool_name = params.getChildStringValue(parser, "name");
 				if(tool_name == "render_view")
 				{
 					handleRenderView(parser, root, reply_info);

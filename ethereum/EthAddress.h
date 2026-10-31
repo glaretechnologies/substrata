@@ -22,9 +22,9 @@ struct EthAddress
 	explicit EthAddress(const uint8* p) { std::memcpy(data, p, 20); }
 
 	// hex_string_ optionally has a "0x" prefix.
-	static EthAddress parseFromHexString(const std::string& hex_string_)
+	static EthAddress parseFromHexString(const string_view hex_string_)
 	{
-		std::string hex_string = hex_string_;
+		std::string hex_string(hex_string_);
 
 		if(hasPrefix(hex_string, "0x"))
 			hex_string = hex_string.substr(2); // Remove 0x prefix

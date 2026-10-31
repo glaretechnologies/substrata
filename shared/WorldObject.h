@@ -304,7 +304,7 @@ public:
 	static const uint64 NUM_OBJECT_TYPES = 12;
 
 	static std::string objectTypeString(ObjectType t);
-	static ObjectType objectTypeForString(const std::string& ob_type_string);
+	static ObjectType objectTypeForString(const string_view ob_type_string);
 
 	bool isPortal() const   { return object_type == ObjectType_Portal; }
 	bool isGearItem() const { return object_type == ObjectType_GearItem; }
