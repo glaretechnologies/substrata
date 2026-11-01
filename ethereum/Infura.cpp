@@ -185,15 +185,15 @@ EthAddress Infura::doEthCallReturningAddress(const InfuraCredentials& credential
 		JSONParser parser;
 		parser.parseBuffer((const char*)data.data(), data.size());
 
-		if(parser.nodes[0].getChildStringValue(parser, "jsonrpc") != "2.0")
+		if(parser.rootNode().getChildStringValue(parser, "jsonrpc") != "2.0")
 			throw glare::Exception("Invalid jsonrpc response.");
 
-		if(parser.nodes[0].getChildDoubleValue(parser, "id") != 1.0)
+		if(parser.rootNode().getChildDoubleValue(parser, "id") != 1.0)
 			throw glare::Exception("Invalid id response.");
 
-		if(parser.nodes[0].hasChild("result"))
+		if(parser.rootNode().hasChild("result"))
 		{
-			const string_view result = parser.nodes[0].getChildStringValue(parser, "result");
+			const string_view result = parser.rootNode().getChildStringValue(parser, "result");
 
 			if(result.size() != 2 + 64)
 				throw glare::Exception("Unexpected result length.");
@@ -203,9 +203,9 @@ EthAddress Infura::doEthCallReturningAddress(const InfuraCredentials& credential
 
 			return EthAddress::parseFromHexString(result_address);
 		}
-		else if(parser.nodes[0].hasChild("error"))
+		else if(parser.rootNode().hasChild("error"))
 		{
-			const JSONNode& error_node = parser.nodes[0].getChildObject(parser, "error");
+			const JSONNode& error_node = parser.rootNode().getChildObject(parser, "error");
 
 			const string_view message = error_node.getChildStringValue(parser, "message");
 
@@ -271,24 +271,24 @@ UInt256 Infura::doEthCallReturningTransactionHash(const InfuraCredentials& crede
 		JSONParser parser;
 		parser.parseBuffer((const char*)data.data(), data.size());
 
-		if(parser.nodes[0].getChildStringValue(parser, "jsonrpc") != "2.0")
+		if(parser.rootNode().getChildStringValue(parser, "jsonrpc") != "2.0")
 			throw glare::Exception("Invalid jsonrpc response.");
 
-		if(parser.nodes[0].getChildDoubleValue(parser, "id") != 1.0)
+		if(parser.rootNode().getChildDoubleValue(parser, "id") != 1.0)
 			throw glare::Exception("Invalid id response.");
 
-		if(parser.nodes[0].hasChild("result"))
+		if(parser.rootNode().hasChild("result"))
 		{
-			const string_view result = parser.nodes[0].getChildStringValue(parser, "result");
+			const string_view result = parser.rootNode().getChildStringValue(parser, "result");
 
 			if(result.size() != 2 + 64)
 				throw glare::Exception("Unexpected result length.");
 
 			return UInt256::parseFromHexString(result.substr(2));
 		}
-		else if(parser.nodes[0].hasChild("error"))
+		else if(parser.rootNode().hasChild("error"))
 		{
-			const JSONNode& error_node = parser.nodes[0].getChildObject(parser, "error");
+			const JSONNode& error_node = parser.rootNode().getChildObject(parser, "error");
 
 			const string_view message = error_node.getChildStringValue(parser, "message");
 
@@ -333,24 +333,24 @@ UInt256 Infura::sendRawTransaction(const InfuraCredentials& credentials, const s
 		JSONParser parser;
 		parser.parseBuffer((const char*)data.data(), data.size());
 
-		if(parser.nodes[0].getChildStringValue(parser, "jsonrpc") != "2.0")
+		if(parser.rootNode().getChildStringValue(parser, "jsonrpc") != "2.0")
 			throw glare::Exception("Invalid jsonrpc response.");
 
-		if(parser.nodes[0].getChildDoubleValue(parser, "id") != 1.0)
+		if(parser.rootNode().getChildDoubleValue(parser, "id") != 1.0)
 			throw glare::Exception("Invalid id response.");
 
-		if(parser.nodes[0].hasChild("result"))
+		if(parser.rootNode().hasChild("result"))
 		{
-			const string_view result = parser.nodes[0].getChildStringValue(parser, "result");
+			const string_view result = parser.rootNode().getChildStringValue(parser, "result");
 
 			if(result.size() != 2 + 64)
 				throw glare::Exception("Unexpected result length.");
 
 			return UInt256::parseFromHexString(result.substr(2));
 		}
-		else if(parser.nodes[0].hasChild("error"))
+		else if(parser.rootNode().hasChild("error"))
 		{
-			const JSONNode& error_node = parser.nodes[0].getChildObject(parser, "error");
+			const JSONNode& error_node = parser.rootNode().getChildObject(parser, "error");
 
 			const string_view message = error_node.getChildStringValue(parser, "message");
 
@@ -389,13 +389,13 @@ uint64 Infura::getCurrentGasPrice(const InfuraCredentials& credentials, const st
 	JSONParser parser;
 	parser.parseBuffer((const char*)data.data(), data.size());
 
-	if(parser.nodes[0].getChildStringValue(parser, "jsonrpc") != "2.0")
+	if(parser.rootNode().getChildStringValue(parser, "jsonrpc") != "2.0")
 		throw glare::Exception("Invalid jsonrpc response.");
 
-	if(parser.nodes[0].getChildDoubleValue(parser, "id") != 1.0)
+	if(parser.rootNode().getChildDoubleValue(parser, "id") != 1.0)
 		throw glare::Exception("Invalid id response.");
 
-	const string_view result = parser.nodes[0].getChildStringValue(parser, "result");
+	const string_view result = parser.rootNode().getChildStringValue(parser, "result");
 	if(!hasPrefix(result, "0x"))
 		throw glare::Exception("result did not have 0x prefix.");
 
@@ -461,13 +461,13 @@ Infura::TransactionReceipt Infura::getTransactionReceipt(const InfuraCredentials
 	JSONParser parser;
 	parser.parseBuffer((const char*)data.data(), data.size());
 
-	if(parser.nodes[0].getChildStringValue(parser, "jsonrpc") != "2.0")
+	if(parser.rootNode().getChildStringValue(parser, "jsonrpc") != "2.0")
 		throw glare::Exception("Invalid jsonrpc response.");
 
-	if(parser.nodes[0].getChildDoubleValue(parser, "id") != 1.0)
+	if(parser.rootNode().getChildDoubleValue(parser, "id") != 1.0)
 		throw glare::Exception("Invalid id response.");
 
-	const JSONNode& result_node = parser.nodes[0].getChildObject(parser, "result");
+	const JSONNode& result_node = parser.rootNode().getChildObject(parser, "result");
 
 	const string_view contractAddress = result_node.getChildStringValue(parser, "contractAddress");
 

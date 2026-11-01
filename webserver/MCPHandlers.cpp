@@ -669,28 +669,28 @@ static const std::string tool_createVoxelObject(ServerAllWorldsState& all_worlds
 	if(args.hasChild("materials"))
 	{
 		const JSONNode& mats_array = args.getChildArray(parser, "materials");
-		if(mats_array.child_indices.size() > MCP_MAX_NUM_VOXEL_MATERIALS)
+		if(mats_array.numChildren() > MCP_MAX_NUM_VOXEL_MATERIALS)
 			throw glare::Exception("Too many materials (max " + toString(MCP_MAX_NUM_VOXEL_MATERIALS) + ").");
-		for(size_t i=0; i<mats_array.child_indices.size(); ++i)
-			ob->materials.push_back(WorldMaterial::fromJSON(parser, parser.nodes[mats_array.child_indices[i]]));
+		for(size_t i=0; i<mats_array.numChildren(); ++i)
+			ob->materials.push_back(WorldMaterial::fromJSON(parser, mats_array.getArrayChildNode(i)));
 	}
 	if(ob->materials.empty())
 		ob->materials.push_back(new WorldMaterial()); // Default material.
 
 	// Read voxels array.
 	const JSONNode& voxels_array = args.getChildArray(parser, "voxels");
-	if(voxels_array.child_indices.empty())
+	if(voxels_array.numChildren() == 0)
 		throw glare::Exception("voxels must be a non-empty array.");
-	if(voxels_array.child_indices.size() > MCP_MAX_NUM_VOXELS)
+	if(voxels_array.numChildren() > MCP_MAX_NUM_VOXELS)
 		throw glare::Exception("Too many voxels (max " + toString(MCP_MAX_NUM_VOXELS) + ").");
 
 	VoxelGroup voxel_group;
-	voxel_group.voxels.reserve(voxels_array.child_indices.size());
+	voxel_group.voxels.reserve(voxels_array.numChildren());
 	Vec3<int> minpos( 1000000000);
 	Vec3<int> maxpos(-1000000000);
-	for(size_t i=0; i<voxels_array.child_indices.size(); ++i)
+	for(size_t i=0; i<voxels_array.numChildren(); ++i)
 	{
-		const JSONNode& v = parser.nodes[voxels_array.child_indices[i]];
+		const JSONNode& v = voxels_array.getArrayChildNode(i);
 		const Vec3<int> vpos(v.getChildIntValue(parser, "x"), v.getChildIntValue(parser, "y"), v.getChildIntValue(parser, "z"));
 		const int mat_index = v.getChildIntValueWithDefaultVal(parser, "mat", 0);
 		if(mat_index < 0 || mat_index >= (int)ob->materials.size())
@@ -1484,16 +1484,19 @@ static const std::string handleToolCall(ServerAllWorldsState& all_worlds, const 
 	conPrint("MCP: tools/call tool: '" + tool_name + "'");
 
 	// The tools read their arguments from the "arguments" object.  If it is omitted, use an empty object node so the tools just see their default values.
-	JSONNode empty_args_node;
-	empty_args_node.type = JSONNode::Type_Object;
-	const JSONNode& args = params.hasChild("arguments") ? params.getChildObject(parser, "arguments") : empty_args_node;
+	const bool has_args = params.hasChild("arguments");
+	JSONParser empty_args_parser;
+	if(!has_args)
+		empty_args_parser.parseBuffer("{}", 2);
+	const JSONParser& args_parser = has_args ? parser : empty_args_parser;
+	const JSONNode args = has_args ? params.getChildObject(parser, "arguments") : empty_args_parser.rootNode();
 
 	try
 	{
 		// Admin tools are only available to the god user.  For other users they are unknown tools.
 		const std::string result = (isAdminTool(tool_name) && isGodUser(acting_user_id)) ?
-			dispatchAdminTool(all_worlds, parser, args, tool_name, acting_user_id) :
-			dispatchTool(all_worlds, parser, args, tool_name, acting_user_id, acting_user_name);
+			dispatchAdminTool(all_worlds, args_parser, args, tool_name, acting_user_id) :
+			dispatchTool(all_worlds, args_parser, args, tool_name, acting_user_id, acting_user_name);
 		return makeToolResult(result, /*is_error=*/false);
 	}
 	catch(glare::Exception& e)
@@ -1517,9 +1520,9 @@ ToolResult callTool(ServerAllWorldsState& world_state, const std::string& tool_n
 		JSONParser parser;
 		parser.parseBuffer(args_buf.data(), args_buf.size());
 
-		checkNodeType(parser.nodes[0], JSONNode::Type_Object);
+		checkNodeType(parser.rootNode(), JSONNodeType::Type_Object);
 
-		result.text = dispatchTool(world_state, parser, parser.nodes[0], tool_name, acting_user_id, acting_user_name);
+		result.text = dispatchTool(world_state, parser, parser.rootNode(), tool_name, acting_user_id, acting_user_name);
 		result.is_error = false;
 	}
 	catch(glare::Exception& e)
@@ -1712,21 +1715,21 @@ void handleMCPRequest(ServerAllWorldsState& world_state, const web::RequestInfo&
 		return;
 	}
 
-	if(parser.nodes.empty() || parser.nodes[0].type != JSONNode::Type_Object)
+	if(parser.rootNode().getType() != JSONNodeType::Type_Object)
 	{
 		writeError(reply_info, RequestID(), JSONRPC_INVALID_REQUEST, "Expected a JSON-RPC object. (Batch requests are not supported.)");
 		return;
 	}
 
-	const JSONNode& root = parser.nodes[0];
+	const JSONNode root = parser.rootNode();
 
 	// Extract the request id, if present.
 	RequestID id;
 	if(root.hasChild("id"))
 	{
-		const JSONNode& id_node = root.getChildNode(parser, "id");
-		if(id_node.type == JSONNode::Type_Number)      { id.type = RequestID::Type_Number; id.num_val = id_node.getDoubleValue(); }
-		else if(id_node.type == JSONNode::Type_String) { id.type = RequestID::Type_String; id.str_val = id_node.getStringValue(); }
+		const JSONNode id_node = root.getChildNode(parser, "id");
+		if(id_node.getType() == JSONNodeType::Type_Number)      { id.type = RequestID::Type_Number; id.num_val = id_node.getDoubleValue(); }
+		else if(id_node.getType() == JSONNodeType::Type_String) { id.type = RequestID::Type_String; id.str_val = id_node.getStringValue(parser); }
 	}
 
 	if(!root.hasChild("method"))

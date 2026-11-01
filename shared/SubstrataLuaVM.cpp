@@ -865,51 +865,49 @@ static void pushJSONLuaNode(lua_State* state, const JSONParser& parser, const JS
 	if(!lua_checkstack(state, /*size=*/1)) // Make sure there is space for the value on the Lua stack
 		throw glare::Exception("Failed to alloc lua stack space");
 
-	switch (node.type)
+	switch (node.getType())
 	{
-	case JSONNode::Type_Number:
+	case JSONNodeType::Type_Number:
 	{
 		lua_pushnumber(state, node.getDoubleValue());
 		break;	
 	}
-	case JSONNode::Type_String:
+	case JSONNodeType::Type_String:
 	{
-		const string_view string_val = node.getStringValue();
+		const string_view string_val = node.getStringValue(parser);
 		lua_pushlstring(state, string_val.data(), string_val.size());
 		break;	
 	}
-	case JSONNode::Type_Boolean:
+	case JSONNodeType::Type_Boolean:
 	{
 		lua_pushboolean(state, node.getBoolValue());
 		break;
 	}
-	case JSONNode::Type_Array:
+	case JSONNodeType::Type_Array:
 	{
-		lua_createtable(state, /*num array elems hint=*/(int)node.child_indices.size(), /*num other elems hint=*/0);
-		for(size_t i=0; i<node.child_indices.size(); ++i)
+		lua_createtable(state, /*num array elems hint=*/(int)node.numChildren(), /*num other elems hint=*/0);
+		for(size_t i=0; i<node.numChildren(); ++i)
 		{
-			runtimeCheck(node.child_indices[i] < (uint32)parser.nodes.size());
-			pushJSONLuaNode(state, parser, parser.nodes[node.child_indices[i]]);
+			pushJSONLuaNode(state, parser, node.getArrayChildNode(i));
 
 			lua_rawseti(state, /*table index=*/-2, 1 + (int)i);
 		}
 
 		break;
 	}
-	case JSONNode::Type_Object:
+	case JSONNodeType::Type_Object:
 	{
-		lua_createtable(state, /*num array elems hint=*/0, /*num other elems hint=*/(int)node.name_val_pairs.size());
-		for(size_t i=0; i<node.name_val_pairs.size(); ++i)
+		lua_createtable(state, /*num array elems hint=*/0, /*num other elems hint=*/(int)node.numNameValPairs());
+		for(auto it = node.objectChildrenBegin(); it != node.objectChildrenEnd(); ++it)
 		{
-			runtimeCheck(node.name_val_pairs[i].value_node_index < (uint32)parser.nodes.size());
-			pushJSONLuaNode(state, parser, parser.nodes[node.name_val_pairs[i].value_node_index]);
+			pushJSONLuaNode(state, parser, it.valueNode());
 
-			lua_setfield(state, /*table index=*/-2, node.name_val_pairs[i].name.c_str());
+			lua_setfield(state, /*table index=*/-2, toString(it.name()).c_str());
 		}
 
 		break;
 	}
-	case JSONNode::Type_Null:
+	case JSONNodeType::Type_Null:
 	{
 		lua_pushnil(state);
 		break;
@@ -935,9 +933,7 @@ static int parseJSON(lua_State* state)
 		JSONParser parser;
 		parser.parseBuffer(json_string.c_str(), json_string.size());
 
-		runtimeCheck(!parser.nodes.empty());
-
-		pushJSONLuaNode(state, parser, parser.nodes[0]);
+		pushJSONLuaNode(state, parser, parser.rootNode());
 	}
 	catch(glare::Exception& e)
 	{

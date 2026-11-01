@@ -99,15 +99,15 @@ static const Vec3d getVec3Field(const JSONParser& parser, const JSONNode& node, 
 	if(!node.hasChild(name))
 		return default_val;
 	const JSONNode& array = node.getChildNode(parser, name);
-	if(array.type != JSONNode::Type_Array || array.child_indices.size() != 3)
+	if(array.getType() != JSONNodeType::Type_Array || array.numChildren() != 3)
 		return default_val;
 	Vec3d v;
 	for(int i=0; i<3; ++i)
 	{
-		const JSONNode& elem = parser.nodes[array.child_indices[i]];
-		if(elem.type != JSONNode::Type_Number || !isFinite(elem.value.double_v))
+		const JSONNode& elem = array.getArrayChildNode(i);
+		if(elem.getType() != JSONNodeType::Type_Number || !isFinite(elem.getDoubleValue()))
 			return default_val;
-		(&v.x)[i] = elem.value.double_v;
+		(&v.x)[i] = elem.getDoubleValue();
 	}
 	return v;
 }
@@ -120,7 +120,7 @@ static bool getBoolField(const JSONParser& parser, const JSONNode& node, const c
 	if(!node.hasChild(name))
 		return default_val;
 	const JSONNode& child = node.getChildNode(parser, name);
-	return (child.type == JSONNode::Type_Boolean) ? child.value.bool_v : default_val;
+	return (child.getType() == JSONNodeType::Type_Boolean) ? child.getBoolValue() : default_val;
 }
 
 
@@ -129,7 +129,7 @@ static const std::string getStringField(const JSONParser& parser, const JSONNode
 	if(!node.hasChild(name))
 		return std::string();
 	const JSONNode& child = node.getChildNode(parser, name);
-	return (child.type == JSONNode::Type_String) ? child.string_v : std::string();
+	return (child.getType() == JSONNodeType::Type_String) ? toString(child.getStringValue(parser)) : std::string();
 }
 
 
@@ -229,9 +229,9 @@ static bool getVoxelsTeleportCoords(const std::string& link, VoxelsCoords& coord
 static double getNumberField(const JSONParser& parser, const JSONNode& node, const char* name)
 {
 	const JSONNode& child = node.getChildNode(parser, name);
-	if(child.type != JSONNode::Type_Number)
+	if(child.getType() != JSONNodeType::Type_Number)
 		throw glare::Exception(std::string("'") + name + "' is not a number.");
-	return child.value.double_v;
+	return child.getDoubleValue();
 }
 
 
@@ -868,9 +868,9 @@ public:
 
 			JSONParser parser;
 			parser.parseBuffer(data.data(), data.size());
-			if(parser.nodes.empty() || parser.nodes[0].type != JSONNode::Type_Object)
+			if(parser.rootNode().getType() != JSONNodeType::Type_Object)
 				throw glare::Exception("the metadata isn't a JSON object");
-			const std::string image_url = getStringField(parser, parser.nodes[0], "image");
+			const std::string image_url = getStringField(parser, parser.rootNode(), "image");
 			if(image_url.empty())
 				throw glare::Exception("the metadata has no image");
 
@@ -1241,7 +1241,7 @@ static void makeVideoObjectForURL(ImportContext& context, const JSONParser& pars
 
 	BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_AUTOPLAY, getBoolField(parser, feature, "autoplay", false));
 	BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_LOOP,     getBoolField(parser, feature, "loop", false));
-	if(feature.hasChild("volume") && feature.getChildNode(parser, "volume").type == JSONNode::Type_Number)
+	if(feature.hasChild("volume") && feature.getChildNode(parser, "volume").getType() == JSONNodeType::Type_Number)
 		ob->audio_volume = (float)myClamp(getNumberField(parser, feature, "volume"), 0.0, 1.0);
 
 	// As in MainWindow::on_actionAdd_Video_triggered(): the video URL goes in emission_texture_url, so it is a resource dependency.
@@ -1487,7 +1487,7 @@ static void makeTextPanel(ImportContext& context, const JSONParser& parser, cons
 static void makeSignObject(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin)
 {
 	const double METRES_PER_FONT_SIZE = 0.003;
-	const double font_size = (feature.hasChild("fontSize") && feature.getChildNode(parser, "fontSize").type == JSONNode::Type_Number) ?
+	const double font_size = (feature.hasChild("fontSize") && feature.getChildNode(parser, "fontSize").getType() == JSONNodeType::Type_Number) ?
 		myClamp(getNumberField(parser, feature, "fontSize"), 1.0, 200.0) : 20.0;
 
 	makeTextPanel(context, parser, feature, origin, getStringField(parser, feature, "text"),
@@ -1515,7 +1515,7 @@ static void makeLanternObject(ImportContext& context, const JSONParser& parser, 
 	const double LUMENS_PER_STRENGTH = 40000;
 
 	const Vec3d position = getVec3Field(parser, feature, "position", Vec3d(0.0));
-	const double strength = (feature.hasChild("strength") && feature.getChildNode(parser, "strength").type == JSONNode::Type_Number) ?
+	const double strength = (feature.hasChild("strength") && feature.getChildNode(parser, "strength").getType() == JSONNodeType::Type_Number) ?
 		myClamp(getNumberField(parser, feature, "strength"), 0.0, 1000.0) : 70.0;
 
 	WorldObjectRef ob = new WorldObject();
@@ -1790,10 +1790,10 @@ std::string VoxelsParcelImporter::getGroupNameForParcelFile(const std::string& j
 {
 	JSONParser parser;
 	parser.parseFile(json_path);
-	if(parser.nodes.empty() || parser.nodes[0].type != JSONNode::Type_Object)
+	if(parser.rootNode().getType() != JSONNodeType::Type_Object)
 		throw glare::Exception("The parcel file isn't a JSON object.");
 
-	const JSONNode& root = parser.nodes[0];
+	const JSONNode& root = parser.rootNode();
 	const bool is_api_response = root.hasChild("parcel");
 	const JSONNode& parcel_node = is_api_response ? root.getChildObject(parser, "parcel") : root;
 
@@ -1831,11 +1831,11 @@ void VoxelsParcelImporter::importParcel(GUIClient* gui_client, const std::string
 
 	JSONParser parser;
 	parser.parseFile(json_path);
-	if(parser.nodes.empty() || parser.nodes[0].type != JSONNode::Type_Object)
+	if(parser.rootNode().getType() != JSONNodeType::Type_Object)
 		throw glare::Exception("The parcel file isn't a JSON object.");
 
 	// A /api/parcels/N.json response has the parcel in a 'parcel' object, with its bounds.  A snapshot has the content at the top level and no bounds.
-	const JSONNode& root = parser.nodes[0];
+	const JSONNode& root = parser.rootNode();
 	const bool is_api_response = root.hasChild("parcel");
 	const JSONNode& parcel_node = is_api_response ? root.getChildObject(parser, "parcel") : root;
 	const JSONNode& content_node = parcel_node.getChildObject(parser, "content");
@@ -1859,7 +1859,7 @@ void VoxelsParcelImporter::importParcel(GUIClient* gui_client, const std::string
 	int X = options.voxels_x, Y = options.voxels_y, Z = options.voxels_z;
 	if(X == 0 && Y == 0 && Z == 0)
 	{
-		if(parcel_node.hasChild("x1") && parcel_node.getChildNode(parser, "x1").type == JSONNode::Type_Number)
+		if(parcel_node.hasChild("x1") && parcel_node.getChildNode(parser, "x1").getType() == JSONNodeType::Type_Number)
 		{
 			X = (int)((getNumberField(parser, parcel_node, "x2") - getNumberField(parser, parcel_node, "x1")) * 2);
 			Y = (int)((getNumberField(parser, parcel_node, "y2") - getNumberField(parser, parcel_node, "y1")) * 2);
@@ -1889,19 +1889,19 @@ void VoxelsParcelImporter::importParcel(GUIClient* gui_client, const std::string
 	if(content_node.hasChild("palette"))
 	{
 		const JSONNode& palette_node = content_node.getChildNode(parser, "palette");
-		if(palette_node.type == JSONNode::Type_Array)
-			for(size_t i=0; i<palette_node.child_indices.size() && i<8; ++i)
+		if(palette_node.getType() == JSONNodeType::Type_Array)
+			for(size_t i=0; i<palette_node.numChildren() && i<8; ++i)
 			{
-				const JSONNode& col_node = parser.nodes[palette_node.child_indices[i]];
-				if(col_node.type == JSONNode::Type_String)
-					palette[i] = parseHexColour(col_node.string_v, palette[i]);
+				const JSONNode& col_node = palette_node.getArrayChildNode(i);
+				if(col_node.getType() == JSONNodeType::Type_String)
+					palette[i] = parseHexColour(toString(col_node.getStringValue(parser)), palette[i]);
 			}
 	}
 
 	// Work out where the parcel is in the Voxels world, for converting Voxels teleport links to Substrata URLs.
 	context.origin = origin;
 	context.sub_URL_prefix = "sub://" + options.server_hostname + "/" + options.server_worldname;
-	if(parcel_node.hasChild("x1") && parcel_node.getChildNode(parser, "x1").type == JSONNode::Type_Number)
+	if(parcel_node.hasChild("x1") && parcel_node.getChildNode(parser, "x1").getType() == JSONNodeType::Type_Number)
 	{
 		context.voxels_parcel_base_centre = Vec3d(
 			(getNumberField(parser, parcel_node, "x1") + getNumberField(parser, parcel_node, "x2")) / 2,
@@ -1915,13 +1915,13 @@ void VoxelsParcelImporter::importParcel(GUIClient* gui_client, const std::string
 		// feature it's on, as with the buttons of an elevator.  Uses the median offset between a link's target and its feature's position, so a
 		// few links to elsewhere don't throw it off.  The parcel's base is assumed to be at height 0, as most are.
 		std::vector<double> x_offsets, z_offsets;
-		if(content_node.hasChild("features") && content_node.getChildNode(parser, "features").type == JSONNode::Type_Array)
+		if(content_node.hasChild("features") && content_node.getChildNode(parser, "features").getType() == JSONNodeType::Type_Array)
 		{
 			const JSONNode& features_node = content_node.getChildNode(parser, "features");
-			for(size_t i=0; i<features_node.child_indices.size(); ++i)
+			for(size_t i=0; i<features_node.numChildren(); ++i)
 			{
-				const JSONNode& feature = parser.nodes[features_node.child_indices[i]];
-				if(feature.type != JSONNode::Type_Object)
+				const JSONNode& feature = features_node.getArrayChildNode(i);
+				if(feature.getType() != JSONNodeType::Type_Object)
 					continue;
 				try
 				{
@@ -1960,17 +1960,17 @@ void VoxelsParcelImporter::importParcel(GUIClient* gui_client, const std::string
 	if(content_node.hasChild("features"))
 	{
 		const JSONNode& features_node = content_node.getChildNode(parser, "features");
-		if(features_node.type == JSONNode::Type_Array)
+		if(features_node.getType() == JSONNodeType::Type_Array)
 		{
-			for(size_t i=0; i<features_node.child_indices.size(); ++i)
+			for(size_t i=0; i<features_node.numChildren(); ++i)
 			{
 				if(options.stopper && options.stopper->shouldStop())
-					throw glare::Exception("Import stopped after " + toString(i) + " of " + toString(features_node.child_indices.size()) + " features.");
+					throw glare::Exception("Import stopped after " + toString(i) + " of " + toString(features_node.numChildren()) + " features.");
 
-				context.progress_prefix = "[feature " + toString(i + 1) + "/" + toString(features_node.child_indices.size()) + "] ";
+				context.progress_prefix = "[feature " + toString(i + 1) + "/" + toString(features_node.numChildren()) + "] ";
 
-				const JSONNode& feature = parser.nodes[features_node.child_indices[i]];
-				if(feature.type != JSONNode::Type_Object)
+				const JSONNode& feature = features_node.getArrayChildNode(i);
+				if(feature.getType() != JSONNodeType::Type_Object)
 					continue;
 
 				const std::string type = getStringField(parser, feature, "type");

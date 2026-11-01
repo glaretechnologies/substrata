@@ -175,10 +175,10 @@ static const std::string extractIdJSON(const JSONParser& parser, const JSONNode&
 {
 	if(!root.hasChild("id"))
 		return "null";
-	const JSONNode& id_node = root.getChildNode(parser, "id");
-	if(id_node.type == JSONNode::Type_String)
-		return "\"" + web::Escaping::JSONEscape(id_node.getStringValue()) + "\"";
-	else if(id_node.type == JSONNode::Type_Number)
+	const JSONNode id_node = root.getChildNode(parser, "id");
+	if(id_node.getType() == JSONNodeType::Type_String)
+		return "\"" + web::Escaping::JSONEscape(id_node.getStringValue(parser)) + "\"";
+	else if(id_node.getType() == JSONNodeType::Type_Number)
 	{
 		const double v = id_node.getDoubleValue();
 		if(v == (double)(int64)v)
@@ -207,7 +207,7 @@ static void checkToolJSONValid(const char* tool_json)
 		JSONParser parser;
 		parser.parseBuffer(tool_json, std::strlen(tool_json));
 
-		assert(!parser.nodes.empty() && (parser.nodes[0].type == JSONNode::Type_Object));
+		assert(parser.rootNode().getType() == JSONNodeType::Type_Object);
 	}
 	catch(glare::Exception& e)
 	{
@@ -462,9 +462,9 @@ void MCPClientRequestHandler::handleRequest(const web::RequestInfo& request_info
 	{
 		JSONParser parser;
 		parser.parseBuffer(body.data(), body.size());
-		if(parser.nodes.empty() || parser.nodes[0].type != JSONNode::Type_Object)
+		if(parser.rootNode().getType() != JSONNodeType::Type_Object)
 			throw glare::Exception("Expected a JSON-RPC object.");
-		const JSONNode& root = parser.nodes[0];
+		const JSONNode root = parser.rootNode();
 
 		if(root.hasChild("method"))
 			method = root.getChildStringValue(parser, "method");

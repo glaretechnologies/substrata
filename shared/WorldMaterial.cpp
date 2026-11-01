@@ -1036,7 +1036,7 @@ void WorldMaterial::test()
 
 		JSONParser parser;
 		parser.parseBuffer(json.data(), json.size());
-		Reference<WorldMaterial> mat2 = WorldMaterial::fromJSON(parser, parser.nodes[0]);
+		Reference<WorldMaterial> mat2 = WorldMaterial::fromJSON(parser, parser.rootNode());
 
 		testAssert(*mat2 == mat);
 	}
@@ -1046,7 +1046,7 @@ void WorldMaterial::test()
 		JSONParser parser;
 		const std::string json = "{\"colour_rgb\":{\"r\":0.1,\"g\":0.2,\"b\":0.3}}";
 		parser.parseBuffer(json.data(), json.size());
-		Reference<WorldMaterial> mat = WorldMaterial::fromJSON(parser, parser.nodes[0]);
+		Reference<WorldMaterial> mat = WorldMaterial::fromJSON(parser, parser.rootNode());
 		testAssert(mat->colour_rgb == Colour3f(0.1f, 0.2f, 0.3f));
 		testAssert(mat->roughness.val == 0.5f); // Default
 		testAssert(mat->opacity.val == 1.0f);   // Default
