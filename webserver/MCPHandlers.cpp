@@ -206,9 +206,9 @@ static const std::string tool_listWorlds(ServerAllWorldsState& all_worlds)
 }
 
 
-static const std::string tool_getWorldInfo(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args)
+static const std::string tool_getWorldInfo(ServerAllWorldsState& all_worlds, const JSONNode& args)
 {
-	const string_view world_name = args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/"");
+	const string_view world_name = args.getChildStringValueWithDefaultVal("world_name", /*default=*/"");
 
 	WorldStateLock lock(all_worlds.mutex);
 	ServerWorldState* world = getWorld(all_worlds, world_name, lock);
@@ -221,9 +221,9 @@ static const std::string tool_getWorldInfo(ServerAllWorldsState& all_worlds, con
 }
 
 
-static const std::string tool_listAvatars(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args)
+static const std::string tool_listAvatars(ServerAllWorldsState& all_worlds, const JSONNode& args)
 {
-	const string_view world_name = args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/"");
+	const string_view world_name = args.getChildStringValueWithDefaultVal("world_name", /*default=*/"");
 
 	WorldStateLock lock(all_worlds.mutex);
 	ServerWorldState* world = getWorld(all_worlds, world_name, lock);
@@ -245,12 +245,12 @@ static const std::string tool_listAvatars(ServerAllWorldsState& all_worlds, cons
 }
 
 
-static const std::string tool_listObjectsNear(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args)
+static const std::string tool_listObjectsNear(ServerAllWorldsState& all_worlds, const JSONNode& args)
 {
-	const string_view world_name = args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/"");
-	const Vec3d centre(args.getChildDoubleValue(parser, "x"), args.getChildDoubleValue(parser, "y"), args.getChildDoubleValue(parser, "z"));
-	const double radius = args.getChildDoubleValue(parser, "radius");
-	const size_t limit = (size_t)args.getChildDoubleValueWithDefaultVal(parser, "limit", /*default=*/50);
+	const string_view world_name = args.getChildStringValueWithDefaultVal("world_name", /*default=*/"");
+	const Vec3d centre(args.getChildDoubleValue("x"), args.getChildDoubleValue("y"), args.getChildDoubleValue("z"));
+	const double radius = args.getChildDoubleValue("radius");
+	const size_t limit = (size_t)args.getChildDoubleValueWithDefaultVal("limit", /*default=*/50);
 	const double radius2 = radius * radius;
 
 	WorldStateLock lock(all_worlds.mutex);
@@ -276,10 +276,10 @@ static const std::string tool_listObjectsNear(ServerAllWorldsState& all_worlds, 
 }
 
 
-static const std::string tool_getObject(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args)
+static const std::string tool_getObject(ServerAllWorldsState& all_worlds, const JSONNode& args)
 {
-	const string_view world_name = args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/"");
-	const UID uid((uint64)args.getChildDoubleValue(parser, "uid"));
+	const string_view world_name = args.getChildStringValueWithDefaultVal("world_name", /*default=*/"");
+	const UID uid((uint64)args.getChildDoubleValue("uid"));
 
 	WorldStateLock lock(all_worlds.mutex);
 	ServerWorldState* world = getWorld(all_worlds, world_name, lock);
@@ -400,14 +400,14 @@ static const std::string createObjectInWorld(ServerAllWorldsState& all_worlds, c
 }
 
 
-static const std::string tool_createObject(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args,
+static const std::string tool_createObject(ServerAllWorldsState& all_worlds, const JSONNode& args,
 	const UserID acting_user_id, const std::string& acting_user_name)
 {
-	const URLString model_URL = toURLString(args.getChildStringValueWithDefaultVal(parser, "model_url", /*default=*/""));
+	const URLString model_URL = toURLString(args.getChildStringValueWithDefaultVal("model_url", /*default=*/""));
 	if(model_URL.size() > WorldObject::MAX_URL_SIZE)
 		throw glare::Exception("model_url too long.");
 
-	const WorldObject::ObjectType object_type = WorldObject::objectTypeForString(args.getChildStringValueWithDefaultVal(parser, "object_type", /*default=*/"generic"));
+	const WorldObject::ObjectType object_type = WorldObject::objectTypeForString(args.getChildStringValueWithDefaultVal("object_type", /*default=*/"generic"));
 
 
 	js::AABBox aabb_os = js::AABBox::emptyAABBox();
@@ -468,25 +468,25 @@ static const std::string tool_createObject(ServerAllWorldsState& all_worlds, con
 	ob->object_type = object_type;
 	ob->model_url = model_URL;
 
-	ob->script = args.getChildStringValueWithDefaultVal(parser, "script", /*default=*/"");
+	ob->script = args.getChildStringValueWithDefaultVal("script", /*default=*/"");
 	if(ob->script.size() > WorldObject::MAX_SCRIPT_SIZE)
 		throw glare::Exception("script too long.");
 
-	ob->content = args.getChildStringValueWithDefaultVal(parser, "content", /*default=*/"");
+	ob->content = args.getChildStringValueWithDefaultVal("content", /*default=*/"");
 	if(ob->content.size() > WorldObject::MAX_CONTENT_SIZE)
 		throw glare::Exception("content too long.");
 
-	ob->target_url = args.getChildStringValueWithDefaultVal(parser, "target_url", /*default=*/"");
+	ob->target_url = args.getChildStringValueWithDefaultVal("target_url", /*default=*/"");
 	if(ob->target_url.size() > WorldObject::MAX_URL_SIZE)
 		throw glare::Exception("target_url too long.");
 
-	ob->pos = Vec3d(args.getChildDoubleValue(parser, "x"), args.getChildDoubleValue(parser, "y"), args.getChildDoubleValue(parser, "z"));
+	ob->pos = Vec3d(args.getChildDoubleValue("x"), args.getChildDoubleValue("y"), args.getChildDoubleValue("z"));
 	ob->axis = Vec3f(
-		(float)args.getChildDoubleValueWithDefaultVal(parser, "axis_x", 0.0),
-		(float)args.getChildDoubleValueWithDefaultVal(parser, "axis_y", 0.0),
-		(float)args.getChildDoubleValueWithDefaultVal(parser, "axis_z", 1.0));
-	ob->angle = (float)args.getChildDoubleValueWithDefaultVal(parser, "angle", 0.0);
-	ob->scale = Vec3f((float)args.getChildDoubleValueWithDefaultVal(parser, "scale_x", 1.0), (float)args.getChildDoubleValueWithDefaultVal(parser, "scale_y", 1.0), (float)args.getChildDoubleValueWithDefaultVal(parser, "scale_z", 1.0));
+		(float)args.getChildDoubleValueWithDefaultVal("axis_x", 0.0),
+		(float)args.getChildDoubleValueWithDefaultVal("axis_y", 0.0),
+		(float)args.getChildDoubleValueWithDefaultVal("axis_z", 1.0));
+	ob->angle = (float)args.getChildDoubleValueWithDefaultVal("angle", 0.0);
+	ob->scale = Vec3f((float)args.getChildDoubleValueWithDefaultVal("scale_x", 1.0), (float)args.getChildDoubleValueWithDefaultVal("scale_y", 1.0), (float)args.getChildDoubleValueWithDefaultVal("scale_z", 1.0));
 	ob->setAABBOS(aabb_os);
 
 	if(object_type == WorldObject::ObjectType_Spotlight)
@@ -495,7 +495,7 @@ static const std::string tool_createObject(ServerAllWorldsState& all_worlds, con
 		ob->type_data.spotlight_data.cone_end_angle   = 0.451026811796262f; // = std::acos(0.9f);  (old fixed value)
 	}
 
-	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
+	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal("world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
 }
 
 
@@ -521,15 +521,15 @@ static const char* MCP_WEDGE_MESH_URL    = "wedge_igmesh_4446548145440212638.bme
 static js::AABBox MCP_WEDGE_AABB         = js::AABBox(Vec4f(-0.5f, -0.5f, -0.5f, 1.f), Vec4f(0.5f, 0.5f, 0.5f, 1.f));
 
 
-static const Vec3d readVec3(const JSONParser& parser, const JSONNode& v)
+static const Vec3d readVec3(const JSONNode& v)
 {
-	return Vec3d(v.getChildDoubleValue(parser, "x"), v.getChildDoubleValue(parser, "y"), v.getChildDoubleValue(parser, "z"));
+	return Vec3d(v.getChildDoubleValue("x"), v.getChildDoubleValue("y"), v.getChildDoubleValue("z"));
 }
 
 
 // Reads either "pos" (the centre) or "base_pos" (the centre of the bottom face); exactly one must be present.
 // half_height is the distance from the centre to the bottom face, used to convert base_pos to a centre.
-static const Vec3d getPrimitiveCentre(const JSONParser& parser, const JSONNode& args, double half_height)
+static const Vec3d getPrimitiveCentre(const JSONNode& args, double half_height)
 {
 	const bool has_pos = args.hasChild("pos");
 	const bool has_base = args.hasChild("base_pos");
@@ -537,10 +537,10 @@ static const Vec3d getPrimitiveCentre(const JSONParser& parser, const JSONNode& 
 		throw glare::Exception("Provide exactly one of 'pos' or 'base_pos'.");
 
 	if(has_pos)
-		return readVec3(parser, args.getChildObject(parser, "pos"));
+		return readVec3(args.getChildObject("pos"));
 	else
 	{
-		Vec3d centre = readVec3(parser, args.getChildObject(parser, "base_pos"));
+		Vec3d centre = readVec3(args.getChildObject("base_pos"));
 		centre.z += half_height;
 		return centre;
 	}
@@ -548,7 +548,7 @@ static const Vec3d getPrimitiveCentre(const JSONParser& parser, const JSONNode& 
 
 
 // Builds a primitive object with the given mesh, centre and scale, reading axis/angle and an optional single material from args.
-static WorldObjectRef makePrimitiveObject(const char* mesh_url, const js::AABBox& aabb_os, const Vec3d& centre, const Vec3f& scale, const JSONParser& parser, const JSONNode& args)
+static WorldObjectRef makePrimitiveObject(const char* mesh_url, const js::AABBox& aabb_os, const Vec3d& centre, const Vec3f& scale, const JSONNode& args)
 {
 	WorldObjectRef ob = new WorldObject();
 	ob->flags |= WorldObject::CREATED_VIA_MCP;
@@ -557,14 +557,14 @@ static WorldObjectRef makePrimitiveObject(const char* mesh_url, const js::AABBox
 	ob->pos = centre;
 	ob->scale = scale;
 	ob->axis = Vec3f(
-		(float)args.getChildDoubleValueWithDefaultVal(parser, "axis_x", 0.0),
-		(float)args.getChildDoubleValueWithDefaultVal(parser, "axis_y", 0.0),
-		(float)args.getChildDoubleValueWithDefaultVal(parser, "axis_z", 1.0));
-	ob->angle = (float)args.getChildDoubleValueWithDefaultVal(parser, "angle", 0.0);
+		(float)args.getChildDoubleValueWithDefaultVal("axis_x", 0.0),
+		(float)args.getChildDoubleValueWithDefaultVal("axis_y", 0.0),
+		(float)args.getChildDoubleValueWithDefaultVal("axis_z", 1.0));
+	ob->angle = (float)args.getChildDoubleValueWithDefaultVal("angle", 0.0);
 	ob->setAABBOS(aabb_os);
 
 	if(args.hasChild("material"))
-		ob->materials.push_back(WorldMaterial::fromJSON(parser, args.getChildObject(parser, "material")));
+		ob->materials.push_back(WorldMaterial::fromJSON(args.getChildObject("material")));
 	else
 		ob->materials.push_back(new WorldMaterial()); // Default material.
 
@@ -572,64 +572,64 @@ static WorldObjectRef makePrimitiveObject(const char* mesh_url, const js::AABBox
 }
 
 
-static const std::string tool_createCube(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args,
+static const std::string tool_createCube(ServerAllWorldsState& all_worlds, const JSONNode& args,
 	const UserID acting_user_id, const std::string& acting_user_name)
 {
 	const Vec3f scale(
-		(float)args.getChildDoubleValueWithDefaultVal(parser, "size_x", 1.0),
-		(float)args.getChildDoubleValueWithDefaultVal(parser, "size_y", 1.0),
-		(float)args.getChildDoubleValueWithDefaultVal(parser, "size_z", 1.0));
-	const Vec3d centre = getPrimitiveCentre(parser, args, /*half_height=*/scale.z * 0.5);
-	WorldObjectRef ob = makePrimitiveObject(MCP_CUBE_MESH_URL, MCP_CUBE_AABB, centre, scale, parser, args);
-	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
+		(float)args.getChildDoubleValueWithDefaultVal("size_x", 1.0),
+		(float)args.getChildDoubleValueWithDefaultVal("size_y", 1.0),
+		(float)args.getChildDoubleValueWithDefaultVal("size_z", 1.0));
+	const Vec3d centre = getPrimitiveCentre(args, /*half_height=*/scale.z * 0.5);
+	WorldObjectRef ob = makePrimitiveObject(MCP_CUBE_MESH_URL, MCP_CUBE_AABB, centre, scale, args);
+	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal("world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
 }
 
 
-static const std::string tool_createCylinder(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args,
+static const std::string tool_createCylinder(ServerAllWorldsState& all_worlds, const JSONNode& args,
 	const UserID acting_user_id, const std::string& acting_user_name)
 {
-	const double radius = args.getChildDoubleValueWithDefaultVal(parser, "radius", 0.5);
-	const double height = args.getChildDoubleValueWithDefaultVal(parser, "height", 1.0);
+	const double radius = args.getChildDoubleValueWithDefaultVal("radius", 0.5);
+	const double height = args.getChildDoubleValueWithDefaultVal("height", 1.0);
 	const Vec3f scale((float)(4.0 * radius), (float)(4.0 * radius), (float)height); // Cylinder mesh has radius 0.25 and height 1.
-	const Vec3d centre = getPrimitiveCentre(parser, args, /*half_height=*/height * 0.5);
-	WorldObjectRef ob = makePrimitiveObject(MCP_CYLINDER_MESH_URL, MCP_CYLINDER_AABB, centre, scale, parser, args);
-	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
+	const Vec3d centre = getPrimitiveCentre(args, /*half_height=*/height * 0.5);
+	WorldObjectRef ob = makePrimitiveObject(MCP_CYLINDER_MESH_URL, MCP_CYLINDER_AABB, centre, scale, args);
+	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal("world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
 }
 
 
-static const std::string tool_createSphere(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args,
+static const std::string tool_createSphere(ServerAllWorldsState& all_worlds, const JSONNode& args,
 	const UserID acting_user_id, const std::string& acting_user_name)
 {
-	const double radius = args.getChildDoubleValueWithDefaultVal(parser, "radius", 0.5);
+	const double radius = args.getChildDoubleValueWithDefaultVal("radius", 0.5);
 	const Vec3f scale((float)(2.0 * radius), (float)(2.0 * radius), (float)(2.0 * radius)); // Icosahedron mesh has radius 0.5.
-	const Vec3d centre = getPrimitiveCentre(parser, args, /*half_height=*/radius);
-	WorldObjectRef ob = makePrimitiveObject(MCP_SPHERE_MESH_URL, MCP_SPHERE_AABB, centre, scale, parser, args);
-	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
+	const Vec3d centre = getPrimitiveCentre(args, /*half_height=*/radius);
+	WorldObjectRef ob = makePrimitiveObject(MCP_SPHERE_MESH_URL, MCP_SPHERE_AABB, centre, scale, args);
+	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal("world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
 }
 
 
-static const std::string tool_createCone(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args,
+static const std::string tool_createCone(ServerAllWorldsState& all_worlds, const JSONNode& args,
 	const UserID acting_user_id, const std::string& acting_user_name)
 {
-	const double radius = args.getChildDoubleValueWithDefaultVal(parser, "radius", 0.5);
-	const double height = args.getChildDoubleValueWithDefaultVal(parser, "height", 1.0);
+	const double radius = args.getChildDoubleValueWithDefaultVal("radius", 0.5);
+	const double height = args.getChildDoubleValueWithDefaultVal("height", 1.0);
 	const Vec3f scale((float)(2.0 * radius), (float)(2.0 * radius), (float)(height));
-	const Vec3d centre = getPrimitiveCentre(parser, args, /*half_height=*/0);
-	WorldObjectRef ob = makePrimitiveObject(MCP_CONE_MESH_URL, MCP_CONE_AABB, centre, scale, parser, args);
-	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
+	const Vec3d centre = getPrimitiveCentre(args, /*half_height=*/0);
+	WorldObjectRef ob = makePrimitiveObject(MCP_CONE_MESH_URL, MCP_CONE_AABB, centre, scale, args);
+	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal("world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
 }
 
 
-static const std::string tool_createWedge(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args,
+static const std::string tool_createWedge(ServerAllWorldsState& all_worlds, const JSONNode& args,
 	const UserID acting_user_id, const std::string& acting_user_name)
 {
 	const Vec3f scale(
-		(float)args.getChildDoubleValueWithDefaultVal(parser, "size_x", 1.0),
-		(float)args.getChildDoubleValueWithDefaultVal(parser, "size_y", 1.0),
-		(float)args.getChildDoubleValueWithDefaultVal(parser, "size_z", 1.0));
-	const Vec3d centre = getPrimitiveCentre(parser, args, /*half_height=*/scale.z * 0.5);
-	WorldObjectRef ob = makePrimitiveObject(MCP_WEDGE_MESH_URL, MCP_WEDGE_AABB, centre, scale, parser, args);
-	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
+		(float)args.getChildDoubleValueWithDefaultVal("size_x", 1.0),
+		(float)args.getChildDoubleValueWithDefaultVal("size_y", 1.0),
+		(float)args.getChildDoubleValueWithDefaultVal("size_z", 1.0));
+	const Vec3d centre = getPrimitiveCentre(args, /*half_height=*/scale.z * 0.5);
+	WorldObjectRef ob = makePrimitiveObject(MCP_WEDGE_MESH_URL, MCP_WEDGE_AABB, centre, scale, args);
+	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal("world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
 }
 
 
@@ -646,39 +646,39 @@ static const int   MCP_MAX_VOXEL_COORD      =  32766;    // Max voxel coord is 3
 static const int64 MCP_MAX_VOXEL_ARRAY_SIZE = (1 << 26); // Max number of cells in the 3d array the voxels are splatted into (64 MB of uint8 material indices).
 
 
-static const std::string tool_createVoxelObject(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args,
+static const std::string tool_createVoxelObject(ServerAllWorldsState& all_worlds, const JSONNode& args,
 	const UserID acting_user_id, const std::string& acting_user_name)
 {
 	WorldObjectRef ob = new WorldObject();
 	ob->flags |= WorldObject::CREATED_VIA_MCP;
 	ob->object_type = WorldObject::ObjectType_VoxelGroup;
-	ob->pos = readVec3(parser, args.getChildObject(parser, "pos"));
+	ob->pos = readVec3(args.getChildObject("pos"));
 
 	ob->scale = Vec3f(
-		(float)args.getChildDoubleValueWithDefaultVal(parser, "scale_x", 1.0),
-		(float)args.getChildDoubleValueWithDefaultVal(parser, "scale_y", 1.0),
-		(float)args.getChildDoubleValueWithDefaultVal(parser, "scale_z", 1.0));
+		(float)args.getChildDoubleValueWithDefaultVal("scale_x", 1.0),
+		(float)args.getChildDoubleValueWithDefaultVal("scale_y", 1.0),
+		(float)args.getChildDoubleValueWithDefaultVal("scale_z", 1.0));
 
 	ob->axis = Vec3f(
-		(float)args.getChildDoubleValueWithDefaultVal(parser, "axis_x", 0.0),
-		(float)args.getChildDoubleValueWithDefaultVal(parser, "axis_y", 0.0),
-		(float)args.getChildDoubleValueWithDefaultVal(parser, "axis_z", 1.0));
-	ob->angle = (float)args.getChildDoubleValueWithDefaultVal(parser, "angle", 0.0);
+		(float)args.getChildDoubleValueWithDefaultVal("axis_x", 0.0),
+		(float)args.getChildDoubleValueWithDefaultVal("axis_y", 0.0),
+		(float)args.getChildDoubleValueWithDefaultVal("axis_z", 1.0));
+	ob->angle = (float)args.getChildDoubleValueWithDefaultVal("angle", 0.0);
 
 	// Read materials array, if present.
 	if(args.hasChild("materials"))
 	{
-		const JSONNode& mats_array = args.getChildArray(parser, "materials");
+		const JSONNode& mats_array = args.getChildArray("materials");
 		if(mats_array.numChildren() > MCP_MAX_NUM_VOXEL_MATERIALS)
 			throw glare::Exception("Too many materials (max " + toString(MCP_MAX_NUM_VOXEL_MATERIALS) + ").");
 		for(size_t i=0; i<mats_array.numChildren(); ++i)
-			ob->materials.push_back(WorldMaterial::fromJSON(parser, mats_array.getArrayChildNode(i)));
+			ob->materials.push_back(WorldMaterial::fromJSON(mats_array.getArrayChildNode(i)));
 	}
 	if(ob->materials.empty())
 		ob->materials.push_back(new WorldMaterial()); // Default material.
 
 	// Read voxels array.
-	const JSONNode& voxels_array = args.getChildArray(parser, "voxels");
+	const JSONNode& voxels_array = args.getChildArray("voxels");
 	if(voxels_array.numChildren() == 0)
 		throw glare::Exception("voxels must be a non-empty array.");
 	if(voxels_array.numChildren() > MCP_MAX_NUM_VOXELS)
@@ -691,8 +691,8 @@ static const std::string tool_createVoxelObject(ServerAllWorldsState& all_worlds
 	for(size_t i=0; i<voxels_array.numChildren(); ++i)
 	{
 		const JSONNode& v = voxels_array.getArrayChildNode(i);
-		const Vec3<int> vpos(v.getChildIntValue(parser, "x"), v.getChildIntValue(parser, "y"), v.getChildIntValue(parser, "z"));
-		const int mat_index = v.getChildIntValueWithDefaultVal(parser, "mat", 0);
+		const Vec3<int> vpos(v.getChildIntValue("x"), v.getChildIntValue("y"), v.getChildIntValue("z"));
+		const int mat_index = v.getChildIntValueWithDefaultVal("mat", 0);
 		if(mat_index < 0 || mat_index >= (int)ob->materials.size())
 			throw glare::Exception("Voxel mat index out of range (materials array has " + toString(ob->materials.size()) + " elements).");
 		minpos = minpos.min(vpos);
@@ -721,18 +721,18 @@ static const std::string tool_createVoxelObject(ServerAllWorldsState& all_worlds
 
 	ob->setAABBOS(voxel_group.getAABB());
 
-	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
+	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal("world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
 }
 
 
-static const std::string tool_editObject(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args,
+static const std::string tool_editObject(ServerAllWorldsState& all_worlds, const JSONNode& args,
 	const UserID acting_user_id, const std::string& acting_user_name)
 {
 	if(all_worlds.isInReadOnlyMode())
 		throw glare::Exception("Server is in read-only mode; cannot edit objects.");
 
-	const string_view world_name = args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/"");
-	const UID uid((uint64)args.getChildDoubleValue(parser, "uid"));
+	const string_view world_name = args.getChildStringValueWithDefaultVal("world_name", /*default=*/"");
+	const UID uid((uint64)args.getChildDoubleValue("uid"));
 
 	WorldStateLock lock(all_worlds.mutex);
 	ServerWorldState* world = getWorld(all_worlds, world_name, lock);
@@ -753,13 +753,13 @@ static const std::string tool_editObject(ServerAllWorldsState& all_worlds, const
 
 	// Apply any provided transform fields, leaving others unchanged.
 	if(args.hasChild("x") && args.hasChild("y") && args.hasChild("z"))
-		pos = Vec3d(args.getChildDoubleValue(parser, "x"), args.getChildDoubleValue(parser, "y"), args.getChildDoubleValue(parser, "z"));
+		pos = Vec3d(args.getChildDoubleValue("x"), args.getChildDoubleValue("y"), args.getChildDoubleValue("z"));
 	if(args.hasChild("scale_x") && args.hasChild("scale_y") && args.hasChild("scale_z"))
-		scale = Vec3f((float)args.getChildDoubleValue(parser, "scale_x"), (float)args.getChildDoubleValue(parser, "scale_y"), (float)args.getChildDoubleValue(parser, "scale_z"));
+		scale = Vec3f((float)args.getChildDoubleValue("scale_x"), (float)args.getChildDoubleValue("scale_y"), (float)args.getChildDoubleValue("scale_z"));
 	if(args.hasChild("axis_x") && args.hasChild("axis_y") && args.hasChild("axis_z") && args.hasChild("angle"))
 	{
-		axis = Vec3f((float)args.getChildDoubleValue(parser, "axis_x"), (float)args.getChildDoubleValue(parser, "axis_y"), (float)args.getChildDoubleValue(parser, "axis_z"));
-		angle = (float)args.getChildDoubleValue(parser, "angle");
+		axis = Vec3f((float)args.getChildDoubleValue("axis_x"), (float)args.getChildDoubleValue("axis_y"), (float)args.getChildDoubleValue("axis_z"));
+		angle = (float)args.getChildDoubleValue("angle");
 	}
 
 	checkTransformOK(pos, axis, angle, scale);
@@ -799,13 +799,13 @@ static const std::string tool_editObject(ServerAllWorldsState& all_worlds, const
 }
 
 
-static const std::string tool_deleteObject(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args, const UserID acting_user_id)
+static const std::string tool_deleteObject(ServerAllWorldsState& all_worlds, const JSONNode& args, const UserID acting_user_id)
 {
 	if(all_worlds.isInReadOnlyMode())
 		throw glare::Exception("Server is in read-only mode; cannot delete objects.");
 
-	const string_view world_name = args.getChildStringValueWithDefaultVal(parser, "world_name", /*default=*/"");
-	const UID uid((uint64)args.getChildDoubleValue(parser, "uid"));
+	const string_view world_name = args.getChildStringValueWithDefaultVal("world_name", /*default=*/"");
+	const UID uid((uint64)args.getChildDoubleValue("uid"));
 
 	WorldStateLock lock(all_worlds.mutex);
 	ServerWorldState* world = getWorld(all_worlds, world_name, lock);
@@ -878,9 +878,9 @@ static NewsPost* getNewsPost(ServerAllWorldsState& all_worlds, uint64 post_id, W
 }
 
 
-static const std::string tool_listNewsPosts(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args)
+static const std::string tool_listNewsPosts(ServerAllWorldsState& all_worlds, const JSONNode& args)
 {
-	const int limit = myClamp(args.getChildIntValueWithDefaultVal(parser, "limit", /*default=*/20), 1, 100);
+	const int limit = myClamp(args.getChildIntValueWithDefaultVal("limit", /*default=*/20), 1, 100);
 
 	WorldStateLock lock(all_worlds.mutex);
 
@@ -900,9 +900,9 @@ static const std::string tool_listNewsPosts(ServerAllWorldsState& all_worlds, co
 }
 
 
-static const std::string tool_getNewsPost(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args)
+static const std::string tool_getNewsPost(ServerAllWorldsState& all_worlds, const JSONNode& args)
 {
-	const uint64 post_id = (uint64)args.getChildDoubleValue(parser, "id");
+	const uint64 post_id = (uint64)args.getChildDoubleValue("id");
 
 	WorldStateLock lock(all_worlds.mutex);
 	const NewsPost* post = getNewsPost(all_worlds, post_id, lock);
@@ -919,11 +919,11 @@ static const std::string tool_getNewsPost(ServerAllWorldsState& all_worlds, cons
 
 
 // Creates a news post in the draft state.  Posts are published from the website (the edit news post page), not via MCP.
-static const std::string tool_createNewsPost(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args, const UserID acting_user_id)
+static const std::string tool_createNewsPost(ServerAllWorldsState& all_worlds, const JSONNode& args, const UserID acting_user_id)
 {
-	const string_view title         = args.getChildStringValue(parser, "title");
-	const string_view content       = args.getChildStringValue(parser, "content");
-	const string_view thumbnail_URL = args.getChildStringValueWithDefaultVal(parser, "thumbnail_url", /*default=*/"");
+	const string_view title         = args.getChildStringValue("title");
+	const string_view content       = args.getChildStringValue("content");
+	const string_view thumbnail_URL = args.getChildStringValueWithDefaultVal("thumbnail_url", /*default=*/"");
 	checkNewsPostFieldSizes(title, content, thumbnail_URL);
 
 	if(all_worlds.isInReadOnlyMode())
@@ -950,9 +950,9 @@ static const std::string tool_createNewsPost(ServerAllWorldsState& all_worlds, c
 
 
 // Edits the title, content and/or thumbnail URL of a news post.  Doesn't change the post state.
-static const std::string tool_editNewsPost(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args)
+static const std::string tool_editNewsPost(ServerAllWorldsState& all_worlds, const JSONNode& args)
 {
-	const uint64 post_id = (uint64)args.getChildDoubleValue(parser, "id");
+	const uint64 post_id = (uint64)args.getChildDoubleValue("id");
 
 	if(all_worlds.isInReadOnlyMode())
 		throw glare::Exception("Server is in read-only mode, editing disabled currently.");
@@ -962,9 +962,9 @@ static const std::string tool_editNewsPost(ServerAllWorldsState& all_worlds, con
 	if(post->state == NewsPost::State_deleted)
 		throw glare::Exception("News post " + toString(post_id) + " was deleted.");
 
-	const string_view title         = args.hasChild("title")         ? args.getChildStringValue(parser, "title")         : post->title;
-	const string_view content       = args.hasChild("content")       ? args.getChildStringValue(parser, "content")       : post->content;
-	const string_view thumbnail_URL = args.hasChild("thumbnail_url") ? args.getChildStringValue(parser, "thumbnail_url") : post->thumbnail_URL;
+	const string_view title         = args.hasChild("title")         ? args.getChildStringValue("title")         : post->title;
+	const string_view content       = args.hasChild("content")       ? args.getChildStringValue("content")       : post->content;
+	const string_view thumbnail_URL = args.hasChild("thumbnail_url") ? args.getChildStringValue("thumbnail_url") : post->thumbnail_URL;
 	checkNewsPostFieldSizes(title, content, thumbnail_URL);
 
 	if(args.hasChild("title"))
@@ -986,10 +986,10 @@ static const std::string tool_editNewsPost(ServerAllWorldsState& all_worlds, con
 // and saves it in public_images_dir, named by a hash of the JPEG data.  Returns the URL path of the image.
 // Also saves a thumbnail, cropped to the aspect ratio of the news post thumbnails on the home page.
 // See UploadedImageProcessing::processAndSaveUploadedImage().
-static const std::string tool_uploadNewsImage(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args)
+static const std::string tool_uploadNewsImage(ServerAllWorldsState& all_worlds, const JSONNode& args)
 {
-	const string_view filename    = args.getChildStringValue(parser, "filename");
-	const string_view data_base64 = args.getChildStringValue(parser, "data_base64");
+	const string_view filename    = args.getChildStringValue("filename");
+	const string_view data_base64 = args.getChildStringValue("data_base64");
 
 	if(all_worlds.isInReadOnlyMode())
 		throw glare::Exception("Server is in read-only mode, editing disabled currently.");
@@ -1018,15 +1018,15 @@ static const std::string tool_uploadNewsImage(ServerAllWorldsState& all_worlds, 
 }
 
 
-static const std::string tool_listPhotos(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args)
+static const std::string tool_listPhotos(ServerAllWorldsState& all_worlds, const JSONNode& args)
 {
-	const int limit = myClamp(args.getChildIntValueWithDefaultVal(parser, "limit", /*default=*/20), 1, 100);
+	const int limit = myClamp(args.getChildIntValueWithDefaultVal("limit", /*default=*/20), 1, 100);
 
 	WorldStateLock lock(all_worlds.mutex);
 
 	// Iterate newest first, starting from the newest photo with id < before_id if before_id is given.
 	auto it = args.hasChild("before_id") ?
-		std::map<uint64, PhotoRef>::reverse_iterator(all_worlds.photos.lower_bound((uint64)args.getChildDoubleValue(parser, "before_id"))) :
+		std::map<uint64, PhotoRef>::reverse_iterator(all_worlds.photos.lower_bound((uint64)args.getChildDoubleValue("before_id"))) :
 		all_worlds.photos.rbegin();
 
 	std::string s = "[";
@@ -1418,68 +1418,68 @@ static const std::string makeToolsListJSON(bool include_admin_tools)
 // Dispatch a tool call to the tool implementation.  Returns the result text.
 // Throws glare::Exception if the tool is unknown or fails.
 // 'args' should be the (possibly empty) object of arguments for the tool.
-static const std::string dispatchTool(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args, const std::string& tool_name,
+static const std::string dispatchTool(ServerAllWorldsState& all_worlds, const JSONNode& args, const std::string& tool_name,
 	const UserID acting_user_id, const std::string& acting_user_name)
 {
 	if(tool_name == "list_worlds")
 		return tool_listWorlds(all_worlds);
 	else if(tool_name == "get_world_info")
-		return tool_getWorldInfo(all_worlds, parser, args);
+		return tool_getWorldInfo(all_worlds, args);
 	else if(tool_name == "list_avatars")
-		return tool_listAvatars(all_worlds, parser, args);
+		return tool_listAvatars(all_worlds, args);
 	else if(tool_name == "list_objects_near")
-		return tool_listObjectsNear(all_worlds, parser, args);
+		return tool_listObjectsNear(all_worlds, args);
 	else if(tool_name == "get_object")
-		return tool_getObject(all_worlds, parser, args);
+		return tool_getObject(all_worlds, args);
 	else if(tool_name == "create_object")
-		return tool_createObject(all_worlds, parser, args, acting_user_id, acting_user_name);
+		return tool_createObject(all_worlds, args, acting_user_id, acting_user_name);
 	else if(tool_name == "edit_object")
-		return tool_editObject(all_worlds, parser, args, acting_user_id, acting_user_name);
+		return tool_editObject(all_worlds, args, acting_user_id, acting_user_name);
 	else if(tool_name == "delete_object")
-		return tool_deleteObject(all_worlds, parser, args, acting_user_id);
+		return tool_deleteObject(all_worlds, args, acting_user_id);
 	else if(tool_name == "create_cube")
-		return tool_createCube(all_worlds, parser, args, acting_user_id, acting_user_name);
+		return tool_createCube(all_worlds, args, acting_user_id, acting_user_name);
 	else if(tool_name == "create_cylinder")
-		return tool_createCylinder(all_worlds, parser, args, acting_user_id, acting_user_name);
+		return tool_createCylinder(all_worlds, args, acting_user_id, acting_user_name);
 	else if(tool_name == "create_sphere")
-		return tool_createSphere(all_worlds, parser, args, acting_user_id, acting_user_name);
+		return tool_createSphere(all_worlds, args, acting_user_id, acting_user_name);
 	else if(tool_name == "create_cone")
-		return tool_createCone(all_worlds, parser, args, acting_user_id, acting_user_name);
+		return tool_createCone(all_worlds, args, acting_user_id, acting_user_name);
 	else if(tool_name == "create_wedge")
-		return tool_createWedge(all_worlds, parser, args, acting_user_id, acting_user_name);
+		return tool_createWedge(all_worlds, args, acting_user_id, acting_user_name);
 	else if(tool_name == "create_voxel_object")
-		return tool_createVoxelObject(all_worlds, parser, args, acting_user_id, acting_user_name);
+		return tool_createVoxelObject(all_worlds, args, acting_user_id, acting_user_name);
 	else
 		throw glare::Exception("Unknown tool '" + tool_name + "'");
 }
 
 
 // Dispatch a call to an admin tool.  The caller must check the acting user is the god user.
-static const std::string dispatchAdminTool(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& args, const std::string& tool_name, const UserID acting_user_id)
+static const std::string dispatchAdminTool(ServerAllWorldsState& all_worlds, const JSONNode& args, const std::string& tool_name, const UserID acting_user_id)
 {
 	if(tool_name == "list_news_posts")
-		return tool_listNewsPosts(all_worlds, parser, args);
+		return tool_listNewsPosts(all_worlds, args);
 	else if(tool_name == "get_news_post")
-		return tool_getNewsPost(all_worlds, parser, args);
+		return tool_getNewsPost(all_worlds, args);
 	else if(tool_name == "create_news_post")
-		return tool_createNewsPost(all_worlds, parser, args, acting_user_id);
+		return tool_createNewsPost(all_worlds, args, acting_user_id);
 	else if(tool_name == "edit_news_post")
-		return tool_editNewsPost(all_worlds, parser, args);
+		return tool_editNewsPost(all_worlds, args);
 	else if(tool_name == "upload_news_image")
-		return tool_uploadNewsImage(all_worlds, parser, args);
+		return tool_uploadNewsImage(all_worlds, args);
 	else if(tool_name == "list_photos")
-		return tool_listPhotos(all_worlds, parser, args);
+		return tool_listPhotos(all_worlds, args);
 	else
 		throw glare::Exception("Unknown tool '" + tool_name + "'");
 }
 
 
 // Dispatch a tools/call request.  Returns the CallToolResult JSON.  Tool-level errors are returned as an error result (isError=true), not thrown.
-static const std::string handleToolCall(ServerAllWorldsState& all_worlds, const JSONParser& parser, const JSONNode& params, const UserID acting_user_id, const std::string& acting_user_name)
+static const std::string handleToolCall(ServerAllWorldsState& all_worlds, const JSONNode& params, const UserID acting_user_id, const std::string& acting_user_name)
 {
 	if(!params.hasChild("name"))
 		throw glare::Exception("tools/call is missing 'name'");
-	const std::string tool_name = toString(params.getChildStringValue(parser, "name"));
+	const std::string tool_name = toString(params.getChildStringValue("name"));
 
 	conPrint("MCP: tools/call tool: '" + tool_name + "'");
 
@@ -1488,15 +1488,14 @@ static const std::string handleToolCall(ServerAllWorldsState& all_worlds, const 
 	JSONParser empty_args_parser;
 	if(!has_args)
 		empty_args_parser.parseBuffer("{}", 2);
-	const JSONParser& args_parser = has_args ? parser : empty_args_parser;
-	const JSONNode args = has_args ? params.getChildObject(parser, "arguments") : empty_args_parser.rootNode();
+	const JSONNode args = has_args ? params.getChildObject("arguments") : empty_args_parser.rootNode();
 
 	try
 	{
 		// Admin tools are only available to the god user.  For other users they are unknown tools.
 		const std::string result = (isAdminTool(tool_name) && isGodUser(acting_user_id)) ?
-			dispatchAdminTool(all_worlds, args_parser, args, tool_name, acting_user_id) :
-			dispatchTool(all_worlds, args_parser, args, tool_name, acting_user_id, acting_user_name);
+			dispatchAdminTool(all_worlds, args, tool_name, acting_user_id) :
+			dispatchTool(all_worlds, args, tool_name, acting_user_id, acting_user_name);
 		return makeToolResult(result, /*is_error=*/false);
 	}
 	catch(glare::Exception& e)
@@ -1522,7 +1521,7 @@ ToolResult callTool(ServerAllWorldsState& world_state, const std::string& tool_n
 
 		checkNodeType(parser.rootNode(), JSONNodeType::Type_Object);
 
-		result.text = dispatchTool(world_state, parser, parser.rootNode(), tool_name, acting_user_id, acting_user_name);
+		result.text = dispatchTool(world_state, parser.rootNode(), tool_name, acting_user_id, acting_user_name);
 		result.is_error = false;
 	}
 	catch(glare::Exception& e)
@@ -1727,9 +1726,9 @@ void handleMCPRequest(ServerAllWorldsState& world_state, const web::RequestInfo&
 	RequestID id;
 	if(root.hasChild("id"))
 	{
-		const JSONNode id_node = root.getChildNode(parser, "id");
+		const JSONNode id_node = root.getChildNode("id");
 		if(id_node.getType() == JSONNodeType::Type_Number)      { id.type = RequestID::Type_Number; id.num_val = id_node.getDoubleValue(); }
-		else if(id_node.getType() == JSONNodeType::Type_String) { id.type = RequestID::Type_String; id.str_val = id_node.getStringValue(parser); }
+		else if(id_node.getType() == JSONNodeType::Type_String) { id.type = RequestID::Type_String; id.str_val = id_node.getStringValue(); }
 	}
 
 	if(!root.hasChild("method"))
@@ -1737,7 +1736,7 @@ void handleMCPRequest(ServerAllWorldsState& world_state, const web::RequestInfo&
 		writeError(reply_info, id, JSONRPC_INVALID_REQUEST, "Missing 'method'.");
 		return;
 	}
-	const string_view method = root.getChildStringValue(parser, "method");
+	const string_view method = root.getChildStringValue("method");
 
 	conPrint("MCP: request method: '" + toString(method) + "'");
 
@@ -1772,7 +1771,7 @@ void handleMCPRequest(ServerAllWorldsState& world_state, const web::RequestInfo&
 				writeError(reply_info, id, JSONRPC_INVALID_PARAMS, "Missing 'params'.");
 				return;
 			}
-			const std::string result = handleToolCall(world_state, parser, root.getChildObject(parser, "params"), user_id, user_name);
+			const std::string result = handleToolCall(world_state, root.getChildObject("params"), user_id, user_name);
 			writeResult(reply_info, id, result);
 		}
 		else

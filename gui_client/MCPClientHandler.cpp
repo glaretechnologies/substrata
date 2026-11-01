@@ -171,13 +171,13 @@ static bool isLoopbackAddress(const IPAddress& addr)
 
 
 // Serialise the JSON-RPC request 'id' (number, string, or absent) so it can be echoed back in the response.
-static const std::string extractIdJSON(const JSONParser& parser, const JSONNode& root)
+static const std::string extractIdJSON(const JSONNode& root)
 {
 	if(!root.hasChild("id"))
 		return "null";
-	const JSONNode id_node = root.getChildNode(parser, "id");
+	const JSONNode id_node = root.getChildNode("id");
 	if(id_node.getType() == JSONNodeType::Type_String)
-		return "\"" + web::Escaping::JSONEscape(id_node.getStringValue(parser)) + "\"";
+		return "\"" + web::Escaping::JSONEscape(id_node.getStringValue()) + "\"";
 	else if(id_node.getType() == JSONNodeType::Type_Number)
 	{
 		const double v = id_node.getDoubleValue();
@@ -282,32 +282,32 @@ std::string MCPClientRequestHandler::forwardToServer(const std::string& request_
 }
 
 
-void MCPClientRequestHandler::handleRenderView(const JSONParser& parser, const JSONNode& root, web::ReplyInfo& reply_info)
+void MCPClientRequestHandler::handleRenderView(const JSONNode& root, web::ReplyInfo& reply_info)
 {
-	const std::string id_json = extractIdJSON(parser, root);
+	const std::string id_json = extractIdJSON(root);
 
 	try
 	{
-		const JSONNode& params = root.getChildObject(parser, "params");
+		const JSONNode& params = root.getChildObject("params");
 		if(!params.hasChild("arguments"))
 			throw glare::Exception("render_view requires 'arguments'.");
-		const JSONNode& args = params.getChildObject(parser, "arguments");
+		const JSONNode& args = params.getChildObject("arguments");
 
-		const JSONNode& cam_pos_node = args.getChildObject(parser, "cam_pos");
-		const Vec3d cam_pos(cam_pos_node.getChildDoubleValue(parser, "x"), cam_pos_node.getChildDoubleValue(parser, "y"), cam_pos_node.getChildDoubleValue(parser, "z"));
+		const JSONNode& cam_pos_node = args.getChildObject("cam_pos");
+		const Vec3d cam_pos(cam_pos_node.getChildDoubleValue("x"), cam_pos_node.getChildDoubleValue("y"), cam_pos_node.getChildDoubleValue("z"));
 
-		const JSONNode& ang_node = args.getChildObject(parser, "cam_angles");
+		const JSONNode& ang_node = args.getChildObject("cam_angles");
 		const Vec3d cam_angles(
-			ang_node.getChildDoubleValue(parser, "heading"),
-			ang_node.getChildDoubleValue(parser, "pitch"),
-			ang_node.getChildDoubleValueWithDefaultVal(parser, "roll", /*default=*/0.0));
+			ang_node.getChildDoubleValue("heading"),
+			ang_node.getChildDoubleValue("pitch"),
+			ang_node.getChildDoubleValueWithDefaultVal("roll", /*default=*/0.0));
 
-		const int width  = (int)args.getChildDoubleValueWithDefaultVal(parser, "width",  /*default=*/1024);
-		const int height = (int)args.getChildDoubleValueWithDefaultVal(parser, "height", /*default=*/768);
+		const int width  = (int)args.getChildDoubleValueWithDefaultVal("width",  /*default=*/1024);
+		const int height = (int)args.getChildDoubleValueWithDefaultVal("height", /*default=*/768);
 		if(width < 16 || width > 4096 || height < 16 || height > 4096)
 			throw glare::Exception("width/height out of range [16, 4096].");
 
-		const double fov = args.getChildDoubleValueWithDefaultVal(parser, "fov", /*default=*/0.0); // 0 means use the camera's current lens.
+		const double fov = args.getChildDoubleValueWithDefaultVal("fov", /*default=*/0.0); // 0 means use the camera's current lens.
 		if(args.hasChild("fov") && !(fov >= 0.05 && fov <= 3.0))
 			throw glare::Exception("fov out of range [0.05, 3.0] radians.");
 
@@ -356,16 +356,16 @@ void MCPClientRequestHandler::handleRenderView(const JSONParser& parser, const J
 }
 
 
-void MCPClientRequestHandler::handleRunLuaBuildScript(const JSONParser& parser, const JSONNode& root, web::ReplyInfo& reply_info)
+void MCPClientRequestHandler::handleRunLuaBuildScript(const JSONNode& root, web::ReplyInfo& reply_info)
 {
-	const std::string id_json = extractIdJSON(parser, root);
+	const std::string id_json = extractIdJSON(root);
 
 	try
 	{
-		const JSONNode& params = root.getChildObject(parser, "params");
+		const JSONNode& params = root.getChildObject("params");
 		if(!params.hasChild("arguments"))
 			throw glare::Exception("run_lua_build_script requires 'arguments'.");
-		const JSONNode& args = params.getChildObject(parser, "arguments");
+		const JSONNode& args = params.getChildObject("arguments");
 
 		const bool has_script      = args.hasChild("script");
 		const bool has_script_path = args.hasChild("script_path");
@@ -377,7 +377,7 @@ void MCPClientRequestHandler::handleRunLuaBuildScript(const JSONParser& parser, 
 		LuaBuildScriptOptions build_options;
 		if(has_script_path)
 		{
-			const std::string script_path = toString(args.getChildStringValue(parser, "script_path"));
+			const std::string script_path = toString(args.getChildStringValue("script_path"));
 
 			// The agent's working directory and this client's are unrelated, so a relative path would resolve somewhere the
 			// caller didn't mean.
@@ -391,7 +391,7 @@ void MCPClientRequestHandler::handleRunLuaBuildScript(const JSONParser& parser, 
 			build_options.script_name = script_path; // So errors name the file, not just a line number.
 		}
 		else
-			script_src = args.getChildStringValue(parser, "script");
+			script_src = args.getChildStringValue("script");
 
 		// Build scripts read world state (e.g. getCurrentTime), so require a connected world.
 		if(main_window->gui_client.world_state.isNull())
@@ -467,22 +467,22 @@ void MCPClientRequestHandler::handleRequest(const web::RequestInfo& request_info
 		const JSONNode root = parser.rootNode();
 
 		if(root.hasChild("method"))
-			method = root.getChildStringValue(parser, "method");
+			method = root.getChildStringValue("method");
 
 		if(method == "tools/call" && root.hasChild("params"))
 		{
-			const JSONNode& params = root.getChildObject(parser, "params");
+			const JSONNode& params = root.getChildObject("params");
 			if(params.hasChild("name"))
 			{
-				const string_view tool_name = params.getChildStringValue(parser, "name");
+				const string_view tool_name = params.getChildStringValue("name");
 				if(tool_name == "render_view")
 				{
-					handleRenderView(parser, root, reply_info);
+					handleRenderView(root, reply_info);
 					return;
 				}
 				else if(tool_name == "run_lua_build_script")
 				{
-					handleRunLuaBuildScript(parser, root, reply_info);
+					handleRunLuaBuildScript(root, reply_info);
 					return;
 				}
 			}

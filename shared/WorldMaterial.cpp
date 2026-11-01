@@ -467,29 +467,29 @@ std::string WorldMaterial::serialiseToJSON() const
 }
 
 
-static Colour3f parseColour3fFromJSON(const JSONParser& parser, const JSONNode& parent, const char* name, const Colour3f& default_val)
+static Colour3f parseColour3fFromJSON(const JSONNode& parent, const char* name, const Colour3f& default_val)
 {
 	if(parent.hasChild(name))
 	{
-		const JSONNode& node = parent.getChildObject(parser, name);
+		const JSONNode& node = parent.getChildObject(name);
 		return Colour3f(
-			(float)node.getChildDoubleValueWithDefaultVal(parser, "r", default_val.r),
-			(float)node.getChildDoubleValueWithDefaultVal(parser, "g", default_val.g),
-			(float)node.getChildDoubleValueWithDefaultVal(parser, "b", default_val.b));
+			(float)node.getChildDoubleValueWithDefaultVal("r", default_val.r),
+			(float)node.getChildDoubleValueWithDefaultVal("g", default_val.g),
+			(float)node.getChildDoubleValueWithDefaultVal("b", default_val.b));
 	}
 	else
 		return default_val;
 }
 
 
-static ScalarVal parseScalarValFromJSON(const JSONParser& parser, const JSONNode& parent, const char* name, const ScalarVal& default_val)
+static ScalarVal parseScalarValFromJSON(const JSONNode& parent, const char* name, const ScalarVal& default_val)
 {
 	if(parent.hasChild(name))
 	{
-		const JSONNode& node = parent.getChildObject(parser, name);
+		const JSONNode& node = parent.getChildObject(name);
 		ScalarVal scalar_val;
-		scalar_val.val = (float)node.getChildDoubleValueWithDefaultVal(parser, "val", 0.0);
-		scalar_val.texture_url = toURLString(node.getChildStringValueWithDefaultVal(parser, "texture_url", ""));
+		scalar_val.val = (float)node.getChildDoubleValueWithDefaultVal("val", 0.0);
+		scalar_val.texture_url = toURLString(node.getChildStringValueWithDefaultVal("texture_url", ""));
 		if(scalar_val.texture_url.size() > WorldObject::MAX_URL_SIZE)
 			throw glare::Exception("texture_url too long.");
 		return scalar_val;
@@ -499,40 +499,40 @@ static ScalarVal parseScalarValFromJSON(const JSONParser& parser, const JSONNode
 }
 
 
-Reference<WorldMaterial> WorldMaterial::fromJSON(const JSONParser& parser, const JSONNode& node)
+Reference<WorldMaterial> WorldMaterial::fromJSON(const JSONNode& node)
 {
 	WorldMaterialRef mat = new WorldMaterial();
 
-	mat->name = node.getChildStringValueWithDefaultVal(parser, "name", "");
+	mat->name = node.getChildStringValueWithDefaultVal("name", "");
 
-	mat->colour_rgb           = parseColour3fFromJSON(parser, node, "colour_rgb", Colour3f(0.85f));
-	mat->colour_texture_url   = toURLString(node.getChildStringValueWithDefaultVal(parser, "colour_texture_url", ""));
+	mat->colour_rgb           = parseColour3fFromJSON(node, "colour_rgb", Colour3f(0.85f));
+	mat->colour_texture_url   = toURLString(node.getChildStringValueWithDefaultVal("colour_texture_url", ""));
 	if(mat->colour_texture_url.size() > WorldObject::MAX_URL_SIZE)
 		throw glare::Exception("colour_texture_url too long.");
 
-	mat->emission_rgb         = parseColour3fFromJSON(parser, node, "emission_rgb", Colour3f(0.f));
-	mat->emission_texture_url = toURLString(node.getChildStringValueWithDefaultVal(parser, "emission_texture_url", ""));
+	mat->emission_rgb         = parseColour3fFromJSON(node, "emission_rgb", Colour3f(0.f));
+	mat->emission_texture_url = toURLString(node.getChildStringValueWithDefaultVal("emission_texture_url", ""));
 	if(mat->emission_texture_url.size() > WorldObject::MAX_URL_SIZE)
 		throw glare::Exception("emission_texture_url too long.");
 
-	mat->normal_map_url       = toURLString(node.getChildStringValueWithDefaultVal(parser, "normal_map_url", ""));
+	mat->normal_map_url       = toURLString(node.getChildStringValueWithDefaultVal("normal_map_url", ""));
 	if(mat->normal_map_url.size() > WorldObject::MAX_URL_SIZE)
 		throw glare::Exception("normal_map_url too long.");
 
-	mat->roughness         = parseScalarValFromJSON(parser, node, "roughness",         ScalarVal(0.5f));
-	mat->metallic_fraction = parseScalarValFromJSON(parser, node, "metallic_fraction", ScalarVal(0.0f));
-	mat->opacity           = parseScalarValFromJSON(parser, node, "opacity",           ScalarVal(1.0f));
+	mat->roughness         = parseScalarValFromJSON(node, "roughness",         ScalarVal(0.5f));
+	mat->metallic_fraction = parseScalarValFromJSON(node, "metallic_fraction", ScalarVal(0.0f));
+	mat->opacity           = parseScalarValFromJSON(node, "opacity",           ScalarVal(1.0f));
 
 	if(node.hasChild("tex_matrix"))
 	{
 		double values[4];
-		node.getChildArray(parser, "tex_matrix").parseDoubleArrayValues(parser, /*expected_num_elems=*/4, values);
+		node.getChildArray("tex_matrix").parseDoubleArrayValues(/*expected_num_elems=*/4, values);
 		for(int i=0; i<4; ++i)
 			mat->tex_matrix.e[i] = (float)values[i];
 	}
 
-	mat->emission_lum_flux_or_lum = (float)node.getChildDoubleValueWithDefaultVal(parser, "emission_lum_flux_or_lum", 0.0);
-	mat->flags = (uint32)node.getChildUIntValueWithDefaultVal(parser, "flags", 0);
+	mat->emission_lum_flux_or_lum = (float)node.getChildDoubleValueWithDefaultVal("emission_lum_flux_or_lum", 0.0);
+	mat->flags = (uint32)node.getChildUIntValueWithDefaultVal("flags", 0);
 
 	return mat;
 }
@@ -1036,7 +1036,7 @@ void WorldMaterial::test()
 
 		JSONParser parser;
 		parser.parseBuffer(json.data(), json.size());
-		Reference<WorldMaterial> mat2 = WorldMaterial::fromJSON(parser, parser.rootNode());
+		Reference<WorldMaterial> mat2 = WorldMaterial::fromJSON(parser.rootNode());
 
 		testAssert(*mat2 == mat);
 	}
@@ -1046,7 +1046,7 @@ void WorldMaterial::test()
 		JSONParser parser;
 		const std::string json = "{\"colour_rgb\":{\"r\":0.1,\"g\":0.2,\"b\":0.3}}";
 		parser.parseBuffer(json.data(), json.size());
-		Reference<WorldMaterial> mat = WorldMaterial::fromJSON(parser, parser.rootNode());
+		Reference<WorldMaterial> mat = WorldMaterial::fromJSON(parser.rootNode());
 		testAssert(mat->colour_rgb == Colour3f(0.1f, 0.2f, 0.3f));
 		testAssert(mat->roughness.val == 0.5f); // Default
 		testAssert(mat->opacity.val == 1.0f);   // Default

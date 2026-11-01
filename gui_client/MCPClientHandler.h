@@ -44,8 +44,8 @@ public:
 	virtual void handleRequest(const web::RequestInfo& request_info, web::ReplyInfo& reply_info) override;
 
 private:
-	void handleRenderView(const JSONParser& parser, const JSONNode& root, web::ReplyInfo& reply_info);
-	void handleRunLuaBuildScript(const JSONParser& parser, const JSONNode& root, web::ReplyInfo& reply_info);
+	void handleRenderView(const JSONNode& root, web::ReplyInfo& reply_info);
+	void handleRunLuaBuildScript(const JSONNode& root, web::ReplyInfo& reply_info);
 	std::string forwardToServer(const std::string& request_body); // Throws glare::Exception on failure.
 
 	MainWindow* main_window;

@@ -860,7 +860,7 @@ static int getSecret(lua_State* state)
 
 
 // Pushes the converted JSON node onto the top of the Lua stack
-static void pushJSONLuaNode(lua_State* state, const JSONParser& parser, const JSONNode& node)
+static void pushJSONLuaNode(lua_State* state, const JSONNode& node)
 {
 	if(!lua_checkstack(state, /*size=*/1)) // Make sure there is space for the value on the Lua stack
 		throw glare::Exception("Failed to alloc lua stack space");
@@ -874,7 +874,7 @@ static void pushJSONLuaNode(lua_State* state, const JSONParser& parser, const JS
 	}
 	case JSONNodeType::Type_String:
 	{
-		const string_view string_val = node.getStringValue(parser);
+		const string_view string_val = node.getStringValue();
 		lua_pushlstring(state, string_val.data(), string_val.size());
 		break;	
 	}
@@ -888,7 +888,7 @@ static void pushJSONLuaNode(lua_State* state, const JSONParser& parser, const JS
 		lua_createtable(state, /*num array elems hint=*/(int)node.numChildren(), /*num other elems hint=*/0);
 		for(size_t i=0; i<node.numChildren(); ++i)
 		{
-			pushJSONLuaNode(state, parser, node.getArrayChildNode(i));
+			pushJSONLuaNode(state, node.getArrayChildNode(i));
 
 			lua_rawseti(state, /*table index=*/-2, 1 + (int)i);
 		}
@@ -900,7 +900,7 @@ static void pushJSONLuaNode(lua_State* state, const JSONParser& parser, const JS
 		lua_createtable(state, /*num array elems hint=*/0, /*num other elems hint=*/(int)node.numNameValPairs());
 		for(auto it = node.objectChildrenBegin(); it != node.objectChildrenEnd(); ++it)
 		{
-			pushJSONLuaNode(state, parser, it.valueNode());
+			pushJSONLuaNode(state, it.valueNode());
 
 			lua_setfield(state, /*table index=*/-2, toString(it.name()).c_str());
 		}
@@ -933,7 +933,7 @@ static int parseJSON(lua_State* state)
 		JSONParser parser;
 		parser.parseBuffer(json_string.c_str(), json_string.size());
 
-		pushJSONLuaNode(state, parser, parser.rootNode());
+		pushJSONLuaNode(state, parser.rootNode());
 	}
 	catch(glare::Exception& e)
 	{

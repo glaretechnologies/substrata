@@ -185,15 +185,15 @@ EthAddress Infura::doEthCallReturningAddress(const InfuraCredentials& credential
 		JSONParser parser;
 		parser.parseBuffer((const char*)data.data(), data.size());
 
-		if(parser.rootNode().getChildStringValue(parser, "jsonrpc") != "2.0")
+		if(parser.rootNode().getChildStringValue("jsonrpc") != "2.0")
 			throw glare::Exception("Invalid jsonrpc response.");
 
-		if(parser.rootNode().getChildDoubleValue(parser, "id") != 1.0)
+		if(parser.rootNode().getChildDoubleValue("id") != 1.0)
 			throw glare::Exception("Invalid id response.");
 
 		if(parser.rootNode().hasChild("result"))
 		{
-			const string_view result = parser.rootNode().getChildStringValue(parser, "result");
+			const string_view result = parser.rootNode().getChildStringValue("result");
 
 			if(result.size() != 2 + 64)
 				throw glare::Exception("Unexpected result length.");
@@ -205,9 +205,9 @@ EthAddress Infura::doEthCallReturningAddress(const InfuraCredentials& credential
 		}
 		else if(parser.rootNode().hasChild("error"))
 		{
-			const JSONNode& error_node = parser.rootNode().getChildObject(parser, "error");
+			const JSONNode& error_node = parser.rootNode().getChildObject("error");
 
-			const string_view message = error_node.getChildStringValue(parser, "message");
+			const string_view message = error_node.getChildStringValue("message");
 
 			throw glare::Exception("Transaction was submitted, but then reverted: " + std::string(message));
 		}
@@ -271,15 +271,15 @@ UInt256 Infura::doEthCallReturningTransactionHash(const InfuraCredentials& crede
 		JSONParser parser;
 		parser.parseBuffer((const char*)data.data(), data.size());
 
-		if(parser.rootNode().getChildStringValue(parser, "jsonrpc") != "2.0")
+		if(parser.rootNode().getChildStringValue("jsonrpc") != "2.0")
 			throw glare::Exception("Invalid jsonrpc response.");
 
-		if(parser.rootNode().getChildDoubleValue(parser, "id") != 1.0)
+		if(parser.rootNode().getChildDoubleValue("id") != 1.0)
 			throw glare::Exception("Invalid id response.");
 
 		if(parser.rootNode().hasChild("result"))
 		{
-			const string_view result = parser.rootNode().getChildStringValue(parser, "result");
+			const string_view result = parser.rootNode().getChildStringValue("result");
 
 			if(result.size() != 2 + 64)
 				throw glare::Exception("Unexpected result length.");
@@ -288,9 +288,9 @@ UInt256 Infura::doEthCallReturningTransactionHash(const InfuraCredentials& crede
 		}
 		else if(parser.rootNode().hasChild("error"))
 		{
-			const JSONNode& error_node = parser.rootNode().getChildObject(parser, "error");
+			const JSONNode& error_node = parser.rootNode().getChildObject("error");
 
-			const string_view message = error_node.getChildStringValue(parser, "message");
+			const string_view message = error_node.getChildStringValue("message");
 
 			throw glare::Exception("Transaction was submitted, but then reverted: " + toString(message));
 		}
@@ -333,15 +333,15 @@ UInt256 Infura::sendRawTransaction(const InfuraCredentials& credentials, const s
 		JSONParser parser;
 		parser.parseBuffer((const char*)data.data(), data.size());
 
-		if(parser.rootNode().getChildStringValue(parser, "jsonrpc") != "2.0")
+		if(parser.rootNode().getChildStringValue("jsonrpc") != "2.0")
 			throw glare::Exception("Invalid jsonrpc response.");
 
-		if(parser.rootNode().getChildDoubleValue(parser, "id") != 1.0)
+		if(parser.rootNode().getChildDoubleValue("id") != 1.0)
 			throw glare::Exception("Invalid id response.");
 
 		if(parser.rootNode().hasChild("result"))
 		{
-			const string_view result = parser.rootNode().getChildStringValue(parser, "result");
+			const string_view result = parser.rootNode().getChildStringValue("result");
 
 			if(result.size() != 2 + 64)
 				throw glare::Exception("Unexpected result length.");
@@ -350,9 +350,9 @@ UInt256 Infura::sendRawTransaction(const InfuraCredentials& credentials, const s
 		}
 		else if(parser.rootNode().hasChild("error"))
 		{
-			const JSONNode& error_node = parser.rootNode().getChildObject(parser, "error");
+			const JSONNode& error_node = parser.rootNode().getChildObject("error");
 
-			const string_view message = error_node.getChildStringValue(parser, "message");
+			const string_view message = error_node.getChildStringValue("message");
 
 			throw glare::Exception("Transaction was submitted, but then reverted: " + toString(message));
 		}
@@ -389,13 +389,13 @@ uint64 Infura::getCurrentGasPrice(const InfuraCredentials& credentials, const st
 	JSONParser parser;
 	parser.parseBuffer((const char*)data.data(), data.size());
 
-	if(parser.rootNode().getChildStringValue(parser, "jsonrpc") != "2.0")
+	if(parser.rootNode().getChildStringValue("jsonrpc") != "2.0")
 		throw glare::Exception("Invalid jsonrpc response.");
 
-	if(parser.rootNode().getChildDoubleValue(parser, "id") != 1.0)
+	if(parser.rootNode().getChildDoubleValue("id") != 1.0)
 		throw glare::Exception("Invalid id response.");
 
-	const string_view result = parser.rootNode().getChildStringValue(parser, "result");
+	const string_view result = parser.rootNode().getChildStringValue("result");
 	if(!hasPrefix(result, "0x"))
 		throw glare::Exception("result did not have 0x prefix.");
 
@@ -461,15 +461,15 @@ Infura::TransactionReceipt Infura::getTransactionReceipt(const InfuraCredentials
 	JSONParser parser;
 	parser.parseBuffer((const char*)data.data(), data.size());
 
-	if(parser.rootNode().getChildStringValue(parser, "jsonrpc") != "2.0")
+	if(parser.rootNode().getChildStringValue("jsonrpc") != "2.0")
 		throw glare::Exception("Invalid jsonrpc response.");
 
-	if(parser.rootNode().getChildDoubleValue(parser, "id") != 1.0)
+	if(parser.rootNode().getChildDoubleValue("id") != 1.0)
 		throw glare::Exception("Invalid id response.");
 
-	const JSONNode& result_node = parser.rootNode().getChildObject(parser, "result");
+	const JSONNode& result_node = parser.rootNode().getChildObject("result");
 
-	const string_view contractAddress = result_node.getChildStringValue(parser, "contractAddress");
+	const string_view contractAddress = result_node.getChildStringValue("contractAddress");
 
 	Infura::TransactionReceipt receipt;
 	receipt.contract_address = EthAddress::parseFromHexString(contractAddress);

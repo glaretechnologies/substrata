@@ -185,7 +185,7 @@ public:
 	void writeToXMLOnDisk(const std::string& path) const;
 
 	std::string serialiseToJSON() const; // Serialise to a compact JSON object (mirrors serialiseToXML).
-	static Reference<WorldMaterial> fromJSON(const JSONParser& parser, const JSONNode& node); // Inverse of serialiseToJSON.  Lenient: omitted fields get default values.
+	static Reference<WorldMaterial> fromJSON(const JSONNode& node); // Inverse of serialiseToJSON.  Lenient: omitted fields get default values.
 	
 
 	static void test();

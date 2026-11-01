@@ -94,11 +94,11 @@ static const Colour3f parseHexColour(const std::string& s, const Colour3f& defau
 }
 
 
-static const Vec3d getVec3Field(const JSONParser& parser, const JSONNode& node, const char* name, const Vec3d& default_val)
+static const Vec3d getVec3Field(const JSONNode& node, const char* name, const Vec3d& default_val)
 {
 	if(!node.hasChild(name))
 		return default_val;
-	const JSONNode& array = node.getChildNode(parser, name);
+	const JSONNode& array = node.getChildNode(name);
 	if(array.getType() != JSONNodeType::Type_Array || array.numChildren() != 3)
 		return default_val;
 	Vec3d v;
@@ -115,21 +115,21 @@ static const Vec3d getVec3Field(const JSONParser& parser, const JSONNode& node, 
 
 // Feature fields are loosely typed: 'transparent' for example is false on some images and "AlphaBlend" on others.  Only an explicit
 // boolean counts here.
-static bool getBoolField(const JSONParser& parser, const JSONNode& node, const char* name, bool default_val)
+static bool getBoolField(const JSONNode& node, const char* name, bool default_val)
 {
 	if(!node.hasChild(name))
 		return default_val;
-	const JSONNode& child = node.getChildNode(parser, name);
+	const JSONNode& child = node.getChildNode(name);
 	return (child.getType() == JSONNodeType::Type_Boolean) ? child.getBoolValue() : default_val;
 }
 
 
-static const std::string getStringField(const JSONParser& parser, const JSONNode& node, const char* name)
+static const std::string getStringField(const JSONNode& node, const char* name)
 {
 	if(!node.hasChild(name))
 		return std::string();
-	const JSONNode& child = node.getChildNode(parser, name);
-	return (child.getType() == JSONNodeType::Type_String) ? toString(child.getStringValue(parser)) : std::string();
+	const JSONNode& child = node.getChildNode(name);
+	return (child.getType() == JSONNodeType::Type_String) ? toString(child.getStringValue()) : std::string();
 }
 
 
@@ -226,9 +226,9 @@ static bool getVoxelsTeleportCoords(const std::string& link, VoxelsCoords& coord
 }
 
 
-static double getNumberField(const JSONParser& parser, const JSONNode& node, const char* name)
+static double getNumberField(const JSONNode& node, const char* name)
 {
-	const JSONNode& child = node.getChildNode(parser, name);
+	const JSONNode& child = node.getChildNode(name);
 	if(child.getType() != JSONNodeType::Type_Number)
 		throw glare::Exception(std::string("'") + name + "' is not a number.");
 	return child.getDoubleValue();
@@ -870,7 +870,7 @@ public:
 			parser.parseBuffer(data.data(), data.size());
 			if(parser.rootNode().getType() != JSONNodeType::Type_Object)
 				throw glare::Exception("the metadata isn't a JSON object");
-			const std::string image_url = getStringField(parser, parser.rootNode(), "image");
+			const std::string image_url = getStringField(parser.rootNode(), "image");
 			if(image_url.empty())
 				throw glare::Exception("the metadata has no image");
 
@@ -892,9 +892,9 @@ public:
 
 	// Makes the object link to the page in the feature's 'link' field, if it has one, so users can visit it.  A Voxels teleport link becomes a
 	// Substrata URL for the same place in the imported parcel, or is left out if the parcel's position in the Voxels world isn't known.
-	void setTargetURLFromLink(const JSONParser& parser, const JSONNode& feature, WorldObject& ob)
+	void setTargetURLFromLink(const JSONNode& feature, WorldObject& ob)
 	{
-		const std::string link = getStringField(parser, feature, "link");
+		const std::string link = getStringField(feature, "link");
 		if(link.empty())
 			return;
 
@@ -1058,16 +1058,16 @@ static void makeParcelVoxelsObject(ImportContext& context, const std::vector<uin
 }
 
 
-static void makeCubeObject(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin)
+static void makeCubeObject(ImportContext& context, const JSONNode& feature, const Vec3d& origin)
 {
-	const Vec3d position = getVec3Field(parser, feature, "position", Vec3d(0.0));
-	const Vec3d rotation = getVec3Field(parser, feature, "rotation", Vec3d(0.0));
-	const Vec3d scale    = getVec3Field(parser, feature, "scale",    Vec3d(1.0));
+	const Vec3d position = getVec3Field(feature, "position", Vec3d(0.0));
+	const Vec3d rotation = getVec3Field(feature, "rotation", Vec3d(0.0));
+	const Vec3d scale    = getVec3Field(feature, "scale",    Vec3d(1.0));
 
 	WorldMaterialRef mat = new WorldMaterial();
-	mat->colour_rgb = parseHexColour(getStringField(parser, feature, "color"), Colour3f(1.f));
+	mat->colour_rgb = parseHexColour(getStringField(feature, "color"), Colour3f(1.f));
 
-	const std::string url = getStringField(parser, feature, "url");
+	const std::string url = getStringField(feature, "url");
 	if(!url.empty())
 	{
 		const DownloadedAsset& asset = context.getOrDownloadAsset(url, AssetType_Image);
@@ -1090,8 +1090,8 @@ static void makeCubeObject(ImportContext& context, const JSONParser& parser, con
 	setAxisAndAngle(featureRotation(rotation), *ob);
 	ob->setAABBOS(js::AABBox(Vec4f(-0.5f, -0.5f, -0.5f, 1), Vec4f(0.5f, 0.5f, 0.5f, 1)));
 
-	ob->setCollidable(getBoolField(parser, feature, "collidable", true));
-	context.setTargetURLFromLink(parser, feature, *ob);
+	ob->setCollidable(getBoolField(feature, "collidable", true));
+	context.setTargetURLFromLink(feature, *ob);
 	checkTransformOK(ob.ptr());
 	context.sendCreateObject(*ob);
 }
@@ -1116,21 +1116,21 @@ static void setImagePlaneTransform(const Vec3d& origin, const Vec3d& position, c
 
 
 // For image and nft-image features.  target_url, if not empty, is the page the object links to.
-static void makeImageObject(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin, const std::string& image_url, const std::string& target_url)
+static void makeImageObject(ImportContext& context, const JSONNode& feature, const Vec3d& origin, const std::string& image_url, const std::string& target_url)
 {
 	const DownloadedAsset& asset = context.getOrDownloadAsset(image_url, AssetType_Image);
 	if(!asset.ok)
 		throw glare::Exception(asset.skip_reason);
 
-	const Vec3d position = getVec3Field(parser, feature, "position", Vec3d(0.0));
-	const Vec3d rotation = getVec3Field(parser, feature, "rotation", Vec3d(0.0));
-	const Vec3d scale    = getVec3Field(parser, feature, "scale",    Vec3d(1.0));
+	const Vec3d position = getVec3Field(feature, "position", Vec3d(0.0));
+	const Vec3d rotation = getVec3Field(feature, "rotation", Vec3d(0.0));
+	const Vec3d scale    = getVec3Field(feature, "scale",    Vec3d(1.0));
 
 	// The image fills a plane of scale.x by scale.y in the feature's local x-y plane, seen from its -z side.  Unless stretched, it keeps its
 	// aspect ratio and is fitted inside that.
 	float w = (float)std::fabs(nonZeroScale(scale.x));
 	float h = (float)std::fabs(nonZeroScale(scale.y));
-	if(!getBoolField(parser, feature, "stretch", false) && asset.width > 0 && asset.height > 0)
+	if(!getBoolField(feature, "stretch", false) && asset.width > 0 && asset.height > 0)
 	{
 		const float image_aspect = (float)asset.width / (float)asset.height;
 		if(image_aspect > w / h)
@@ -1145,16 +1145,16 @@ static void makeImageObject(ImportContext& context, const JSONParser& parser, co
 	ob->max_model_lod_level = 0;
 	setImagePlaneTransform(origin, position, rotation, w, h, *ob);
 	ob->setAABBOS(js::AABBox(Vec4f(0,0,0,1), Vec4f(1,1,1,1)));
-	ob->setCollidable(getBoolField(parser, feature, "collidable", false));
+	ob->setCollidable(getBoolField(feature, "collidable", false));
 	if(target_url.size() <= WorldObject::MAX_URL_SIZE)
 		ob->target_url = target_url;
-	context.setTargetURLFromLink(parser, feature, *ob); // A link the builder set takes precedence.
+	context.setTargetURLFromLink(feature, *ob); // A link the builder set takes precedence.
 
 	ob->materials.resize(2);
 	ob->materials[0] = new WorldMaterial(); // Front and back faces
 	ob->materials[0]->colour_rgb = Colour3f(1.f);
 	ob->materials[0]->colour_texture_url = asset.resource_URL;
-	const bool transparent = getBoolField(parser, feature, "transparent", true); // Only an explicit false turns transparency off.
+	const bool transparent = getBoolField(feature, "transparent", true); // Only an explicit false turns transparency off.
 	BitUtils::setOrZeroBit(ob->materials[0]->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, asset.has_alpha && transparent);
 	BitUtils::setOrZeroBit(ob->materials[0]->flags, WorldMaterial::MIN_LOD_LEVEL_IS_NEGATIVE_1, asset.width > 1024 || asset.height > 1024);
 	ob->materials[1] = new WorldMaterial(); // Edges
@@ -1167,12 +1167,12 @@ static void makeImageObject(ImportContext& context, const JSONParser& parser, co
 
 // An nft-image feature's url is the token's OpenSea page, such as https://opensea.io/assets/ethereum/<contract>/<token id>.  The image is found
 // from OpenSea's metadata for the token, and the object links to the OpenSea page.
-static void makeNFTImageObject(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin)
+static void makeNFTImageObject(ImportContext& context, const JSONNode& feature, const Vec3d& origin)
 {
-	const std::string page_url = getStringField(parser, feature, "url");
+	const std::string page_url = getStringField(feature, "url");
 	const std::string image_url = context.getNFTImageURL(page_url);
 
-	makeImageObject(context, parser, feature, origin, image_url, /*target_url=*/page_url);
+	makeImageObject(context, feature, origin, image_url, /*target_url=*/page_url);
 }
 
 
@@ -1225,24 +1225,24 @@ static const std::string getCanonicalYouTubeURL(const std::string& url_string)
 
 // For video and youtube features.  video_URL is a resource URL for an MP4 file, or a YouTube URL.  The video is stretched to fill scale.x by
 // scale.y, as Voxels does.
-static void makeVideoObjectForURL(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin, const URLString& video_URL)
+static void makeVideoObjectForURL(ImportContext& context, const JSONNode& feature, const Vec3d& origin, const URLString& video_URL)
 {
-	const Vec3d position = getVec3Field(parser, feature, "position", Vec3d(0.0));
-	const Vec3d rotation = getVec3Field(parser, feature, "rotation", Vec3d(0.0));
-	const Vec3d scale    = getVec3Field(parser, feature, "scale",    Vec3d(1.0));
+	const Vec3d position = getVec3Field(feature, "position", Vec3d(0.0));
+	const Vec3d rotation = getVec3Field(feature, "rotation", Vec3d(0.0));
+	const Vec3d scale    = getVec3Field(feature, "scale",    Vec3d(1.0));
 
 	WorldObjectRef ob = new WorldObject();
 	ob->object_type = WorldObject::ObjectType_Video;
 	ob->max_model_lod_level = 0;
 	setImagePlaneTransform(origin, position, rotation, (float)std::fabs(nonZeroScale(scale.x)), (float)std::fabs(nonZeroScale(scale.y)), *ob);
 	ob->setAABBOS(WorldObject::getVideoAABBos());
-	ob->setCollidable(getBoolField(parser, feature, "collidable", false));
-	context.setTargetURLFromLink(parser, feature, *ob);
+	ob->setCollidable(getBoolField(feature, "collidable", false));
+	context.setTargetURLFromLink(feature, *ob);
 
-	BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_AUTOPLAY, getBoolField(parser, feature, "autoplay", false));
-	BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_LOOP,     getBoolField(parser, feature, "loop", false));
-	if(feature.hasChild("volume") && feature.getChildNode(parser, "volume").getType() == JSONNodeType::Type_Number)
-		ob->audio_volume = (float)myClamp(getNumberField(parser, feature, "volume"), 0.0, 1.0);
+	BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_AUTOPLAY, getBoolField(feature, "autoplay", false));
+	BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_LOOP,     getBoolField(feature, "loop", false));
+	if(feature.hasChild("volume") && feature.getChildNode("volume").getType() == JSONNodeType::Type_Number)
+		ob->audio_volume = (float)myClamp(getNumberField(feature, "volume"), 0.0, 1.0);
 
 	// As in MainWindow::on_actionAdd_Video_triggered(): the video URL goes in emission_texture_url, so it is a resource dependency.
 	ob->materials.resize(2);
@@ -1259,22 +1259,22 @@ static void makeVideoObjectForURL(ImportContext& context, const JSONParser& pars
 
 
 // A video feature's url is an MP4 file, which is downloaded and put in the resource system.
-static void makeVideoObject(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin)
+static void makeVideoObject(ImportContext& context, const JSONNode& feature, const Vec3d& origin)
 {
-	const DownloadedAsset& asset = context.getOrDownloadAsset(getStringField(parser, feature, "url"), AssetType_MP4);
+	const DownloadedAsset& asset = context.getOrDownloadAsset(getStringField(feature, "url"), AssetType_MP4);
 	if(!asset.ok)
 		throw glare::Exception(asset.skip_reason);
 
-	makeVideoObjectForURL(context, parser, feature, origin, asset.resource_URL);
+	makeVideoObjectForURL(context, feature, origin, asset.resource_URL);
 }
 
 
 // A youtube feature's url is a YouTube page.  The video object streams it from YouTube.
-static void makeYouTubeObject(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin)
+static void makeYouTubeObject(ImportContext& context, const JSONNode& feature, const Vec3d& origin)
 {
-	const std::string youtube_URL = getCanonicalYouTubeURL(getStringField(parser, feature, "url"));
+	const std::string youtube_URL = getCanonicalYouTubeURL(getStringField(feature, "url"));
 
-	makeVideoObjectForURL(context, parser, feature, origin, toURLString(youtube_URL));
+	makeVideoObjectForURL(context, feature, origin, toURLString(youtube_URL));
 }
 
 
@@ -1399,12 +1399,12 @@ enum TextPanelStyle
 
 // Makes a flat panel of w by h centred on the feature's position in its local x-y plane, seen from its -z side, as signs and richtext are:
 // text_col text on a thin box in background_col if draw_background is set.  Sign text is at font_size, unless it has to shrink to fit.
-static void makeTextPanel(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin, const std::string& text,
+static void makeTextPanel(ImportContext& context, const JSONNode& feature, const Vec3d& origin, const std::string& text,
 	const Colour3f& text_col, bool draw_background, const Colour3f& background_col, TextPanelStyle style, float font_size)
 {
-	const Vec3d position = getVec3Field(parser, feature, "position", Vec3d(0.0));
-	const Vec3d rotation = getVec3Field(parser, feature, "rotation", Vec3d(0.0));
-	const Vec3d scale    = getVec3Field(parser, feature, "scale",    Vec3d(1.0));
+	const Vec3d position = getVec3Field(feature, "position", Vec3d(0.0));
+	const Vec3d rotation = getVec3Field(feature, "rotation", Vec3d(0.0));
+	const Vec3d scale    = getVec3Field(feature, "scale",    Vec3d(1.0));
 	const float w = (float)std::fabs(nonZeroScale(scale.x));
 	const float h = (float)std::fabs(nonZeroScale(scale.y));
 
@@ -1428,8 +1428,8 @@ static void makeTextPanel(ImportContext& context, const JSONParser& parser, cons
 		ob->scale = Vec3f(w, depth, h);
 		setAxisAndAngle(panel_rot, *ob);
 		ob->setAABBOS(js::AABBox(Vec4f(-0.5f, -0.5f, -0.5f, 1), Vec4f(0.5f, 0.5f, 0.5f, 1)));
-		ob->setCollidable(getBoolField(parser, feature, "collidable", false));
-		context.setTargetURLFromLink(parser, feature, *ob);
+		ob->setCollidable(getBoolField(feature, "collidable", false));
+		context.setTargetURLFromLink(feature, *ob);
 		checkTransformOK(ob.ptr());
 		context.sendCreateObject(*ob);
 	}
@@ -1469,7 +1469,7 @@ static void makeTextPanel(ImportContext& context, const JSONParser& parser, cons
 	setAxisAndAngle(text_rot, *ob);
 	ob->setAABBOS(js::AABBox(Vec4f(0, -((layout.num_lines - 1) * TEXT_LINE_HEIGHT + TEXT_DESCENT), 0, 1), Vec4f(layout.max_line_arial_width * TEXT_WIDTH_PER_ARIAL_EM, TEXT_ASCENT, 0.01f, 1)));
 	ob->setCollidable(false);
-	context.setTargetURLFromLink(parser, feature, *ob);
+	context.setTargetURLFromLink(feature, *ob);
 
 	ob->materials.resize(1);
 	ob->materials[0] = new WorldMaterial();
@@ -1484,39 +1484,39 @@ static void makeTextPanel(ImportContext& context, const JSONParser& parser, cons
 // A sign is a short piece of text on a panel, in its own colours, on one line, centred, at a size given by its fontSize.
 // The metres per fontSize unit was chosen so the text is as wide as in Voxels (from a screenshot of a fontSize 20 sign); Substrata's font is
 // wider than Voxels', so the text is a little shorter.
-static void makeSignObject(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin)
+static void makeSignObject(ImportContext& context, const JSONNode& feature, const Vec3d& origin)
 {
 	const double METRES_PER_FONT_SIZE = 0.003;
-	const double font_size = (feature.hasChild("fontSize") && feature.getChildNode(parser, "fontSize").getType() == JSONNodeType::Type_Number) ?
-		myClamp(getNumberField(parser, feature, "fontSize"), 1.0, 200.0) : 20.0;
+	const double font_size = (feature.hasChild("fontSize") && feature.getChildNode("fontSize").getType() == JSONNodeType::Type_Number) ?
+		myClamp(getNumberField(feature, "fontSize"), 1.0, 200.0) : 20.0;
 
-	makeTextPanel(context, parser, feature, origin, getStringField(parser, feature, "text"),
-		parseHexColour(getStringField(parser, feature, "color"), Colour3f(0.f)), /*draw_background=*/true, parseHexColour(getStringField(parser, feature, "background"), Colour3f(1.f)),
+	makeTextPanel(context, feature, origin, getStringField(feature, "text"),
+		parseHexColour(getStringField(feature, "color"), Colour3f(0.f)), /*draw_background=*/true, parseHexColour(getStringField(feature, "background"), Colour3f(1.f)),
 		TextPanelStyle_Sign, (float)(font_size * METRES_PER_FONT_SIZE));
 }
 
 
 // Richtext is a longer piece of text with nothing behind it, black, or white if inverted, wrapped as Voxels wraps it and aligned to the top left.
-static void makeRichTextObject(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin)
+static void makeRichTextObject(ImportContext& context, const JSONNode& feature, const Vec3d& origin)
 {
-	const bool inverted = getBoolField(parser, feature, "inverted", false);
-	makeTextPanel(context, parser, feature, origin, getStringField(parser, feature, "text"), Colour3f(inverted ? 1.f : 0.f), /*draw_background=*/false, Colour3f(0.f),
+	const bool inverted = getBoolField(feature, "inverted", false);
+	makeTextPanel(context, feature, origin, getStringField(feature, "text"), Colour3f(inverted ? 1.f : 0.f), /*draw_background=*/false, Colour3f(0.f),
 		TextPanelStyle_RichText, /*font_size=*/0);
 }
 
 
 // A lantern feature is a point light.  Substrata has spotlights rather than point lights, so it becomes a spotlight with a cone that covers all
 // directions.
-static void makeLanternObject(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin)
+static void makeLanternObject(ImportContext& context, const JSONNode& feature, const Vec3d& origin)
 {
 	// Voxels strength to Substrata luminous flux.  Substrata worlds are usually in daylight, so lights need to be bright to show.  Strength 70, the
 	// usual value, gives 2.8 million lm, which spread over all directions is about as bright as the default spotlight from Add Spotlight
 	// (100,000 lm in a cone of about 0.38 rad), and reaches about 12 m.
 	const double LUMENS_PER_STRENGTH = 40000;
 
-	const Vec3d position = getVec3Field(parser, feature, "position", Vec3d(0.0));
-	const double strength = (feature.hasChild("strength") && feature.getChildNode(parser, "strength").getType() == JSONNodeType::Type_Number) ?
-		myClamp(getNumberField(parser, feature, "strength"), 0.0, 1000.0) : 70.0;
+	const Vec3d position = getVec3Field(feature, "position", Vec3d(0.0));
+	const double strength = (feature.hasChild("strength") && feature.getChildNode("strength").getType() == JSONNodeType::Type_Number) ?
+		myClamp(getNumberField(feature, "strength"), 0.0, 1000.0) : 70.0;
 
 	WorldObjectRef ob = new WorldObject();
 	ob->object_type = WorldObject::ObjectType_Spotlight;
@@ -1531,7 +1531,7 @@ static void makeLanternObject(ImportContext& context, const JSONParser& parser, 
 
 	ob->materials.resize(2);
 	ob->materials[0] = new WorldMaterial(); // Emitting material
-	ob->materials[0]->colour_rgb = parseHexColour(getStringField(parser, feature, "color"), Colour3f(1.f));
+	ob->materials[0]->colour_rgb = parseHexColour(getStringField(feature, "color"), Colour3f(1.f));
 	ob->materials[0]->emission_lum_flux_or_lum = (float)(strength * LUMENS_PER_STRENGTH);
 	ob->materials[1] = new WorldMaterial(); // Housing
 
@@ -1541,9 +1541,9 @@ static void makeLanternObject(ImportContext& context, const JSONParser& parser, 
 
 
 // For vox-model and megavox features, which differ in how large a model Voxels allows, not in how it is placed.
-static void makeVoxModelObject(ImportContext& context, const JSONParser& parser, const JSONNode& feature, const Vec3d& origin)
+static void makeVoxModelObject(ImportContext& context, const JSONNode& feature, const Vec3d& origin)
 {
-	const DownloadedAsset& asset = context.getOrDownloadAsset(getStringField(parser, feature, "url"), AssetType_Vox);
+	const DownloadedAsset& asset = context.getOrDownloadAsset(getStringField(feature, "url"), AssetType_Vox);
 	if(!asset.ok)
 		throw glare::Exception(asset.skip_reason);
 
@@ -1553,10 +1553,10 @@ static void makeVoxModelObject(ImportContext& context, const JSONParser& parser,
 		throw glare::Exception("the .vox file has no model in it");
 	const VoxModel& model = vox_contents.models[0];
 
-	const Vec3d position = getVec3Field(parser, feature, "position", Vec3d(0.0));
-	const Vec3d rotation = getVec3Field(parser, feature, "rotation", Vec3d(0.0));
-	const Vec3d scale    = getVec3Field(parser, feature, "scale",    Vec3d(1.0));
-	const bool flip_x    = getBoolField(parser, feature, "flipX", false);
+	const Vec3d position = getVec3Field(feature, "position", Vec3d(0.0));
+	const Vec3d rotation = getVec3Field(feature, "rotation", Vec3d(0.0));
+	const Vec3d scale    = getVec3Field(feature, "scale",    Vec3d(1.0));
+	const bool flip_x    = getBoolField(feature, "flipX", false);
 
 	// A voxel is 0.02 m at scale 1.  The model is centred horizontally on the feature position, with its base at the position.
 	//
@@ -1602,8 +1602,8 @@ static void makeVoxModelObject(ImportContext& context, const JSONParser& parser,
 	WorldObjectRef ob = makeVoxelObject(voxels, materials, origin + voxelsToSubstrataPos(position), featureRotation(rotation), local_origin,
 		Vec3f((float)std::fabs(ex), (float)std::fabs(ey), (float)std::fabs(ez)));
 
-	ob->setCollidable(getBoolField(parser, feature, "collidable", false));
-	context.setTargetURLFromLink(parser, feature, *ob);
+	ob->setCollidable(getBoolField(feature, "collidable", false));
+	context.setTargetURLFromLink(feature, *ob);
 	checkTransformOK(ob.ptr());
 	context.sendCreateObject(*ob);
 }
@@ -1771,11 +1771,11 @@ static void getEmptyGroup(ImportContext& context, const std::string& name, const
 }
 
 
-static void getParcelIDAndName(const JSONParser& parser, const JSONNode& parcel_node, bool is_api_response, int& parcel_id_out, std::string& parcel_name_out)
+static void getParcelIDAndName(const JSONNode& parcel_node, bool is_api_response, int& parcel_id_out, std::string& parcel_name_out)
 {
-	parcel_id_out = is_api_response ? (int)getNumberField(parser, parcel_node, "id") :
-		(parcel_node.hasChild("parcel_id") ? (int)getNumberField(parser, parcel_node, "parcel_id") : 0);
-	parcel_name_out = getStringField(parser, parcel_node, "name");
+	parcel_id_out = is_api_response ? (int)getNumberField(parcel_node, "id") :
+		(parcel_node.hasChild("parcel_id") ? (int)getNumberField(parcel_node, "parcel_id") : 0);
+	parcel_name_out = getStringField(parcel_node, "name");
 }
 
 
@@ -1795,11 +1795,11 @@ std::string VoxelsParcelImporter::getGroupNameForParcelFile(const std::string& j
 
 	const JSONNode& root = parser.rootNode();
 	const bool is_api_response = root.hasChild("parcel");
-	const JSONNode& parcel_node = is_api_response ? root.getChildObject(parser, "parcel") : root;
+	const JSONNode& parcel_node = is_api_response ? root.getChildObject("parcel") : root;
 
 	int parcel_id;
 	std::string parcel_name;
-	getParcelIDAndName(parser, parcel_node, is_api_response, parcel_id, parcel_name);
+	getParcelIDAndName(parcel_node, is_api_response, parcel_id, parcel_name);
 	return groupNameForParcel(parcel_id, parcel_name);
 }
 
@@ -1837,17 +1837,17 @@ void VoxelsParcelImporter::importParcel(GUIClient* gui_client, const std::string
 	// A /api/parcels/N.json response has the parcel in a 'parcel' object, with its bounds.  A snapshot has the content at the top level and no bounds.
 	const JSONNode& root = parser.rootNode();
 	const bool is_api_response = root.hasChild("parcel");
-	const JSONNode& parcel_node = is_api_response ? root.getChildObject(parser, "parcel") : root;
-	const JSONNode& content_node = parcel_node.getChildObject(parser, "content");
+	const JSONNode& parcel_node = is_api_response ? root.getChildObject("parcel") : root;
+	const JSONNode& content_node = parcel_node.getChildObject("content");
 
 	int parcel_id;
 	std::string parcel_name;
-	getParcelIDAndName(parser, parcel_node, is_api_response, parcel_id, parcel_name);
+	getParcelIDAndName(parcel_node, is_api_response, parcel_id, parcel_name);
 	results_out.group_name = groupNameForParcel(parcel_id, parcel_name);
 
 	// Decode the voxels
 	std::vector<uint16> voxel_data;
-	const std::string voxels_b64 = getStringField(parser, content_node, "voxels");
+	const std::string voxels_b64 = getStringField(content_node, "voxels");
 	if(!voxels_b64.empty())
 	{
 		std::vector<unsigned char> compressed;
@@ -1859,11 +1859,11 @@ void VoxelsParcelImporter::importParcel(GUIClient* gui_client, const std::string
 	int X = options.voxels_x, Y = options.voxels_y, Z = options.voxels_z;
 	if(X == 0 && Y == 0 && Z == 0)
 	{
-		if(parcel_node.hasChild("x1") && parcel_node.getChildNode(parser, "x1").getType() == JSONNodeType::Type_Number)
+		if(parcel_node.hasChild("x1") && parcel_node.getChildNode("x1").getType() == JSONNodeType::Type_Number)
 		{
-			X = (int)((getNumberField(parser, parcel_node, "x2") - getNumberField(parser, parcel_node, "x1")) * 2);
-			Y = (int)((getNumberField(parser, parcel_node, "y2") - getNumberField(parser, parcel_node, "y1")) * 2);
-			Z = (int)((getNumberField(parser, parcel_node, "z2") - getNumberField(parser, parcel_node, "z1")) * 2);
+			X = (int)((getNumberField(parcel_node, "x2") - getNumberField(parcel_node, "x1")) * 2);
+			Y = (int)((getNumberField(parcel_node, "y2") - getNumberField(parcel_node, "y1")) * 2);
+			Z = (int)((getNumberField(parcel_node, "z2") - getNumberField(parcel_node, "z1")) * 2);
 		}
 		else if(!voxel_data.empty())
 		{
@@ -1888,25 +1888,25 @@ void VoxelsParcelImporter::importParcel(GUIClient* gui_client, const std::string
 		palette[i] = parseHexColour(default_palette[i], Colour3f(1.f));
 	if(content_node.hasChild("palette"))
 	{
-		const JSONNode& palette_node = content_node.getChildNode(parser, "palette");
+		const JSONNode& palette_node = content_node.getChildNode("palette");
 		if(palette_node.getType() == JSONNodeType::Type_Array)
 			for(size_t i=0; i<palette_node.numChildren() && i<8; ++i)
 			{
 				const JSONNode& col_node = palette_node.getArrayChildNode(i);
 				if(col_node.getType() == JSONNodeType::Type_String)
-					palette[i] = parseHexColour(toString(col_node.getStringValue(parser)), palette[i]);
+					palette[i] = parseHexColour(toString(col_node.getStringValue()), palette[i]);
 			}
 	}
 
 	// Work out where the parcel is in the Voxels world, for converting Voxels teleport links to Substrata URLs.
 	context.origin = origin;
 	context.sub_URL_prefix = "sub://" + options.server_hostname + "/" + options.server_worldname;
-	if(parcel_node.hasChild("x1") && parcel_node.getChildNode(parser, "x1").getType() == JSONNodeType::Type_Number)
+	if(parcel_node.hasChild("x1") && parcel_node.getChildNode("x1").getType() == JSONNodeType::Type_Number)
 	{
 		context.voxels_parcel_base_centre = Vec3d(
-			(getNumberField(parser, parcel_node, "x1") + getNumberField(parser, parcel_node, "x2")) / 2,
-			getNumberField(parser, parcel_node, "y1"),
-			(getNumberField(parser, parcel_node, "z1") + getNumberField(parser, parcel_node, "z2")) / 2);
+			(getNumberField(parcel_node, "x1") + getNumberField(parcel_node, "x2")) / 2,
+			getNumberField(parcel_node, "y1"),
+			(getNumberField(parcel_node, "z1") + getNumberField(parcel_node, "z2")) / 2);
 		context.have_voxels_parcel_base_centre = true;
 	}
 	else
@@ -1915,9 +1915,9 @@ void VoxelsParcelImporter::importParcel(GUIClient* gui_client, const std::string
 		// feature it's on, as with the buttons of an elevator.  Uses the median offset between a link's target and its feature's position, so a
 		// few links to elsewhere don't throw it off.  The parcel's base is assumed to be at height 0, as most are.
 		std::vector<double> x_offsets, z_offsets;
-		if(content_node.hasChild("features") && content_node.getChildNode(parser, "features").getType() == JSONNodeType::Type_Array)
+		if(content_node.hasChild("features") && content_node.getChildNode("features").getType() == JSONNodeType::Type_Array)
 		{
-			const JSONNode& features_node = content_node.getChildNode(parser, "features");
+			const JSONNode& features_node = content_node.getChildNode("features");
 			for(size_t i=0; i<features_node.numChildren(); ++i)
 			{
 				const JSONNode& feature = features_node.getArrayChildNode(i);
@@ -1926,9 +1926,9 @@ void VoxelsParcelImporter::importParcel(GUIClient* gui_client, const std::string
 				try
 				{
 					VoxelsCoords coords;
-					if(getVoxelsTeleportCoords(getStringField(parser, feature, "link"), coords))
+					if(getVoxelsTeleportCoords(getStringField(feature, "link"), coords))
 					{
-						const Vec3d position = getVec3Field(parser, feature, "position", Vec3d(0.0));
+						const Vec3d position = getVec3Field(feature, "position", Vec3d(0.0));
 						x_offsets.push_back(coords.x - position.x);
 						z_offsets.push_back(coords.z - position.z);
 					}
@@ -1959,7 +1959,7 @@ void VoxelsParcelImporter::importParcel(GUIClient* gui_client, const std::string
 	std::map<std::string, FeatureTypeCounts> type_counts;
 	if(content_node.hasChild("features"))
 	{
-		const JSONNode& features_node = content_node.getChildNode(parser, "features");
+		const JSONNode& features_node = content_node.getChildNode("features");
 		if(features_node.getType() == JSONNodeType::Type_Array)
 		{
 			for(size_t i=0; i<features_node.numChildren(); ++i)
@@ -1973,28 +1973,28 @@ void VoxelsParcelImporter::importParcel(GUIClient* gui_client, const std::string
 				if(feature.getType() != JSONNodeType::Type_Object)
 					continue;
 
-				const std::string type = getStringField(parser, feature, "type");
+				const std::string type = getStringField(feature, "type");
 				FeatureTypeCounts& counts = type_counts[type];
 				try
 				{
 					if(type == "cube")
-						makeCubeObject(context, parser, feature, origin);
+						makeCubeObject(context, feature, origin);
 					else if(type == "image")
-						makeImageObject(context, parser, feature, origin, getStringField(parser, feature, "url"), /*target_url=*/std::string());
+						makeImageObject(context, feature, origin, getStringField(feature, "url"), /*target_url=*/std::string());
 					else if(type == "nft-image")
-						makeNFTImageObject(context, parser, feature, origin);
+						makeNFTImageObject(context, feature, origin);
 					else if(type == "vox-model" || type == "megavox")
-						makeVoxModelObject(context, parser, feature, origin);
+						makeVoxModelObject(context, feature, origin);
 					else if(type == "video")
-						makeVideoObject(context, parser, feature, origin);
+						makeVideoObject(context, feature, origin);
 					else if(type == "youtube")
-						makeYouTubeObject(context, parser, feature, origin);
+						makeYouTubeObject(context, feature, origin);
 					else if(type == "lantern")
-						makeLanternObject(context, parser, feature, origin);
+						makeLanternObject(context, feature, origin);
 					else if(type == "sign")
-						makeSignObject(context, parser, feature, origin);
+						makeSignObject(context, feature, origin);
 					else if(type == "richtext")
-						makeRichTextObject(context, parser, feature, origin);
+						makeRichTextObject(context, feature, origin);
 					else
 						throw glare::Exception("not supported");
 
@@ -2012,7 +2012,7 @@ void VoxelsParcelImporter::importParcel(GUIClient* gui_client, const std::string
 
 					// Unsupported types are only counted, in the summary, as there are a lot of them.
 					if(e.what() != "not supported")
-						context.log("Skipped " + type + " feature " + getStringField(parser, feature, "uuid") + ": " + e.what());
+						context.log("Skipped " + type + " feature " + getStringField(feature, "uuid") + ": " + e.what());
 				}
 			}
 		}
