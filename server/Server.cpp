@@ -209,7 +209,6 @@ int main(int argc, char *argv[])
 	Clock::init();
 	Networking::init();
 	PlatformUtils::ignoreUnixSignals();
-	TLSSocket::initTLS();
 	BasisDecoder::init();
 	LuaVM::staticInit();
 
@@ -270,6 +269,8 @@ int main(int argc, char *argv[])
 #endif
 		conPrint("server_state_dir: " + server_state_dir);
 		FileUtils::createDirIfDoesNotExist(server_state_dir);
+
+		TLSSocket::initTLS(base_dir_path);
 
 
 		// Parse server config, if present:

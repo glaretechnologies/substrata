@@ -53,7 +53,10 @@ int main(int argc, char* argv[])
 		Clock::init();
 		Networking::init();
 		PlatformUtils::ignoreUnixSignals();
-		TLSSocket::initTLS();
+
+		const std::string base_dir_path = PlatformUtils::getResourceDirectoryPath();
+
+		TLSSocket::initTLS(base_dir_path);
 
 		const ScreenshotBotConfig config = parseScreenshotBotConfig(PlatformUtils::getAppDataDirectory("Cyberspace") + "/screenshot_bot_config.xml");
 

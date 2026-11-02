@@ -1485,9 +1485,9 @@ void MainWindow::runScreenshotCode()
 					screenshot_highlight_parcel_id = -1;
 					screenshot_gear_item = nullptr;
 
-					conPrint("Reading command from screenshot_command_socket etc...");
+					logAndConPrintMessage("Reading command from screenshot_command_socket etc...");
 					const std::string command = test_screenshot_taking ? "takegearsscreenshot" : screenshot_command_socket->readStringLengthFirst(1000);
-					conPrint("Read screenshot command: " + command);
+					logAndConPrintMessage("Read screenshot command: " + command);
 					if(command == "takescreenshot")
 					{
 						if(test_screenshot_taking)
@@ -1586,13 +1586,15 @@ void MainWindow::runScreenshotCode()
 							readGearItemFromStream(gear_stream, *screenshot_gear_item);
 							screenshot_width_px = screenshot_command_socket->readInt32();
 							screenshot_output_path = screenshot_command_socket->readStringLengthFirst(1000);
+
+							logAndConPrintMessage("Screenshot gear item: model_url: " + toStdString(screenshot_gear_item->model_url));
 						}
 
 						taking_gear_screenshot = true;
 					}
 					else if(command == "quit")
 					{
-						conPrint("Received quit command, exiting...");
+						logAndConPrintMessage("Received quit command, exiting...");
 						close();
 					}
 					else
@@ -1604,7 +1606,7 @@ void MainWindow::runScreenshotCode()
 			}
 			catch(glare::Exception& e)
 			{
-				conPrint("Excep while reading screenshot command from screenshot_command_socket: " + e.what() + ", exiting!");
+				logAndConPrintMessage("Excep while reading screenshot command from screenshot_command_socket: " + e.what() + ", exiting!");
 				close();
 			}
 		}
@@ -1656,7 +1658,7 @@ void MainWindow::runScreenshotCode()
 
 			if(time_since_last_waiting_msg.elapsed() > 1.0)
 			{
-				conPrint("Waiting for gear model to load for screenshot (loading time: " + screenshot_loading_timer.elapsedStringNSigFigs(3) + ")...");
+				logAndConPrintMessage("Waiting for gear model to load for screenshot (loading time: " + screenshot_loading_timer.elapsedStringNSigFigs(3) + ")...");
 				printVar(num_model_and_tex_tasks);
 				printVar(gui_client.num_non_net_resources_downloading);
 				printVar(gui_client.num_net_resources_downloading);
@@ -1665,7 +1667,7 @@ void MainWindow::runScreenshotCode()
 
 			if(screenshot_loading_timer.elapsed() > 20.0)
 			{
-				conPrint("=================== Error: Took too long while trying to take gear screenshot, returning failure on command socket ===================");
+				logAndConPrintMessage("=================== Error: Took too long while trying to take gear screenshot, returning failure on command socket ===================");
 				screenshot_output_path.clear();
 				time_since_last_screenshot.reset();
 
@@ -3689,6 +3691,13 @@ void MainWindow::on_actionOptions_triggered()
 
 void MainWindow::on_actionUndo_triggered()
 {
+	// While terrain mask painting, undo undoes paint strokes instead of object changes.
+	/*if(gui_client.terrain_mask_painting_enabled)
+	{
+		gui_client.undoTerrainMaskStroke();
+		return;
+	}*/
+
 	try
 	{
 		WorldObjectRef ob = gui_client.undo_buffer.getUndoWorldObject();
@@ -5459,10 +5468,10 @@ int main(int argc, char *argv[])
 		const bool com_init_success = WMFVideoReader::initialiseCOM();
 #endif
 
-		GUIClient::staticInit();
-
-
 		const std::string cyberspace_base_dir_path = PlatformUtils::getResourceDirectoryPath();
+
+		GUIClient::staticInit(cyberspace_base_dir_path);
+
 		const std::string appdata_path = PlatformUtils::getOrCreateAppDataDirectory("Cyberspace");
 
 		try

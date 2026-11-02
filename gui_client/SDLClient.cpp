@@ -226,7 +226,13 @@ int main(int argc, char** argv)
 {
 	try
 	{
-		GUIClient::staticInit();
+#if defined(EMSCRIPTEN)
+		const std::string base_dir = "";
+#else
+		const std::string base_dir = PlatformUtils::getResourceDirectoryPath();
+#endif
+
+		GUIClient::staticInit(base_dir);
 
 
 		std::map<std::string, std::vector<ArgumentParser::ArgumentType> > syntax;
@@ -257,12 +263,6 @@ int main(int argc, char** argv)
 		}
 #endif
 
-
-#if defined(EMSCRIPTEN)
-		const std::string base_dir = "";
-#else
-		const std::string base_dir = PlatformUtils::getResourceDirectoryPath();
-#endif
 
 		// NOTE: this code is also in MainWindow.cpp
 #if defined(_WIN32)

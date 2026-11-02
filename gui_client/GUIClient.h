@@ -161,7 +161,7 @@ public:
 	static const int server_UDP_port = 7601;
 
 
-	static void staticInit();
+	static void staticInit(const std::string& base_dir_path);
 	static void staticShutdown();
 
 	// Initialise everything needed for the initial ClientThread launch.
