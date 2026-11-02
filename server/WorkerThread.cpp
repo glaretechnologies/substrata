@@ -1312,6 +1312,8 @@ void WorkerThread::doRun()
 					getEquippedGearForUser(*cookie_logged_in_user, world_state, lock, /*gear items out=*/client_equipped_gear); // Set client_equipped_gear
 					client_user_flags = cookie_logged_in_user->flags;
 					client_gesture_settings = cookie_logged_in_user->gesture_settings;
+
+					world_state->recordWorldEventAttendance(cur_world_state->details.name, client_user_id, lock);
 				}
 			}
 
@@ -1447,12 +1449,14 @@ void WorkerThread::doRun()
 							conPrintIfNotFuzzing("Client connecting to world '" + new_world_name + "'...");
 
 							{
-								Lock lock(world_state->mutex);
+								WorldStateLock lock(world_state->mutex);
 
 								if(world_state->world_states.count(new_world_name) == 0)
 									throw glare::Exception("Invalid world name '" + new_world_name + "'.");
 
 								this->cur_world_state = world_state->world_states[new_world_name];
+
+								world_state->recordWorldEventAttendance(new_world_name, client_user_id, lock);
 							}
 
 							sendPerWorldInitialDataToClient(world_state, client_protocol_version);
@@ -3191,6 +3195,8 @@ void WorkerThread::doRun()
 											client_gesture_settings = user->gesture_settings;
 											getEquippedGearForUser(*user, world_state, lock, /*gear items out=*/client_equipped_gear); // Set client_equipped_gear
 
+											world_state->recordWorldEventAttendance(cur_world_state->details.name, client_user_id, lock);
+
 											logged_in = true;
 										}
 									}
@@ -3308,6 +3314,8 @@ void WorkerThread::doRun()
 												client_user_flags = new_user->flags;
 
 												world_state->addPersonalWorldForUser(new_user, lock);
+
+												world_state->recordWorldEventAttendance(cur_world_state->details.name, client_user_id, lock);
 
 												signed_up = true;
 											}

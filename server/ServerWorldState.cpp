@@ -991,6 +991,30 @@ void ServerAllWorldsState::addPersonalWorldForUser(const UserRef user, WorldStat
 }
 
 
+// Adds the user to the attendee list of any events currently happening in the named world.
+void ServerAllWorldsState::recordWorldEventAttendance(const std::string& world_name, UserID user_id, WorldStateLock& /*lock*/)
+{
+	if(world_name.empty() || !user_id.valid())
+		return;
+
+	const TimeStamp current_time = TimeStamp::currentTime();
+
+	for(auto it = events.begin(); it != events.end(); ++it)
+	{
+		SubEvent* event = it->second.ptr();
+		if((event->world_name == world_name) && // If event is in this world
+			(event->start_time <= current_time) && // and is currently happening
+			(event->end_time >= current_time))
+		{
+			// Add the user to the event attendee list (if not already inserted)
+			const bool inserted = event->attendee_ids.insert(user_id).second;
+			if(inserted)
+				addEventAsDBDirty(event);
+		}
+	}
+}
+
+
 void ServerAllWorldsState::denormaliseData()
 {
 	WorldStateLock lock(mutex);

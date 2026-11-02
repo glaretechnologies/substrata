@@ -380,6 +380,10 @@ public:
 
 	void addPersonalWorldForUser(const UserRef user, WorldStateLock& lock) REQUIRES(mutex);
 
+	// Adds the user to the attendee list of any events currently happening in the named world.
+	// Only applies to personal-world events: main-world events are located by parcel, and are attended by entering the parcel.
+	void recordWorldEventAttendance(const std::string& world_name, UserID user_id, WorldStateLock& lock) REQUIRES(mutex);
+
 	Reference<ResourceManager> resource_manager;
 
 	std::map<UserID, Reference<User>> user_id_to_users GUARDED_BY(mutex);  // User id to user
