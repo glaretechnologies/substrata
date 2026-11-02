@@ -36,6 +36,13 @@ static const int EVENT_THUMBNAIL_WIDTH        = 460; // 2x the size of .root-eve
 static const int EVENT_THUMBNAIL_HEIGHT       = 262;
 
 
+// Returns true if the user is logged in and created this event, or is an admin.
+static bool userCanEditEvent(const User* logged_in_user, const SubEvent& event)
+{
+	return logged_in_user && ((event.creator_id == logged_in_user->id) || isGodUser(logged_in_user->id));
+}
+
+
 void renderEventPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info) // Shows a single event
 {
 	try
@@ -62,9 +69,9 @@ void renderEventPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 			const SubEvent* event = res->second.ptr();
 
 			User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
-			const bool logged_in_user_is_event_owner = logged_in_user && (event->creator_id == logged_in_user->id); // If the user is logged in and created this event:
+			const bool logged_in_user_can_edit_event = userCanEditEvent(logged_in_user, *event);
 
-			if((event->state == SubEvent::State_published) || logged_in_user_is_event_owner)
+			if((event->state == SubEvent::State_published) || logged_in_user_can_edit_event)
 			{
 				page = WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/event->title, "");
 				page += "<div class=\"main\">   \n";
@@ -88,7 +95,7 @@ void renderEventPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 
 				page += "<table>\n"; // Event data table
 
-				if(logged_in_user_is_event_owner)
+				if(logged_in_user_can_edit_event)
 					page += "<tr><td class=\"event-datum-title\">Status:</td><td class=\"event-datum\"><b>" + SubEvent::stateString(event->state) + "</b></td></tr>\n";
 
 				if(event->world_name.empty()) // If in main world:
@@ -125,7 +132,35 @@ void renderEventPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 					page += "<div><a href=\"" + image_URL + "\"><img src=\"" + image_URL + "\" class=\"event-image\" /></a></div>\n";
 				}
 
-				if(logged_in_user_is_event_owner)
+				// Show photos taken at the event location while the event was happening.
+				// A main-world event is located by its parcel, a personal-world event by its world name.
+				const bool event_has_location = !event->world_name.empty() || event->parcel_id.valid();
+				if(event_has_location)
+				{
+					std::string photos_html;
+					const int max_num_photos_to_display = 30;
+					int num_photos_displayed = 0;
+					for(auto it = world_state.photos.rbegin(); (it != world_state.photos.rend()) && (num_photos_displayed < max_num_photos_to_display); ++it) // Newest first
+					{
+						const Photo* photo = it->second.ptr();
+						if((photo->state == Photo::State_published) &&
+							(photo->created_time >= event->start_time) && (photo->created_time <= event->end_time) &&
+							(photo->world_name == event->world_name) &&
+							(!event->world_name.empty() || (photo->parcel_id == event->parcel_id)))
+						{
+							photos_html += "<a href=\"/photo/" + toString(photo->id) + "\"" + (photo->isVideo() ? " class=\"video-thumb\"" : "") + "><img class=\"generic-image\" src=\"" + photo->midSizeImageURLPath() + "\" alt=\"photo\" /></a>   \n";
+							num_photos_displayed++;
+						}
+					}
+
+					if(!photos_html.empty())
+					{
+						page += "<h3>Photos</h3>\n";
+						page += "<div class=\"generic-image-container\">\n" + photos_html + "</div>\n";
+					}
+				}
+
+				if(logged_in_user_can_edit_event)
 				{
 					// Show attendee list
 					page += "<h3>Attendees</h3>\n";
@@ -152,7 +187,7 @@ void renderEventPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 				page += "No such event found.\n";
 			}
 
-			if(logged_in_user_is_event_owner) // Show edit link If the user is logged in and owns this parcel
+			if(logged_in_user_can_edit_event) // Show edit link if the user is logged in and created this event, or is an admin
 				page += "<br/><br/><div><a href=\"/edit_event?event_id=" + toString(event->id) + "\">Edit event</a></div>";
 		} // end lock scope
 
@@ -345,8 +380,7 @@ void renderEditEventPage(ServerAllWorldsState& world_state, const web::RequestIn
 				const SubEvent* event = res->second.ptr();
 
 				User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
-				const bool logged_in_user_is_event_owner = logged_in_user && (event->creator_id == logged_in_user->id); // If the user is logged in and created this event:
-				if(logged_in_user_is_event_owner)
+				if(userCanEditEvent(logged_in_user, *event))
 				{
 
 					const std::string start_time_str = event->start_time.HTTPDateTimeFormattedStringUTC();
@@ -563,7 +597,7 @@ void handleEditEventPost(ServerAllWorldsState& world_state, const web::RequestIn
 				const SubEvent* event = res->second.ptr();
 
 				const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
-				if(!(logged_in_user && (event->creator_id == logged_in_user->id)))
+				if(!userCanEditEvent(logged_in_user, *event))
 					throw glare::Exception("Access forbidden");
 
 				size_t num_images_kept = 0;
@@ -607,7 +641,7 @@ void handleEditEventPost(ServerAllWorldsState& world_state, const web::RequestIn
 				SubEvent* event = res->second.ptr();
 
 				const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
-				if(logged_in_user && (event->creator_id == logged_in_user->id)) // If the user is logged in and created this event:
+				if(userCanEditEvent(logged_in_user, *event))
 				{
 					event->world_name =  capStringSize(new_world_name.str(),  SubEvent::MAX_WORLD_NAME_SIZE);
 					event->parcel_id = parcel_id;
@@ -666,7 +700,7 @@ void handleDeleteEventPost(ServerAllWorldsState& world_state, const web::Request
 				SubEvent* event = res->second.ptr();
 
 				const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
-				if(logged_in_user && (event->creator_id == logged_in_user->id)) // If the user is logged in and created this event:
+				if(userCanEditEvent(logged_in_user, *event))
 				{
 					world_state.setUserWebMessage(logged_in_user->id, "Deleted event.");
 
