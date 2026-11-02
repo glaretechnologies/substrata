@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2025 -
 #include "LoginHandlers.h"
 #include "WebDataStore.h"
 #include "UploadedImageProcessing.h"
+#include "WorldHandlers.h"
 #include "../server/ServerWorldState.h"
 #include "../server/Order.h"
 #include <ConPrint.h>
@@ -105,7 +106,8 @@ void renderEventPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 				}
 				else // Else if in personal world:
 				{
-					page += "<tr><td class=\"event-datum-title\">Location:</td><td class=\"event-datum\">" + web::Escaping::HTMLEscape(creator_username) + "'s personal world</td></tr>\n";
+					const std::string world_description = (event->world_name == creator_username) ? (creator_username + "'s personal world") : event->world_name;
+					page += "<tr><td class=\"event-datum-title\">Location:</td><td class=\"event-datum\"><a href=\"/world/" + WorldHandlers::URLEscapeWorldName(event->world_name) + "\">" + web::Escaping::HTMLEscape(world_description) + "</a></td></tr>\n";
 				}
 
 
