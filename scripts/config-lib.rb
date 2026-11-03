@@ -18,7 +18,7 @@ $qt_version = "5.15.10" if OS.linux?
 $llvm_version = "15.0.7" # NOTE: Also defined in SUBSTRATA_LLVM_VERSION in CMakeLists.txt.
 
 
-$libressl_version = "3.5.2" # NOTE: Also defined in INDIGO_LIBRESSL_VERSION in CMakeLists.txt.
+$libressl_version = "4.4.0" # NOTE: Also defined in INDIGO_LIBRESSL_VERSION in CMakeLists.txt.
 
 
 # Get Qt path.

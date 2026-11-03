@@ -31,10 +31,10 @@ elseif(WIN32)
 	SET(CMAKE_MODULE_LINKER_FLAGS_SDKDEBUG			"${CMAKE_MODULE_LINKER_FLAGS_SDKDEBUG} ${LIBRESSL_LINK_FLAGS_SDKDEBUG}")
 
 	target_link_libraries(${CURRENT_TARGET} 
-		crypto-49
-		ssl-52  # ssl and tls libs are needed for using LibreSSL's LibTLS API.
-		tls-25
-		Bcrypt.lib # Needed for BCryptGenRandom that crypto-xx uses
+		crypto
+		ssl  # ssl and tls libs are needed for using LibreSSL's LibTLS API.
+		tls
+		Bcrypt.lib # Needed for BCryptGenRandom that crypto uses
 		)
 else()
 	target_link_libraries(${CURRENT_TARGET} PRIVATE
