@@ -64,8 +64,8 @@ int main(int argc, char* argv[])
 		struct tls_config* client_tls_config = tls_config_new();
 		if(!client_tls_config)
 			throw glare::Exception("Failed to initialise TLS (tls_config_new failed)");
-		tls_config_insecure_noverifycert(client_tls_config); // TODO: Fix this, check cert etc..
-		tls_config_insecure_noverifyname(client_tls_config);
+
+		TLSSocket::setClientConfigCAData(client_tls_config);
 
 
 		while(1) // While screenshot bot should keep running:
