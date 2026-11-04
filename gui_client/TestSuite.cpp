@@ -251,7 +251,7 @@ void TestSuite::test()
 	//runTest([&]() { glare::AudioEngine::test(); }); // Disabled, noisy
 	runTest([&]() { KTXDecoder::test(); });
 	runTest([&]() { FormatDecoderVox::test(); });
-runTest([&]() { GIFDecoder::test(); });
+	runTest([&]() { GIFDecoder::test(); });
 	runTest([&]() { TLSSocketTests::test(); }, /*max_leaked_bytes_allowed=*/1400);
 	runTest([&]() { HTTPClient::test(); }, /*max_leaked_bytes_allowed=*/1400); // // LibreSSL allocates and leaves some process-global state: X509 issuer cache entries + mutex CRITICAL_SECTIONs.
 	runTest([&]() { SMTPClient::test(); });
