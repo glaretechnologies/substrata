@@ -6,11 +6,17 @@ Copyright Glare Technologies Limited 2023 -
 #include "TestSuite.h"
 
 
+#include "LuaBuildScript.h"
+#include "VoxelsParcelImporter.h"
+#include "Scripting.h"
+#include "SnowboardPhysics.h"
 #include "ModelLoading.h"
 #include "PhysicsWorld.h"
 #include "TerrainTests.h"
 #include "URLParser.h"
 #include "CameraController.h"
+#include "MeshBuilding.h"
+#include "ResourceProcessing.h"
 #include "../shared/VoxelMeshBuilding.h"
 #include "../shared/LODGeneration.h"
 #include "../shared/ImageDecoding.h"
@@ -36,9 +42,16 @@ Copyright Glare Technologies Limited 2023 -
 #include "../graphics/TextureProcessingTests.h"
 #include "../graphics/jpegdecoder.h"
 #include "../graphics/TextRenderer.h"
+#include "../graphics/BasisDecoder.h"
+#include "../graphics/AnimationData.h"
+#include "../graphics/WebPDecoder.h"
 #include "../opengl/TextureLoadingTests.h"
 #include "../indigo/UVUnwrapper.h"
 #include "../audio/AudioFileReader.h"
+#ifdef _WIN32
+#include "../video/WMFVideoReader.h"
+#endif
+#include "../video/MP4FastStart.h"
 #include "../utils/VectorUnitTests.h"
 #include "../utils/ReferenceTest.h"
 #include "../utils/JSONParser.h"
@@ -52,6 +65,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../utils/TopologicalSort.h"
 #include "../utils/MemAlloc.h"
 #include "../maths/CheckedMaths.h"
+#include "../maths/FresnelApprox.h"
 #include "../utils/SmallArray.h"
 #include "../utils/SmallVector.h"
 #include "../utils/BestFitAllocator.h"
@@ -59,14 +73,29 @@ Copyright Glare Technologies Limited 2023 -
 #include "../utils/FastIterMap.h"
 #include "../utils/ArenaAllocator.h"
 #include "../utils/FileUtils.h"
+#include "../utils/UTF8Utils.h"
 #include "../utils/DatabaseTests.h"
 #include "../utils/TaskTests.h"
+#include "../utils/HashMap.h"
+#include "../utils/HashMap2.h"
+#include "../utils/LRUCache.h"
+#include "../utils/HashSet.h"
+#include "../utils/IterablePool.h"
+#include "../utils/SharedImmutableString.h"
+#include "../utils/SharedStringTable.h"
+#include "../utils/AllocatorVectorUnitTests.h"
+#include "../utils/STLArenaAllocator.h"
+#include "../utils/TimerQueue.h"
+#include "../utils/StackStringBuilder.h"
+#include "../utils/JSONWriteUtils.h"
 #include "../audio/AudioResampler.h"
 #include "../networking/URL.h"
+#include "../networking/SocketTests.h"
 #include "../networking/TLSSocketTests.h"
 #include "../networking/HTTPClient.h"
 #include "../networking/SMTPClient.h"
 #include "../webserver/Escaping.h"
+//#include "../ai/LLMClient.h"
 #include "../opengl/ui/TextEditingUtils.h"
 #include <settings/XMLSettingsStore.h>
 #include <functional>
@@ -76,7 +105,7 @@ Copyright Glare Technologies Limited 2023 -
 #if BUILD_TESTS
 
 // Run some test code, while checking for memory leaks, if we are running in debug mode on Windows.
-static void runTest(std::function<void()> test_func, bool mem_leak_allowed = false)
+static void runTest(std::function<void()> test_func, size_t max_leaked_bytes_allowed = 0)
 {
 	// Do mem snapshotting for leak detection.
 #if defined(_DEBUG) && defined(_MSC_VER)
@@ -84,26 +113,28 @@ static void runTest(std::function<void()> test_func, bool mem_leak_allowed = fal
 	memset(&start_state, 0, sizeof(_CrtMemState));
 	memset(&end_state,   0, sizeof(_CrtMemState));
 	memset(&diff,        0, sizeof(_CrtMemState));
-	if(!mem_leak_allowed)
-		_CrtMemCheckpoint(&start_state); // Capture memory state snapshot.
+	_CrtMemCheckpoint(&start_state); // Capture memory state snapshot.
 #endif
 
 	test_func(); // Run the test
 
 #if defined(_DEBUG) && defined(_MSC_VER)
-	if(!mem_leak_allowed)
+	// If a memory leak is detected, you can tell VS to break at that particular allocation number, next time you run the program again with
+	// _CrtSetBreakAlloc(N);
+	// Where N is the number given in braces in the error message printed to the console.
+	// This approach works better running in indigo_console, beacuse QT does a lot of allocations that differ in quantity each execution.
+	_CrtMemCheckpoint(&end_state);
+	if(_CrtMemDifference(&diff, &start_state, &end_state) != 0)
 	{
-		// If a memory leak is detected, you can tell VS to break at that particular allocation number, next time you run the program again with
-		// _CrtSetBreakAlloc(N);
-		// Where N is the number given in braces in the error message printed to the console.
-		// This approach works better running in indigo_console, beacuse QT does a lot of allocations that differ in quantity each execution.
-		_CrtMemCheckpoint(&end_state);
-		if(_CrtMemDifference(&diff, &start_state, &end_state) != 0)
+		const size_t leaked_bytes = diff.lSizes[_NORMAL_BLOCK] + diff.lSizes[_CLIENT_BLOCK];
+		if(leaked_bytes > max_leaked_bytes_allowed)
 		{
 			_CrtMemDumpAllObjectsSince(&start_state);
 
-			conPrint("Memory Leak Detected: " + std::string(__FILE__) + ", line " + toString((int)__LINE__));
-			assert(!"Memory Leak Detected");
+			conPrint("Memory Leak Detected (" + toString(leaked_bytes) + " B) exceeding allowed size of (" + toString(max_leaked_bytes_allowed) + " B) : " + std::string(__FILE__) + ", line " + toString((int)__LINE__));
+			#if defined(_WIN32)
+			__debugbreak();
+			#endif
 			exit(1);
 		}
 	}
@@ -128,6 +159,32 @@ void TestSuite::test()
 #else
 	const std::string base_dir_path = PlatformUtils::getResourceDirectoryPath();
 #endif
+	
+	runTest([&]() { VoxelsParcelImporter::test(); });
+	runTest([&]() { MP4FastStart::test(); });
+	//FAILS:	runTest([&]() { SnowboardPhysics::test(); });
+	runTest([&]() { LuaBuildScript::test(); });
+	runTest([&]() { WebPDecoder::test(); });
+	//runTest([&]() { LLMClient::test(); });
+	runTest([&]() { Vec3<float>::test(); });
+	runTest([&]() { MeshBuilding::test(); });
+	runTest([&]() { JSONWriteUtils::test(); });
+	runTest([&]() { StackStringBuilder::test(); });
+	runTest([&]() { TimerQueue::test(); });
+	runTest([&]() { SocketTests::test(); });
+	runTest([&]() { AnimationData::test(); });
+#ifdef _WIN32
+	//FAILS: requires opengl init:	runTest([&]() { WMFVideoReader::test(); });
+#endif
+	runTest([&]() { testHashMap2(); });
+	runTest([&]() { glare::testSTLArenaAllocator(); });
+	runTest([&]() { glare::SharedStringTable::test(); });
+	runTest([&]() { glare::SharedImmutableString::test(); });
+	runTest([&]() { testHashSet(); });
+	runTest([&]() { testHashMap(); });
+	runTest([&]() { BasisDecoder::test(); });
+	runTest([&]() { ThreadMessage::test(); });
+	runTest([&]() { glare::AllocatorVectorUnitTests::test(); });
 	runTest([&]() { XMLSettingsStore::test(); });
 	runTest([&]() { TextEditingUtils::test(); });
 	runTest([&]() { JPEGDecoder::test(base_dir_path); });
@@ -170,7 +227,7 @@ void TestSuite::test()
 	runTest([&]() { Matrix3f::test(); });
 	runTest([&]() { circularBufferTest(); });
 	runTest([&]() { glare::testPoolAllocator(); });
-	//runTest([&]() { TextureLoadingTests::test(); });
+	//FAILS: requires opengl init:	runTest([&]() { TextureLoadingTests::test(); });
 	runTest([&]() { Timer::test(); });
 	runTest([&]() { IPAddress::test(); });
 	runTest([&]() { StringUtils::test(); });
@@ -189,19 +246,18 @@ void TestSuite::test()
 	runTest([&]() { PhysicsWorld::test(); });
 	runTest([&]() { FormatDecoderGLTF::test(); });
 	runTest([&]() { BatchedMeshTests::test(); });
-	runTest([&]() { EXRDecoder::test(); }, /*mem leak allowed=*/true); // OpenEXR leaks some minor stuff
+	runTest([&]() { EXRDecoder::test(); }, /*max_leaked_bytes_allowed=*/2048); // OpenEXR leaks some minor stuff
 	runTest([&]() { TextRenderer::test(); });
 	//runTest([&]() { glare::AudioEngine::test(); }); // Disabled, noisy
 	runTest([&]() { KTXDecoder::test(); });
 	runTest([&]() { FormatDecoderVox::test(); });
-	runTest([&]() { GIFDecoder::test(); }, /*mem leak allowed=*/true);
-	runTest([&]() { TLSSocketTests::test(); }, /*mem leak allowed=*/true);
-	runTest([&]() { HTTPClient::test(); }, /*mem leak allowed=*/true); // Leaks, probably due to TLS leaks.
+runTest([&]() { GIFDecoder::test(); });
+	runTest([&]() { TLSSocketTests::test(); }, /*max_leaked_bytes_allowed=*/1400);
+	runTest([&]() { HTTPClient::test(); }, /*max_leaked_bytes_allowed=*/1400); // // LibreSSL allocates and leaves some process-global state: X509 issuer cache entries + mutex CRITICAL_SECTIONs.
 	runTest([&]() { SMTPClient::test(); });
 
 #endif // end if !defined(EMSCRIPTEN)
 
-	// WMFVideoReader::test();
 	// UVUnwrapper::test(); // Disabled as tries to load a bunch of Indigo test scenes
 	// OpenGLEngineTests::test(base_dir_path); // Disabled as tries to load a bunch of Indigo test scenes
 
