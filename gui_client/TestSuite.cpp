@@ -65,7 +65,6 @@ Copyright Glare Technologies Limited 2023 -
 #include "../utils/TopologicalSort.h"
 #include "../utils/MemAlloc.h"
 #include "../maths/CheckedMaths.h"
-#include "../maths/FresnelApprox.h"
 #include "../utils/SmallArray.h"
 #include "../utils/SmallVector.h"
 #include "../utils/BestFitAllocator.h"
