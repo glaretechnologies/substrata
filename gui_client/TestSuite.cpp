@@ -79,7 +79,6 @@ Copyright Glare Technologies Limited 2023 -
 #include "../utils/HashMap2.h"
 #include "../utils/LRUCache.h"
 #include "../utils/HashSet.h"
-#include "../utils/IterablePool.h"
 #include "../utils/SharedImmutableString.h"
 #include "../utils/SharedStringTable.h"
 #include "../utils/AllocatorVectorUnitTests.h"
