@@ -46,12 +46,14 @@ public:
 
 	void loadAndCompressFiles(); // Loads or reloads files.  Compresses files if needed.
 
+	void loadACMEChallengeFilenames(); // Rescans letsencrypt_webroot/.well-known/acme-challenge and updates acme_challenge_filenames.  Does nothing if letsencrypt_webroot is empty.
+
 	Reference<WebDataStoreFile> getFragmentFile(const std::string& path); // Returns NULL if not found
 
 
 	void parseGenericPageConfig();
 
-	//std::string letsencrypt_webroot;
+	std::string letsencrypt_webroot; // Dir Let's Encrypt HTTP-01 challenge files are served from (from <letsencrypt_webroot>/.well-known/acme-challenge/).  Empty = disabled.  Set at startup, not changed after.
 	std::string fragments_dir; // For HTML fragments
 	std::string public_files_dir; // Holds stuff like main.css, map.js, logo_main_page.png etc. from webserver_public_files
 	std::string webclient_dir; // Dir that webclient files are in - client.html, webclient.js etc..
@@ -68,6 +70,8 @@ public:
 	std::map<std::string, Reference<GenericPage>> generic_pages				GUARDED_BY(mutex); // Map from URL path to page
 
 	std::set<std::string> public_image_filenames							GUARDED_BY(mutex); // Names of the files in public_images_dir.  Only these files are served from /images/.
+
+	std::set<std::string> acme_challenge_filenames							GUARDED_BY(mutex); // Names of the files in letsencrypt_webroot/.well-known/acme-challenge.  Only these files are served from /.well-known/acme-challenge/.
 
 	Mutex mutex;
 

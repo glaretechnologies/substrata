@@ -70,11 +70,11 @@ Server TLS keypair
 ------------------
 On Windows and Mac, the certificate is read from 
 	
-	server_state_dir + "/MyCertificate.crt"
+	server_state_dir + "/keypair/MyCertificate.crt"
 
 and the private key is read from 
 	
-	server_state_dir + "/MyKey.key"
+	server_state_dir + "/keypair/MyKey.key"
 
 You can generate such a keypair using OpenSSL / LibreSSL like so:
 

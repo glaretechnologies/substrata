@@ -20,6 +20,7 @@ class SubstrataLuaVM;
 class LuaHTTPRequestManager;
 class LuaHTTPRequest;
 class SocketBufferOutStream;
+class CurrentTLSServerContextPointer;
 
 
 struct ServerConnectedClientInfo
@@ -167,4 +168,7 @@ public:
 	std::vector<ScriptTimerQueueTimer> temp_triggered_timers;
 
 	Reference<LuaHTTPRequestManager> lua_http_manager;
+
+	Reference<CurrentTLSServerContextPointer> cur_web_tls_context_ptr;
+	Reference<CurrentTLSServerContextPointer> cur_sub_tls_context_ptr;
 };

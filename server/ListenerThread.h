@@ -18,6 +18,7 @@ class PrintOutput;
 class ThreadMessageSink;
 class Server;
 class MySocket;
+class CurrentTLSServerContextPointer;
 struct tls_config;
 
 
@@ -29,7 +30,7 @@ ListenerThread
 class ListenerThread : public MessageableThread
 {
 public:
-	ListenerThread(int listenport, Server* server, struct ::tls_config* tls_configuration);
+	ListenerThread(int listenport, Server* server, Reference<CurrentTLSServerContextPointer> current_tls_context_ptr);
 
 	virtual ~ListenerThread();
 
@@ -42,7 +43,7 @@ private:
 
 	Server* server;
 
-	struct tls_config* tls_configuration;
+	Reference<CurrentTLSServerContextPointer> current_tls_context_ptr;
 
 	Reference<MySocket> m_sock;
 	glare::AtomicInt should_quit;

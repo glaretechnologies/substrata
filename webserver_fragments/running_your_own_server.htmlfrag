@@ -162,11 +162,16 @@ Default is <i>server_state_dir + "/webclient"</i> on Mac+Win and <i>/var/www/cyb
 
 <h4>tls_certificate_path</h4>
 
-Path to a X.509 certificate for TLS.    Default is <i>server_state_dir + "/MyCertificate.crt"</i>.  If the default path is used, and no certificate is found at <i>server_state_dir + "/MyCertificate.crt"</i>, then a self-signed certificate will be generated there.
+Path to a X.509 certificate for TLS.    Default is <i>server_state_dir + "/keypair/MyCertificate.crt"</i>.  If the default path is used, and no certificate is found at <i>server_state_dir + "/keypair/MyCertificate.crt"</i>, then a self-signed certificate will be generated there.
 
 <h4>tls_private_key_path</h4>
 
-Path to a private key.    Default is <i>server_state_dir + "/MyKey.key"</i>.  If the default path is used, and no key is found at <i>server_state_dir + "/MyKey.key"</i>, then a new private key will be generated there.
+Path to a private key.    Default is <i>server_state_dir + "/keypair/MyKey.key"</i>.  If the default path is used, and no key is found at <i>server_state_dir + "/keypair/MyKey.key"</i>, then a new private key will be generated there.
+
+<h4>letsencrypt_webroot</h4>
+
+Path to the directory where the Let's Encrypt agent writes the challenge files for renewals.  Default is the empty string.
+An empty string letsencrypt_webroot is interpreted as the path <i>/var/www/cyberspace/letsencrypt_webroot</i> on Linux, and on Mac and Windows the empty string disables serving of challenge files.
 
 <h4>allow_light_mapper_bot_full_perms</h4>
 

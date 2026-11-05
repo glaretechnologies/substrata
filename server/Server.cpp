@@ -165,6 +165,7 @@ static ServerConfig parseServerConfig(const std::string& config_path)
 	config.webserver_public_images_dir			= XMLParseUtils::parseStringWithDefault(root_elem, "webserver_public_images_dir", /*default val=*/"");
 	config.tls_certificate_path					= XMLParseUtils::parseStringWithDefault(root_elem, "tls_certificate_path", /*default val=*/"");
 	config.tls_private_key_path					= XMLParseUtils::parseStringWithDefault(root_elem, "tls_private_key_path", /*default val=*/"");
+	config.letsencrypt_webroot					= XMLParseUtils::parseStringWithDefault(root_elem, "letsencrypt_webroot", /*default val=*/"");
 	config.allow_light_mapper_bot_full_perms	= XMLParseUtils::parseBoolWithDefault(root_elem, "allow_light_mapper_bot_full_perms", /*default val=*/false);
 	config.update_parcel_sales					= XMLParseUtils::parseBoolWithDefault(root_elem, "update_parcel_sales", /*default val=*/false);
 	config.do_lua_http_request_rate_limiting	= XMLParseUtils::parseBoolWithDefault(root_elem, "do_lua_http_request_rate_limiting", /*default val=*/true);
@@ -189,6 +190,29 @@ static bool isFeatureFlagSet(Reference<ServerAllWorldsState>& worlds_state, uint
 {
 	WorldStateLock lock(worlds_state->mutex);
 	return BitUtils::isBitSet(worlds_state->feature_flag_info.feature_flags, flag);
+}
+
+
+static TLSContextRef createAndConfigureServerTLSContext(const std::string& tls_certificate_path, const std::string& tls_private_key_path)
+{
+	TLSConfig server_tls_configuration;
+
+	// Set keypair (public cert and private key) paths
+	if(tls_config_set_keypair_file(server_tls_configuration.config, tls_certificate_path.c_str(), tls_private_key_path.c_str()) != 0)
+		throw glare::Exception("tls_config_set_keypair_file failed: " + getTLSConfigErrorString(server_tls_configuration.config));
+
+	// Create server TLS context
+	TLSContextRef server_tls_context = new TLSContext(tls_server());
+	if(!server_tls_context->context)
+		throw glare::Exception("Failed to create tls_context.");
+
+	// Configure it
+	if(tls_configure(server_tls_context->context, server_tls_configuration.config) == -1)
+		throw glare::Exception("tls_configure failed: " + getTLSErrorString(server_tls_context));
+
+	// The context holds its own reference to the config now, so we can 'free' it here.
+
+	return server_tls_context;
 }
 
 
@@ -405,10 +429,18 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			tls_certificate_path = server_state_dir + "/MyCertificate.crt"; // Use some default paths
-			tls_private_key_path = server_state_dir + "/MyKey.key";
+			tls_certificate_path = server_state_dir + "/keypair/MyCertificate.crt"; // Use some default paths.  Put in a subdirectory ('keypair') that will be watched.
+			tls_private_key_path = server_state_dir + "/keypair/MyKey.key";
 
-			// See https://substrata.info/running_your_own_server , 'Generating a TLS keypair'.
+			// Before nov 2026 the default keypair location was directly in server_state_dir.  Keep using it if it's there, so existing servers keep their cert.
+			const std::string old_cert_path = server_state_dir + "/MyCertificate.crt";
+			const std::string old_key_path  = server_state_dir + "/MyKey.key";
+			if(!FileUtils::fileExists(tls_certificate_path) && FileUtils::fileExists(old_cert_path) && FileUtils::fileExists(old_key_path))
+			{
+				conPrint("Using TLS keypair from old default location in server_state_dir.  Move MyCertificate.crt and MyKey.key into server_state_dir/keypair/ to enable automatic reloading when they change.");
+				tls_certificate_path = old_cert_path;
+				tls_private_key_path = old_key_path;
+			}
 		}
 
 		conPrint("tls_certificate_path: " + tls_certificate_path);
@@ -420,7 +452,8 @@ int main(int argc, char *argv[])
 			{
 				// Generate a keypair and self-signed cert
 				conPrint("cert and private key not found, generating new ones...");
-				KeyPairGen::generateRSAKeyPairAndX509Cert(tls_private_key_path, server_state_dir + "/MyKey.pub", tls_certificate_path);
+				FileUtils::createDirIfDoesNotExist(server_state_dir + "/keypair");
+				KeyPairGen::generateRSAKeyPairAndX509Cert(tls_private_key_path, server_state_dir + "/keypair/MyKey.pub", tls_certificate_path);
 			}
 		}
 
@@ -432,30 +465,29 @@ int main(int argc, char *argv[])
 
 
 		//----------------------------------------------- Launch webserver -----------------------------------------------
-		// Create TLS configuration
-		struct tls_config* web_tls_configuration = tls_config_new();
+		// Create TLS configuration and server context
+		TLSContextRef web_server_tls_context = createAndConfigureServerTLSContext(tls_certificate_path, tls_private_key_path);
+		
+		server.cur_web_tls_context_ptr = new CurrentTLSServerContextPointer();
+		server.cur_web_tls_context_ptr->setCurrentContext(web_server_tls_context);
 
-		if(tls_config_set_cert_file(web_tls_configuration, tls_certificate_path.c_str()) != 0)
-			throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
-
-		if(tls_config_set_key_file(web_tls_configuration, tls_private_key_path.c_str()) != 0) // set private key
-			throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(web_tls_configuration));
 
 		Reference<WebDataStore> web_data_store = new WebDataStore();
 		server.world_state->web_data_store = web_data_store.ptr();
 
-		std::string default_fragments_dir, default_webclient_dir, default_webserver_public_files_dir, default_webserver_public_images_dir;
+		std::string default_fragments_dir, default_webclient_dir, default_webserver_public_files_dir, default_webserver_public_images_dir, default_letsencrypt_webroot;
 #if defined(_WIN32) || defined(OSX)
 		default_fragments_dir				= server_state_dir + "/webserver_fragments";
 		default_webserver_public_files_dir	= server_state_dir + "/webserver_public_files";
 		default_webclient_dir				= server_state_dir + "/webclient";
 		default_webserver_public_images_dir	= server_state_dir + "/public_images";
+		default_letsencrypt_webroot			= ""; // ACME challenge serving disabled by default.
 #else
 		default_fragments_dir				= "/var/www/cyberspace/webserver_fragments";
 		default_webserver_public_files_dir	= "/var/www/cyberspace/public_html";
 		default_webclient_dir				= "/var/www/cyberspace/webclient";
 		default_webserver_public_images_dir	= "/var/www/cyberspace/public_images";
-		//web_data_store->letsencrypt_webroot			= "/var/www/cyberspace/letsencrypt_webroot";
+		default_letsencrypt_webroot			= "/var/www/cyberspace/letsencrypt_webroot"; // Use with certbot --webroot -w /var/www/cyberspace/letsencrypt_webroot
 #endif
 		// Use fragments_dir from the server config.xml file if it's in there (if string is non-empty), otherwise use a default value.
 		if(!server_config.webserver_fragments_dir.empty())
@@ -484,17 +516,42 @@ int main(int argc, char *argv[])
 		web_data_store->screenshot_dir = server.screenshot_dir;
 		web_data_store->photo_dir = server.photo_dir;
 
+		// Use letsencrypt_webroot from the server config.xml file if it's in there (if string is non-empty), otherwise use a default value.
+		if(!server_config.letsencrypt_webroot.empty())
+			web_data_store->letsencrypt_webroot = server_config.letsencrypt_webroot;
+		else
+			web_data_store->letsencrypt_webroot = default_letsencrypt_webroot;
+
 		conPrint("webserver fragments_dir: " + web_data_store->fragments_dir);
 		conPrint("webserver public_files_dir: " + web_data_store->public_files_dir);
 		conPrint("webserver webclient_dir: " + web_data_store->webclient_dir);
 		conPrint("webserver public_images_dir: " + web_data_store->public_images_dir);
+		conPrint("webserver letsencrypt_webroot: " + (web_data_store->letsencrypt_webroot.empty() ? std::string("[not set, ACME challenge serving disabled]") : web_data_store->letsencrypt_webroot));
 
 		FileUtils::createDirIfDoesNotExist(web_data_store->fragments_dir);
 		FileUtils::createDirIfDoesNotExist(web_data_store->public_files_dir);
 		FileUtils::createDirIfDoesNotExist(web_data_store->webclient_dir);
 		FileUtils::createDirIfDoesNotExist(web_data_store->public_images_dir);
+		if(!web_data_store->letsencrypt_webroot.empty())
+		{
+			try
+			{
+				// Create the challenge dir, as the file watcher needs it to exist (adding a watch on a missing dir fails).
+				// certbot --webroot leaves dirs it didn't create in place, so it will keep existing across renewals.
+				FileUtils::createDirIfDoesNotExist(web_data_store->letsencrypt_webroot);
+				FileUtils::createDirIfDoesNotExist(web_data_store->letsencrypt_webroot + "/.well-known");
+				FileUtils::createDirIfDoesNotExist(web_data_store->letsencrypt_webroot + "/.well-known/acme-challenge");
+			}
+			catch(glare::Exception& e)
+			{
+				// Don't fail server startup over this, as it's on by default on Linux, and the default dir may not exist or be writable on other people's servers.
+				conPrint("WARNING: Could not create Let's Encrypt challenge dir, ACME challenge serving disabled: " + e.what());
+				web_data_store->letsencrypt_webroot.clear(); // loadACMEChallengeFilenames(), the file watcher and the request handler all treat empty as disabled.
+			}
+		}
 
 		web_data_store->loadAndCompressFiles();
+		web_data_store->loadACMEChallengeFilenames();
 
 		Reference<WebServerSharedRequestHandler> shared_request_handler = new WebServerSharedRequestHandler();
 		shared_request_handler->data_store = web_data_store.ptr();
@@ -503,38 +560,8 @@ int main(int argc, char *argv[])
 		shared_request_handler->dev_mode = dev_mode;
 
 		ThreadManager web_thread_manager;
-		web_thread_manager.addThread(new web::WebListenerThread(80,  shared_request_handler.getPointer(), NULL));
-		web_thread_manager.addThread(new web::WebListenerThread(443, shared_request_handler.getPointer(), web_tls_configuration));
-
-		{
-			FileWatcherThread::FileWatcherThreadArgs watcher_args;
-			{
-				FileWatcherThread::WatchGroup group;
-				group.dirs.push_back(FileWatcherThread::WatchDir(web_data_store->fragments_dir,    /*watch subtree=*/true));
-				group.dirs.push_back(FileWatcherThread::WatchDir(web_data_store->public_files_dir, /*watch subtree=*/false));
-				group.dirs.push_back(FileWatcherThread::WatchDir(web_data_store->webclient_dir,    /*watch subtree=*/true));
-
-				group.on_change_func = [web_data_store]() { 
-					conPrint("public_files_dir or webclient_dir or fragments_dir file(s) changed, reloading files...");
-					web_data_store->loadAndCompressFiles(); 
-				};
-				watcher_args.watch_groups.push_back(group);
-			}
-
-			// Add watching of the TLS cert
-			{
-				FileWatcherThread::WatchGroup group;
-				group.dirs.push_back(FileWatcherThread::WatchDir(FileUtils::getDirectory(tls_certificate_path),    /*watch subtree=*/false));
-
-				group.on_change_func = [web_data_store]() { 
-					conPrint("TLS cert changed, reloading...");
-				};
-				watcher_args.watch_groups.push_back(group);
-			}
-
-			web_thread_manager.addThread(new FileWatcherThread(watcher_args));
-		}
-
+		web_thread_manager.addThread(new web::WebListenerThread(80,  shared_request_handler.getPointer(), nullptr));
+		web_thread_manager.addThread(new web::WebListenerThread(443, shared_request_handler.getPointer(), server.cur_web_tls_context_ptr));
 		//----------------------------------------------- End launch webserver -----------------------------------------------
 
 
@@ -550,21 +577,104 @@ int main(int argc, char *argv[])
 
 		//----------------------------------------------- Launch Substrata protocol server -----------------------------------------------
 		// Create TLS configuration for substrata protocol server
-		struct tls_config* tls_configuration = tls_config_new();
-
-		if(tls_config_set_cert_file(tls_configuration, tls_certificate_path.c_str()) != 0)
-			throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(tls_configuration));
+		TLSContextRef sub_server_tls_context = createAndConfigureServerTLSContext(tls_certificate_path, tls_private_key_path);
 		
-		if(tls_config_set_key_file(tls_configuration, tls_private_key_path.c_str()) != 0) // set private key
-			throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(tls_configuration));
+		server.cur_sub_tls_context_ptr = new CurrentTLSServerContextPointer();
+		server.cur_sub_tls_context_ptr->setCurrentContext(sub_server_tls_context);
+
 
 		conPrint("Launching ListenerThread...");
 
 		ThreadManager thread_manager;
-		thread_manager.addThread(new ListenerThread(listen_port, &server, tls_configuration));
+		thread_manager.addThread(new ListenerThread(listen_port, &server, server.cur_sub_tls_context_ptr));
 		
 		conPrint("Done.");
 		//----------------------------------------------- End launch substrata protocol server -----------------------------------------------
+
+		//----------------------------------------------- Create file watchers -----------------------------------------------
+		{
+			FileWatcherThread::FileWatcherThreadArgs watcher_args;
+			{
+				FileWatcherThread::WatchGroup group;
+				group.dirs.push_back(FileWatcherThread::WatchDir(web_data_store->fragments_dir,    /*watch subtree=*/true));
+				group.dirs.push_back(FileWatcherThread::WatchDir(web_data_store->public_files_dir, /*watch subtree=*/false));
+				group.dirs.push_back(FileWatcherThread::WatchDir(web_data_store->webclient_dir,    /*watch subtree=*/true));
+
+				group.on_change_func = [web_data_store]() {
+					conPrint("public_files_dir or webclient_dir or fragments_dir file(s) changed, reloading files...");
+					web_data_store->loadAndCompressFiles();
+				};
+				watcher_args.watch_groups.push_back(group);
+			}
+
+			// Watch the Let's Encrypt challenge dir, so new challenge files are added to acme_challenge_filenames straight away during renewals.
+			// (In its own group, so that it doesn't wait on loadAndCompressFiles().)
+			if(!web_data_store->letsencrypt_webroot.empty())
+			{
+				FileWatcherThread::WatchGroup group;
+				group.dirs.push_back(FileWatcherThread::WatchDir(web_data_store->letsencrypt_webroot + "/.well-known/acme-challenge", /*watch subtree=*/false));
+
+				group.on_change_func = [web_data_store]() {
+					web_data_store->loadACMEChallengeFilenames();
+				};
+				watcher_args.watch_groups.push_back(group);
+			}
+
+			// Add watching of the TLS cert and private key.  This is used for reloading them when they change, e.g. for Let's encrypt renewals.
+			{
+				const std::string tls_cert_dir     = FileUtils::getCanonicalPath(FileUtils::getDirectory(tls_certificate_path));
+				const std::string tls_priv_key_dir = FileUtils::getCanonicalPath(FileUtils::getDirectory(tls_private_key_path));
+				const bool tls_cert_dir_is_tls_priv_key_dir = tls_cert_dir == tls_priv_key_dir;
+				const bool is_tls_cert_dir_server_state_dir = tls_cert_dir == FileUtils::getCanonicalPath(server_state_dir);
+				if(is_tls_cert_dir_server_state_dir)
+				{
+					conPrint("-----------------------------------------------------");
+					conPrint("Automatic reload of TLS cert is disabled, as the cert is in server_state_dir ('" + server_state_dir + "') and reloads would be triggered too often.\n" +
+						"Move TLS cert to another directory (e.g. server_state_dir/keypair) to enable automatic reload.");
+					conPrint("-----------------------------------------------------");
+				}
+				else if(!tls_cert_dir_is_tls_priv_key_dir)
+				{
+					conPrint("-----------------------------------------------------");
+					conPrint("Automatic reload of TLS cert is disabled, as the cert is in a different dir from the private key.  Place in the same dir to enable automatic reload.");
+					conPrint("-----------------------------------------------------");
+				}
+				else
+				{
+					FileWatcherThread::WatchGroup group;
+					group.dirs.push_back(FileWatcherThread::WatchDir(FileUtils::getDirectory(tls_certificate_path),    /*watch subtree=*/false));
+
+					Server* server_ptr = &server;
+					group.on_change_func = [server_ptr, tls_certificate_path, tls_private_key_path]() { 
+					
+						// Note that this call will be on the FileWatcherThread.
+						// Wait a moment before reloading, so that if both the cert and key are being replaced, both writes are done.
+						// (Further change events queue up during the wait, so this may result in a second, redundant reload, which is harmless.)
+						PlatformUtils::Sleep(1000);
+
+						conPrint("TLS cert changed, reloading...");
+
+						try
+						{
+							TLSContextRef web_server_tls_context = createAndConfigureServerTLSContext(tls_certificate_path, tls_private_key_path);
+							TLSContextRef sub_server_tls_context = createAndConfigureServerTLSContext(tls_certificate_path, tls_private_key_path);
+
+							server_ptr->cur_web_tls_context_ptr->setCurrentContext(web_server_tls_context);
+							server_ptr->cur_sub_tls_context_ptr->setCurrentContext(sub_server_tls_context);
+						}
+						catch(glare::Exception& e)
+						{
+							conPrint("Exception while creating contexts with updated certs: " + e.what());
+						}
+					};
+					watcher_args.watch_groups.push_back(group);
+				}
+			}
+
+			web_thread_manager.addThread(new FileWatcherThread(watcher_args));
+		}
+		//----------------------------------------------- End create file watchers -----------------------------------------------
+
 
 		server.mesh_lod_gen_thread_manager.addThread(new MeshLODGenThread(&server, server.world_state.ptr()));
 

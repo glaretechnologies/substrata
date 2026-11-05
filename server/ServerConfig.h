@@ -21,7 +21,9 @@ public:
 
 	std::string tls_certificate_path; // empty string = use default.
 	std::string tls_private_key_path; // empty string = use default.
-	
+
+	std::string letsencrypt_webroot; // Dir that Let's Encrypt HTTP-01 challenge files are served from: requests for /.well-known/acme-challenge/<token> are served from <letsencrypt_webroot>/.well-known/acme-challenge/<token>.  (Same layout as certbot --webroot -w <letsencrypt_webroot>.)  Empty string = use default (/var/www/cyberspace/letsencrypt_webroot on Linux, disabled on Windows and Mac).
+
 	bool allow_light_mapper_bot_full_perms; // Allow lightmapper bot (User account with name "lightmapperbot") to have full write permissions.
 
 	bool update_parcel_sales; // Should we run auctions?

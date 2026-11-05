@@ -88,6 +88,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <webserver/WebListenerThread.h>
 #include "../utils/LimitedAllocator.h"
 #include "../networking/MySocket.h"
+#include "../networking/TLSSocket.h"
 #include "../graphics/ImageMap.h"
 #include "../graphics/FormatDecoderGLTF.h"
 #include "../dll/IndigoStringUtils.h"

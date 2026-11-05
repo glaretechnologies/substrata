@@ -128,6 +128,29 @@ static Reference<WebDataStoreFile> loadAndMaybeCompressFile(const std::string& p
 }
 
 
+// Rescans the Let's Encrypt challenge dir and updates acme_challenge_filenames.
+// This is kept separate from loadAndCompressFiles() (which can take a while), as certbot asks Let's Encrypt to validate straight after writing a challenge file.
+// The challenge files aren't loaded, as they are served from disk.
+void WebDataStore::loadACMEChallengeFilenames()
+{
+	if(letsencrypt_webroot.empty())
+		return;
+
+	try
+	{
+		const std::vector<std::string> filenames = FileUtils::getFilesInDir(letsencrypt_webroot + "/.well-known/acme-challenge");
+
+		Lock lock(mutex);
+		acme_challenge_filenames.clear();
+		acme_challenge_filenames.insert(filenames.begin(), filenames.end());
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("WebDataStore::loadACMEChallengeFilenames: warning: " + e.what());
+	}
+}
+
+
 void WebDataStore::loadAndCompressFiles()
 {
 	conPrint("WebDataStore::loadAndCompressFiles");

@@ -21,8 +21,8 @@ Code By Nicholas Chapman.
 #include <TLSSocket.h>
 
 
-ListenerThread::ListenerThread(int listenport_, Server* server_, struct tls_config* tls_configuration_)
-:	listenport(listenport_), server(server_), tls_configuration(tls_configuration_)
+ListenerThread::ListenerThread(int listenport_, Server* server_, Reference<CurrentTLSServerContextPointer> current_tls_context_ptr_)
+:	listenport(listenport_), server(server_), current_tls_context_ptr(current_tls_context_ptr_)
 {
 }
 
@@ -34,7 +34,6 @@ ListenerThread::~ListenerThread()
 
 void ListenerThread::doRun()
 {
-	struct tls* tls_context = NULL;
 	try
 	{
 		MySocketRef sock;
@@ -66,15 +65,6 @@ void ListenerThread::doRun()
 
 		m_sock = sock;
 
-		if(tls_configuration)
-		{
-			tls_context = tls_server();
-			if(!tls_context)
-				throw glare::Exception("Failed to create tls_context.");
-			if(tls_configure(tls_context, tls_configuration) == -1)
-				throw glare::Exception("tls_configure failed: " + getTLSErrorString(tls_context));
-		}
-
 		while(!should_quit)
 		{
 			try
@@ -86,18 +76,23 @@ void ListenerThread::doRun()
 
 				plain_worker_sock->enableTCPKeepAlive(30.f); // Some connections seem to get stuck doing nothing for long periods, so enable keepalive to kill them.
 
-				// Create TLSSocket (tls_context) for worker thread/socket if this is configured as a TLS connection.
+				// Create TLSContext and TLSSocket for worker thread/socket if this is configured as a TLS connection.
 				SocketInterfaceRef use_socket = plain_worker_sock;
-				if(tls_context)
+				if(current_tls_context_ptr)
 				{
-					struct tls* worker_tls_context = NULL;
-					if(tls_accept_socket(tls_context, &worker_tls_context, (int)plain_worker_sock->getSocketHandle()) != 0)
-						throw glare::Exception("tls_accept_socket failed: " + getTLSErrorString(tls_context));
+					// Get the current TLSContext that should be used by the listener.  This may change occasionally when the TLS configuration changes (new keys etc.)
+					TLSContextRef cur_listener_context = current_tls_context_ptr->getCurrentContext();
+
+					TLSContextRef worker_tls_context = new TLSContext();
+					if(tls_accept_socket(cur_listener_context->context, /*new context out=*/&worker_tls_context->context, (int)plain_worker_sock->getSocketHandle()) != 0)
+						throw glare::Exception("tls_accept_socket failed: " + getTLSErrorString(cur_listener_context));
+
+					worker_tls_context->server_context = cur_listener_context;
 
 					TLSSocketRef worker_tls_socket = new TLSSocket(plain_worker_sock, worker_tls_context);
 					use_socket = worker_tls_socket; // use_socket will be a TLS socket after this.
 				}
-			
+
 				// Handle the connection in a worker thread.
 				Reference<WorkerThread> worker_thread = new WorkerThread(
 					use_socket,
@@ -122,8 +117,7 @@ void ListenerThread::doRun()
 		conPrint("ListenerThread glare::Exception: " + e.what());
 	}
 
-	if(tls_context != NULL)
-		tls_free(tls_context); // Free TLS context.
+	current_tls_context_ptr = nullptr;
 
 	conPrint("ListenerThread terminating.");
 }
