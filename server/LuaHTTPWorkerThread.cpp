@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/PlatformUtils.h>
 #include <utils/ConPrint.h>
 #include <utils/KillThreadMessage.h>
+#include <utils/OpenSSL.h>
 
 
 LuaHTTPWorkerThread::LuaHTTPWorkerThread(LuaHTTPRequestManager* manager_)
@@ -82,6 +83,8 @@ void LuaHTTPWorkerThread::doRun()
 	{
 		conPrint(std::string("LuaHTTPWorkerThread: Caught std::exception: ") + e.what());
 	}
+
+	OpenSSL::threadCleanup();
 }
 
 

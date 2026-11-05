@@ -46,10 +46,10 @@ Copyright Glare Technologies Limited 2018 -
 #include <FileChecksum.h>
 #include <networking/RecordingSocket.h>
 #include <maths/CheckedMaths.h>
-#include <openssl/err.h>
-#include <algorithm>
 #include <RuntimeCheck.h>
+#include <OpenSSL.h>
 #include <Timer.h>
+#include <algorithm>
 #include <zstd.h>
 
 
@@ -4081,13 +4081,13 @@ void WorkerThread::doRun()
 	}
 
 	// Remove thread-local OpenSSL error state, to avoid leaking it.
-	// NOTE: have to destroy socket first, before calling ERR_remove_thread_state(), otherwise memory will just be reallocated.
+	// NOTE: have to destroy socket first, before calling OpenSSL::threadCleanup(), otherwise memory will just be reallocated.
 	if(socket.nonNull())
 	{
 		assert(socket->getRefCount() == 1);
 	}
 	socket = NULL;
-	ERR_remove_thread_state(/*thread id=*/NULL); // Set thread ID to null to use current thread.
+	OpenSSL::threadCleanup();
 }
 
 

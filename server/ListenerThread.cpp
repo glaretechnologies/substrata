@@ -19,6 +19,7 @@ Code By Nicholas Chapman.
 #include <Timer.h>
 #include <tls.h>
 #include <TLSSocket.h>
+#include <OpenSSL.h>
 
 
 ListenerThread::ListenerThread(int listenport_, Server* server_, Reference<CurrentTLSServerContextPointer> current_tls_context_ptr_)
@@ -118,6 +119,8 @@ void ListenerThread::doRun()
 	}
 
 	current_tls_context_ptr = nullptr;
+
+	OpenSSL::threadCleanup();
 
 	conPrint("ListenerThread terminating.");
 }
