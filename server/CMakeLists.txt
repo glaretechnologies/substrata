@@ -45,8 +45,6 @@ SET(webserver
 ../webserver/SubEventHandlers.h
 ../webserver/UploadedImageProcessing.cpp
 ../webserver/UploadedImageProcessing.h
-../webserver/WebDataFileWatcherThread.cpp
-../webserver/WebDataFileWatcherThread.h
 ../webserver/WebDataStore.cpp
 ../webserver/WebDataStore.h
 ../webserver/WebServerRequestHandler.cpp

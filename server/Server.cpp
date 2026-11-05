@@ -26,7 +26,6 @@ Copyright Glare Technologies Limited 2023 -
 #include "../webserver/WebServerRequestHandler.h"
 #include "../webserver/AccountHandlers.h"
 #include "../webserver/WebDataStore.h"
-#include "../webserver/WebDataFileWatcherThread.h"
 #if USE_GLARE_PARCEL_AUCTION_CODE
 #include <webserver/CoinbasePollerThread.h>
 #include <webserver/OpenSeaPollerThread.h>
@@ -43,6 +42,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <graphics/BasisDecoder.h>
 #include <utils/ThreadManager.h>
 #include <utils/PlatformUtils.h>
+#include <utils/FileWatcherThread.h>
 #include <utils/Clock.h>
 #include <utils/Timer.h>
 #include <utils/FileUtils.h>
@@ -506,8 +506,34 @@ int main(int argc, char *argv[])
 		web_thread_manager.addThread(new web::WebListenerThread(80,  shared_request_handler.getPointer(), NULL));
 		web_thread_manager.addThread(new web::WebListenerThread(443, shared_request_handler.getPointer(), web_tls_configuration));
 
+		{
+			FileWatcherThread::FileWatcherThreadArgs watcher_args;
+			{
+				FileWatcherThread::WatchGroup group;
+				group.dirs.push_back(FileWatcherThread::WatchDir(web_data_store->fragments_dir,    /*watch subtree=*/true));
+				group.dirs.push_back(FileWatcherThread::WatchDir(web_data_store->public_files_dir, /*watch subtree=*/false));
+				group.dirs.push_back(FileWatcherThread::WatchDir(web_data_store->webclient_dir,    /*watch subtree=*/true));
 
-		web_thread_manager.addThread(new WebDataFileWatcherThread(web_data_store));
+				group.on_change_func = [web_data_store]() { 
+					conPrint("public_files_dir or webclient_dir or fragments_dir file(s) changed, reloading files...");
+					web_data_store->loadAndCompressFiles(); 
+				};
+				watcher_args.watch_groups.push_back(group);
+			}
+
+			// Add watching of the TLS cert
+			{
+				FileWatcherThread::WatchGroup group;
+				group.dirs.push_back(FileWatcherThread::WatchDir(FileUtils::getDirectory(tls_certificate_path),    /*watch subtree=*/false));
+
+				group.on_change_func = [web_data_store]() { 
+					conPrint("TLS cert changed, reloading...");
+				};
+				watcher_args.watch_groups.push_back(group);
+			}
+
+			web_thread_manager.addThread(new FileWatcherThread(watcher_args));
+		}
 
 		//----------------------------------------------- End launch webserver -----------------------------------------------
 
