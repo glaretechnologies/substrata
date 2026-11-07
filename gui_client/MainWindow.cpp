@@ -3403,7 +3403,7 @@ ImageMapUInt8Ref MainWindow::renderCurrentViewToImageMap(int viewport_w, int vie
 
 		// The sensor width is horizontal, so a horizontal field of view fov needs tan(fov/2) = (sensor_width/2) / lens_sensor_dist.
 		const float sensor_width     = GlWidget::defaultSensorWidth();
-		const float lens_sensor_dist = (horizontal_fov > 0) ? (sensor_width * 0.5f / std::tan(horizontal_fov * 0.5f)) : (float)gui_client.cam_controller.lens_sensor_dist;
+		const float lens_sensor_dist = (horizontal_fov > 0) ? (sensor_width * 0.5f / std::tan(horizontal_fov * 0.5f)) : (float)gui_client.cam_controller.getEffectiveLensSensorDist();
 		const float render_aspect    = (float)viewport_w / (float)viewport_h;
 
 		scene->draw_overlay_objects = false; // Don't draw the player's UI overlays into the render.

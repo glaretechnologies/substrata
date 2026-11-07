@@ -44,8 +44,8 @@ class BoatPhysics final : public VehiclePhysics
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	BoatPhysics(WorldObjectRef object, JPH::BodyID boat_body_id, BoatPhysicsSettings settings, PhysicsWorld& physics_world, ParticleManager* particle_manager,
-		TerrainDecalManager* terrain_decal_manager);
+	BoatPhysics(WorldObjectRef object, JPH::BodyID boat_body_id, BoatPhysicsSettings settings, PhysicsWorld& physics_world, glare::AudioEngine* audio_engine, const std::string& base_dir_path,
+		ParticleManager* particle_manager, TerrainDecalManager* terrain_decal_manager);
 	~BoatPhysics();
 
 	WorldObject* getControlledObject() override { return world_object; }
@@ -80,6 +80,8 @@ public:
 	void setDebugVisEnabled(bool enabled, OpenGLEngine& opengl_engine) override;
 	void updateDebugVisObjects() override;
 
+	void updateDopplerEffect(const Vec4f& listener_linear_vel, const Vec4f& listener_pos) override;
+
 
 private:
 	void removeVisualisationObs();
@@ -89,6 +91,7 @@ private:
 	TerrainDecalManager* terrain_decal_manager;
 	PhysicsWorld* m_physics_world;
 	OpenGLEngine* m_opengl_engine;
+	glare::AudioEngine* m_audio_engine;
 	BoatPhysicsSettings settings;
 	JPH::BodyID body_id;
 	bool user_in_driver_seat;
@@ -97,7 +100,11 @@ private:
 
 	float righting_time_remaining;
 	float shape_volume;
-	
+
+	Reference<glare::AudioSource> engine_audio_source;
+	float cur_engine_freq; // Engine pulse rate in Hz, follows the throttle.
+	float cur_engine_volume_factor; // 0 when there is no driver, 1 when the engine is fully running.
+
 	struct SplashPoint
 	{
 		GLARE_ALIGNED_16_NEW_DELETE
@@ -110,6 +117,7 @@ private:
 	js::Vector<SplashPoint> splash_points;
 
 	Reference<GLObject> propellor_point_gl_obs[2];
+	Reference<GLObject> engine_point_gl_ob;
 	std::vector<Reference<GLObject>> hand_hold_point_gl_obs;
 
 	bool show_debug_vis_obs;

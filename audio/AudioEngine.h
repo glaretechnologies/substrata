@@ -147,6 +147,8 @@ public:
 
 	uint32 userdata_1;
 
+	uint32 occlusion_ignore_body_id; // JPH::BodyID value of a physics body that doesn't occlude this source, such as the vehicle it is part of.  Default is the invalid ID, ignoring nothing.
+
 	std::string debugname;
 
 	float smoothed_cur_level;

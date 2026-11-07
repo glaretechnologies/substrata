@@ -568,7 +568,7 @@ void GlWidget::paintGL()
 		cam_controller->getWorldToCameraMatrix(world_to_camera_space_matrix);
 
 		const float sensor_width = defaultSensorWidth();
-		const float lens_sensor_dist = (float)cam_controller->lens_sensor_dist;
+		const float lens_sensor_dist = (float)cam_controller->getEffectiveLensSensorDist();
 		const float render_aspect_ratio = (float)viewport_w / (float)viewport_h;
 		opengl_engine->setViewportDims(viewport_w, viewport_h);
 		opengl_engine->setNearDrawDistance(near_draw_dist);

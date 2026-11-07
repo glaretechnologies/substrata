@@ -262,6 +262,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 		engine_audio_source->type = glare::AudioSource::SourceType_Streaming;
 		engine_audio_source->pos = object->getCentroidWS();
 		engine_audio_source->debugname = "bike engine";
+		engine_audio_source->occlusion_ignore_body_id = bike_body_id.GetIndexAndSequenceNumber(); // The bike shouldn't occlude its own sounds.
 		engine_audio_source->volume = 2.5f;
 		engine_audio_source->mix_sources.resize(3);
 		engine_audio_source->mix_sources[0].soundfile = audio_engine->getOrLoadSoundFile(base_dir_path + "/data/resources/sounds/smartsound_TRANSPORTATION_MOTORCYCLE_Engine_Slow_Idle_Steady_01_44100_hz_mono.mp3");
@@ -275,6 +276,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 		wheel_audio_source[0]->type = glare::AudioSource::SourceType_NonStreaming;
 		wheel_audio_source[0]->pos = object->getCentroidWS();
 		wheel_audio_source[0]->debugname = "front wheel";
+		wheel_audio_source[0]->occlusion_ignore_body_id = bike_body_id.GetIndexAndSequenceNumber();
 		wheel_audio_source[0]->volume = 0.f;
 		wheel_audio_source[0]->shared_buffer = tire_squeal_sound->buf;
 	
@@ -282,6 +284,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 		wheel_audio_source[1]->type = glare::AudioSource::SourceType_NonStreaming;
 		wheel_audio_source[1]->pos = object->getCentroidWS();
 		wheel_audio_source[1]->debugname = "rear wheel";
+		wheel_audio_source[1]->occlusion_ignore_body_id = bike_body_id.GetIndexAndSequenceNumber();
 		wheel_audio_source[1]->volume = 0.f;
 		wheel_audio_source[1]->shared_buffer = tire_squeal_sound->buf;
 		

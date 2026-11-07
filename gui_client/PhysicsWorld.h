@@ -182,7 +182,7 @@ public:
 	// shape is just a bounding box around the cloud.
 	void traceRayAgainstCollidableObs(const Vec4f& origin, const Vec4f& dir, float max_t, JPH::BodyID ignore_body_id, RayTraceResult& results_out) const;
 
-	bool doesRayHitAnything(const Vec4f& origin, const Vec4f& dir, float max_t) const;
+	bool doesRayHitAnything(const Vec4f& origin, const Vec4f& dir, float max_t, JPH::BodyID ignore_body_id) const;
 
 	void writeJoltSnapshotToDisk(const std::string& path);
 

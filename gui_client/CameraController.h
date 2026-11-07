@@ -32,6 +32,9 @@ public:
 
 	Vec3d getFirstPersonPosition() const;
 	Vec3d getPosition() const; // Has third person offset if third person camera is enabled.
+
+	// The lens sensor distance to render with.  In tracking camera mode this zooms in from lens_sensor_dist as the target moves away, keeping the target the same size in frame.
+	double getEffectiveLensSensorDist() const;
 	
 	void setFirstPersonPosition(const Vec3d& pos); // Set just the first-person position, leave the third-person position unchanged.
 	void setThirdPersonCamPosition(const Vec3d& pos);
@@ -128,6 +131,7 @@ private:
 public:
 	double lens_sensor_dist, lens_shift_up, lens_shift_right;
 private:
+	double tracking_cam_start_dist; // Distance from camera to target when tracking camera mode was selected.
 
 	bool third_person;
 

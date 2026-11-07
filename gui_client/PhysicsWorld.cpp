@@ -1766,11 +1766,13 @@ void PhysicsWorld::traceRayAgainstCollidableObs(const Vec4f& origin, const Vec4f
 }
 
 
-bool PhysicsWorld::doesRayHitAnything(const Vec4f& origin, const Vec4f& dir, float max_t) const
+bool PhysicsWorld::doesRayHitAnything(const Vec4f& origin, const Vec4f& dir, float max_t, JPH::BodyID ignore_body_id) const
 {
+	JPH::IgnoreSingleBodyFilter body_filter(ignore_body_id);
+
 	const JPH::RRayCast ray(toJoltVec3(origin), toJoltVec3(dir * max_t));
 	JPH::RayCastResult hit_result;
-	const bool found_hit = this->physics_system->GetNarrowPhaseQuery().CastRay(ray, hit_result);
+	const bool found_hit = this->physics_system->GetNarrowPhaseQuery().CastRay(ray, hit_result, {}, JPH::ObjectLayerFilter(), body_filter);
 	return found_hit;
 }
 

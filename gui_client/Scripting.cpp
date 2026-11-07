@@ -254,6 +254,7 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 
 				boat_settings->thrust_force = (float)XMLParseUtils::parseDoubleWithDefault(boat_elem, "thrust_force", 40000.0);
 				boat_settings->propellor_point_os = parseVec3WithDefault(boat_elem, "propellor_point_os", Vec3d(0, 0.2, -6.2)).toVec4fPoint(); // +z is backwards in beatminer boat model
+				boat_settings->engine_point_os = parseVec3WithDefault(boat_elem, "engine_point_os", Vec3d(0, 0.1, -4.5)).toVec4fPoint(); // Default is for the summoned boat model: 1.5 m forwards of and 0.6 m above its propellor.
 				boat_settings->propellor_sideways_offset = (float)XMLParseUtils::parseDoubleWithDefault(boat_elem, "propellor_sideways_offset", 1.0);
 				boat_settings->rudder_deflection_force_factor = (float)XMLParseUtils::parseDoubleWithDefault(boat_elem, "rudder_deflection_force_factor", 500.0);
 				boat_settings->thrust_vector_lateral_amount = (float)XMLParseUtils::parseDoubleWithDefault(boat_elem, "thrust_vector_lateral_amount", 0.0);

@@ -14,12 +14,23 @@ Copyright Glare Technologies Limited 2023 -
 #include <StringUtils.h>
 #include <ConPrint.h>
 #include <PlatformUtils.h>
+#include "../audio/AudioEngine.h"
 #include <Jolt/Jolt.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 
 
-BoatPhysics::BoatPhysics(WorldObjectRef object, JPH::BodyID body_id_, BoatPhysicsSettings settings_, PhysicsWorld& physics_world, ParticleManager* particle_manager_,
-	TerrainDecalManager* terrain_decal_manager_)
+// Engine pulse rates of the recorded loops, in Hz.  Measured by harmonic analysis of the recordings.
+static const float ENGINE_IDLE_SOURCE_FREQ = 24.25f;
+static const float ENGINE_HIGH_SOURCE_FREQ = 71.07f;
+
+static const float ENGINE_BOOST_FREQ_FACTOR = 1.15f; // Pulse rate at full boost, relative to ENGINE_HIGH_SOURCE_FREQ.
+static const float ENGINE_FREQ_TIME_CONSTANT = 0.5f; // How quickly the engine follows the throttle, in seconds.
+static const float ENGINE_VOLUME_TIME_CONSTANT = 0.3f; // How quickly the engine fades in and out when a driver enters or leaves, in seconds.
+static const float ENGINE_VOLUME = 8.0f;
+
+
+BoatPhysics::BoatPhysics(WorldObjectRef object, JPH::BodyID body_id_, BoatPhysicsSettings settings_, PhysicsWorld& physics_world, glare::AudioEngine* audio_engine, const std::string& base_dir_path,
+	ParticleManager* particle_manager_, TerrainDecalManager* terrain_decal_manager_)
 {
 	world_object = object.ptr();
 	body_id = body_id_;
@@ -28,9 +39,12 @@ BoatPhysics::BoatPhysics(WorldObjectRef object, JPH::BodyID body_id_, BoatPhysic
 	terrain_decal_manager =terrain_decal_manager_;
 	m_physics_world = &physics_world;
 	m_opengl_engine = nullptr;
+	m_audio_engine = audio_engine;
 	righting_time_remaining = -1;
 	user_in_driver_seat = false;
 	show_debug_vis_obs = false;
+	cur_engine_freq = ENGINE_IDLE_SOURCE_FREQ;
+	cur_engine_volume_factor = 0;
 
 	if(world_object->physics_object)
 		world_object->physics_object->use_zero_linear_drag = true; // We will do the drag computations ourself in BoatPhysics::update().
@@ -55,11 +69,39 @@ BoatPhysics::BoatPhysics(WorldObjectRef object, JPH::BodyID body_id_, BoatPhysic
 		splash_points[i].right_sign = myClamp(settings.script_settings->splash_points[i].right_sign, -1.f, 1.f);
 		//splash_points[i].immersed = false;
 	}
+
+	try
+	{
+		Reference<glare::AudioSource> source = new glare::AudioSource();
+		source->type = glare::AudioSource::SourceType_Streaming;
+		source->pos = object->getCentroidWS();
+		source->debugname = "boat engine";
+		source->occlusion_ignore_body_id = body_id_.GetIndexAndSequenceNumber(); // The boat's own hull shouldn't occlude its engine.
+		source->volume = 0.f;
+		source->mix_sources.resize(2);
+		source->mix_sources[0].soundfile = audio_engine->getOrLoadSoundFile(base_dir_path + "/data/resources/sounds/394287__morganpurkis__speedboat_idle_loop_44100hz_mono.mp3");
+		source->mix_sources[1].soundfile = audio_engine->getOrLoadSoundFile(base_dir_path + "/data/resources/sounds/257730__rtb45__speedboat_outboard_high_loop_44100hz_mono.mp3");
+		source->sampling_rate = 44100;
+
+		audio_engine->addSource(source);
+		engine_audio_source = source;
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("Error loading boat sounds: " + e.what());
+		assert(0);
+	}
 }
 
 
 BoatPhysics::~BoatPhysics()
 {
+	if(engine_audio_source)
+	{
+		m_audio_engine->removeSource(engine_audio_source);
+		engine_audio_source = nullptr;
+	}
+
 	removeVisualisationObs();
 }
 
@@ -387,6 +429,41 @@ VehiclePhysicsUpdateEvents BoatPhysics::update(PhysicsWorld& physics_world, cons
 		righting_time_remaining -= dtime;
 	}
 
+	// ---------------------------------- audio -----------------------------------
+	if(engine_audio_source)
+	{
+		// Throttle is 1 at normal full power and 2 at full boost.  The engine only runs while there is a driver.
+		const float throttle = user_in_driver_seat ? std::fabs(forward) : 0.f;
+		const float target_engine_freq = (throttle <= 1.f) ?
+			Maths::lerp(ENGINE_IDLE_SOURCE_FREQ, ENGINE_HIGH_SOURCE_FREQ, throttle) :
+			ENGINE_HIGH_SOURCE_FREQ * Maths::lerp(1.f, ENGINE_BOOST_FREQ_FACTOR, myMin(throttle - 1.f, 1.f));
+
+		cur_engine_freq += (target_engine_freq - cur_engine_freq) * (1 - std::exp(-dtime / ENGINE_FREQ_TIME_CONSTANT));
+
+		const float target_volume_factor = user_in_driver_seat ? 1.f : 0.f;
+		cur_engine_volume_factor += (target_volume_factor - cur_engine_volume_factor) * (1 - std::exp(-dtime / ENGINE_VOLUME_TIME_CONSTANT));
+
+		// Set mix parameters for the engine sound.  Actual mixing is done in the audio thread.
+		{
+			Lock lock(m_audio_engine->mutex);
+
+			const float high_intensity_factor = Maths::smoothStep(ENGINE_IDLE_SOURCE_FREQ * 1.25f, ENGINE_HIGH_SOURCE_FREQ * 0.85f, cur_engine_freq);
+
+			// The source sampling rate matches the sound files, so source_delta is just the pitch shift factor.
+			// Intensity = amplitude^2, amplitude = sqrt(intensity)
+			engine_audio_source->mix_sources[0].source_delta = engine_audio_source->doppler_factor * cur_engine_freq / ENGINE_IDLE_SOURCE_FREQ;
+			engine_audio_source->mix_sources[1].source_delta = engine_audio_source->doppler_factor * cur_engine_freq / ENGINE_HIGH_SOURCE_FREQ;
+			engine_audio_source->mix_sources[0].mix_factor = std::sqrt(myMax(0.f, 1 - high_intensity_factor)); // smoothStep can slightly exceed 1 due to rounding.
+			engine_audio_source->mix_sources[1].mix_factor = std::sqrt(high_intensity_factor);
+		}
+
+		engine_audio_source->volume = ENGINE_VOLUME * cur_engine_volume_factor;
+		m_audio_engine->sourceVolumeUpdated(*engine_audio_source);
+
+		engine_audio_source->pos = to_world * settings.script_settings->engine_point_os;
+		m_audio_engine->sourcePositionUpdated(*engine_audio_source);
+	}
+
 	return events;
 }
 
@@ -465,6 +542,16 @@ Vec4f BoatPhysics::getLinearVel(PhysicsWorld& physics_world) const
 }
 
 
+void BoatPhysics::updateDopplerEffect(const Vec4f& listener_linear_vel, const Vec4f& listener_pos)
+{
+	if(engine_audio_source)
+		engine_audio_source->updateDopplerEffectFactor(
+			getLinearVel(*m_physics_world), // source linear vel,
+			listener_linear_vel, listener_pos
+		);
+}
+
+
 void BoatPhysics::setDebugVisEnabled(bool enabled, OpenGLEngine& opengl_engine)
 {
 	this->show_debug_vis_obs = enabled;
@@ -488,6 +575,7 @@ void BoatPhysics::updateDebugVisObjects()
 			if(splash_points[i].debug_gl_ob.isNull())
 			{
 				splash_points[i].debug_gl_ob = m_opengl_engine->makeSphereObject(radius, Colour4f(0,1,0,1));
+				splash_points[i].debug_gl_ob->always_visible = true;
 				m_opengl_engine->addObject(splash_points[i].debug_gl_ob);
 			}
 
@@ -503,6 +591,7 @@ void BoatPhysics::updateDebugVisObjects()
 			if(propellor_point_gl_obs[i].isNull())
 			{
 				propellor_point_gl_obs[i] = m_opengl_engine->makeSphereObject(radius, Colour4f(1,0,0,1));
+				propellor_point_gl_obs[i]->always_visible = true;
 				m_opengl_engine->addObject(propellor_point_gl_obs[i]);
 			}
 
@@ -518,6 +607,21 @@ void BoatPhysics::updateDebugVisObjects()
 			propellor_point_gl_obs[i]->ob_to_world_matrix = Matrix4f::translationMatrix(positions[i]) * Matrix4f::uniformScaleMatrix(radius);
 
 			m_opengl_engine->updateObjectTransformData(*propellor_point_gl_obs[i]);
+		}
+
+		// Add/update engine point
+		{
+			const float radius = 0.1f;
+			if(engine_point_gl_ob.isNull())
+			{
+				engine_point_gl_ob = m_opengl_engine->makeSphereObject(radius, Colour4f(1,0.6f,0,1));
+				engine_point_gl_ob->always_visible = true;
+				m_opengl_engine->addObject(engine_point_gl_ob);
+			}
+
+			engine_point_gl_ob->ob_to_world_matrix = ob_to_world * Matrix4f::translationMatrix(settings.script_settings->engine_point_os) * Matrix4f::uniformScaleMatrix(radius);
+
+			m_opengl_engine->updateObjectTransformData(*engine_point_gl_ob);
 		}
 
 		// Add hand hold points
@@ -537,6 +641,7 @@ void BoatPhysics::updateDebugVisObjects()
 					if(!hand_hold_point_gl_obs[hold_point_index])
 					{
 						hand_hold_point_gl_obs[hold_point_index] = m_opengl_engine->makeSphereObject(radius, Colour4f(0,1,1,1));
+						hand_hold_point_gl_obs[hold_point_index]->always_visible = true;
 						m_opengl_engine->addObject(hand_hold_point_gl_obs[hold_point_index]);
 					}
 
@@ -558,6 +663,8 @@ void BoatPhysics::removeVisualisationObs()
 
 	for(size_t i=0; i<2; ++i)
 		checkRemoveObAndSetRefToNull(*m_opengl_engine, propellor_point_gl_obs[i]);
+
+	checkRemoveObAndSetRefToNull(*m_opengl_engine, engine_point_gl_ob);
 
 	for(size_t i=0; i<hand_hold_point_gl_obs.size(); ++i)
 		checkRemoveObAndSetRefToNull(*m_opengl_engine, hand_hold_point_gl_obs[i]);

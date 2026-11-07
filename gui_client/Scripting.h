@@ -102,6 +102,7 @@ struct BoatScriptSettings : public VehicleScriptedSettings
 
 	float thrust_force;
 	Vec4f propellor_point_os;
+	Vec4f engine_point_os; // Where the engine sound comes from.
 	float propellor_sideways_offset;
 	float rudder_deflection_force_factor;
 	float thrust_vector_lateral_amount; // left/right thrust vectoring For jetskis

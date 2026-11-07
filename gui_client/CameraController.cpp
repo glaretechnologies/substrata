@@ -47,6 +47,7 @@ CameraController::CameraController()
 	free_cam_vel = Vec3d(0.0);
 
 	lens_sensor_dist = 0.025;
+	tracking_cam_start_dist = 1;
 
 	autofocus_mode = AutofocusMode_Off;
 
@@ -200,6 +201,21 @@ Vec3d CameraController::getPosition() const
 		assert(0);
 		return Vec3d(0.0);
 	}
+}
+
+
+double CameraController::getEffectiveLensSensorDist() const
+{
+	if(current_cam_mode == CameraMode_TrackingCamera)
+	{
+		const double MAX_TRACKING_LENS_SENSOR_DIST = 1.0; // Matches the maximum of the focal length slider.
+
+		const double dist = third_person_cam_position.getDist(toVec3d(target_ob_to_world_matrix * Vec4f(0,0,0,1)));
+		const double zoom = myMax(1.0, dist / tracking_cam_start_dist);
+		return myMax(lens_sensor_dist, myMin(MAX_TRACKING_LENS_SENSOR_DIST, lens_sensor_dist * zoom));
+	}
+	else
+		return lens_sensor_dist;
 }
 
 
@@ -507,6 +523,9 @@ void CameraController::trackingCameraModeSelected()
 	setStateBeforeCameraModeChange();
 
 	current_cam_mode = CameraMode_TrackingCamera;
+
+	const double MIN_TRACKING_START_DIST = 1.0; // Avoids extreme zoom if the target is right next to the camera when this mode is selected.
+	tracking_cam_start_dist = myMax(MIN_TRACKING_START_DIST, third_person_cam_position.getDist(toVec3d(target_ob_to_world_matrix * Vec4f(0,0,0,1))));
 }
 
 
