@@ -50,6 +50,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "PhotoModeUI.h"
 #include "ImGUIDrawing.h"
 #include "BuilderAIUI.h"
+#include "KeyHelpUI.h"
 #include "../shared/VehiclesShared.h"
 #include "../shared/ProtocolStructs.h"
 #include "GearInventoryUI.h"
@@ -192,6 +193,7 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
 	frame_num(0),
 	next_lod_changes_begin_i(0),
+	terrain_mask_painting_enabled(false),
 	last_vehicle_renewal_msg_time(-1),
 	stack_allocator(/*size (B)=*/22 * 1024 * 1024), // Used for the Jolt physics temp allocator also.
 	arena_allocator(/*size (B)=*/4 * 1024 * 1024), // Used for WorldObject::appendDependencyURLs() etc.
@@ -540,6 +542,8 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	hud_ui.create(/*gui_client_=*/this, gl_ui);
 
 	chat_ui.create(/*gui_client_=*/this, gl_ui);
+
+	key_help_ui = new KeyHelpUI(gl_ui);
 
 	// Chat UI should be drawn above the movement button if present.
 	const float bottom_left_y = misc_info_ui.movement_button ? misc_info_ui.movement_button->getRect().getMax().y : -gl_ui->getViewportMinMaxY();
@@ -979,8 +983,8 @@ void GUIClient::shutdown()
 
 	load_item_queue.clear();
 
-	model_and_texture_loader_task_manager.removeQueuedTasks();
-	model_and_texture_loader_task_manager.waitForTasksToComplete();
+
+	model_and_texture_loader_task_manager.cancelAndWaitForTasksToComplete();
 
 	// End any recording in progress, so the VideoEncodeTask finalises the video file and finishes.  Then wait for it.
 	video_recorder.stopRecording(/*stop time=*/Clock::getTimeSinceInit());
@@ -1055,6 +1059,8 @@ void GUIClient::shutdown()
 	hud_ui.destroy();
 
 	chat_ui.destroy();
+
+	key_help_ui = nullptr;
 
 	builder_ai_ui = nullptr;
 
@@ -6726,10 +6732,13 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	{
 		const Vec4f listener_linear_vel = vehicle_controller_inside.nonNull() ? vehicle_controller_inside->getLinearVel(*this->physics_world) : player_physics.getLinearVel();
 
+		// The tracking camera is stationary, so the listener doesn't move with the avatar or vehicle.
+		const Vec4f doppler_listener_linear_vel = (cam_controller.current_cam_mode == CameraController::CameraMode_TrackingCamera) ? Vec4f(0.f) : listener_linear_vel;
+
 		for(auto it = vehicle_controllers.begin(); it != vehicle_controllers.end(); ++it)
 		{
 			VehiclePhysics* controller = it->second.ptr();
-			controller->updateDopplerEffect(/*listener linear vel=*/listener_linear_vel, /*listener pos=*/cam_controller.getFirstPersonPosition().toVec4fPoint());
+			controller->updateDopplerEffect(/*listener linear vel=*/doppler_listener_linear_vel, /*listener pos=*/cam_controller.getPosition().toVec4fPoint());
 		}
 
 		if(wind_audio_source)
@@ -7173,7 +7182,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 				const Vec4f trace_start = campos;
 
-				const bool hit_object = physics_world->doesRayHitAnything(trace_start, trace_dir, trace_dist);
+				const bool hit_object = physics_world->doesRayHitAnything(trace_start, trace_dir, trace_dist, /*ignore body id=*/JPH::BodyID(source->occlusion_ignore_body_id));
 				if(hit_object)
 				{
 					//conPrint("hit aabb: " + results.hit_object->aabb_ws.toStringNSigFigs(4));
@@ -7880,6 +7889,26 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 	if(terrain_system.nonNull())
 		terrain_system->updateCampos(this->cam_controller.getPosition(), stack_allocator);
+
+	if(terrain_mask_painting_enabled)
+	{
+		TerrainEditor* editor = getOrCreateTerrainEditor();
+		if(editor)
+		{
+			// While not mid-stroke, CTRL selects add mode and ALT selects remove mode, shown by the brush cursor colour.
+			if(!editor->isStrokeActive() && (mouse_cursor_state.ctrl_key_down || mouse_cursor_state.alt_key_down))
+				terrain_mask_brush.target_value = mouse_cursor_state.ctrl_key_down ? 1.f : 0.f;
+			const bool paint_mode_active = editor->isStrokeActive() || mouse_cursor_state.ctrl_key_down || mouse_cursor_state.alt_key_down;
+
+			// Update the brush cursor every frame, since the camera may move while the mouse is still.
+			if(ui_interface->isCursorHidden())
+				editor->hideCursor();
+			else
+				editor->updateCursor(cam_controller.getPosition().toVec4fPoint(), getDirForPixelTrace(mouse_cursor_state.cursor_pos.x, mouse_cursor_state.cursor_pos.y), terrain_mask_brush, paint_mode_active);
+
+			editor->think(terrain_mask_brush, (float)dt);
+		}
+	}
 
 	if(terrain_decal_manager.nonNull())
 		terrain_decal_manager->think((float)dt);
@@ -13671,7 +13700,7 @@ Reference<VehiclePhysics> GUIClient::createVehicleControllerForScript(WorldObjec
 
 		physics_world->setObjectLayer(ob->physics_object, Layers::MOVING);
 
-		controller = new BoatPhysics(ob, ob->physics_object->jolt_body_id, physics_settings, *physics_world, particle_manager.ptr(), terrain_decal_manager.ptr());
+		controller = new BoatPhysics(ob, ob->physics_object->jolt_body_id, physics_settings, *physics_world, &audio_engine, base_dir_path, particle_manager.ptr(), terrain_decal_manager.ptr());
 	}
 	else if(ob->vehicle_script.isType<Scripting::SnowboardScript>())
 	{
@@ -14165,6 +14194,8 @@ void GUIClient::clearAllObjects()
 	if(particle_manager)
 		particle_manager->clearParticles();
 
+
+	discardTerrainEditor();
 
 	if(terrain_system)
 	{
@@ -14669,6 +14700,24 @@ void GUIClient::mousePressed(MouseEvent& e)
 		}
 	}
 
+	// If painting terrain masks, and the user CTRL or ALT-clicked on the terrain, start a brush stroke instead of rotating the camera.
+	// CTRL+left click paints additively, ALT+left click paints subtractively.
+	const bool ctrl_down = BitUtils::isBitSet(e.modifiers, (uint32)Modifiers::Ctrl);
+	const bool alt_down  = BitUtils::isBitSet(e.modifiers, (uint32)Modifiers::Alt);
+	if(terrain_mask_painting_enabled && (ctrl_down || alt_down) && (e.button == MouseButton::Left))
+	{
+		terrain_mask_brush.target_value = ctrl_down ? 1.f : 0.f;
+
+		TerrainEditor* editor = getOrCreateTerrainEditor();
+		if(editor && editor->updateCursor(cam_controller.getPosition().toVec4fPoint(), getDirForPixelTrace(e.cursor_pos.x, e.cursor_pos.y), terrain_mask_brush, /*paint_mode_active=*/true))
+		{
+			editor->startStroke();
+			ui_interface->setCamRotationOnMouseDragEnabled(false);
+			e.accepted = true;
+			return;
+		}
+	}
+
 	ui_interface->setCamRotationOnMouseDragEnabled(true);
 
 	// Trace through scene to see if we are clicking on a web-view.  Send mousePressed events to the web view if so.
@@ -14835,6 +14884,13 @@ void GUIClient::mousePressed(MouseEvent& e)
 
 void GUIClient::mouseReleased(MouseEvent& e)
 {
+	if(terrain_editor && terrain_editor->isStrokeActive())
+	{
+		terrain_editor->finishStroke();
+		e.accepted = true;
+		return;
+	}
+
 	if(gl_ui.nonNull())
 	{
 		gl_ui->handleMouseRelease(e);
@@ -15871,6 +15927,8 @@ void GUIClient::viewportResized(int w, int h)
 	}
 
 	chat_ui.viewportResized(w, h);
+	if(key_help_ui)
+		key_help_ui->viewportResized(w, h);
 	if(builder_ai_ui)
 		builder_ai_ui->viewportResized(w, h);
 	if(photo_mode_ui)
@@ -17117,6 +17175,114 @@ void GUIClient::worldSettingsChangedFromUI(const WorldSettings& new_world_settin
 }
 
 
+TerrainEditor* GUIClient::getOrCreateTerrainEditor()
+{
+	// The editor is tied to a particular terrain system.  If the terrain has been reloaded (e.g. due to a world settings change), any unpublished edits are lost.
+	if(terrain_editor && (terrain_editor->getTerrainSystem() != terrain_system.ptr()))
+	{
+		const bool had_edits = terrain_editor->haveEdits();
+		discardTerrainEditor();
+		if(had_edits)
+			showErrorNotification("The terrain was reloaded, so unpublished terrain mask edits were discarded.");
+	}
+
+	if(!terrain_system || !opengl_engine)
+		return NULL;
+
+	if(!terrain_editor)
+		terrain_editor = new TerrainEditor(opengl_engine.ptr(), terrain_system);
+
+	return terrain_editor.ptr();
+}
+
+
+void GUIClient::discardTerrainEditor()
+{
+	if(terrain_editor)
+	{
+		terrain_editor->shutdown();
+		terrain_editor = NULL;
+	}
+}
+
+
+void GUIClient::setTerrainMaskPaintingEnabled(bool enabled)
+{
+	if(enabled != terrain_mask_painting_enabled)
+	{
+		if(enabled)
+		{
+			std::vector<KeyHelpEntry> entries;
+			entries.push_back(KeyHelpEntry("Ctrl + Left drag", "Paint"));
+			entries.push_back(KeyHelpEntry("Alt + Left drag", "Erase"));
+			entries.push_back(KeyHelpEntry("Ctrl + Z", "Undo stroke"));
+			if(key_help_ui)
+				key_help_ui->setHelp("terrain_mask_painting", /*title=*/"", entries);
+		}
+		else
+		{
+			if(key_help_ui)
+				key_help_ui->removeHelp("terrain_mask_painting");
+		}
+	}
+
+	terrain_mask_painting_enabled = enabled;
+
+	if(!enabled && terrain_editor)
+	{
+		terrain_editor->finishStroke();
+		terrain_editor->hideCursor();
+	}
+}
+
+
+void GUIClient::undoTerrainMaskStroke()
+{
+	TerrainEditor* editor = getOrCreateTerrainEditor();
+	if(editor)
+		editor->undoStroke();
+}
+
+
+void GUIClient::publishTerrainMaskEdits()
+{
+	TerrainEditor* editor = getOrCreateTerrainEditor();
+	if(!editor || !editor->haveEdits())
+	{
+		showInfoNotification("There are no terrain mask edits to publish.");
+		return;
+	}
+
+	if(!connectedToUsersWorldOrGodUser())
+	{
+		showErrorNotification("You do not have permissions to change the world settings.");
+		return;
+	}
+
+	editor->finishStroke();
+
+	try
+	{
+		WorldSettings new_world_settings;
+		new_world_settings.copyNetworkStateFrom(this->connected_world_settings);
+
+		editor->publishEdits(*resource_manager, PlatformUtils::getTempDirPath(), new_world_settings.terrain_spec);
+
+		// The terrain will be reloaded with the published maps, so the edits are no longer needed.
+		discardTerrainEditor();
+
+		worldSettingsChangedFromUI(new_world_settings);
+		ui_interface->updateWorldSettingsUIFromWorldSettings();
+
+		showInfoNotification("Published terrain mask edits.");
+	}
+	catch(glare::Exception& e)
+	{
+		showErrorNotification("Failed to publish terrain mask edits: " + e.what());
+	}
+}
+
+
 void GUIClient::applyWorldSettingsToOpenGLEngine()
 {
 	if(opengl_engine)
@@ -17708,6 +17874,8 @@ void GUIClient::hideUI()
 	gesture_ui.setVisible(false);
 	misc_info_ui.setVisible(false);
 	chat_ui.setVisible(false);
+	if(key_help_ui)
+		key_help_ui->setVisible(false);
 	if(photo_mode_ui)
 		photo_mode_ui->setVisible(false);
 	if(minimap)
@@ -17726,6 +17894,8 @@ void GUIClient::unhideUIIfHidden()
 		gesture_ui.setVisible(true);
 		misc_info_ui.setVisible(true);
 		chat_ui.setVisible(true);
+		if(key_help_ui)
+			key_help_ui->setVisible(true);
 		if(photo_mode_ui)
 			photo_mode_ui->setVisible(true);
 		if(minimap)

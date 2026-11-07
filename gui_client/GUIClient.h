@@ -28,6 +28,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "UploadResourceThread.h"
 #include "ScriptedObjectProximityChecker.h"
 #include "ObjectMoveToController.h"
+#include "TerrainEditor.h"
 #include "../shared/WorldSettings.h"
 #include "../shared/WorldDetails.h"
 #include "../audio/AudioEngine.h"
@@ -109,6 +110,7 @@ class PBO;
 class GestureSettings;
 class PhotoModeUI;
 class BuilderAIUI;
+class KeyHelpUI;
 class GearInventoryUI;
 class TransformGizmo;
 namespace Scripting { class ObjectScriptsEvaluator; }
@@ -280,6 +282,14 @@ public:
 	void tryCloneGearItem(const GearItemRef& item); // Called when the user presses C while hovering a gear thumbnail.  Sends a message to server to try to clone the gear item.
 	void worldSettingsChangedFromUI(const WorldSettings& new_world_settings);
 	void applyWorldSettingsToOpenGLEngine();
+
+	// Terrain mask painting
+	void setTerrainMaskPaintingEnabled(bool enabled);
+	void undoTerrainMaskStroke();
+	void publishTerrainMaskEdits();
+private:
+	TerrainEditor* getOrCreateTerrainEditor(); // Returns NULL if there is no terrain system.
+	void discardTerrainEditor();
 public:
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
 	void selectObject(const WorldObjectRef& ob, int selected_mat_index);
@@ -781,6 +791,7 @@ public:
 	MiscInfoUI misc_info_ui; // For showing messages from the server, vehicle speed etc.
 	HeadUpDisplayUI hud_ui; // Draws stuff like markers for other avatars
 	ChatUI chat_ui; // Draws chat user-interface, showing chat from other users plus the line edit for chatting.
+	Reference<KeyHelpUI> key_help_ui; // On-screen help listing keys and their actions, for the current mode(s).
 	Reference<BuilderAIUI> builder_ai_ui; // The "Builder AI" panel: chat interface for asking the AI to build things.
 	Reference<PhotoModeUI> photo_mode_ui;
 	Reference<GearInventoryUI> gear_inventory_ui;
@@ -852,6 +863,10 @@ public:
 
 	Reference<TerrainSystem> terrain_system;
 	Reference<TerrainDecalManager> terrain_decal_manager;
+
+	TerrainMaskBrush terrain_mask_brush;
+	bool terrain_mask_painting_enabled;
+	Reference<TerrainEditor> terrain_editor;
 
 	Reference<ParticleManager> particle_manager;
 

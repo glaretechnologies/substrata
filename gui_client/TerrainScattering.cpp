@@ -1737,6 +1737,7 @@ static void bindTextureUnitToSampler(const OpenGLTexture& texture, int texture_u
 	glActiveTexture(GL_TEXTURE0 + texture_unit_index);
 	glBindTexture(texture.getTextureTarget(), texture.texture_handle);
 	glUniform1i(sampler_uniform_location, texture_unit_index);
+	glActiveTexture(GL_TEXTURE0); // Change the active texture unit index back to zero, so we don't accidentally change the binding when creating new textures etc.
 }
 
 

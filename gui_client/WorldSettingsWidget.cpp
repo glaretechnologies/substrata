@@ -20,7 +20,8 @@ Copyright Glare Technologies Limited 2023 -
 
 
 WorldSettingsWidget::WorldSettingsWidget(QWidget* parent)
-:	QWidget(parent)
+:	QWidget(parent),
+	main_window(NULL)
 {
 	setupUi(this);
 
@@ -45,6 +46,13 @@ WorldSettingsWidget::WorldSettingsWidget(QWidget* parent)
 	connect(this->spawnXDoubleSpinBox,			SIGNAL(valueChanged(double)),		this, SLOT(settingsChangedSlot()));
 	connect(this->spawnYDoubleSpinBox,			SIGNAL(valueChanged(double)),		this, SLOT(settingsChangedSlot()));
 	connect(this->spawnZDoubleSpinBox,			SIGNAL(valueChanged(double)),		this, SLOT(settingsChangedSlot()));
+
+	connect(this->terrainMaskPaintingCheckBox,				SIGNAL(toggled(bool)),				this, SLOT(terrainMaskPaintSettingsChangedSlot()));
+	connect(this->terrainMaskPaintMapComboBox,				SIGNAL(currentIndexChanged(int)),	this, SLOT(terrainMaskPaintSettingsChangedSlot()));
+	connect(this->terrainMaskBrushRadiusDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SLOT(terrainMaskPaintSettingsChangedSlot()));
+	connect(this->terrainMaskBrushStrengthDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SLOT(terrainMaskPaintSettingsChangedSlot()));
+	connect(this->undoTerrainMaskStrokePushButton,			SIGNAL(clicked()),					this, SLOT(undoTerrainMaskStrokeSlot()));
+	connect(this->publishTerrainMaskEditsPushButton,		SIGNAL(clicked()),					this, SLOT(publishTerrainMaskEditsSlot()));
 }
 
 
@@ -57,6 +65,8 @@ void WorldSettingsWidget::init(MainWindow* main_window_)
 	main_window = main_window_;
 
 	updateControlsEditable();
+
+	terrainMaskPaintSettingsChangedSlot(); // Set the initial brush settings in GUIClient from the UI.
 }
 
 
@@ -232,6 +242,12 @@ void WorldSettingsWidget::updateControlsEditable()
 	spawnZDoubleSpinBox->setReadOnly(!editable);
 
 	applyPushButton->setEnabled(editable);
+
+	if(!editable)
+		terrainMaskPaintingCheckBox->setChecked(false);
+	terrainMaskPaintingCheckBox->setEnabled(editable);
+	undoTerrainMaskStrokePushButton->setEnabled(editable);
+	publishTerrainMaskEditsPushButton->setEnabled(editable);
 }
 
 
@@ -278,4 +294,37 @@ void WorldSettingsWidget::settingsChangedSlot()
 		msgBox.setText(QtUtils::toQString(e.what()));
 		msgBox.exec();
 	}
+}
+
+
+void WorldSettingsWidget::terrainMaskPaintSettingsChangedSlot()
+{
+	if(!main_window)
+		return;
+
+	TerrainMaskBrush& brush = main_window->gui_client.terrain_mask_brush;
+	switch(terrainMaskPaintMapComboBox->currentIndex())
+	{
+	case 0: brush.map_type = TerrainMaskMapType_Mask;     brush.channel = 2; break; // Vegetation
+	case 1: brush.map_type = TerrainMaskMapType_Mask;     brush.channel = 1; break; // Sediment
+	default: brush.map_type = TerrainMaskMapType_TreeMask; brush.channel = 0; break;
+	}
+	brush.radius_m = (float)terrainMaskBrushRadiusDoubleSpinBox->value();
+	brush.strength = (float)terrainMaskBrushStrengthDoubleSpinBox->value();
+
+	main_window->gui_client.setTerrainMaskPaintingEnabled(terrainMaskPaintingCheckBox->isChecked());
+}
+
+
+void WorldSettingsWidget::undoTerrainMaskStrokeSlot()
+{
+	if(main_window)
+		main_window->gui_client.undoTerrainMaskStroke();
+}
+
+
+void WorldSettingsWidget::publishTerrainMaskEditsSlot()
+{
+	if(main_window)
+		main_window->gui_client.publishTerrainMaskEdits();
 }

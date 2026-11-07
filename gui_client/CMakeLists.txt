@@ -221,6 +221,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/MeshBuilding.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/MeshBuilding.h
 ${CMAKE_SOURCE_DIR}/gui_client/MeshManager.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/MeshManager.h
+${CMAKE_SOURCE_DIR}/gui_client/KeyHelpUI.cpp
+${CMAKE_SOURCE_DIR}/gui_client/KeyHelpUI.h
 ${CMAKE_SOURCE_DIR}/gui_client/MiniMap.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/MiniMap.h
 ${CMAKE_SOURCE_DIR}/gui_client/MiscInfoUI.cpp
@@ -254,6 +256,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/Scripting.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/Scripting.h
 ${CMAKE_SOURCE_DIR}/gui_client/TerrainDecalManager.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/TerrainDecalManager.h
+${CMAKE_SOURCE_DIR}/gui_client/TerrainEditor.cpp
+${CMAKE_SOURCE_DIR}/gui_client/TerrainEditor.h
 ${CMAKE_SOURCE_DIR}/gui_client/TerrainScattering.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/TerrainScattering.h
 ${CMAKE_SOURCE_DIR}/gui_client/TerrainSystem.cpp

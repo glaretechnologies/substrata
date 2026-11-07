@@ -43,6 +43,10 @@ protected slots:
 	void applySettingsSlot();
 	void settingsChangedSlot();
 
+	void terrainMaskPaintSettingsChangedSlot();
+	void undoTerrainMaskStrokeSlot();
+	void publishTerrainMaskEditsSlot();
+
 private:
 	URLString getURLForFileSelectWidget(FileSelectWidget* widget);
 
