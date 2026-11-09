@@ -53,7 +53,7 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 		{
 			parser.consume('/');
 
-			if(parser.parseCString("parcel/"))
+			if(parser.parseString("parcel/"))
 			{
 				if(!parser.parseInt(res.parcel_uid))
 					throw glare::Exception("Failed to parse parcel number");

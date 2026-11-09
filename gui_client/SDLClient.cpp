@@ -577,14 +577,14 @@ int main(int argc, char** argv)
 		// Parse location path to extract parcel ID if present.
 		{
 			Parser path_parser(location_path);
-			if(path_parser.parseCString("/webclient/"))
+			if(path_parser.parseString("/webclient/"))
 			{
 			}
-			else if(path_parser.parseCString("/visit/"))
+			else if(path_parser.parseString("/visit/"))
 			{
 			}
 
-			if(path_parser.parseCString("parcel/"))
+			if(path_parser.parseString("parcel/"))
 			{
 				int parcel_id;
 				if(path_parser.parseInt(parcel_id))

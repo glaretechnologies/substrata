@@ -98,9 +98,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 
 		Parser parser((const char*)data, size);
 
-		if(parser.parseCString("POST "))
+		if(parser.parseString("POST "))
 			request_info.verb = "POST";
-		else if(parser.parseCString("GET "))
+		else if(parser.parseString("GET "))
 			request_info.verb = "GET";
 		else
 			return 0;
