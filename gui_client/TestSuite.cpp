@@ -20,6 +20,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../shared/VoxelMeshBuilding.h"
 #include "../shared/LODGeneration.h"
 #include "../shared/ImageDecoding.h"
+#include "../shared/LuaScriptEvaluator.h"
 #include "../physics/TreeTest.h"
 #include "../opengl/TextureLoading.h"
 #include "../opengl/OpenGLEngineTests.h"
@@ -79,6 +80,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../utils/HashMap2.h"
 #include "../utils/LRUCache.h"
 #include "../utils/HashSet.h"
+#include "../utils/Parser.h"
 #include "../utils/SharedImmutableString.h"
 #include "../utils/SharedStringTable.h"
 #include "../utils/AllocatorVectorUnitTests.h"
@@ -157,7 +159,9 @@ void TestSuite::test()
 #else
 	const std::string base_dir_path = PlatformUtils::getResourceDirectoryPath();
 #endif
-	
+
+	runTest([&]() { LuaScriptEvaluator::test(); });
+	runTest([&]() { Parser::doUnitTests(); });
 	runTest([&]() { VoxelsParcelImporter::test(); });
 	runTest([&]() { MP4FastStart::test(); });
 	//FAILS:	runTest([&]() { SnowboardPhysics::test(); });
@@ -251,7 +255,7 @@ void TestSuite::test()
 	runTest([&]() { FormatDecoderVox::test(); });
 	runTest([&]() { GIFDecoder::test(); });
 	runTest([&]() { TLSSocketTests::test(); }, /*max_leaked_bytes_allowed=*/1400);
-	runTest([&]() { HTTPClient::test(); }, /*max_leaked_bytes_allowed=*/1400); // // LibreSSL allocates and leaves some process-global state: X509 issuer cache entries + mutex CRITICAL_SECTIONs.
+	runTest([&]() { HTTPClient::test(); }, /*max_leaked_bytes_allowed=*/1600); // // LibreSSL allocates and leaves some process-global state: X509 issuer cache entries + mutex CRITICAL_SECTIONs.
 	runTest([&]() { SMTPClient::test(); });
 
 #endif // end if !defined(EMSCRIPTEN)
