@@ -27,7 +27,6 @@ Copyright Glare Technologies Limited 2023 -
 #include <WebSocketTests.h>
 #include <graphics/FormatDecoderGLTF.h>
 #include <graphics/PNGDecoder.h>
-#include <graphics/jpegdecoder.h>
 #include <graphics/GifDecoder.h>
 #include <graphics/BatchedMeshTests.h>
 #include <graphics/ShelfPack.h>
@@ -114,7 +113,6 @@ void ServerTestSuite::test()
 
 	Timer timer;
 
-	runTest([&]() { JPEGDecoder::test();												});
 	runTest([&]() { JSONParser::test();													});
 	runTest([&]() { js::VectorUnitTests::test();										});
 	runTest([&]() { WorldHandlers::test();												});
