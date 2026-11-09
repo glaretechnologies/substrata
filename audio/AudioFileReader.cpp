@@ -40,11 +40,11 @@ SoundFileRef AudioFileReader::readAudioFileFromBuffer(const std::string& path, A
 
 	if(::hasExtension(path, "mp3"))
 	{
-		return MP3AudioFileReader::readAudioFile(path);
+		return MP3AudioFileReader::readAudioFileFromBuffer(audio_data_buf.data(), audio_data_buf.size());
 	}
 	else if(::hasExtension(path, "wav"))
 	{
-		return WavAudioFileReader::readAudioFile(path);
+		return WavAudioFileReader::readAudioFileFromBuffer(audio_data_buf.data(), audio_data_buf.size());
 	}
 	else
 		throw glare::Exception("Unhandled audio format: " + ::getExtension(path));
