@@ -702,6 +702,15 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			out_msg_queue->enqueue(m); // Inform MainWindow
 			break;
 		}
+		case Protocol::ScriptPlaySound:
+		{
+			Reference<ScriptPlaySoundMessage> m = new ScriptPlaySoundMessage();
+			m->ob_uid             = readUIDFromStream(msg_buffer);
+			m->URL                = URLString(msg_buffer.readStringLengthFirst(WorldObject::MAX_URL_SIZE));
+			m->calling_avatar_uid = readUIDFromStream(msg_buffer);
+			out_msg_queue->enqueue(m); // Inform MainWindow
+			break;
+		}
 		case Protocol::SummonObject:
 		{
 			// conPrint("ClientThread: received SummonObject message.");

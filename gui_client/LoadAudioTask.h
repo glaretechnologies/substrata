@@ -22,7 +22,7 @@ class AudioLoadedThreadMessage : public ThreadMessage
 {
 public:
 	AudioLoadedThreadMessage() : ThreadMessage(Msg_AudioLoadedThreadMessage) {}
-	URLString audio_source_url;
+	URLString audio_url;
 
 	glare::SoundFileRef sound_file;
 
@@ -45,9 +45,9 @@ public:
 
 	bool mem_map_file;
 	ResourceRef resource;
-	Reference<LoadedBuffer> loaded_buffer; // For emscripten, load from memory buffer instead of from resource on disk.Reference<LoadedBuffer> loaded_buffer;
-	URLString audio_source_url;
-	std::string audio_source_path;
+	Reference<LoadedBuffer> loaded_buffer; // For emscripten, load from memory buffer instead of from resource on disk.
+	URLString audio_url;
+	std::string audio_path; // Local abs path on disk
 	Reference<ResourceManager> resource_manager;
 	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
 };

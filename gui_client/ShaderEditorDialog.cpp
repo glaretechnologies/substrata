@@ -9,7 +9,18 @@ Copyright Glare Technologies Limited 2019 -
 #include "WinterShaderEvaluator.h"
 #include "Scripting.h"
 #include "ObjectPathController.h"
+#include "../shared/ResourceManager.h"
+#include "../shared/FileTypes.h"
+#include "../shared/LuaScriptEvaluator.h"
+#include "../shared/WorldObject.h"
 #include <QtCore/QTimer>
+#include <QtWidgets/QFileDialog>
+#include <QtWidgets/QDialog>
+#include <QtWidgets/QVBoxLayout>
+#include <QtWidgets/QHBoxLayout>
+#include <QtWidgets/QLineEdit>
+#include <QtWidgets/QApplication>
+#include <QtGui/QClipboard>
 #include <QtWidgets/QSpinBox>
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QPushButton>
@@ -25,6 +36,7 @@ Copyright Glare Technologies Limited 2019 -
 #include "../../utils/Exception.h"
 #include "../../utils/Timer.h"
 #include "../../utils/Parser.h"
+#include "../../utils/FileUtils.h"
 #include "../../dll/IndigoStringUtils.h"
 
 #include <lua/LuaVM.h>
@@ -37,6 +49,7 @@ const int SYNTAX_HIGHLIGHT_TIMEOUT = 100;
 
 ShaderEditorDialog::ShaderEditorDialog(QWidget* parent, std::string base_dir_path_)
 :	QMainWindow(parent),
+	resource_manager(NULL),
 	base_dir_path(base_dir_path_),
 	text_has_changed(false)
 {
@@ -240,6 +253,113 @@ void ShaderEditorDialog::on_applyChangesPushButton_clicked()
 	flash_output_timer->start(FLASH_TIME_MS);
 
 	emit shaderChanged();
+}
+
+
+static void showResourceAddedDialog(QWidget* parent, const URLString& URL, const std::string& script_note)
+{
+	QDialog dialog(parent);
+	dialog.setWindowTitle("Added file as Resource");
+
+	QVBoxLayout* layout = new QVBoxLayout(&dialog);
+
+	layout->addWidget(new QLabel("Resource URL:", &dialog));
+
+	const QString URL_qstring = QtUtils::toQString(URL);
+
+	QLineEdit* URL_line_edit = new QLineEdit(URL_qstring, &dialog);
+	URL_line_edit->setReadOnly(true);
+	URL_line_edit->setMinimumWidth(400);
+	URL_line_edit->selectAll();
+	layout->addWidget(URL_line_edit);
+
+	QLabel* note_label = new QLabel(QtUtils::toQString(script_note), &dialog);
+	note_label->setWordWrap(true);
+	layout->addWidget(note_label);
+
+	QHBoxLayout* button_layout = new QHBoxLayout();
+	button_layout->addStretch();
+	QPushButton* copy_button = new QPushButton("Copy URL", &dialog);
+	QPushButton* close_button = new QPushButton("Close", &dialog);
+	button_layout->addWidget(copy_button);
+	button_layout->addWidget(close_button);
+	layout->addLayout(button_layout);
+
+	QObject::connect(copy_button, &QPushButton::clicked, &dialog, [URL_qstring]() { QApplication::clipboard()->setText(URL_qstring); });
+	QObject::connect(close_button, &QPushButton::clicked, &dialog, &QDialog::accept);
+	close_button->setDefault(true);
+
+	dialog.exec();
+}
+
+
+void ShaderEditorDialog::on_addFileAsResourcePushButton_clicked()
+{
+	if(!resource_manager)
+		return;
+
+	QSettings settings("Glare Technologies", "Cyberspace");
+	const QString last_dir = settings.value("shadereditor/lastAddFileAsResourceDir").toString();
+
+	const QString selected_filename = QFileDialog::getOpenFileName(this,
+		tr("Select file to add as resource..."),
+		last_dir,
+		tr("Images, models and audio (*.jpg *.jpeg *.png *.exr *.gif *.ktx *.ktx2 *.basis *.webp *.bmesh *.vox *.obj *.stl *.glb *.vrm *.igmesh *.subvox *.sog *.mp3 *.wav);;All files (*)")
+	);
+	if(selected_filename.isEmpty())
+		return;
+
+	const std::string path = QtUtils::toStdString(selected_filename);
+
+	settings.setValue("shadereditor/lastAddFileAsResourceDir", QtUtils::toQString(FileUtils::getDirectory(path)));
+
+	try
+	{
+		if(!FileTypes::hasSupportedExtension(path))
+			throw glare::Exception("Unsupported file type: '" + FileUtils::getFilename(path) + "'");
+
+		// Copy the file into the local resources dir.  It is uploaded to the server when the server requests it, which happens when an object that depends on it (for example by declaring it with @resource) is saved.
+		const URLString URL = resource_manager->copyLocalFileToResourceDirAndReturnURL(path);
+
+		std::string script = QtUtils::toIndString(shaderEdit->document()->toPlainText());
+
+		DependencyURLVector declared_URLs;
+		LuaScriptEvaluator::appendScriptResourceURLs(script, /*allocator=*/nullptr, declared_URLs);
+		bool already_declared = false;
+		for(size_t i=0; i<declared_URLs.size(); ++i)
+			if(declared_URLs[i].URL == URL)
+				already_declared = true;
+
+		std::string script_note;
+		if(already_declared)
+		{
+			script_note = "The script already declares this resource.";
+		}
+		else if(!LuaScriptEvaluator::addScriptResourceDeclaration(script, URL))
+		{
+			script_note = "The script is not a Lua script (it doesn't start with '--lua'), so the @resource line was not added.  "
+				"The file will be uploaded once an object script declares it with an @resource line.";
+		}
+		else if(script.size() > WorldObject::MAX_SCRIPT_SIZE)
+		{
+			script_note = "Adding the @resource line would make the script too long, so it was not added.";
+		}
+		else
+		{
+			// Replace the text through a cursor, so the change can be undone in the editor.  This emits textChanged(), so the script is saved as for a manual edit.
+			QTextCursor cursor(shaderEdit->document());
+			cursor.select(QTextCursor::Document);
+			cursor.insertText(QtUtils::toQString(script));
+
+			script_note = "Added an @resource line for it to the script.  The file will be uploaded to the server when the script is applied (click Apply or close the editor).";
+		}
+
+		showResourceAddedDialog(this, URL, script_note);
+	}
+	catch(glare::Exception& e)
+	{
+		QtUtils::showErrorMessageDialog("Failed to add file as resource: " + e.what(), this);
+	}
 }
 
 

@@ -8,6 +8,8 @@ Copyright Glare Technologies Limited 2024 -
 
 #include "../shared/LuaScriptEvaluator.h"
 #include "../shared/ObjectEventHandlers.h"
+#include "../shared/ResourceManager.h"
+#include "../shared/RateLimiter.h"
 #include "WorldObject.h"
 #include "MessageUtils.h"
 #include "Protocol.h"
@@ -72,6 +74,7 @@ enum StringAtomEnum
 	Atom_audio_loop,
 	Atom_playAudio, // resets cur read index to start of audio, starts playing the audio (unpauses if paused)
 	Atom_isPlayingAudio,
+	Atom_playSound, // Play a sound identified by a resource URL
 	Atom_startPlayingAnimation,
 	Atom_getAnimationIndex,
 	Atom_moveTo,
@@ -142,6 +145,7 @@ static StringAtom string_atoms[] =
 	StringAtom({"audio_loop",				Atom_audio_loop,				}),
 	StringAtom({"playAudio",				Atom_playAudio,					}),
 	StringAtom({"isPlayingAudio",			Atom_isPlayingAudio,			}),
+	StringAtom({"playSound",				Atom_playSound,					}),
 	StringAtom({"startPlayingAnimation",	Atom_startPlayingAnimation,		}),
 	StringAtom({"getAnimationIndex",		Atom_getAnimationIndex,			}),
 	StringAtom({"moveTo",					Atom_moveTo,					}),
@@ -1149,6 +1153,59 @@ static int isPlayingAudio(lua_State* state)
 }
 
 
+static int playSound(lua_State* state)
+{
+	// arg 1: ob : WorldObject
+	// arg 2: resource_URL : String
+
+	checkNumArgs(state, /*num_args_required*/2);
+
+	// The script runs on the server and on clients.  To avoid playing the sound twice:
+	// * A client plays the sound itself only if its own avatar triggered the event being handled (e.g. it touched the object), so the user hears it without network delay.
+	// * The server broadcasts a ScriptPlaySound message holding the avatar that triggered the event (invalid for e.g. timers).  Clients play it unless their own avatar triggered the event.
+
+	// Get object UID
+	const UID ob_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
+
+	const string_view resource_URL = LuaUtils::getStringArgAsStringView(state, /*index=*/2);
+
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	if(!script_evaluator->isResourceURLDeclared(resource_URL))
+	{
+		script_evaluator->warnAboutUndeclaredResourceURL("playSound", resource_URL);
+		return 0;
+	}
+
+	WorldObject* ob = getWorldObjectForUID(script_evaluator, ob_uid);
+
+#if GUI_CLIENT
+	if(script_evaluator->calling_avatar_uid.valid() && (script_evaluator->calling_avatar_uid == sub_lua_vm->gui_client->client_avatar_uid))
+		sub_lua_vm->gui_client->playScriptSound(*ob, URLString(resource_URL));
+
+	// We don't need to send a ScriptPlaySound message to the server, instead we rely on e.g. UserUsedObjectMessages being sent to the server, and the same script calling playSound on the server.
+
+#elif SERVER
+	if(!script_evaluator->play_sound_rate_limiter->checkAddEvent(sub_lua_vm->server->getCurrentGlobalTime()))
+		return 0; // Over the rate limit, don't broadcast.
+
+	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+	MessageUtils::initPacket(packet, Protocol::ScriptPlaySound);
+	writeToStream(ob->uid, packet);
+	packet.writeStringLengthFirst(resource_URL);
+	writeToStream(script_evaluator->calling_avatar_uid, packet);
+	MessageUtils::updatePacketLengthField(packet);
+
+	sub_lua_vm->server->enqueuePacketToBroadcastForWorld(packet, script_evaluator->world_state);
+#endif
+
+	return 0; // Count of returned values
+}
+
+
 static int startPlayingAnimation(lua_State* state)
 {
 	// arg 1: ob : WorldObject
@@ -1546,6 +1603,10 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 	case Atom_isPlayingAudio:
 		assert(stringEqual(key_str, "isPlayingAudio"));
 		lua_pushcfunction(state, isPlayingAudio, "isPlayingAudio");
+		break;
+	case Atom_playSound:
+		assert(stringEqual(key_str, "playSound"));
+		lua_pushcfunction(state, playSound, "playSound");
 		break;
 	case Atom_startPlayingAnimation:
 		assert(stringEqual(key_str, "startPlayingAnimation"));

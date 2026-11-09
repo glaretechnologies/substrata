@@ -42,6 +42,7 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	edit_timer(new QTimer(this)),
 	shader_editor(NULL),
 	settings(NULL),
+	resource_manager(NULL),
 	spotlight_col(0.85f)
 {
 	setupUi(this);
@@ -820,6 +821,7 @@ void ObjectEditor::on_editScriptPushButton_clicked(bool checked)
 	if(!shader_editor)
 	{
 		shader_editor = new ShaderEditorDialog(this, base_dir_path);
+		shader_editor->resource_manager = resource_manager;
 
 		shader_editor->setWindowTitle("Script Editor");
 

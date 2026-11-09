@@ -53,13 +53,14 @@ CyberspaceProtocolVersion
 55: Added CreateObjectResponse message, sent to a client for each CreateObject message it sends.
 56: Added ConnectionTypeUploadVideo.
 57: Added ResourceBeingProcessed message, and GetFiles result code 2 (resource is being processed).
+58: Added ScriptPlaySound message.
 */
 namespace Protocol
 {
 
 const uint32 CyberspaceHello = 1357924680;
 
-const uint32 CyberspaceProtocolVersion = 57;
+const uint32 CyberspaceProtocolVersion = 58;
 
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
@@ -127,6 +128,7 @@ const uint32 ObjectContentChanged	= 3017;
 const uint32 ObjectMoveTo			= 3018; // Server tells clients to smoothly move an object to a target position over some duration (scripted moveTo).
 const uint32 ObjectRotateTo			= 3019; // Server tells clients to smoothly rotate an object to a target orientation over some duration (scripted rotateTo).
 const uint32 SummonObject			= 3030;
+const uint32 ScriptPlaySound		= 3031; // Server tells clients to play a sound at an object (from playSound() lua function call).  Holds object UID, resource URL, and the UID of the avatar that triggered the script event (invalid if none).
 
 // Easing values used in ObjectMoveTo and ObjectRotateTo messages.
 const uint32 MoveTo_EasingLinear		= 0;

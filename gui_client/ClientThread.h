@@ -60,6 +60,17 @@ public:
 };
 
 
+// Sent from ClientThread to the main thread when a ScriptPlaySound message is received from the server.
+class ScriptPlaySoundMessage : public ThreadMessage
+{
+public:
+	ScriptPlaySoundMessage() : ThreadMessage(Msg_ScriptPlaySoundMessage) {}
+	UID ob_uid;
+	URLString URL;
+	UID calling_avatar_uid; // The avatar that triggered the script event that played the sound.  Invalid if the event wasn't triggered by an avatar (e.g. a timer).
+};
+
+
 class AvatarPerformGestureMessage : public ThreadMessage
 {
 public:

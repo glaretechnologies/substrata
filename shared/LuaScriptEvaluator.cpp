@@ -10,11 +10,14 @@ Copyright Glare Technologies Limited 2024 -
 #include "SubstrataLuaVM.h"
 #include "WorldStateLock.h"
 #include "WorldObject.h"
+#include "FileTypes.h"
+#include "RateLimiter.h"
 #include "../server/LuaHTTPRequestManager.h" // For LuaHTTPRequestResult
 #include <utils/Exception.h>
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>
 #include <utils/Lock.h>
+#include <utils/Parser.h>
 #include <lua/LuaUtils.h>
 #include <lualib.h>
 
@@ -56,8 +59,17 @@ LuaScriptEvaluator::LuaScriptEvaluator(const Reference<SubstrataLuaVM>& substrat
 #endif
 	next_timer_id(0),
 	num_obs_event_listening(0),
-	cur_world_state_lock(nullptr)
+	cur_world_state_lock(nullptr),
+	calling_avatar_uid(UID::invalidUID())
 {
+	// Parse "--@resource URL" lines from script, save in resource_URLs.
+	appendScriptResourceURLs(script_src, /*allocator=*/nullptr, /*urls out=*/this->resource_URLs);
+
+#if SERVER
+	play_sound_rate_limiter = new RateLimiter(/*period (s)=*/1.0, /*max num in period=*/10);
+#endif
+
+
 	for(int i=0; i<MAX_NUM_TIMERS; ++i)
 		timers[i].id = -1;
 
@@ -168,6 +180,7 @@ void LuaScriptEvaluator::doOnUserTouchedObject(int func_ref, UID avatar_uid, UID
 	try
 	{
 		SetCurWorldStateLockClass setter(this, world_state_lock);
+		this->calling_avatar_uid = avatar_uid;
 
 		lua_script->resetExecutionTimeCounter();
 
@@ -206,6 +219,7 @@ void LuaScriptEvaluator::doOnUserUsedObject(int func_ref, UID avatar_uid, UID ob
 	try
 	{
 		SetCurWorldStateLockClass setter(this, world_state_lock);
+		this->calling_avatar_uid = avatar_uid;
 
 		lua_script->resetExecutionTimeCounter();
 
@@ -244,6 +258,7 @@ void LuaScriptEvaluator::doOnUserMovedNearToObject(int func_ref, UID avatar_uid,
 	try
 	{
 		SetCurWorldStateLockClass setter(this, world_state_lock);
+		this->calling_avatar_uid = avatar_uid;
 
 		lua_script->resetExecutionTimeCounter();
 
@@ -282,6 +297,7 @@ void LuaScriptEvaluator::doOnUserMovedAwayFromObject(int func_ref, UID avatar_ui
 	try
 	{
 		SetCurWorldStateLockClass setter(this, world_state_lock);
+		this->calling_avatar_uid = avatar_uid;
 
 		lua_script->resetExecutionTimeCounter();
 
@@ -320,6 +336,7 @@ void LuaScriptEvaluator::doOnUserEnteredParcel(int func_ref, UID avatar_uid, UID
 	try
 	{
 		SetCurWorldStateLockClass setter(this, world_state_lock);
+		this->calling_avatar_uid = avatar_uid;
 
 		lua_script->resetExecutionTimeCounter();
 
@@ -358,6 +375,7 @@ void LuaScriptEvaluator::doOnUserExitedParcel(int func_ref, UID avatar_uid, UID 
 	try
 	{
 		SetCurWorldStateLockClass setter(this, world_state_lock);
+		this->calling_avatar_uid = avatar_uid;
 
 		lua_script->resetExecutionTimeCounter();
 
@@ -396,6 +414,7 @@ void LuaScriptEvaluator::doOnUserEnteredVehicle(int func_ref, UID avatar_uid, UI
 	try
 	{
 		SetCurWorldStateLockClass setter(this, world_state_lock);
+		this->calling_avatar_uid = avatar_uid;
 
 		lua_script->resetExecutionTimeCounter();
 
@@ -431,6 +450,7 @@ void LuaScriptEvaluator::doOnUserExitedVehicle(int func_ref, UID avatar_uid, UID
 	try
 	{
 		SetCurWorldStateLockClass setter(this, world_state_lock);
+		this->calling_avatar_uid = avatar_uid;
 
 		lua_script->resetExecutionTimeCounter();
 
@@ -466,6 +486,7 @@ void LuaScriptEvaluator::doOnChatMessage(int func_ref, UID avatar_uid, const std
 	try
 	{
 		SetCurWorldStateLockClass setter(this, world_state_lock);
+		this->calling_avatar_uid = avatar_uid;
 
 		lua_script->resetExecutionTimeCounter();
 
@@ -501,6 +522,7 @@ void LuaScriptEvaluator::doOnTimerEvent(int onTimerEvent_ref, WorldStateLock& wo
 	try
 	{
 		SetCurWorldStateLockClass setter(this, world_state_lock);
+		this->calling_avatar_uid = UID::invalidUID();
 
 		lua_script->resetExecutionTimeCounter();
 
@@ -548,6 +570,7 @@ void LuaScriptEvaluator::doOnError(int onError_ref, int error_code, const std::s
 	try
 	{
 		SetCurWorldStateLockClass setter(this, world_state_lock);
+		this->calling_avatar_uid = UID::invalidUID();
 
 		lua_script->resetExecutionTimeCounter();
 
@@ -592,6 +615,7 @@ void LuaScriptEvaluator::doOnDone(int onDone_ref, Reference<LuaHTTPRequestResult
 	try
 	{
 		SetCurWorldStateLockClass setter(this, world_state_lock);
+		this->calling_avatar_uid = UID::invalidUID();
 
 		lua_script->resetExecutionTimeCounter();
 
@@ -638,6 +662,117 @@ void LuaScriptEvaluator::doOnDone(int onDone_ref, Reference<LuaHTTPRequestResult
 #else
 	assert(0);
 #endif
+}
+
+
+static inline bool isLineEndOrEOF(const Parser& parser) { return parser.eof() || (parser.current() == '\r') || (parser.current() == '\n'); }
+
+
+void LuaScriptEvaluator::appendScriptResourceURLs(const string_view script, glare::ArenaAllocator* allocator, DependencyURLVector& urls_out)
+{
+	Parser parser(script.data(), script.size());
+	if(!parser.parseString("--lua"))
+		return;
+	parser.advancePastLine();
+
+	const size_t max_num_URLs = 20;
+	const size_t initial_size = urls_out.size(); // urls_out may already contain other dependency URLs, so count only the ones added here.
+
+	while(parser.notEOF() && ((urls_out.size() - initial_size) < max_num_URLs))
+	{
+		parser.parseSpacesAndTabs();
+		if(!isLineEndOrEOF(parser)) // Blank lines are part of the header.
+		{
+			if(!parser.parseString("--"))
+				break; // A line that isn't a comment ends the header.
+
+			parser.parseSpacesAndTabs();
+			if(parser.parseString("@resource"))
+			{
+				if(parser.currentIsChar(' ') || parser.currentIsChar('\t'))
+				{
+					parser.parseSpacesAndTabs();
+					string_view URL;
+					parser.parseNonWSToken(URL);
+					// URLs longer than MAX_URL_SIZE are ignored: clients reject longer URLs in ScriptPlaySound messages.
+					if(!URL.empty() && (URL.size() <= WorldObject::MAX_URL_SIZE))
+						urls_out.push_back(DependencyURL(URLString(URL, glare::STLArenaAllocator<char>(allocator))));
+				}
+			}
+		}
+
+		parser.advancePastLine();
+	}
+}
+
+
+bool LuaScriptEvaluator::addScriptResourceDeclaration(std::string& script, const string_view URL)
+{
+	const std::string declaration = "-- @resource " + std::string(URL) + "\n";
+
+	if(script.empty())
+	{
+		script = "--lua\n" + declaration;
+		return true;
+	}
+
+	Parser parser(script.data(), script.size());
+	if(!parser.parseString("--lua"))
+		return false;
+	parser.advancePastLine();
+
+	// Insert after the last @resource line in the header, or straight after the '--lua' line if there are none.
+	size_t insert_pos = parser.currentPos();
+	while(parser.notEOF())
+	{
+		parser.parseSpacesAndTabs();
+		if(!isLineEndOrEOF(parser)) // Blank lines are part of the header.
+		{
+			if(!parser.parseString("--"))
+				break; // A line that isn't a comment ends the header.
+
+			parser.parseSpacesAndTabs();
+			const bool is_resource_line = parser.parseString("@resource");
+			parser.advancePastLine();
+			if(is_resource_line)
+				insert_pos = parser.currentPos();
+		}
+		else
+			parser.advancePastLine();
+	}
+
+	if((insert_pos == script.size()) && (script.back() != '\n')) // If inserting after a last line that has no line ending:
+	{
+		script += "\n";
+		insert_pos = script.size();
+	}
+
+	script.insert(insert_pos, declaration);
+	return true;
+}
+
+
+bool LuaScriptEvaluator::isResourceURLDeclared(const string_view URL) const
+{
+	for(size_t i=0; i<resource_URLs.size(); ++i)
+		if(string_view(resource_URLs[i].URL) == URL)
+			return true;
+	return false;
+}
+
+
+void LuaScriptEvaluator::warnAboutUndeclaredResourceURL(const string_view func_name, const string_view URL)
+{
+	const size_t max_num_warned_URLs = 16; // Bound the memory used, for scripts that construct many different URLs.
+	if(warned_undeclared_resource_URLs.size() >= max_num_warned_URLs)
+		return;
+
+	const bool inserted = warned_undeclared_resource_URLs.insert(std::string(URL)).second;
+	if(inserted && script_output_handler)
+	{
+		const std::string msg = "Warning: " + std::string(func_name) + "(): '" + std::string(URL) + "' is not declared in the script header.  Declare it with a line like:\n-- @resource " + std::string(URL);
+		script_output_handler->printFromLuaScript(lua_script.ptr(), msg.data(), msg.size());
+	}
 }
 
 
@@ -696,3 +831,71 @@ void LuaScriptEvaluator::pushParcelTableOntoStack(ParcelID parcel_id)
 	// Set table UID field
 	LuaUtils::setNumberAsTableField(lua_script->thread_state, "uid", (double)parcel_id.value());
 }
+
+
+#if BUILD_TESTS
+
+
+#include <utils/TestUtils.h>
+
+
+static std::vector<std::string> getScriptResourceURLsAsStrings(const std::string& script)
+{
+	DependencyURLVector urls;
+	LuaScriptEvaluator::appendScriptResourceURLs(script, /*allocator=*/nullptr, urls);
+
+	std::vector<std::string> res;
+	for(size_t i=0; i<urls.size(); ++i)
+		res.push_back(toStdString(urls[i].URL));
+	return res;
+}
+
+
+void LuaScriptEvaluator::test()
+{
+#if 1
+	// Scripts without a header
+	testAssert(getScriptResourceURLsAsStrings("").empty());
+	testAssert(getScriptResourceURLsAsStrings("--lua").empty());
+	testAssert(getScriptResourceURLsAsStrings("--lua\n").empty());
+	testAssert(getScriptResourceURLsAsStrings("-- @resource a.mp3").empty()); // Not a Lua script
+	testAssert(getScriptResourceURLsAsStrings("<?xml version=\"1.0\"?>\n-- @resource a.mp3").empty());
+
+	// Declarations end at the first line that isn't blank or a comment
+	{
+		const std::vector<std::string> URLs = getScriptResourceURLsAsStrings("--lua\n-- @resource a_123.mp3\n-- @resource b_456.wav\nprint(1)\n-- @resource c.mp3");
+		testAssert(URLs.size() == 2 && URLs[0] == "a_123.mp3" && URLs[1] == "b_456.wav");
+	}
+
+	// CRLF line endings, blank lines, other comments, and spaces and tabs around the parts of a declaration
+	{
+		const std::vector<std::string> URLs = getScriptResourceURLsAsStrings("--lua\r\n\r\n  --\t@resource\ta.mp3  \r\n-- some comment\r\n--@resource b.mp3\r\nx = 1");
+		testAssert(URLs.size() == 2 && URLs[0] == "a.mp3" && URLs[1] == "b.mp3");
+	}
+
+	// Last line without a line ending
+	{
+		const std::vector<std::string> URLs = getScriptResourceURLsAsStrings("--lua\n-- @resource a.mp3");
+		testAssert(URLs.size() == 1 && URLs[0] == "a.mp3");
+	}
+
+	// URLs longer than WorldObject::MAX_URL_SIZE are ignored
+	{
+		const std::string max_len_URL = std::string(WorldObject::MAX_URL_SIZE - 4, 'a') + ".mp3";
+		const std::string too_long_URL = std::string(WorldObject::MAX_URL_SIZE - 3, 'a') + ".mp3";
+		const std::vector<std::string> URLs = getScriptResourceURLsAsStrings("--lua\n-- @resource " + too_long_URL + "\n-- @resource " + max_len_URL + "\n");
+		testAssert(URLs.size() == 1 && URLs[0] == max_len_URL);
+	}
+
+	// Number of declarations is capped
+	{
+		std::string script = "--lua\n";
+		for(int i=0; i<(int)20 + 10; ++i)
+			script += "-- @resource s" + toString(i) + ".mp3\n";
+		testAssert(getScriptResourceURLsAsStrings(script).size() == 20);
+	}
+#endif
+}
+
+
+#endif // BUILD_TESTS

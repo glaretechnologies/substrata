@@ -104,7 +104,7 @@ void EmscriptenResourceDownloader::onResourceLoad(Reference<CurrentlyDownloading
 	(*this->num_resources_downloading)--;
 
 	ResourceRef resource = resource_manager->getOrCreateResourceForURL(downloading_resource->URL);
-	// Don't mark the resource as present.
+	// Don't mark the resource as present, and don't save the resource to the filesystem.
 	// Instead we will load the texture/model immediately if needed (see ResourceDownloadedMessage handling), then free the memory.
 	// We do it this way to avoid wasting memory using the in-memory filesystem that saving the resource to the filesystem would require.
 

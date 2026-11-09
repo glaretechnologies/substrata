@@ -474,6 +474,7 @@ void MainWindow::initialiseUI()
 	ui->glWidget->setBaseDir(base_dir_path, /*print output=*/this, settings);
 	ui->objectEditor->base_dir_path = base_dir_path;
 	ui->objectEditor->settings = settings;
+	ui->objectEditor->resource_manager = gui_client.resource_manager.ptr(); // resource_manager is created in GUIClient::postConnectInitialise(), which is called before initialiseUI().
 
 	// Add a spacer to right-align the UserDetailsWidget (see http://www.setnode.com/blog/right-aligning-a-button-in-a-qtoolbar/)
 	QWidget* spacer = new QWidget();

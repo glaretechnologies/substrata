@@ -18,6 +18,7 @@ namespace Indigo { class Mesh; }
 class TextureServer;
 class EnvEmitter;
 class ShaderEditorDialog;
+class ResourceManager;
 
 
 class ObjectEditor : public QWidget, public Ui::ObjectEditor
@@ -60,6 +61,7 @@ public:
 
 	QSettings* settings;
 	std::string base_dir_path;
+	ResourceManager* resource_manager; // Passed to the script editor for 'Add file as Resource'.
 protected:
 
 signals:;

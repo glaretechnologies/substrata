@@ -312,6 +312,7 @@ public:
 	void handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* loaded_msg, WorldObject* ob);
 	void doBiomeScatteringForObject(WorldObject* ob);
 	void loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer>& loaded_buffer);
+	void playScriptSound(const WorldObject& ob, const URLString& URL); // Play a sound declared by a script with @resource, at the object position.  Does nothing if the sound hasn't been loaded yet.
 	void showErrorNotification(const std::string& message);
 	void showInfoNotification(const std::string& message);
 	void showScriptMessage(const std::string& message);
@@ -820,6 +821,8 @@ public:
 	std::unordered_map<URLString, std::set<UID>, URLStringHasher> loading_texture_URL_to_avatar_UID_map;
 
 	std::unordered_map<OpenGLTextureKey, std::set<UID>, URLStringHasher> loading_texture_key_to_hypercard_UID_map;
+
+	std::unordered_map<OpenGLTextureKey, std::set<UID>, URLStringHasher> loading_audio_URL_to_world_ob_UID_map;
 
 	std::unordered_map<URLString, Vec3i, URLStringHasher> loading_mesh_URL_to_chunk_coords_map;
 	std::unordered_map<URLString, Vec3i, URLStringHasher> loading_texture_URL_to_chunk_coords_map;

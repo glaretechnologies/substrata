@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2019 -
 
 class QTimer;
 class QGridLayout;
+class ResourceManager;
 
 
 /*=====================================================================
@@ -35,6 +36,8 @@ public:
 
 	void printFromLuaScript(const std::string& msg);
 	void luaErrorOccurred(const std::string& msg);
+
+	ResourceManager* resource_manager; // Used by 'Add file as Resource'.  May be null.
 signals:;
 	void shaderChanged();
 	void openServerScriptLogSignal();
@@ -52,6 +55,7 @@ private:
 private slots:;
 	void on_shaderEdit_textChanged();
 	void on_applyChangesPushButton_clicked();
+	void on_addFileAsResourcePushButton_clicked();
 	void emitShaderChangedTimerFired();
 	void flashExecOutputTimerFired();
 	void buildCodeAndShowResults();

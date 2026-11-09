@@ -293,6 +293,10 @@ void WorldObject::appendDependencyURLs(int ob_lod_level, const GetDependencyOpti
 
 	if(!audio_source_url.empty())
 		URLs_out.push_back(DependencyURL(URLString(audio_source_url, glare::STLArenaAllocator<char>(options.allocator))));
+
+	// Parse "--@resource URL" dependencies from Lua scripts.  TODO: cache them if the parsing is too slow.
+	if(!script.empty())
+		LuaScriptEvaluator::appendScriptResourceURLs(script, options.allocator, URLs_out);
 }
 
 
@@ -323,6 +327,10 @@ void WorldObject::appendDependencyURLsForAllLODLevels(const GetDependencyOptions
 
 	if(!audio_source_url.empty())
 		URLs_out.push_back(DependencyURL(URLString(audio_source_url, glare::STLArenaAllocator<char>(options.allocator))));
+
+	// Parse "--@resource URL" dependencies from Lua scripts.  TODO: cache them if the parsing is too slow.
+	if(!script.empty())
+		LuaScriptEvaluator::appendScriptResourceURLs(script, options.allocator, URLs_out);
 }
 
 
@@ -349,6 +357,10 @@ void WorldObject::appendDependencyURLsBaseLevel(const GetDependencyOptions& opti
 
 	if(!audio_source_url.empty())
 		URLs_out.push_back(DependencyURL(audio_source_url));
+
+	// Parse "--@resource URL" dependencies from Lua scripts.  TODO: cache them if the parsing is too slow.
+	if(!script.empty())
+		LuaScriptEvaluator::appendScriptResourceURLs(script, options.allocator, URLs_out);
 }
 
 

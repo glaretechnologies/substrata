@@ -3663,6 +3663,35 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 
 				ob->lua_script_evaluator = new LuaScriptEvaluator(this->lua_vm, /*script output handler=*/this, ob->script, ob, world_state_lock);
 
+				// Start loading any audio files the script declares with @resource
+				for(size_t i=0; i<ob->lua_script_evaluator->resource_URLs.size(); ++i)
+				{
+					const URLString& URL = ob->lua_script_evaluator->resource_URLs[i].URL;
+					ResourceRef resource = resource_manager->getExistingResourceForURL(URL);
+					if(resource && resource->isPresent())
+					{
+						const bool just_inserted = checkAddAudioToProcessingSet(URL); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
+						if(just_inserted)
+						{
+							// conPrint("Launching LoadAudioTask");
+							// Do the audio file loading in a different thread
+							Reference<LoadAudioTask> load_audio_task = new LoadAudioTask();
+
+							load_audio_task->mem_map_file = false;
+							load_audio_task->resource = resource;
+							load_audio_task->audio_url = URL;
+							load_audio_task->audio_path = resource_manager->getLocalAbsPathForResource(*resource);
+							load_audio_task->resource_manager = this->resource_manager;
+							load_audio_task->result_msg_queue = &this->msg_queue;
+
+							load_item_queue.enqueueItem(/*key=*/URL, *ob, load_audio_task, /*task max dist=*//*maxAudioDistForSourceVolFactor(1.f)*/1.0e10f);
+						}
+
+						loading_audio_URL_to_world_ob_UID_map[URL].insert(ob->uid);
+					}
+				}
+
+
 				// Add this object to scripted_ob_proximity_checker if it has any spatial event handlers.  TEMP: just add in all cases.
 				scripted_ob_proximity_checker.addObject(ob);
 			}
@@ -3825,6 +3854,20 @@ public:
 };
 
 
+void GUIClient::playScriptSound(const WorldObject& ob, const URLString& URL)
+{
+	// The decoded sound is inserted into the audio engine under the resource's local path (see Msg_AudioLoadedThreadMessage handling).
+	// On the web client the resource is never marked as present, but the local path still works as the key.
+	ResourceRef resource = resource_manager->getExistingResourceForURL(URL);
+	if(resource)
+	{
+		const std::string sound_local_abs_path = resource_manager->getLocalAbsPathForResource(*resource);
+		if(audio_engine.isSoundFileInserted(sound_local_abs_path))
+			audio_engine.playOneShotSound(sound_local_abs_path, ob.pos.toVec4fPoint());
+	}
+}
+
+
 // Try and start loading the audio file for the world object, as specified by ob->audio_source_url.
 // If the audio file is already loaded, (e.g. ob->loaded_audio_source_url == ob->audio_source_url), then do nothing.
 // If the object is further than MAX_AUDIO_DIST from the camera, don't load the audio.
@@ -3913,8 +3956,8 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 								Reference<LoadAudioTask> load_audio_task = new LoadAudioTask();
 
 								load_audio_task->mem_map_file = true;
-								load_audio_task->audio_source_url = ob->audio_source_url;
-								load_audio_task->audio_source_path = resource_manager->pathForURL(ob->audio_source_url);
+								load_audio_task->audio_url = ob->audio_source_url;
+								load_audio_task->audio_path = resource_manager->pathForURL(ob->audio_source_url);
 								load_audio_task->result_msg_queue = &this->msg_queue;
 
 								load_item_queue.enqueueItem(/*key=*/ob->audio_source_url, *ob, load_audio_task, /*task max dist=*/maxAudioDistForSourceVolFactor(ob->audio_volume));
@@ -3923,6 +3966,7 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 							{
 								load_item_queue.checkUpdateItemPosition(/*key=*/ob->audio_source_url, *ob);
 							}
+							loading_audio_URL_to_world_ob_UID_map[ob->audio_source_url].insert(ob->uid);
 						}
 						else
 						{
@@ -3967,8 +4011,8 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 
 							load_audio_task->mem_map_file = false;
 							load_audio_task->resource = resource_manager->getOrCreateResourceForURL(ob->audio_source_url);
-							load_audio_task->audio_source_url = ob->audio_source_url;
-							load_audio_task->audio_source_path = resource_manager->pathForURL(ob->audio_source_url);
+							load_audio_task->audio_url = ob->audio_source_url;
+							load_audio_task->audio_path = resource_manager->pathForURL(ob->audio_source_url);
 							load_audio_task->resource_manager = this->resource_manager;
 							load_audio_task->result_msg_queue = &this->msg_queue;
 							load_audio_task->loaded_buffer = loaded_buffer;
@@ -3979,6 +4023,7 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 						{
 							load_item_queue.checkUpdateItemPosition(/*key=*/ob->audio_source_url, *ob);
 						}
+						loading_audio_URL_to_world_ob_UID_map[ob->audio_source_url].insert(ob->uid);
 					}
 
 					//ob->loaded_audio_source_url = ob->audio_source_url;
@@ -6305,8 +6350,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			else if(dynamic_cast<const LoadAudioTask*>(item.task.ptr()))
 			{
 				const LoadAudioTask* task = static_cast<const LoadAudioTask*>(item.task.ptr());
-				assert(audio_processing.count(task->audio_source_url) > 0);
-				audio_processing.erase(task->audio_source_url);
+				assert(audio_processing.count(task->audio_url) > 0);
+				audio_processing.erase(task->audio_url);
 				
 				//conPrint("Discarding LoadAudioTask '" + task->audio_source_url + "' as too far away. (dist_from_item: " + doubleToStringNSigFigs(dist_from_item, 4) + ", task max dist: " + doubleToStringNSigFigs(item.task_max_dist, 3) + ")");
 			}
@@ -9170,24 +9215,6 @@ void GUIClient::setThirdPersonCameraPosition(double dt)
 }
 
 
-template <class SubClass>
-inline static SubClass* checkedDowncastPtr(ThreadMessage* msg)
-{
-#ifndef NDEBUG
-	assert(dynamic_cast<SubClass*>(msg) != nullptr);
-#endif
-	return static_cast<SubClass*>(msg);
-}
-
-
-
-// Enable error on implicit fallthrough in switch statement.  We want to catch this error because it's a bad bug that could cause a crash.
-#ifdef _WIN32
-#pragma warning(push)
-#pragma warning(error:5262)
-#endif
-
-
 // Handle any messages (chat messages etc..)
 void GUIClient::toggleBuilderAIPanel()
 {
@@ -9283,6 +9310,22 @@ void GUIClient::handleResourceBeingProcessedOnServer(const URLString& URL)
 }
 
 
+template <class SubClass>
+inline static SubClass* checkedDowncastPtr(ThreadMessage* msg)
+{
+#ifndef NDEBUG
+	assert(dynamic_cast<SubClass*>(msg) != nullptr);
+#endif
+	return static_cast<SubClass*>(msg);
+}
+
+// Enable error on implicit fallthrough in switch statement.  We want to catch this error because it's a bad bug that could cause a crash.
+#ifdef _WIN32
+#pragma warning(push)
+#pragma warning(error:5262)
+#endif
+
+
 void GUIClient::handleMessages(double global_time, double cur_time)
 {
 	PERFORMANCEAPI_INSTRUMENT("handle msgs");
@@ -9334,110 +9377,122 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			// conPrint("AudioLoadedThreadMessage: loaded_msg->audio_source_url: " + loaded_msg->audio_source_url);
 
-			if(world_state.nonNull())
+			if(world_state)
 			{
-				// Iterate over objects and load an audio source for any object using this audio URL.
-				try
+				Lock lock(this->world_state->mutex);
+
+				auto res = this->loading_audio_URL_to_world_ob_UID_map.find(loaded_msg->audio_url);
+				if(res != this->loading_audio_URL_to_world_ob_UID_map.end())
 				{
-					Lock lock(this->world_state->mutex);
-
-					for(auto it = this->world_state->objects.valuesBegin(); it != this->world_state->objects.valuesEnd(); ++it)
+					const std::set<UID>& waiting_obs = res->second;
+					for(auto it = waiting_obs.begin(); it != waiting_obs.end(); ++it)
 					{
-						WorldObject* ob = it.getValue().ptr();
-
-						if(ob->audio_source_url == loaded_msg->audio_source_url)
+						const UID waiting_uid = *it;
+						auto res2 = this->world_state->objects.find(waiting_uid);
+						if(res2 != this->world_state->objects.end())
 						{
-							// Remove any existing audio source for the object
-							if(ob->audio_source.nonNull())
+							WorldObject* ob = res2.getValue().ptr();
+							try
 							{
-								audio_engine.removeSource(ob->audio_source);
-								ob->audio_source = NULL;
-							}
-
-							if(loaded_msg->mapped_file)
-							{
-								// Make a new audio source
-								glare::AudioEngine::AddSourceFromStreamingSoundFileParams params;
-								params.sound_file_path = resource_manager->pathForURL(ob->audio_source_url);
-								params.mem_mapped_sound_file = loaded_msg->mapped_file;
-								//params.sound_data_source = data_source;
-								params.source_volume = ob->audio_volume;
-								params.global_time = this->world_state->getCurrentGlobalTime();
-								params.looping =  BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_LOOP);
-								params.paused = !BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_AUTOPLAY);
-
-								glare::AudioSourceRef source = audio_engine.addSourceFromStreamingSoundFile(params, ob->pos.toVec4fPoint());
-
-								const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
-								source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
-
-								ob->audio_source = source;
-								ob->audio_state = WorldObject::AudioState_Loaded;
-
-								//---------------- Mute audio sources outside the parcel we are in, if required ----------------
-								// Find out which parcel we are in, if any.
-								ParcelID in_parcel_id = ParcelID::invalidParcelID(); // Which parcel camera is in
-								bool mute_outside_audio = false; // Does the parcel the camera is in have 'mute outside audio' set?
-								const Parcel* cam_parcel = world_state->getParcelPointIsIn(this->cam_controller.getFirstPersonPosition());
-								if(cam_parcel)
+								if(ob->audio_source_url == loaded_msg->audio_url)
 								{
-									in_parcel_id = cam_parcel->id;
-									if(BitUtils::isBitSet(cam_parcel->flags, Parcel::MUTE_OUTSIDE_AUDIO_FLAG))
-										mute_outside_audio = true;
-								}
+									// Remove any existing audio source for the object
+									if(ob->audio_source.nonNull())
+									{
+										audio_engine.removeSource(ob->audio_source);
+										ob->audio_source = NULL;
+									}
 
-								if(mute_outside_audio && // If we are in a parcel, which has the mute-outside-audio option enabled:
-									(source->userdata_1 != in_parcel_id.value())) // And the source is in another parcel (or not in any parcel):
+									if(loaded_msg->mapped_file)
+									{
+										// Make a new audio source
+										glare::AudioEngine::AddSourceFromStreamingSoundFileParams params;
+										params.sound_file_path = resource_manager->pathForURL(ob->audio_source_url);
+										params.mem_mapped_sound_file = loaded_msg->mapped_file;
+										//params.sound_data_source = data_source;
+										params.source_volume = ob->audio_volume;
+										params.global_time = this->world_state->getCurrentGlobalTime();
+										params.looping =  BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_LOOP);
+										params.paused = !BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_AUTOPLAY);
+
+										glare::AudioSourceRef source = audio_engine.addSourceFromStreamingSoundFile(params, ob->pos.toVec4fPoint());
+
+										const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
+										source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
+
+										ob->audio_source = source;
+										ob->audio_state = WorldObject::AudioState_Loaded;
+
+										//---------------- Mute audio sources outside the parcel we are in, if required ----------------
+										// Find out which parcel we are in, if any.
+										ParcelID in_parcel_id = ParcelID::invalidParcelID(); // Which parcel camera is in
+										bool mute_outside_audio = false; // Does the parcel the camera is in have 'mute outside audio' set?
+										const Parcel* cam_parcel = world_state->getParcelPointIsIn(this->cam_controller.getFirstPersonPosition());
+										if(cam_parcel)
+										{
+											in_parcel_id = cam_parcel->id;
+											if(BitUtils::isBitSet(cam_parcel->flags, Parcel::MUTE_OUTSIDE_AUDIO_FLAG))
+												mute_outside_audio = true;
+										}
+
+										if(mute_outside_audio && // If we are in a parcel, which has the mute-outside-audio option enabled:
+											(source->userdata_1 != in_parcel_id.value())) // And the source is in another parcel (or not in any parcel):
+										{
+											source->setMuteVolumeFactorImmediately(0.f); // Mute it (set mute volume factor)
+											audio_engine.sourceVolumeUpdated(*source); // Tell audio engine to mute it.
+										}
+										//----------------------------------------------------------------------------------------------
+
+									}
+									else if(loaded_msg->sound_file && loaded_msg->sound_file->buf->buffer.size() > 0) // Avoid divide by zero.
+									{
+										// Timer timer;
+										// Add a non-streaming audio source
+										ob->audio_source = new glare::AudioSource();
+										ob->audio_source->type = glare::AudioSource::SourceType_NonStreaming;
+										ob->audio_source->looping = BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_LOOP);
+										ob->audio_source->paused = !BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_AUTOPLAY);
+										ob->audio_source->shared_buffer = loaded_msg->sound_file->buf;
+										ob->audio_source->sampling_rate = loaded_msg->sound_file->sample_rate;
+										ob->audio_source->pos = ob->getCentroidWS();
+										ob->audio_source->volume = ob->audio_volume;
+										const double audio_len_s = loaded_msg->sound_file->buf->buffer.size() / (double)loaded_msg->sound_file->sample_rate;
+										const double source_time_offset = Maths::doubleMod(global_time, audio_len_s);
+										ob->audio_source->cur_read_i = Maths::intMod((int)(source_time_offset * loaded_msg->sound_file->sample_rate), (int)loaded_msg->sound_file->buf->buffer.size());
+										ob->audio_source->debugname = ob->audio_source_url;
+
+										const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
+										ob->audio_source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
+
+										audio_engine.addSource(ob->audio_source);
+
+										ob->audio_state = WorldObject::AudioState_Loaded;
+										//ob->loaded_audio_source_url = ob->audio_source_url;
+
+										// conPrint("Added AudioSource " + loaded_msg->audio_source_url + ".  loaded_msg->data.size(): " + toString(loaded_msg->audio_buffer->buffer.size()) + " (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
+									}
+								}
+								else
 								{
-									source->setMuteVolumeFactorImmediately(0.f); // Mute it (set mute volume factor)
-									audio_engine.sourceVolumeUpdated(*source); // Tell audio engine to mute it.
+									// else we (pre-)loaded a script audio resource:
+									if(loaded_msg->sound_file)
+										audio_engine.insertSoundFile(resource_manager->pathForURL(loaded_msg->audio_url), loaded_msg->sound_file);
 								}
-								//----------------------------------------------------------------------------------------------
-
 							}
-							else if(loaded_msg->sound_file && loaded_msg->sound_file->buf->buffer.size() > 0) // Avoid divide by zero.
+							catch(glare::Exception& e)
 							{
-								// Timer timer;
-								// Add a non-streaming audio source
-								ob->audio_source = new glare::AudioSource();
-								ob->audio_source->type = glare::AudioSource::SourceType_NonStreaming;
-								ob->audio_source->looping = BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_LOOP);
-								ob->audio_source->paused = !BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_AUTOPLAY);
-								ob->audio_source->shared_buffer = loaded_msg->sound_file->buf;
-								ob->audio_source->sampling_rate = loaded_msg->sound_file->sample_rate;
-								ob->audio_source->pos = ob->getCentroidWS();
-								ob->audio_source->volume = ob->audio_volume;
-								const double audio_len_s = loaded_msg->sound_file->buf->buffer.size() / (double)loaded_msg->sound_file->sample_rate;
-								const double source_time_offset = Maths::doubleMod(global_time, audio_len_s);
-								ob->audio_source->cur_read_i = Maths::intMod((int)(source_time_offset * loaded_msg->sound_file->sample_rate), (int)loaded_msg->sound_file->buf->buffer.size());
-								ob->audio_source->debugname = ob->audio_source_url;
-
-								const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
-								ob->audio_source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
-
-								audio_engine.addSource(ob->audio_source);
-
-								ob->audio_state = WorldObject::AudioState_Loaded;
-								//ob->loaded_audio_source_url = ob->audio_source_url;
-
-								// conPrint("Added AudioSource " + loaded_msg->audio_source_url + ".  loaded_msg->data.size(): " + toString(loaded_msg->audio_buffer->buffer.size()) + " (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
+								print("Error while loading object: " + e.what());
 							}
 						}
-
-						//loadAudioForObject(ob);
-						//if(ob_lod_model_url == URL)
-						//	loadModelForObject(ob);
 					}
-				}
-				catch(glare::Exception& e)
-				{
-					print("Error while loading object: " + e.what());
+
+					loading_audio_URL_to_world_ob_UID_map.erase(loaded_msg->audio_url);
 				}
 			}
 
 			// Now that this audio is loaded, removed from audio_processing set.
 			// If the audio is unloaded, then this will allow it to be reprocessed and reloaded.
-			audio_processing.erase(loaded_msg->audio_source_url);
+			audio_processing.erase(loaded_msg->audio_url);
 		}
 		break;
 		case Msg_ScriptLoadedThreadMessage:
@@ -9825,6 +9880,21 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						avatar->clearPendingGesture(); // Since we have received a stop-gesture message for this avatar, we don't want to start playing the anim when we download the animation file.
 					}
 				}
+			}
+		}
+		break;
+		case Msg_ScriptPlaySoundMessage:
+		{
+			const ScriptPlaySoundMessage* m = checkedDowncastPtr<const ScriptPlaySoundMessage>(msg);
+
+			// If our avatar triggered the script event, then our own copy of the script already played the sound, so don't play it again.
+			if(world_state && (m->calling_avatar_uid != this->client_avatar_uid))
+			{
+				Lock lock(this->world_state->mutex);
+
+				auto res = this->world_state->objects.find(m->ob_uid);
+				if(res != this->world_state->objects.end())
+					playScriptSound(*res.getValue(), m->URL);
 			}
 		}
 		break;
@@ -10505,6 +10575,33 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 										WorldObject* ob = ob_res.getValue().ptr();
 										if(ob->audio_source_url == URL)
 											loadAudioForObject(ob, m->loaded_buffer);
+										else
+										{
+											// For script resource:
+											// if(is wav, or if is mp3 and sufficiently short (file size < X bytes?) preload into audio engine.
+											// otherwise just leave on disk (how to handle emscripten?)
+											// Actually starting to play the audio can be left to the Lua playSound() execution.
+
+											// TEMP: always pre-load
+											const bool just_inserted = checkAddAudioToProcessingSet(URL); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
+											if(just_inserted)
+											{
+												// Do the audio file loading in a different thread
+												Reference<LoadAudioTask> load_audio_task = new LoadAudioTask();
+
+												load_audio_task->mem_map_file = false;
+												load_audio_task->resource = resource;
+												load_audio_task->audio_url = URL;
+												load_audio_task->audio_path = local_path;
+												load_audio_task->resource_manager = this->resource_manager;
+												load_audio_task->result_msg_queue = &this->msg_queue;
+												load_audio_task->loaded_buffer = m->loaded_buffer;
+
+												load_item_queue.enqueueItem(/*key=*/URL, *ob, load_audio_task, /*task max dist=*//*maxAudioDistForSourceVolFactor(1.f)*/1.0e10f);
+											}
+
+											loading_audio_URL_to_world_ob_UID_map[URL].insert(ob->uid);
+										}
 									}
 								}
 							}
@@ -14071,6 +14168,16 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 	models_processing.clear();
 	audio_processing.clear();
 	script_content_processing.clear();
+
+	// Clear maps from loading resources to the objects etc. waiting for them, as the objects belong to the world we are leaving.
+	loading_model_URL_to_world_ob_UID_map.clear();
+	loading_model_URL_to_avatar_UID_map.clear();
+	loading_texture_URL_to_world_ob_UID_map.clear();
+	loading_texture_URL_to_avatar_UID_map.clear();
+	loading_texture_key_to_hypercard_UID_map.clear();
+	loading_audio_URL_to_world_ob_UID_map.clear();
+	loading_mesh_URL_to_chunk_coords_map.clear();
+	loading_texture_URL_to_chunk_coords_map.clear();
 
 	tex_paths_being_server_processed.clear();
 }

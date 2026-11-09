@@ -1020,6 +1020,12 @@ SoundFileRef AudioEngine::getOrLoadSoundFile(const std::string& sound_file_path)
 }
 
 
+bool AudioEngine::isSoundFileInserted(const std::string& sound_file_path) const
+{
+	return sound_files.count(sound_file_path) > 0;
+}
+
+
 void AudioEngine::playOneShotSound(const std::string& sound_file_path, const Vec4f& pos)
 {
 	if(!initialised)

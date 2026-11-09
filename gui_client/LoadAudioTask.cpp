@@ -27,18 +27,18 @@ LoadAudioTask::~LoadAudioTask()
 
 void LoadAudioTask::run(size_t thread_index)
 {
-	// conPrint("LoadAudioTask: Loading '" + audio_source_path + "'...");
+	// conPrint("LoadAudioTask: Loading '" + audio_path + "'...");
 	ZoneScopedN("LoadAudioTask"); // Tracy profiler
-	ZoneText(audio_source_path.c_str(), audio_source_path.size());
+	ZoneText(audio_path.c_str(), audio_path.size());
 
 	try
 	{
 		if(mem_map_file)
 		{
-			SharedMemMappedFileRef file = new SharedMemMappedFile(audio_source_path);
+			SharedMemMappedFileRef file = new SharedMemMappedFile(audio_path);
 
 			Reference<AudioLoadedThreadMessage> msg = new AudioLoadedThreadMessage();
-			msg->audio_source_url = audio_source_url;
+			msg->audio_url = audio_url;
 			msg->mapped_file = file;
 
 			result_msg_queue->enqueue(msg);
@@ -52,14 +52,14 @@ void LoadAudioTask::run(size_t thread_index)
 			runtimeCheck(loaded_buffer.nonNull());
 			audio_data_buffer = ArrayRef<uint8>((const uint8*)loaded_buffer->buffer, loaded_buffer->buffer_size);
 #else
-			MemMappedFile file(audio_source_path);
+			MemMappedFile file(audio_path);
 			audio_data_buffer = ArrayRef<uint8>((const uint8*)file.fileData(), file.fileSize());
 #endif
 
-			glare::SoundFileRef sound_file = glare::AudioFileReader::readAudioFileFromBuffer(audio_source_path, audio_data_buffer);
+			glare::SoundFileRef sound_file = glare::AudioFileReader::readAudioFileFromBuffer(audio_path, audio_data_buffer);
 
 			Reference<AudioLoadedThreadMessage> msg = new AudioLoadedThreadMessage();
-			msg->audio_source_url = audio_source_url;
+			msg->audio_url = audio_url;
 			msg->mapped_file = nullptr;
 
 		
@@ -89,7 +89,7 @@ void LoadAudioTask::run(size_t thread_index)
 			else
 				throw glare::Exception("Unhandled num channels " + toString(sound_file->num_channels));
 
-			// conPrint("Loaded audio data '" + audio_source_path + "': " + toString(msg->data.size() * sizeof(float)) + " B");
+			// conPrint("Loaded audio data '" + audio_path + "': " + toString(msg->data.size() * sizeof(float)) + " B");
 			result_msg_queue->enqueue(msg);
 		}
 	}

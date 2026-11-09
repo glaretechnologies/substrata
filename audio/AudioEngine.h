@@ -231,6 +231,7 @@ public:
 
 	void insertSoundFile(const std::string& sound_file_path, SoundFileRef sound);
 	SoundFileRef getOrLoadSoundFile(const std::string& sound_file_path);
+	bool isSoundFileInserted(const std::string& sound_file_path) const;
 
 	static void test();
 private:
