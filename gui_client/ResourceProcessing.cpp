@@ -257,6 +257,39 @@ static void convertTextures()
 			caustic_paths.push_back("D:\\models\\caustics\\save." + ::leftPad(toString(1 + im_i), '0', 2) + ".png");
 
 		convertTexturesToArrayBasisFile(caustic_paths, "D:\\models\\caustics\\caustics.basis");
+
+		// Print the per-channel mean of the frames, which the caustic code in phong_frag_shader.glsl divides the pattern by
+		// so that it conserves energy.  The texture is loaded as sRGB, so the shader sees linear values: average in linear space.
+		float srgb_to_linear[256];
+		for(int i=0; i<256; ++i)
+			srgb_to_linear[i] = referenceSRGBToLinearSRGB(i * (1.f / 255.f));
+
+		double total[3] = { 0, 0, 0 };
+		for(size_t i=0; i<caustic_paths.size(); ++i)
+		{
+			ImageMapUInt8Ref map = PNGDecoder::decode(caustic_paths[i]).downcast<ImageMapUInt8>();
+			runtimeCheck(map->getN() >= 3);
+
+			double sum[3] = { 0, 0, 0 };
+			for(size_t y=0; y<map->getHeight(); ++y)
+			for(size_t x=0; x<map->getWidth(); ++x)
+			{
+				const uint8* pixel = map->getPixel(x, y);
+				for(int c=0; c<3; ++c)
+					sum[c] += srgb_to_linear[pixel[c]];
+			}
+
+			const double num_pixels = (double)map->getWidth() * (double)map->getHeight();
+			std::string s = "Caustic frame " + toString(i) + " linear mean:";
+			for(int c=0; c<3; ++c)
+			{
+				total[c] += sum[c] / num_pixels;
+				s += " " + doubleToStringNDecimalPlaces(sum[c] / num_pixels, 5);
+			}
+			conPrint(s);
+		}
+		conPrint("Caustic linear mean over all frames: " + doubleToStringNDecimalPlaces(total[0] / caustic_paths.size(), 5) + ", " +
+			doubleToStringNDecimalPlaces(total[1] / caustic_paths.size(), 5) + ", " + doubleToStringNDecimalPlaces(total[2] / caustic_paths.size(), 5));
 	}
 
 	// Modify foam image
