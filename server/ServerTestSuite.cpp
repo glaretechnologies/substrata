@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "WorkerThreadUploadPhotoHandling.h"
 #include "WorkerThreadTests.h"
 #include "../shared/WorldObject.h"
+#include "../shared/LuaScriptEvaluator.h"
 #include "../shared/RateLimiter.h"
 #include "../shared/LODGeneration.h"
 #include "../ethereum/RLP.h"
@@ -26,6 +27,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <WebSocketTests.h>
 #include <graphics/FormatDecoderGLTF.h>
 #include <graphics/PNGDecoder.h>
+#include <graphics/jpegdecoder.h>
 #include <graphics/GifDecoder.h>
 #include <graphics/BatchedMeshTests.h>
 #include <graphics/ShelfPack.h>
@@ -41,6 +43,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/DatabaseTests.h>
 #include <utils/BestFitAllocator.h>
 #include <utils/Parser.h>
+#include <utils/JSONParser.h>
 #include <utils/Keccak256.h>
 #include <utils/CryptoRNG.h>
 #include <utils/Base64.h>
@@ -111,6 +114,8 @@ void ServerTestSuite::test()
 
 	Timer timer;
 
+	runTest([&]() { JPEGDecoder::test();												});
+	runTest([&]() { JSONParser::test();													});
 	runTest([&]() { js::VectorUnitTests::test();										});
 	runTest([&]() { WorldHandlers::test();												});
 	runTest([&]() { WorkerThreadUploadPhotoHandling::test();							});
@@ -118,6 +123,7 @@ void ServerTestSuite::test()
 	runTest([&]() { WorkerThreadTests::test();											});
 	runTest([&]() { glare::testArray();													});
 	runTest([&]() { WorldObject::test();												});
+	runTest([&]() { LuaScriptEvaluator::test();											});
 	runTest([&]() { testLRUCache();														});
 	runTest([&]() { TimeStamp::test();													});
 	runTest([&]() { SubEvent::test();													});
