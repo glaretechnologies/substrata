@@ -675,10 +675,9 @@ void LuaScriptEvaluator::appendScriptResourceURLs(const string_view script, glar
 		return;
 	parser.advancePastLine();
 
-	const size_t max_num_URLs = 20;
 	const size_t initial_size = urls_out.size(); // urls_out may already contain other dependency URLs, so count only the ones added here.
 
-	while(parser.notEOF() && ((urls_out.size() - initial_size) < max_num_URLs))
+	while(parser.notEOF() && ((urls_out.size() - initial_size) < MAX_NUM_RESOURCE_URLS))
 	{
 		parser.parseSpacesAndTabs();
 		if(!isLineEndOrEOF(parser)) // Blank lines are part of the header.
@@ -763,6 +762,10 @@ bool LuaScriptEvaluator::isResourceURLDeclared(const string_view URL) const
 
 void LuaScriptEvaluator::warnAboutUndeclaredResourceURL(const string_view func_name, const string_view URL)
 {
+	// Don't store or copy URLs that can't be valid resource URLs, as a script can pass arbitrarily large strings.
+	if(URL.size() > WorldObject::MAX_URL_SIZE)
+		return;
+
 	const size_t max_num_warned_URLs = 16; // Bound the memory used, for scripts that construct many different URLs.
 	if(warned_undeclared_resource_URLs.size() >= max_num_warned_URLs)
 		return;
@@ -890,9 +893,9 @@ void LuaScriptEvaluator::test()
 	// Number of declarations is capped
 	{
 		std::string script = "--lua\n";
-		for(int i=0; i<(int)20 + 10; ++i)
+		for(int i=0; i<(int)MAX_NUM_RESOURCE_URLS + 10; ++i)
 			script += "-- @resource s" + toString(i) + ".mp3\n";
-		testAssert(getScriptResourceURLsAsStrings(script).size() == 20);
+		testAssert(getScriptResourceURLsAsStrings(script).size() == MAX_NUM_RESOURCE_URLS);
 	}
 #endif
 }

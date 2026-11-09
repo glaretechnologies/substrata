@@ -73,6 +73,8 @@ public:
 	//   --lua
 	//   -- @resource door_open_1938475.mp3
 	// The declarations end at the first line that is neither blank nor a comment.
+	// At most MAX_NUM_RESOURCE_URLS declarations are read, any after that are ignored.
+	static const size_t MAX_NUM_RESOURCE_URLS = 20;
 	static void appendScriptResourceURLs(const string_view script, glare::ArenaAllocator* allocator, DependencyURLVector& urls_out);
 
 	// Adds a "-- @resource URL" line to the script header, after any existing @resource lines, or straight after the '--lua' line if there are none.
@@ -84,6 +86,7 @@ public:
 	bool isResourceURLDeclared(const string_view URL) const;
 
 	// Prints a warning to the script output that URL is not declared with @resource.  Only warns once for each URL, so a timer calling playSound() with a wrong URL doesn't flood the output.
+	// URLs longer than WorldObject::MAX_URL_SIZE are ignored, without a warning.
 	void warnAboutUndeclaredResourceURL(const string_view func_name, const string_view URL);
 
 	static void test();

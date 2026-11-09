@@ -335,6 +335,11 @@ void ShaderEditorDialog::on_addFileAsResourcePushButton_clicked()
 		{
 			script_note = "The script already declares this resource.";
 		}
+		else if(declared_URLs.size() >= LuaScriptEvaluator::MAX_NUM_RESOURCE_URLS)
+		{
+			script_note = "The script already declares the maximum of " + toString(LuaScriptEvaluator::MAX_NUM_RESOURCE_URLS) + " resources, so the @resource line was not added.  "
+				"The file will be uploaded once an object script declares it with an @resource line.";
+		}
 		else if(!LuaScriptEvaluator::addScriptResourceDeclaration(script, URL))
 		{
 			script_note = "The script is not a Lua script (it doesn't start with '--lua'), so the @resource line was not added.  "

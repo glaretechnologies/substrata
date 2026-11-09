@@ -3667,25 +3667,28 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 				for(size_t i=0; i<ob->lua_script_evaluator->resource_URLs.size(); ++i)
 				{
 					const URLString& URL = ob->lua_script_evaluator->resource_URLs[i].URL;
-					ResourceRef resource = resource_manager->getExistingResourceForURL(URL);
-					if(resource && resource->isPresent())
+					if(FileTypes::hasAudioFileExtension(URL)) // Scripts can declare other resource types, such as images and models.
 					{
-						const bool just_inserted = checkAddAudioToProcessingSet(URL); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
-						if(just_inserted)
+						ResourceRef resource = resource_manager->getExistingResourceForURL(URL);
+						if(resource && resource->isPresent())
 						{
-							// conPrint("Launching LoadAudioTask");
-							// Do the audio file loading in a different thread
-							Reference<LoadAudioTask> load_audio_task = new LoadAudioTask();
+							const bool just_inserted = checkAddAudioToProcessingSet(URL); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
+							if(just_inserted)
+							{
+								// conPrint("Launching LoadAudioTask");
+								// Do the audio file loading in a different thread
+								Reference<LoadAudioTask> load_audio_task = new LoadAudioTask();
 
-							load_audio_task->mem_map_file = false;
-							load_audio_task->audio_url = URL;
-							load_audio_task->audio_path = resource_manager->getLocalAbsPathForResource(*resource);
-							load_audio_task->result_msg_queue = &this->msg_queue;
+								load_audio_task->mem_map_file = false;
+								load_audio_task->audio_url = URL;
+								load_audio_task->audio_path = resource_manager->getLocalAbsPathForResource(*resource);
+								load_audio_task->result_msg_queue = &this->msg_queue;
 
-							load_item_queue.enqueueItem(/*key=*/URL, *ob, load_audio_task, /*task max dist=*//*maxAudioDistForSourceVolFactor(1.f)*/1.0e10f);
+								load_item_queue.enqueueItem(/*key=*/URL, *ob, load_audio_task, /*task max dist=*//*maxAudioDistForSourceVolFactor(1.f)*/1.0e10f);
+							}
+
+							loading_audio_URL_to_world_ob_UID_map[URL].insert(ob->uid);
 						}
-
-						loading_audio_URL_to_world_ob_UID_map[URL].insert(ob->uid);
 					}
 				}
 
