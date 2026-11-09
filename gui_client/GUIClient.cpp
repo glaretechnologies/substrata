@@ -3678,10 +3678,8 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 							Reference<LoadAudioTask> load_audio_task = new LoadAudioTask();
 
 							load_audio_task->mem_map_file = false;
-							load_audio_task->resource = resource;
 							load_audio_task->audio_url = URL;
 							load_audio_task->audio_path = resource_manager->getLocalAbsPathForResource(*resource);
-							load_audio_task->resource_manager = this->resource_manager;
 							load_audio_task->result_msg_queue = &this->msg_queue;
 
 							load_item_queue.enqueueItem(/*key=*/URL, *ob, load_audio_task, /*task max dist=*//*maxAudioDistForSourceVolFactor(1.f)*/1.0e10f);
@@ -4010,10 +4008,8 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 							Reference<LoadAudioTask> load_audio_task = new LoadAudioTask();
 
 							load_audio_task->mem_map_file = false;
-							load_audio_task->resource = resource_manager->getOrCreateResourceForURL(ob->audio_source_url);
 							load_audio_task->audio_url = ob->audio_source_url;
 							load_audio_task->audio_path = resource_manager->pathForURL(ob->audio_source_url);
-							load_audio_task->resource_manager = this->resource_manager;
 							load_audio_task->result_msg_queue = &this->msg_queue;
 							load_audio_task->loaded_buffer = loaded_buffer;
 
@@ -10590,10 +10586,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 												Reference<LoadAudioTask> load_audio_task = new LoadAudioTask();
 
 												load_audio_task->mem_map_file = false;
-												load_audio_task->resource = resource;
 												load_audio_task->audio_url = URL;
 												load_audio_task->audio_path = local_path;
-												load_audio_task->resource_manager = this->resource_manager;
 												load_audio_task->result_msg_queue = &this->msg_queue;
 												load_audio_task->loaded_buffer = m->loaded_buffer;
 

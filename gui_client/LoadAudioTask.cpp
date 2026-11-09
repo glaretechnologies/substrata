@@ -7,7 +7,6 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include "ThreadMessages.h"
-#include "../shared/ResourceManager.h"
 #include "../audio/AudioFileReader.h"
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>
@@ -45,7 +44,6 @@ void LoadAudioTask::run(size_t thread_index)
 		}
 		else
 		{
-			runtimeCheck(resource.nonNull() && resource_manager.nonNull());
 			ArrayRef<uint8> audio_data_buffer;
 #if EMSCRIPTEN
 			// Use the in-memory buffer that we loaded in EmscriptenResourceDownloader

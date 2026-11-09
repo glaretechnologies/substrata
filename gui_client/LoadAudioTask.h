@@ -44,10 +44,8 @@ public:
 	virtual void run(size_t thread_index);
 
 	bool mem_map_file;
-	ResourceRef resource;
 	Reference<LoadedBuffer> loaded_buffer; // For emscripten, load from memory buffer instead of from resource on disk.
 	URLString audio_url;
 	std::string audio_path; // Local abs path on disk
-	Reference<ResourceManager> resource_manager;
 	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
 };
