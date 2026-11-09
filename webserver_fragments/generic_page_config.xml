@@ -36,6 +36,6 @@
 	<page>
 		<url_path>/about_MCP</url_path>
 		<fragment_path>about_mcp.htmlfrag</fragment_path>
-		<page_title>MCP support</page_title>
+		<page_title>MCP support - Building in Substrata with AI</page_title>
 	</page>
 </pages>

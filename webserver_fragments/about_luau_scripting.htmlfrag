@@ -42,6 +42,33 @@ To apply changes in your script to the object, just close the script editor wind
 </p>
 
 
+<h2 id="resources">Declaring resources</h2>
+
+<p>
+If your script uses resource files, such as sounds played with <a href="#playSound">playSound</a>, you need to declare them in the script's comment header,
+with one <b>-- @resource</b> line per resource:
+</p>
+
+<pre class="code-block">
+--lua
+-- Door script
+-- @resource door_open_1938475.mp3
+-- @resource door_close_7465782.mp3
+</pre>
+
+<p>
+The comment header is the comment and blank lines at the start of the script, after the <b>--lua</b> line.  It ends at the first line that is not blank and not a comment, so any <b>-- @resource</b> lines after that are ignored.
+A script can declare up to 20 resources.
+</p>
+<p>
+Declared resources are downloaded along with the object, so they are ready to use by the time your script needs them.
+</p>
+<p>
+To add a file from your computer as a resource, click the 'Add file as Resource...' button in the script editor window and choose the file.
+The file is uploaded with the object, and a <b>-- @resource</b> line for it is added to your script header.  The dialog that pops up also shows the resource URL, which you can copy.
+</p>
+
+
 <h2>Script execution environment</h2>
 
 <p>
@@ -671,6 +698,38 @@ Note that target_angle is the absolute target orientation, not an amount to rota
 <p>For example, to rotate an object (already oriented around the z-axis) a further 90 degrees around the z-axis over 2 seconds:</p>
 <pre class="code-block">
 this_object:rotateTo(Vec3f(0, 0, 1), this_object.angle + 3.14159265 / 2, 2.0)
+</pre>
+</div>
+
+
+
+<div class="code-func-definition" id="playSound">object:playSound(resource_URL : string)</div>
+
+<div class="code-arg"><span class="code-arg-code">resource_URL : string</span><span class="code-arg-descrip">The URL of the sound to play.  Can be a .mp3 or .wav URL.  Must be declared in the script's comment header with a <b>-- @resource</b> line.</span></div>
+
+<div class="code-func-description">
+<p>
+Plays a sound once, from the position of the object.  The sound is heard by all players in the world, not just the player who triggered it.
+</p>
+<p>
+The sound must be declared in the script's comment header, see <a href="#resources">Declaring resources</a>.  If it isn't, no sound is played, and a warning is printed to the log.
+If the sound hasn't finished downloading yet, nothing is played.
+</p>
+<p>
+When called from an event handler such as onUserUsedObject, the player who triggered the event hears the sound straight away, and other players hear it shortly after via the server.
+Sounds played from timer events are sent from the server to all players.
+</p>
+<p>
+A script can send up to 10 sounds per second to other players.  Calls over that limit are not heard by other players.
+</p>
+<p>For example, to play a sound when a user uses an object:</p>
+<pre class="code-block">
+--lua
+-- @resource door_open_1938475.mp3
+
+function onUserUsedObject(av : Avatar, ob : Object)
+	ob:playSound("door_open_1938475.mp3")
+end
 </pre>
 </div>
 
