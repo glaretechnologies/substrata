@@ -824,6 +824,8 @@ public:
 
 	std::unordered_map<OpenGLTextureKey, std::set<UID>, URLStringHasher> loading_audio_URL_to_world_ob_UID_map;
 
+	std::unordered_map<std::string, std::set<UID>> loading_script_contents_to_world_ob_UID_map;
+
 	std::unordered_map<URLString, Vec3i, URLStringHasher> loading_mesh_URL_to_chunk_coords_map;
 	std::unordered_map<URLString, Vec3i, URLStringHasher> loading_texture_URL_to_chunk_coords_map;
 

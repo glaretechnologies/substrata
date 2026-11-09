@@ -3648,6 +3648,8 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 				task->script_content = ob->script;
 				load_item_queue.enqueueItem(/*key=*/toURLString("script_" + ob->uid.toString()), *ob, task, /*task max dist=*/std::numeric_limits<float>::infinity());
 			}
+
+			loading_script_contents_to_world_ob_UID_map[ob->script].insert(ob->uid);
 		}
 
 
@@ -9500,17 +9502,29 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			// conPrint("ScriptLoadedThreadMessage");
 
-			if(world_state.nonNull())
+			if(world_state)
 			{
 				// Iterate over objects and assign the script evaluator for any object using this script.
 				{
 					Lock lock(this->world_state->mutex);
 
-					for(auto it = this->world_state->objects.valuesBegin(); it != this->world_state->objects.valuesEnd(); ++it)
+					auto res = loading_script_contents_to_world_ob_UID_map.find(loaded_msg->script);
+					if(res != loading_script_contents_to_world_ob_UID_map.end())
 					{
-						WorldObject* ob = it.getValue().ptr();
-						if(ob->script == loaded_msg->script)
-							handleScriptLoadedForObUsingScript(loaded_msg, ob);
+						const std::set<UID>& waiting_uids = res->second;
+						for(auto it = waiting_uids.begin(); it != waiting_uids.end(); ++it)
+						{
+							auto res2 = this->world_state->objects.find(*it);
+							if(res2 != this->world_state->objects.end())
+							{
+								WorldObject* ob = res2.getValue().ptr();
+
+								if(ob->script == loaded_msg->script)
+									handleScriptLoadedForObUsingScript(loaded_msg, ob);
+							}
+						}
+
+						loading_script_contents_to_world_ob_UID_map.erase(res); // Now that this script has been loaded, remove from map
 					}
 				}
 			}
@@ -14173,6 +14187,7 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 	loading_texture_URL_to_avatar_UID_map.clear();
 	loading_texture_key_to_hypercard_UID_map.clear();
 	loading_audio_URL_to_world_ob_UID_map.clear();
+	loading_script_contents_to_world_ob_UID_map.clear();
 	loading_mesh_URL_to_chunk_coords_map.clear();
 	loading_texture_URL_to_chunk_coords_map.clear();
 
