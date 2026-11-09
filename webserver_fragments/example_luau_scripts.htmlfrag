@@ -1,6 +1,22 @@
 
 
 
+<h2>Show a message when user uses an object</h2>
+
+<p>
+Here is a very simple script that shows a message to a user when they use an object (move the mouse cursor over the object and press the E key):
+</p>
+
+<pre class="code-block">
+--lua
+
+function onUserUsedObject(av : Avatar, ob : Object)
+	showMessageToUser("Hi " .. av.name .. ", you used the object!", av)
+end
+</pre>
+
+
+
 <h2>Show a message when user touches an object</h2>
 
 <p>
