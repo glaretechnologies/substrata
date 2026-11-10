@@ -1322,6 +1322,7 @@ void GUIClient::startLoadingTextureForLocalPath(const OpenGLTextureKey& local_ab
 	if(!opengl_engine->isOpenGLTextureInsertedForKey(local_abs_tex_path)) // If texture is not uploaded to GPU already:
 	{
 		const bool just_added = checkAddTextureToProcessingSet(local_abs_tex_path); // If not being loaded already:
+		const LoadItemQueueKey queue_key(resource->URL, LoadItemQueueKey::Type_Texture);
 		if(just_added)
 		{
 			// conPrint("Adding LoadTextureTask for texture '" + local_abs_tex_path + "'...");
@@ -1331,7 +1332,7 @@ void GUIClient::startLoadingTextureForLocalPath(const OpenGLTextureKey& local_ab
 				opengl_upload_thread);
 
 			load_item_queue.enqueueItem(
-				resource->URL, // key
+				queue_key,
 				centroid_ws, 
 				aabb_ws_longest_len, 
 				task,
@@ -1341,7 +1342,7 @@ void GUIClient::startLoadingTextureForLocalPath(const OpenGLTextureKey& local_ab
 		}
 		else
 		{
-			load_item_queue.checkUpdateItemPosition(/*key=*/resource->URL, centroid_ws, aabb_ws_longest_len, importance_factor);
+			load_item_queue.checkUpdateItemPosition(queue_key, centroid_ws, aabb_ws_longest_len, importance_factor);
 		}
 	}
 }
@@ -1414,7 +1415,8 @@ void GUIClient::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_
 					// This code is also in startDownloadingResourcesForObject().
 					tex_params.filtering = OpenGLTexture::Filtering_Bilinear;
 					tex_params.use_mipmaps = false;
-					load_item_queue.enqueueItem(/*key=*/lod_tex_url, ob, 
+					const LoadItemQueueKey queue_key(lod_tex_url, LoadItemQueueKey::Type_Texture);
+					load_item_queue.enqueueItem(queue_key, ob, 
 						new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, tex_params, /*is_terrain_map=*/false, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
 						max_dist_for_ob_lod_level_clamped_0); // Lightmaps don't have LOD level -1 so used max dist for LOD level >= 0.
 				}
@@ -2399,7 +2401,8 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 						task->worker_allocator = worker_allocator;
 						task->texture_loaded_msg_allocator = texture_loaded_msg_allocator;
 						task->upload_thread = opengl_upload_thread;
-						load_item_queue.enqueueItem(/*key=*/URLString(tex_key), *ob, task, /*max_dist_for_ob_lod_level=*/200.f);
+						const LoadItemQueueKey queue_key(tex_key, LoadItemQueueKey::Type_Texture);
+						load_item_queue.enqueueItem(queue_key, *ob, task, /*max_dist_for_ob_lod_level=*/200.f);
 					}
 
 					loading_texture_key_to_hypercard_UID_map[tex_key].insert(ob->uid);
@@ -2792,7 +2795,8 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 							load_model_task->worker_allocator = worker_allocator;
 							load_model_task->upload_thread = opengl_upload_thread;
 
-							load_item_queue.enqueueItem(/*key=*/pseudo_lod_model_url, *ob, load_model_task, max_dist_for_ob_model_lod_level);
+							const LoadItemQueueKey queue_key(pseudo_lod_model_url, LoadItemQueueKey::Type_Model, shape_type);
+							load_item_queue.enqueueItem(/*key=*/queue_key, *ob, load_model_task, max_dist_for_ob_model_lod_level);
 						}
 
 						load_placeholder = !added_opengl_ob;
@@ -2878,6 +2882,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 					if(resource_manager->isFileForURLPresent(lod_model_url))
 					{
 						const bool just_added = this->checkAddModelToProcessingSet(lod_model_url, shape_type); // Avoid making multiple LoadModelTasks for this mesh.
+						const LoadItemQueueKey queue_key(lod_model_url, LoadItemQueueKey::Type_Model, shape_type);
 						if(just_added)
 						{
 							// Do the model loading in a different thread
@@ -2894,10 +2899,10 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 							load_model_task->upload_thread = opengl_upload_thread;
 							load_model_task->ob_to_world_matrix = obToWorldMatrix(*ob);
 
-							load_item_queue.enqueueItem(/*key=*/lod_model_url, *ob, load_model_task, max_dist_for_ob_model_lod_level);
+							load_item_queue.enqueueItem(queue_key, *ob, load_model_task, max_dist_for_ob_model_lod_level);
 						}
 						else
-							load_item_queue.checkUpdateItemPosition(/*key=*/lod_model_url, *ob);
+							load_item_queue.checkUpdateItemPosition(queue_key, *ob);
 					}
 				}
 
@@ -2939,6 +2944,7 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 				else if(resource_manager->isFileForURLPresent(ob->model_url))
 				{
 					const bool just_added = this->checkAddModelToProcessingSet(ob->model_url, /*shape (shouldn't be used)=*/PhysicsObject::ShapeType_tri_mesh); // Avoid making multiple LoadModelTasks for this cloud.
+					const LoadItemQueueKey queue_key(ob->model_url, LoadItemQueueKey::Type_Model, PhysicsObject::ShapeType_tri_mesh);
 					if(just_added)
 					{
 						// Decode the .sog in a different thread
@@ -2956,10 +2962,10 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 						// returns its result directly via result_msg_queue.
 						load_model_task->ob_to_world_matrix = obToWorldMatrix(*ob);
 
-						load_item_queue.enqueueItem(/*key=*/ob->model_url, *ob, load_model_task, max_dist_for_ob_model_lod_level);
+						load_item_queue.enqueueItem(queue_key, *ob, load_model_task, max_dist_for_ob_model_lod_level);
 					}
 					else
-						load_item_queue.checkUpdateItemPosition(/*key=*/ob->model_url, *ob);
+						load_item_queue.checkUpdateItemPosition(queue_key, *ob);
 				}
 
 				// If the cloud isn't loaded yet, add this object to the wait list.
@@ -3436,6 +3442,7 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 			{
 				if(resource_manager->isFileForURLPresent(lod_model_url))
 				{
+					const LoadItemQueueKey queue_key(lod_model_url, LoadItemQueueKey::Type_Model, PhysicsObject::ShapeType_tri_mesh);
 					const bool just_added = this->checkAddModelToProcessingSet(lod_model_url, /*shape (shouldn't be used)=*/PhysicsObject::ShapeType_tri_mesh); // Avoid making multiple LoadModelTasks for this mesh.
 					if(just_added)
 					{
@@ -3453,10 +3460,10 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 						load_model_task->upload_thread = opengl_upload_thread;
 						load_model_task->ob_to_world_matrix = obToWorldMatrix(*avatar);
 
-						load_item_queue.enqueueItem(/*key=*/lod_model_url, *avatar, load_model_task, max_dist_for_ob_model_lod_level);
+						load_item_queue.enqueueItem(queue_key, *avatar, load_model_task, max_dist_for_ob_model_lod_level);
 					}
 					else
-						load_item_queue.checkUpdateItemPosition(/*key=*/lod_model_url, *avatar);
+						load_item_queue.checkUpdateItemPosition(queue_key, *avatar);
 				}
 			}
 
@@ -3507,6 +3514,7 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 			{
 				if(resource_manager->isFileForURLPresent(lod_model_url))
 				{
+					const LoadItemQueueKey queue_key(lod_model_url, LoadItemQueueKey::Type_Model, PhysicsObject::ShapeType_tri_mesh);
 					const bool just_added = this->checkAddModelToProcessingSet(lod_model_url, /*shape (shouldn't be used)=*/PhysicsObject::ShapeType_tri_mesh); // Avoid making multiple LoadModelTasks for this mesh.
 					if(just_added)
 					{
@@ -3529,10 +3537,10 @@ void GUIClient::loadModelForAvatar(Avatar* avatar)
 						load_model_task->ob_to_world_matrix = obToWorldMatrix(*avatar);
 						load_model_task->mat_transparent = mat_transparent;
 
-						load_item_queue.enqueueItem(/*key=*/lod_model_url, *avatar, load_model_task, max_dist_for_ob_model_lod_level);
+						load_item_queue.enqueueItem(queue_key, *avatar, load_model_task, max_dist_for_ob_model_lod_level);
 					}
 					else
-						load_item_queue.checkUpdateItemPosition(/*key=*/lod_model_url, *avatar);
+						load_item_queue.checkUpdateItemPosition(queue_key, *avatar);
 				}
 			}
 
@@ -3643,7 +3651,8 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 				task->base_dir_path = base_dir_path;
 				task->result_msg_queue = &msg_queue;
 				task->script_content = ob->script;
-				load_item_queue.enqueueItem(/*key=*/toURLString("script_" + ob->uid.toString()), *ob, task, /*task max dist=*/std::numeric_limits<float>::infinity());
+				const LoadItemQueueKey queue_key(toURLString("script_" + ob->uid.toString()), LoadItemQueueKey::Type_Script);
+				load_item_queue.enqueueItem(/*key=*/queue_key, *ob, task, /*task max dist=*/std::numeric_limits<float>::infinity());
 			}
 
 			loading_script_contents_to_world_ob_UID_map[ob->script].insert(ob->uid);
@@ -3684,7 +3693,8 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 								load_audio_task->audio_path = resource_manager->getLocalAbsPathForResource(*resource);
 								load_audio_task->result_msg_queue = &this->msg_queue;
 
-								load_item_queue.enqueueItem(/*key=*/URL, *ob, load_audio_task, /*task max dist=*//*maxAudioDistForSourceVolFactor(1.f)*/1.0e10f);
+								const LoadItemQueueKey queue_key(URL, LoadItemQueueKey::Type_Audio, /*mem_map_file=*/false);
+								load_item_queue.enqueueItem(queue_key, *ob, load_audio_task, /*task max dist=*//*maxAudioDistForSourceVolFactor(1.f)*/1.0e10f);
 							}
 
 							loading_audio_URL_to_world_ob_UID_map[key].insert(ob->uid);
@@ -3950,6 +3960,7 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 						{
 							// New streams using an mp3 streaming from disk can block while creating MemMappedFile, so do in a task
 							const AudioProcessingKey key(ob->audio_source_url, /*mem_map_file=*/true);
+							const LoadItemQueueKey queue_key(ob->audio_source_url, LoadItemQueueKey::Type_Audio, /*mem_map_file=*/true);
 							const bool just_inserted = checkAddAudioToProcessingSet(key); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
 							if(just_inserted)
 							{
@@ -3962,11 +3973,11 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 								load_audio_task->audio_path = resource_manager->pathForURL(ob->audio_source_url);
 								load_audio_task->result_msg_queue = &this->msg_queue;
 
-								load_item_queue.enqueueItem(/*key=*/ob->audio_source_url, *ob, load_audio_task, /*task max dist=*/maxAudioDistForSourceVolFactor(ob->audio_volume));
+								load_item_queue.enqueueItem(queue_key, *ob, load_audio_task, /*task max dist=*/maxAudioDistForSourceVolFactor(ob->audio_volume));
 							}
 							else
 							{
-								load_item_queue.checkUpdateItemPosition(/*key=*/ob->audio_source_url, *ob);
+								load_item_queue.checkUpdateItemPosition(queue_key, *ob);
 							}
 							loading_audio_URL_to_world_ob_UID_map[key].insert(ob->uid);
 						}
@@ -4005,6 +4016,7 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 					else // else loading a non-streaming source, such as a WAV file.
 					{
 						const AudioProcessingKey key(ob->audio_source_url, /*mem_map_file=*/false);
+						const LoadItemQueueKey queue_key(ob->audio_source_url, LoadItemQueueKey::Type_Audio, /*mem_map_file=*/false);
 						const bool just_inserted = checkAddAudioToProcessingSet(key); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
 						if(just_inserted)
 						{
@@ -4018,11 +4030,11 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 							load_audio_task->result_msg_queue = &this->msg_queue;
 							load_audio_task->loaded_buffer = loaded_buffer;
 
-							load_item_queue.enqueueItem(/*key=*/ob->audio_source_url, *ob, load_audio_task, /*task max dist=*/maxAudioDistForSourceVolFactor(ob->audio_volume));
+							load_item_queue.enqueueItem(queue_key, *ob, load_audio_task, /*task max dist=*/maxAudioDistForSourceVolFactor(ob->audio_volume));
 						}
 						else
 						{
-							load_item_queue.checkUpdateItemPosition(/*key=*/ob->audio_source_url, *ob);
+							load_item_queue.checkUpdateItemPosition(queue_key, *ob);
 						}
 						loading_audio_URL_to_world_ob_UID_map[key].insert(ob->uid);
 					}
@@ -8286,7 +8298,8 @@ void GUIClient::updateLODChunkGraphics()
 					load_model_task->worker_allocator = worker_allocator;
 					load_model_task->upload_thread = opengl_upload_thread;
 
-					load_item_queue.enqueueItem(use_mesh_url, centroid_ws, chunk_w, 
+					const LoadItemQueueKey queue_key(use_mesh_url, LoadItemQueueKey::Type_Model, PhysicsObject::ShapeType_tri_mesh);
+					load_item_queue.enqueueItem(queue_key, centroid_ws, chunk_w, 
 						load_model_task, 
 						/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 				}
@@ -8309,7 +8322,8 @@ void GUIClient::updateLODChunkGraphics()
 				if(resource->getState() == Resource::State_Present)
 				{
 					TextureParams tex_params;
-					load_item_queue.enqueueItem(chunk->combined_array_texture_url, centroid_ws, chunk_w, 
+					const LoadItemQueueKey queue_key(chunk->combined_array_texture_url, LoadItemQueueKey::Type_Texture);
+					load_item_queue.enqueueItem(queue_key, centroid_ws, chunk_w, 
 						new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path, resource, tex_params, /*is terrain map=*/false, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
 						/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 				}
@@ -10567,16 +10581,17 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 								if(!opengl_engine->isOpenGLTextureInsertedForKey(tex_path) || info.used_by_terrain) // If texture is not uploaded to GPU already:
 								{
+									const LoadItemQueueKey queue_key(URL, LoadItemQueueKey::Type_Texture);
 									const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 									if(just_added)
 									{
 										Reference<LoadTextureTask> task = new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, tex_path, resource, info.texture_params, info.used_by_terrain, worker_allocator, 
 											texture_loaded_msg_allocator, opengl_upload_thread);
 										task->loaded_buffer = m->loaded_buffer;
-										load_item_queue.enqueueItem(/*key=*/URL, pos.toVec4fPoint(), size_factor, task, /*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
+										load_item_queue.enqueueItem(queue_key, pos.toVec4fPoint(), size_factor, task, /*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
 									}
 									else
-										load_item_queue.checkUpdateItemPosition(/*key=*/URL, pos.toVec4fPoint(), size_factor);
+										load_item_queue.checkUpdateItemPosition(queue_key, pos.toVec4fPoint(), size_factor);
 								}
 							}
 							else if(FileTypes::hasAudioFileExtension(local_path))
@@ -10613,7 +10628,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 												load_audio_task->result_msg_queue = &this->msg_queue;
 												load_audio_task->loaded_buffer = m->loaded_buffer;
 
-												load_item_queue.enqueueItem(/*key=*/URL, *ob, load_audio_task, /*task max dist=*//*maxAudioDistForSourceVolFactor(1.f)*/1.0e10f);
+												const LoadItemQueueKey queue_key(URL, LoadItemQueueKey::Type_Audio, /*mem_map_file=*/false);
+												load_item_queue.enqueueItem(queue_key, *ob, load_audio_task, /*task max dist=*//*maxAudioDistForSourceVolFactor(1.f)*/1.0e10f);
 											}
 											loading_audio_URL_to_world_ob_UID_map[key].insert(ob->uid);
 										}
@@ -10642,7 +10658,8 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 									// conPrint("handling ResourceDownloadedMessage: making LoadModelTask for " + URL);
 
-									load_item_queue.enqueueItem(/*key=*/URL, pos.toVec4fPoint(), size_factor, load_model_task, 
+									const LoadItemQueueKey queue_key(URL, LoadItemQueueKey::Type_Model, info.physics_shape_type);
+									load_item_queue.enqueueItem(queue_key, pos.toVec4fPoint(), size_factor, load_model_task, 
 										/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
 								}
 								catch(glare::Exception& e)
@@ -13575,7 +13592,8 @@ void GUIClient::objectEdited()
 									task->worker_allocator = worker_allocator;
 									task->texture_loaded_msg_allocator = texture_loaded_msg_allocator;
 									task->upload_thread = opengl_upload_thread;
-									load_item_queue.enqueueItem(/*key=*/URLString(tex_key), *this->selected_ob, task, /*max task dist=*/200.f);
+									const LoadItemQueueKey queue_key(URLString(tex_key), LoadItemQueueKey::Type_Texture);
+									load_item_queue.enqueueItem(queue_key, *this->selected_ob, task, /*max task dist=*/200.f);
 								}
 
 								loading_texture_key_to_hypercard_UID_map[tex_key].insert(selected_ob->uid);
@@ -16304,19 +16322,19 @@ void GUIClient::updateGroundPlane()
 			const Vec4f centroid_ws(section_spec.x  * terrain_section_width_m, section_spec.y  * terrain_section_width_m, 0, 1);
 			
 			if(!section_spec.heightmap_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.heightmap_URL))
-				load_item_queue.enqueueItem(section_spec.heightmap_URL, centroid_ws, aabb_ws_longest_len, 
+				load_item_queue.enqueueItem(LoadItemQueueKey(section_spec.heightmap_URL, LoadItemQueueKey::Type_Texture), centroid_ws, aabb_ws_longest_len, 
 					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.heightmap_path, this->resource_manager->getOrCreateResourceForURL(section_spec.heightmap_URL),
 						heightmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
 			if(!section_spec.mask_map_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.mask_map_URL))
-				load_item_queue.enqueueItem(section_spec.mask_map_URL, centroid_ws, aabb_ws_longest_len, 
+				load_item_queue.enqueueItem(LoadItemQueueKey(section_spec.mask_map_URL, LoadItemQueueKey::Type_Texture), centroid_ws, aabb_ws_longest_len, 
 					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.mask_map_path, this->resource_manager->getOrCreateResourceForURL(section_spec.mask_map_URL),
 						maskmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
 			if(!section_spec.tree_mask_map_URL.empty() && this->resource_manager->isFileForURLPresent(section_spec.tree_mask_map_URL))
-				load_item_queue.enqueueItem(section_spec.tree_mask_map_URL, centroid_ws, aabb_ws_longest_len, 
+				load_item_queue.enqueueItem(LoadItemQueueKey(section_spec.tree_mask_map_URL, LoadItemQueueKey::Type_Texture), centroid_ws, aabb_ws_longest_len, 
 					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_section.tree_mask_map_path, this->resource_manager->getOrCreateResourceForURL(section_spec.tree_mask_map_URL), 
 						maskmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
@@ -16328,19 +16346,19 @@ void GUIClient::updateGroundPlane()
 				continue; 
 
 			if(!use_detail_col_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(use_detail_col_map_URLs[i]))
-				load_item_queue.enqueueItem(use_detail_col_map_URLs[i], Vec4f(0,0,0,1), aabb_ws_longest_len, 
+				load_item_queue.enqueueItem(LoadItemQueueKey(use_detail_col_map_URLs[i], LoadItemQueueKey::Type_Texture), Vec4f(0,0,0,1), aabb_ws_longest_len, 
 					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_col_map_paths[i], this->resource_manager->getOrCreateResourceForURL(use_detail_col_map_URLs[i]), 
 						detail_colourmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
 			if(!use_detail_height_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(use_detail_height_map_URLs[i]))
-				load_item_queue.enqueueItem(use_detail_height_map_URLs[i], Vec4f(0,0,0,1), aabb_ws_longest_len, 
+				load_item_queue.enqueueItem(LoadItemQueueKey(use_detail_height_map_URLs[i], LoadItemQueueKey::Type_Texture), Vec4f(0,0,0,1), aabb_ws_longest_len, 
 					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_height_map_paths[i], this->resource_manager->getOrCreateResourceForURL(use_detail_height_map_URLs[i]), 
 						heightmap_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread), 
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);
 
 			if(!use_detail_normal_map_URLs[i].empty() && this->resource_manager->isFileForURLPresent(use_detail_normal_map_URLs[i]))
-				load_item_queue.enqueueItem(use_detail_normal_map_URLs[i], Vec4f(0,0,0,1), aabb_ws_longest_len,
+				load_item_queue.enqueueItem(LoadItemQueueKey(use_detail_normal_map_URLs[i], LoadItemQueueKey::Type_Texture), Vec4f(0,0,0,1), aabb_ws_longest_len,
 					new LoadTextureTask(opengl_engine, resource_manager, &this->msg_queue, path_spec.detail_normal_map_paths[i], this->resource_manager->getOrCreateResourceForURL(use_detail_normal_map_URLs[i]),
 						detail_normal_map_tex_params, /*is terrain map=*/true, worker_allocator, texture_loaded_msg_allocator, opengl_upload_thread),
 					/*max_dist_for_ob_lod_level=*/std::numeric_limits<float>::max(), /*importance_factor=*/1.f);

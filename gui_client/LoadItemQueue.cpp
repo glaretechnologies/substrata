@@ -26,13 +26,13 @@ LoadItemQueue::~LoadItemQueue()
 {}
 
 
-void LoadItemQueue::enqueueItem(const URLString& key, const WorldObject& ob, const glare::TaskRef& task, float task_max_dist)
+void LoadItemQueue::enqueueItem(const LoadItemQueueKey& key, const WorldObject& ob, const glare::TaskRef& task, float task_max_dist)
 {
 	enqueueItem(key, ob.getCentroidWS(), LoadItemQueueItem::sizeFactorForAABBWS(ob.getAABBWSLongestLength(), /*importance_factor=*/1.f), task, task_max_dist);
 }
 
 
-void LoadItemQueue::enqueueItem(const URLString& key, const Avatar& avatar, const glare::TaskRef& task, float task_max_dist)
+void LoadItemQueue::enqueueItem(const LoadItemQueueKey& key, const Avatar& avatar, const glare::TaskRef& task, float task_max_dist)
 {
 	// Prioritise laoding our avatar first
 	const float our_avatar_importance_factor = avatar.our_avatar ? 1.0e4f : 1.f;
@@ -41,13 +41,13 @@ void LoadItemQueue::enqueueItem(const URLString& key, const Avatar& avatar, cons
 }
 
 
-void LoadItemQueue::enqueueItem(const URLString& key, const Vec4f& pos, float aabb_ws_longest_len, const glare::TaskRef& task, float task_max_dist, float importance_factor)
+void LoadItemQueue::enqueueItem(const LoadItemQueueKey& key, const Vec4f& pos, float aabb_ws_longest_len, const glare::TaskRef& task, float task_max_dist, float importance_factor)
 {
 	enqueueItem(key, pos, LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, importance_factor), task, task_max_dist);
 }
 
 
-void LoadItemQueue::enqueueItem(const URLString& key, const Vec4f& pos, float size_factor, const glare::TaskRef& task, float task_max_dist)
+void LoadItemQueue::enqueueItem(const LoadItemQueueKey& key, const Vec4f& pos, float size_factor, const glare::TaskRef& task, float task_max_dist)
 {
 	assert(pos.isFinite());
 
@@ -65,13 +65,13 @@ void LoadItemQueue::enqueueItem(const URLString& key, const Vec4f& pos, float si
 }
 
 
-void LoadItemQueue::checkUpdateItemPosition(const URLString& key, const WorldObject& ob)
+void LoadItemQueue::checkUpdateItemPosition(const LoadItemQueueKey& key, const WorldObject& ob)
 {
 	checkUpdateItemPosition(key, ob.getCentroidWS(), LoadItemQueueItem::sizeFactorForAABBWS(ob.getAABBWSLongestLength(), /*importance_factor=*/1.f));
 }
 
 
-void LoadItemQueue::checkUpdateItemPosition(const URLString& key, const Avatar& avatar)
+void LoadItemQueue::checkUpdateItemPosition(const LoadItemQueueKey& key, const Avatar& avatar)
 {
 	// Prioritise loading our avatar first
 	const float our_avatar_importance_factor = avatar.our_avatar ? 1.0e4f : 1.f;
@@ -80,15 +80,15 @@ void LoadItemQueue::checkUpdateItemPosition(const URLString& key, const Avatar& 
 }
 
 
-void LoadItemQueue::checkUpdateItemPosition(const URLString& key, const Vec4f& pos, float aabb_ws_longest_len, float importance_factor)
+void LoadItemQueue::checkUpdateItemPosition(const LoadItemQueueKey& key, const Vec4f& pos, float aabb_ws_longest_len, float importance_factor)
 {
 	checkUpdateItemPosition(key, pos, LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, importance_factor));
 }
 
 
-void LoadItemQueue::checkUpdateItemPosition(const URLString& key, const Vec4f& pos, float size_factor)
+void LoadItemQueue::checkUpdateItemPosition(const LoadItemQueueKey& key, const Vec4f& pos, float size_factor)
 {
-	auto res = item_map.find(key);
+	const auto res = item_map.find(key);
 	if(res != item_map.end())
 	{
 		LoadItemQueueItem* existing_item = res->second;
@@ -187,7 +187,9 @@ void LoadItemQueue::dequeueFront(LoadItemQueueItem& item_out)
 {
 	assert(begin_i < items.size());
 
-	item_map.erase(items[begin_i]->key);
+	LoadItemQueueItem* item = items[begin_i];
+
+	item_map.erase(item->key);
 
 	item_out = *items[begin_i]; // Copy to item_out
 

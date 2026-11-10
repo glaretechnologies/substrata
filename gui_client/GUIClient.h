@@ -723,19 +723,10 @@ public:
 	{
 		ModelProcessingKey(const URLString& URL_, PhysicsObject::ShapeType physics_shape_type_) : URL(URL_), physics_shape_type(physics_shape_type_) {}
 
+		bool operator == (const ModelProcessingKey& other) const { return URL == other.URL && physics_shape_type == other.physics_shape_type; }
+
 		URLString URL;
 		PhysicsObject::ShapeType physics_shape_type;
-
-		bool operator < (const ModelProcessingKey& other) const
-		{
-			if(URL < other.URL)
-				return true;
-			else if(URL > other.URL)
-				return false;
-			else
-				return physics_shape_type < other.physics_shape_type;
-		}
-		bool operator == (const ModelProcessingKey& other) const { return URL == other.URL && physics_shape_type == other.physics_shape_type; }
 	};
 	struct ModelProcessingKeyHasher
 	{
@@ -835,7 +826,7 @@ public:
 
 	std::unordered_map<URLString, DownloadingResourceInfo, URLStringHasher> URL_to_downloading_info; // Map from URL to info about the resource, for currently downloading resources.
 
-	std::map<ModelProcessingKey, std::set<UID>> loading_model_URL_to_world_ob_UID_map;
+	std::unordered_map<ModelProcessingKey, std::set<UID>, ModelProcessingKeyHasher> loading_model_URL_to_world_ob_UID_map;
 	std::unordered_map<URLString, std::set<UID>, URLStringHasher> loading_model_URL_to_avatar_UID_map;
 
 	std::unordered_map<URLString, std::set<UID>, URLStringHasher> loading_texture_URL_to_world_ob_UID_map;
