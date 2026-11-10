@@ -1244,9 +1244,9 @@ void GUIClient::sendChatMessage(const std::string& message)
 }
 
 
-bool GUIClient::checkAddAudioToProcessingSet(const URLString& url)
+bool GUIClient::checkAddAudioToProcessingSet(const AudioProcessingKey& key)
 {
-	auto res = audio_processing.insert(url);
+	auto res = audio_processing.insert(key);
 	return res.second; // Was audio inserted? (will be false if already present in set)
 }
 
@@ -1600,11 +1600,8 @@ bool GUIClient::isResourceCurrentlyNeededForObjectGivenIsDependency(const URLStr
 		{
 			if(FileTypes::isSupportedAudioFileExtension(extension))
 			{
-				if(audio_processing.count(url) > 0)
-				{
-					// conPrint("'" + url + "' is in audio_processing.");
+				if(audio_processing.count(AudioProcessingKey(url, /*mem_map_file=*/false)) > 0 || audio_processing.count(AudioProcessingKey(url, /*mem_map_file=*/true)) > 0)
 					return false;
-				}
 
 				const double ob_dist = ob->pos.getDist(cam_controller.getPosition());
 				const bool in_range = ob_dist < maxAudioDistForSourceVolFactor(ob->audio_volume);
@@ -3674,7 +3671,8 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 						ResourceRef resource = resource_manager->getExistingResourceForURL(URL);
 						if(resource && resource->isPresent())
 						{
-							const bool just_inserted = checkAddAudioToProcessingSet(URL); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
+							const AudioProcessingKey key(URL, /*mem_map_file=*/false);
+							const bool just_inserted = checkAddAudioToProcessingSet(key); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
 							if(just_inserted)
 							{
 								// conPrint("Launching LoadAudioTask");
@@ -3689,7 +3687,7 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 								load_item_queue.enqueueItem(/*key=*/URL, *ob, load_audio_task, /*task max dist=*//*maxAudioDistForSourceVolFactor(1.f)*/1.0e10f);
 							}
 
-							loading_audio_URL_to_world_ob_UID_map[URL].insert(ob->uid);
+							loading_audio_URL_to_world_ob_UID_map[key].insert(ob->uid);
 						}
 					}
 				}
@@ -3951,7 +3949,8 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 						if(!params.sound_data_source && audio_engine.needNewStreamerForPath(params.sound_file_path, params.paused))
 						{
 							// New streams using an mp3 streaming from disk can block while creating MemMappedFile, so do in a task
-							const bool just_inserted = checkAddAudioToProcessingSet(ob->audio_source_url); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
+							const AudioProcessingKey key(ob->audio_source_url, /*mem_map_file=*/true);
+							const bool just_inserted = checkAddAudioToProcessingSet(key); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
 							if(just_inserted)
 							{
 								// conPrint("Launching LoadAudioTask");
@@ -3969,7 +3968,7 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 							{
 								load_item_queue.checkUpdateItemPosition(/*key=*/ob->audio_source_url, *ob);
 							}
-							loading_audio_URL_to_world_ob_UID_map[ob->audio_source_url].insert(ob->uid);
+							loading_audio_URL_to_world_ob_UID_map[key].insert(ob->uid);
 						}
 						else
 						{
@@ -4005,7 +4004,8 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 					}
 					else // else loading a non-streaming source, such as a WAV file.
 					{
-						const bool just_inserted = checkAddAudioToProcessingSet(ob->audio_source_url); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
+						const AudioProcessingKey key(ob->audio_source_url, /*mem_map_file=*/false);
+						const bool just_inserted = checkAddAudioToProcessingSet(key); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
 						if(just_inserted)
 						{
 							// conPrint("Launching LoadAudioTask");
@@ -4024,7 +4024,7 @@ void GUIClient::loadAudioForObject(WorldObject* ob, const Reference<LoadedBuffer
 						{
 							load_item_queue.checkUpdateItemPosition(/*key=*/ob->audio_source_url, *ob);
 						}
-						loading_audio_URL_to_world_ob_UID_map[ob->audio_source_url].insert(ob->uid);
+						loading_audio_URL_to_world_ob_UID_map[key].insert(ob->uid);
 					}
 
 					//ob->loaded_audio_source_url = ob->audio_source_url;
@@ -6351,8 +6351,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			else if(dynamic_cast<const LoadAudioTask*>(item.task.ptr()))
 			{
 				const LoadAudioTask* task = static_cast<const LoadAudioTask*>(item.task.ptr());
-				assert(audio_processing.count(task->audio_url) > 0);
-				audio_processing.erase(task->audio_url);
+				assert(audio_processing.count(AudioProcessingKey(task->audio_url, task->mem_map_file)) > 0);
+				audio_processing.erase(AudioProcessingKey(task->audio_url, task->mem_map_file));
 				
 				//conPrint("Discarding LoadAudioTask '" + task->audio_source_url + "' as too far away. (dist_from_item: " + doubleToStringNSigFigs(dist_from_item, 4) + ", task max dist: " + doubleToStringNSigFigs(item.task_max_dist, 3) + ")");
 			}
@@ -9378,11 +9378,13 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			// conPrint("AudioLoadedThreadMessage: loaded_msg->audio_source_url: " + loaded_msg->audio_source_url);
 
+			// Assign the loaded sound file or mem-mapped file to all objects waiting for it:
 			if(world_state)
 			{
 				Lock lock(this->world_state->mutex);
 
-				auto res = this->loading_audio_URL_to_world_ob_UID_map.find(loaded_msg->audio_url);
+				const AudioProcessingKey key(loaded_msg->audio_url, /*mem_map_file=*/loaded_msg->mapped_file.nonNull());
+				auto res = this->loading_audio_URL_to_world_ob_UID_map.find(key);
 				if(res != this->loading_audio_URL_to_world_ob_UID_map.end())
 				{
 					const std::set<UID>& waiting_obs = res->second;
@@ -9398,10 +9400,10 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 								if(ob->audio_source_url == loaded_msg->audio_url)
 								{
 									// Remove any existing audio source for the object
-									if(ob->audio_source.nonNull())
+									if(ob->audio_source)
 									{
 										audio_engine.removeSource(ob->audio_source);
-										ob->audio_source = NULL;
+										ob->audio_source = nullptr;
 									}
 
 									if(loaded_msg->mapped_file)
@@ -9473,11 +9475,12 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 										// conPrint("Added AudioSource " + loaded_msg->audio_source_url + ".  loaded_msg->data.size(): " + toString(loaded_msg->audio_buffer->buffer.size()) + " (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
 									}
 								}
-								else
+
+								// If we (pre-)loaded a script audio resource:
+								if(loaded_msg->sound_file && ob->lua_script_evaluator && ob->lua_script_evaluator->isResourceURLDeclared(loaded_msg->audio_url))
 								{
-									// else we (pre-)loaded a script audio resource:
-									if(loaded_msg->sound_file)
-										audio_engine.insertSoundFile(resource_manager->pathForURL(loaded_msg->audio_url), loaded_msg->sound_file);
+									// Insert the sound into audio engine so we can play it immediately when playSound is called.
+									audio_engine.insertSoundFile(resource_manager->pathForURL(loaded_msg->audio_url), loaded_msg->sound_file);
 								}
 							}
 							catch(glare::Exception& e)
@@ -9487,13 +9490,13 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 						}
 					}
 
-					loading_audio_URL_to_world_ob_UID_map.erase(loaded_msg->audio_url);
+					loading_audio_URL_to_world_ob_UID_map.erase(res);
 				}
 			}
 
 			// Now that this audio is loaded, removed from audio_processing set.
 			// If the audio is unloaded, then this will allow it to be reprocessed and reloaded.
-			audio_processing.erase(loaded_msg->audio_url);
+			audio_processing.erase(AudioProcessingKey(loaded_msg->audio_url, /*mem_map_file=*/loaded_msg->mapped_file.nonNull()));
 		}
 		break;
 		case Msg_ScriptLoadedThreadMessage:
@@ -10588,15 +10591,17 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 										WorldObject* ob = ob_res.getValue().ptr();
 										if(ob->audio_source_url == URL)
 											loadAudioForObject(ob, m->loaded_buffer);
-										else
-										{
-											// For script resource:
-											// if(is wav, or if is mp3 and sufficiently short (file size < X bytes?) preload into audio engine.
-											// otherwise just leave on disk (how to handle emscripten?)
-											// Actually starting to play the audio can be left to the Lua playSound() execution.
 
+										if(ob->lua_script_evaluator && ob->lua_script_evaluator->isResourceURLDeclared(URL))
+										{
+											// For a script resource:
+											// if is wav, or if is mp3 and sufficiently short (file size < X bytes?) preload into audio engine.
+											// otherwise just leave on disk to stream later (how to handle emscripten?  Keep around compressed in mem?)
+											// Actually starting to play the audio can be left to the Lua playSound() execution.
+											//
 											// TEMP: always pre-load
-											const bool just_inserted = checkAddAudioToProcessingSet(URL); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
+											const AudioProcessingKey key(URL, /*mem_map_file=*/false);
+											const bool just_inserted = checkAddAudioToProcessingSet(key); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
 											if(just_inserted)
 											{
 												// Do the audio file loading in a different thread
@@ -10610,8 +10615,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 												load_item_queue.enqueueItem(/*key=*/URL, *ob, load_audio_task, /*task max dist=*//*maxAudioDistForSourceVolFactor(1.f)*/1.0e10f);
 											}
-
-											loading_audio_URL_to_world_ob_UID_map[URL].insert(ob->uid);
+											loading_audio_URL_to_world_ob_UID_map[key].insert(ob->uid);
 										}
 									}
 								}

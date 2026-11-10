@@ -392,7 +392,8 @@ public:
 		const Matrix4f& tentative_to_world_matrix, js::Vector<EdgeMarker, 16>& edge_markers_out, Vec3d& new_ob_pos_out);
 	bool checkAddTextureToProcessingSet(const OpenGLTextureKey& path); // returns true if was not in processed set (and hence this call added it), false if it was.
 	bool checkAddModelToProcessingSet(const URLString& url, PhysicsObject::ShapeType physics_shape_type); // returns true if was not in processed set (and hence this call added it), false if it was.
-	bool checkAddAudioToProcessingSet(const URLString& url); // returns true if was not in processed set (and hence this call added it), false if it was.
+	struct AudioProcessingKey;
+	bool checkAddAudioToProcessingSet(const AudioProcessingKey& key); // returns true if was not in processed set (and hence this call added it), false if it was.
 	bool checkAddScriptToProcessingSet(const std::string& script_content); // returns true if was not in processed set (and hence this call added it), false if it was.
 
 	void startLoadingTextureIfPresent(const URLString& tex_url, const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_task_dist, float importance_factor, 
@@ -744,13 +745,33 @@ public:
 			return h(key.URL);
 		}
 	};
+
+
+	struct AudioProcessingKey
+	{
+		AudioProcessingKey(const URLString& URL_, bool mem_map_file_) : URL(URL_), mem_map_file(mem_map_file_) {}
+
+		bool operator == (const AudioProcessingKey& other) const { return URL == other.URL && mem_map_file == other.mem_map_file; }
+
+		URLString URL;
+		bool mem_map_file;
+	};
+	struct AudioProcessingKeyHasher
+	{
+		size_t operator() (const AudioProcessingKey& key) const
+		{
+			std::hash<string_view> h;
+			return h(key.URL);
+		}
+	};
+
 	// Models being loaded or already loaded.
 	// We have this set so that we don't process the same model from multiple LoadModelTasks running in parallel.
 	std::unordered_set<ModelProcessingKey, ModelProcessingKeyHasher> models_processing;
 
 	// Audio files being loaded or already loaded.
 	// We have this set so that we don't process the same audio from multiple LoadAudioTasks running in parallel.
-	std::unordered_set<URLString, URLStringHasher> audio_processing;
+	std::unordered_set<AudioProcessingKey, AudioProcessingKeyHasher> audio_processing;
 
 	std::unordered_set<std::string> script_content_processing;
 
@@ -822,7 +843,7 @@ public:
 
 	std::unordered_map<OpenGLTextureKey, std::set<UID>, URLStringHasher> loading_texture_key_to_hypercard_UID_map;
 
-	std::unordered_map<OpenGLTextureKey, std::set<UID>, URLStringHasher> loading_audio_URL_to_world_ob_UID_map;
+	std::unordered_map<AudioProcessingKey, std::set<UID>, AudioProcessingKeyHasher> loading_audio_URL_to_world_ob_UID_map;
 
 	std::unordered_map<std::string, std::set<UID>> loading_script_contents_to_world_ob_UID_map;
 

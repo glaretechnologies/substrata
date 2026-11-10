@@ -7,14 +7,11 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include "ThreadMessages.h"
-#include "../shared/Resource.h"
 #include "../shared/URLString.h"
+#include "../shared/Resource.h" // For LoadedBuffer
 #include "../audio/AudioEngine.h"
 #include <Task.h>
-#include <ThreadMessage.h>
 #include <string>
-#include <vector>
-class ResourceManager;
 class SharedMemMappedFile;
 
 
@@ -43,7 +40,9 @@ public:
 
 	virtual void run(size_t thread_index);
 
-	bool mem_map_file;
+	bool mem_map_file; // If true, just mem-map the file at audio_path, and return it in AudioLoadedThreadMessage::mapped_file.  For streaming mp3s.
+	// If false, load the audio file at audio_path completely into memory, and return in AudioLoadedThreadMessage::sound_file.
+
 	Reference<LoadedBuffer> loaded_buffer; // For emscripten, load from memory buffer instead of from resource on disk.
 	URLString audio_url;
 	std::string audio_path; // Local abs path on disk
