@@ -342,7 +342,7 @@ public:
 	ObjectType object_type;
 
 	static const size_t MAX_URL_SIZE                      = 1000;
-	static const size_t MAX_SCRIPT_SIZE                   = 10000;
+	static const size_t MAX_SCRIPT_SIZE                   = 100000;
 	static const size_t MAX_CONTENT_SIZE                  = 10000;
 
 	// For objects with mesh models with >= this number of triangles, the model will have minimum LOD level -1, meaning that there is an extra LOD model generated at lod 0.
