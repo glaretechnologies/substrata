@@ -754,7 +754,7 @@ bool LuaScriptEvaluator::addScriptResourceDeclaration(std::string& script, const
 bool LuaScriptEvaluator::isResourceURLDeclared(const string_view URL) const
 {
 	for(size_t i=0; i<resource_URLs.size(); ++i)
-		if(string_view(resource_URLs[i].URL) == URL)
+		if(resource_URLs[i].URL == URL)
 			return true;
 	return false;
 }
