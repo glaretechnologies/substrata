@@ -48,6 +48,35 @@ void HandlerList::removeHandlerAtIndex(size_t i)
 }
 
 
+static void freeRefsInHandlerList(HandlerList& list)
+{
+	for(size_t i=0; i<list.handler_funcs.size(); ++i)
+	{
+		HandlerFunc& func = list.handler_funcs[i];
+		Reference<LuaScriptEvaluator> lua_script_evaluator = func.script.upgradeToStrongRef();
+		if(lua_script_evaluator)
+		{
+			lua_script_evaluator->lua_script->freeRefToFunction(func.handler_func_ref);
+		}
+	}
+}
+
+
+ObjectEventHandlers::~ObjectEventHandlers()
+{
+	// TODO: use HandlerList destruction for this?
+	freeRefsInHandlerList(onUserUsedObject_handlers);
+	freeRefsInHandlerList(onUserTouchedObject_handlers);
+	freeRefsInHandlerList(onUserMovedNearToObject_handlers);
+	freeRefsInHandlerList(onUserMovedAwayFromObject_handlers);
+	freeRefsInHandlerList(onUserEnteredParcel_handlers);
+	freeRefsInHandlerList(onUserExitedParcel_handlers);
+	freeRefsInHandlerList(onUserEnteredVehicle_handlers);
+	freeRefsInHandlerList(onUserExitedVehicle_handlers);
+	freeRefsInHandlerList(onChatMessage_handlers);
+}
+
+
 void ObjectEventHandlers::executeOnUserUsedObjectHandlers(UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock)
 {
 	// Execute doOnUserUsedObject event handler in any other scripts that are listening for doOnUserUsedObject for this object

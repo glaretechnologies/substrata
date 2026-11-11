@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2024 -
 #pragma once
 
 
+#include <lua/LuaVM.h>
 #include <maths/Vec4f.h>
 #include <utils/RefCounted.h>
 #include <utils/WeakReference.h>
@@ -28,7 +29,7 @@ public:
 	double tigger_time;
 	//bool valid;
 
-	int onTimerEvent_ref; // Reference to Lua function
+	LuaVM::LuaValueRef onTimerEvent_ref; // Reference to Lua function
 	bool repeating;
 	double period;
 	int timer_index;

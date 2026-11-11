@@ -44,32 +44,32 @@ public:
 	~LuaScriptEvaluator();
 
 
-	void doOnUserTouchedObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept;
+	void doOnUserTouchedObject(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept;
 	
-	void doOnUserUsedObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
+	void doOnUserUsedObject(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
 
-	void doOnUserMovedNearToObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
+	void doOnUserMovedNearToObject(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
 	
-	void doOnUserMovedAwayFromObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
+	void doOnUserMovedAwayFromObject(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
 
-	void doOnUserEnteredParcel(int func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
+	void doOnUserEnteredParcel(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
 
-	void doOnUserExitedParcel(int func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
+	void doOnUserExitedParcel(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
 
-	void doOnUserEnteredVehicle(int func_ref, UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
+	void doOnUserEnteredVehicle(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
 	
-	void doOnUserExitedVehicle(int func_ref, UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
+	void doOnUserExitedVehicle(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
 
-	void doOnChatMessage(int func_ref, UID avatar_uid, const std::string& message, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
+	void doOnChatMessage(LuaVM::LuaValueRef func_ref, UID avatar_uid, const std::string& message, WorldStateLock& world_state_lock) noexcept; // client_user_id may be invalid if user is not logged in
 
-	void doOnTimerEvent(int onTimerEvent_ref, WorldStateLock& world_state_lock) noexcept;
+	void doOnTimerEvent(LuaVM::LuaValueRef onTimerEvent_ref, WorldStateLock& world_state_lock) noexcept;
 
-	void doOnUIEvent(int func_ref, UID avatar_uid, WorldStateLock& world_state_lock) noexcept; // For callbacks from UI widgets created by the script, such as button onClick functions.
+	void doOnUIEvent(LuaVM::LuaValueRef func_ref, UID avatar_uid, WorldStateLock& world_state_lock) noexcept; // For callbacks from UI widgets created by the script, such as button onClick functions.
 
 	void destroyTimer(int timer_index, int timer_id);
 
-	void doOnError(int onError_ref, int error_code, const std::string& error_description, WorldStateLock& world_state_lock) noexcept;
-	void doOnDone(int onDone_ref, Reference<LuaHTTPRequestResult> result, WorldStateLock& world_state_lock) noexcept;
+	void doOnError(LuaVM::LuaValueRef onError_ref, int error_code, const std::string& error_description, WorldStateLock& world_state_lock) noexcept;
+	void doOnDone(LuaVM::LuaValueRef onDone_ref, Reference<LuaHTTPRequestResult> result, WorldStateLock& world_state_lock) noexcept;
 
 	// A Lua script declares the resources it uses (such as sounds for playSound()) in comment lines straight after its first '--lua' line:
 	//   --lua
@@ -120,7 +120,7 @@ public:
 	struct LuaTimerInfo
 	{
 		int id; // -1 means no timer.
-		int onTimerEvent_ref; // Reference to Lua callback function
+		LuaVM::LuaValueRef onTimerEvent_ref; // Reference to Lua callback function
 	};
 	LuaTimerInfo timers[MAX_NUM_TIMERS];
 

@@ -129,11 +129,11 @@ void ServerTestSuite::test()
 	runTest([&]() { testHashMap();														});
 	runTest([&]() { doArrayRefTests();													});
 	runTest([&]() { URL::test();														});
-	runTest([&]() { LuaSerialisation::test();											});
 	runTest([&]() { ReferenceTest::run();												});
-	runTest([&]() { ServerLuaScriptTests::test();										});
-	runTest([&]() { LuaUtils::test();													});
 	runTest([&]() { LuaTests::test();													});
+	runTest([&]() { LuaUtils::test();													});
+	runTest([&]() { LuaSerialisation::test();											});
+	runTest([&]() { ServerLuaScriptTests::test();										});
 	runTest([&]() { web::ResponseUtils::test();											});
 	runTest([&]() { Parser::doUnitTests();												});
 	runTest([&]() { StringUtils::test();												});

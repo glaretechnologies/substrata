@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2024 -
 
 #include "../shared/UserID.h"
 #include "../shared/RateLimiter.h"
+#include "../lua/LuaVM.h"
 #include <networking/HTTPClient.h>
 #include <utils/ThreadSafeRefCounted.h>
 #include <utils/Reference.h>
@@ -34,8 +35,8 @@ public:
 	std::vector<std::string> additional_headers;
 
 	WeakReference<LuaScriptEvaluator> lua_script_evaluator;
-	int onDone_ref;
-	int onError_ref;
+	LuaVM::LuaValueRef onDone_ref;
+	LuaVM::LuaValueRef onError_ref;
 };
 
 

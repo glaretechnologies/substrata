@@ -435,7 +435,7 @@ static int luaAddEventListener(lua_State* state)
 
 	checkNumArgs(state, /*num_args_required*/3);
 	if(lua_type(state, /*index=*/3) != LUA_TFUNCTION)
-		throw glare::Exception("createTimer(): arg 1 must be a function" + errorContextString(state));
+		throw glare::Exception("createTimer(): arg 3 must be a function" + errorContextString(state));
 
 	int event_name_atom = -1;
 	const char* event_name = LuaUtils::getStringAndAtom(state, /*index=*/1, event_name_atom);
@@ -445,7 +445,6 @@ static int luaAddEventListener(lua_State* state)
 
 
 	const void* handler_func_ptr = lua_topointer(state, /*index=*/3);
-	const int handler_func_ref = lua_ref(state, /*index=*/3); // Get a reference to the handler function
 
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
@@ -492,68 +491,76 @@ static int luaAddEventListener(lua_State* state)
 	runtimeCheck(ob_event_handlers.nonNull()); // ob_event_handlers should be non-null
 
 
-	HandlerFunc handler_func;
-	handler_func.script = WeakReference<LuaScriptEvaluator>(script_evaluator);
-	handler_func.handler_func_ref = handler_func_ref;
-	handler_func.function_ptr = handler_func_ptr;
+	if(script_evaluator->num_obs_event_listening >= MAX_NUM_OB_EVENT_LISTENS)
+		throw glare::Exception("Script added too many event listeners, max is " + toString(MAX_NUM_OB_EVENT_LISTENS) + errorContextString(state));
 
-	[[maybe_unused]] bool added_spatial_event = false;
-	bool added = false;
+	// Work out the handler list to add the listener to, and if it is a spatial event:
+	HandlerList* handler_list = nullptr;
+	[[maybe_unused]] bool is_spatial_event = false;
+
 	switch(event_name_atom)
 	{
 	case Atom_onUserUsedObject:
 		assert(stringEqual(event_name, "onUserUsedObject"));
-		added = ob_event_handlers->onUserUsedObject_handlers.addHandler(handler_func);
+		handler_list = &ob_event_handlers->onUserUsedObject_handlers;
 		break;
 	case Atom_onUserTouchedObject:
 		assert(stringEqual(event_name, "onUserTouchedObject"));
-		added = ob_event_handlers->onUserTouchedObject_handlers.addHandler(handler_func);
+		handler_list = &ob_event_handlers->onUserTouchedObject_handlers;
 		break;
 	case Atom_onUserMovedNearToObject:
 		assert(stringEqual(event_name, "onUserMovedNearToObject"));
-		added = ob_event_handlers->onUserMovedNearToObject_handlers.addHandler(handler_func);
-		added_spatial_event = true;
+		handler_list = &ob_event_handlers->onUserMovedNearToObject_handlers;
+		is_spatial_event = true;
 		break;
 	case Atom_onUserMovedAwayFromObject:
 		assert(stringEqual(event_name, "onUserMovedAwayFromObject"));
-		added = ob_event_handlers->onUserMovedAwayFromObject_handlers.addHandler(handler_func);
-		added_spatial_event = true;
+		handler_list = &ob_event_handlers->onUserMovedAwayFromObject_handlers;
+		is_spatial_event = true;
 		break;
 	case Atom_onUserEnteredParcel:
 		assert(stringEqual(event_name, "onUserEnteredParcel"));
-		added = ob_event_handlers->onUserEnteredParcel_handlers.addHandler(handler_func);
-		added_spatial_event = true;
+		handler_list = &ob_event_handlers->onUserEnteredParcel_handlers;
+		is_spatial_event = true;
 		break;
 	case Atom_onUserExitedParcel:
 		assert(stringEqual(event_name, "onUserExitedParcel"));
-		added = ob_event_handlers->onUserExitedParcel_handlers.addHandler(handler_func);
-		added_spatial_event = true;
+		handler_list = &ob_event_handlers->onUserExitedParcel_handlers;
+		is_spatial_event = true;
 		break;
 	case Atom_onUserEnteredVehicle:
 		assert(stringEqual(event_name, "onUserEnteredVehicle"));
-		added = ob_event_handlers->onUserEnteredVehicle_handlers.addHandler(handler_func);
+		handler_list = &ob_event_handlers->onUserEnteredVehicle_handlers;
 		break;
 	case Atom_onUserExitedVehicle:
 		assert(stringEqual(event_name, "onUserExitedVehicle"));
-		added = ob_event_handlers->onUserExitedVehicle_handlers.addHandler(handler_func);
+		handler_list = &ob_event_handlers->onUserExitedVehicle_handlers;
 		break;
 	case Atom_onChatMessage:
 		assert(stringEqual(event_name, "onChatMessage"));
-		added = ob_event_handlers->onChatMessage_handlers.addHandler(handler_func);
+		handler_list = &ob_event_handlers->onChatMessage_handlers;
 		break;
 	default:
 		throw glare::Exception("Unknown event '" + std::string(event_name) + "'" + errorContextString(state));
 	}
 
+	const LuaVM::LuaValueRef handler_func_ref = script_evaluator->lua_script->getRefToFunctionOnStack(state, /*index=*/3); // Get a reference to the Lua handler function
+
+	HandlerFunc handler_func;
+	handler_func.script = WeakReference<LuaScriptEvaluator>(script_evaluator);
+	handler_func.handler_func_ref = handler_func_ref;
+	handler_func.function_ptr = handler_func_ptr;
+
+	// Try and add the handler to the list of handlers:
+	runtimeCheck(handler_list);
+	const bool added = handler_list->addHandler(handler_func);
 	if(added)
-	{
 		script_evaluator->num_obs_event_listening++;
-		if(script_evaluator->num_obs_event_listening > MAX_NUM_OB_EVENT_LISTENS)
-			throw glare::Exception("Script added too many event listeners, max is " + toString(MAX_NUM_OB_EVENT_LISTENS) + errorContextString(state));
-	}
+	else
+		script_evaluator->lua_script->freeRefToFunction( handler_func_ref); // Release the reference to the handler func as we are not holding on to it
 
 #if GUI_CLIENT
-	if(added_spatial_event && ob)
+	if(is_spatial_event && ob)
 		sub_lua_vm->gui_client->scripted_ob_proximity_checker.addObject(ob);
 #endif
 
@@ -1014,8 +1021,8 @@ static int doHTTPGetRequestAsync(lua_State* state)
 		lua_pop(state, 1); // Remove value, keep key on stack for next lua_next call
 	}
 
-	request->onDone_ref  = lua_ref(state, /*index=*/3);
-	request->onError_ref = lua_ref(state, /*index=*/4);
+	request->onDone_ref  = script->getRefToFunctionOnStack(state, /*index=*/3);
+	request->onError_ref = script->getRefToFunctionOnStack(state, /*index=*/4);
 
 	sub_lua_vm->server->enqueueLuaHTTPRequest(request);
 #endif
@@ -1085,8 +1092,8 @@ static int doHTTPPostRequestAsync(lua_State* state)
 		lua_pop(state, 1); // Remove value, keep key on stack for next lua_next call
 	}
 
-	request->onDone_ref  = lua_ref(state, /*index=*/5);
-	request->onError_ref = lua_ref(state, /*index=*/6);
+	request->onDone_ref  = script->getRefToFunctionOnStack(state, /*index=*/5);
+	request->onError_ref = script->getRefToFunctionOnStack(state, /*index=*/6);
 
 	sub_lua_vm->server->enqueueLuaHTTPRequest(request);
 #endif
@@ -1227,8 +1234,6 @@ static int createTimer(lua_State* state)
 	if(lua_type(state, /*index=*/1) != LUA_TFUNCTION)
 		throw glare::Exception("createTimer(): arg 1 must be a function" + errorContextString(state));
 
-	// Get a reference to the onTimerEvent function
-	const int onTimerEvent_ref = lua_ref(state, /*index=*/1);
 
 	const double raw_interval_time = LuaUtils::getDoubleArg(state, /*index=*/2);
 	const bool repeating = LuaUtils::getBool(state, /*index=*/3);
@@ -1247,6 +1252,11 @@ static int createTimer(lua_State* state)
 	const double cur_time = sub_lua_vm->server->total_timer.elapsed();
 	ScriptTimerQueue& timer_queue = sub_lua_vm->server->timer_queue;
 #endif
+
+
+	// Get a reference to the onTimerEvent function
+	const LuaVM::LuaValueRef onTimerEvent_ref = script->getRefToFunctionOnStack(state, /*index=*/1);
+
 
 	// Find free timer slot
 	for(int i=0; i<LuaScriptEvaluator::MAX_NUM_TIMERS; ++i)
@@ -1276,7 +1286,7 @@ static int createTimer(lua_State* state)
 	}
 
 	// If got here, there are no free timer slots
-	lua_unref(state, onTimerEvent_ref); // Free the callback reference so we don't leak it
+	script->freeRefToFunction(onTimerEvent_ref); // Free the callback reference so we don't leak it
 	throw glare::Exception("createTimer(): Could not create timer, 4 timers already created." + errorContextString(state));
 //#else
 //	throw glare::Exception("createTimer(): todo on server.");
@@ -1361,7 +1371,7 @@ static int getMaterial(lua_State* state)
 	LuaUtils::setLightUserDataAsTableField(state, "idx", (void*)index);
 
 	// Set metatable to worldMaterialClassMetaTable_ref
-	lua_getref(state, sub_lua_vm->worldMaterialClassMetaTable_ref); // Pushes worldObjectClassMetaTable_ref onto the stack.
+	lua_getref(state, sub_lua_vm->worldMaterialClassMetaTable_ref.ref); // Pushes worldObjectClassMetaTable_ref onto the stack.
 	lua_setmetatable(state, -2); // "Pops a table from the stack and sets it as the new metatable for the value at the given acceptable index."
 
 	return 1; // Count of returned values
@@ -1573,7 +1583,7 @@ static WorldObject* getObjectForScriptedMove(lua_State* state, int table_index)
 // Parse the trailing optional arguments common to moveTo()/rotateTo(): an easing value at easing_index and an onCompleted
 // callback at callback_index (fixed positions; pass nil to skip an earlier optional arg).  easing_out is left unchanged if
 // no easing arg is given; callback_ref_out is set to a Lua reference to the callback function, or left as LUA_NOREF if none.
-static void parseMoveOptionalArgs(lua_State* state, int easing_index, int callback_index, uint32& easing_out, int& callback_ref_out)
+static void parseMoveOptionalArgs(LuaScript* script, lua_State* state, int easing_index, int callback_index, uint32& easing_out, LuaVM::LuaValueRef& callback_ref_out)
 {
 	const int num_args = lua_gettop(state);
 
@@ -1586,7 +1596,7 @@ static void parseMoveOptionalArgs(lua_State* state, int easing_index, int callba
 	{
 		if(lua_type(state, callback_index) != LUA_TFUNCTION)
 			throw glare::Exception("onCompleted argument must be a function." + errorContextString(state));
-		callback_ref_out = lua_ref(state, callback_index); // NOTE: Luau lua_ref references the value at the given index without popping it.
+		callback_ref_out = script->getRefToFunctionOnStack(state, callback_index); // NOTE: Luau lua_ref references the value at the given index without popping it.
 	}
 }
 
@@ -1594,7 +1604,7 @@ static void parseMoveOptionalArgs(lua_State* state, int easing_index, int callba
 // Schedule a one-shot Lua callback to fire 'delay' seconds from now, reusing the script timer machinery.  callback_ref must
 // already have been obtained via lua_ref.  When the timer fires the callback is invoked (with the script's object as its
 // argument, as for timer callbacks) and its slot + reference are freed automatically (see the timer loop in Server.cpp).
-static void scheduleOneShotServerCallback(SubstrataLuaVM* sub_lua_vm, LuaScriptEvaluator* script_evaluator, int callback_ref, double delay)
+static void scheduleOneShotServerCallback(SubstrataLuaVM* sub_lua_vm, LuaScriptEvaluator* script_evaluator, LuaVM::LuaValueRef callback_ref, double delay)
 {
 	const double cur_time = sub_lua_vm->server->total_timer.elapsed();
 	ScriptTimerQueue& timer_queue = sub_lua_vm->server->timer_queue;
@@ -1622,7 +1632,7 @@ static void scheduleOneShotServerCallback(SubstrataLuaVM* sub_lua_vm, LuaScriptE
 	}
 
 	// No free timer slot.  Free the callback reference so we don't leak it, then report the error.
-	lua_unref(script_evaluator->lua_script->thread_state, callback_ref);
+	script_evaluator->lua_script->freeRefToFunction(callback_ref);
 	throw glare::Exception("Could not register onCompleted callback: too many active timers/callbacks (max " + toString(LuaScriptEvaluator::MAX_NUM_TIMERS) + ").");
 }
 #endif // SERVER
@@ -1657,8 +1667,8 @@ static int luaMoveTo(lua_State* state)
 
 	// Optional args: easing (index 4), onCompleted callback (index 5).
 	uint32 easing = Protocol::MoveTo_EasingSmoothstep;
-	int callback_ref = LUA_NOREF;
-	parseMoveOptionalArgs(state, /*easing_index=*/4, /*callback_index=*/5, easing, callback_ref);
+	LuaVM::LuaValueRef callback_ref;
+	parseMoveOptionalArgs(script, state, /*easing_index=*/4, /*callback_index=*/5, easing, callback_ref);
 
 	const Vec3d start_pos = ob->pos;
 	const double start_time = sub_lua_vm->server->getCurrentGlobalTime();
@@ -1683,7 +1693,7 @@ static int luaMoveTo(lua_State* state)
 	sub_lua_vm->server->world_state->markAsChanged();
 
 	// If an onCompleted callback was provided, schedule it to fire when the move finishes.
-	if(callback_ref != LUA_NOREF)
+	if(callback_ref.ref != LUA_NOREF)
 		scheduleOneShotServerCallback(sub_lua_vm, script_evaluator, callback_ref, duration);
 #endif // SERVER
 
@@ -1721,8 +1731,8 @@ static int luaRotateTo(lua_State* state)
 
 	// Optional args: easing (index 5), onCompleted callback (index 6).
 	uint32 easing = Protocol::MoveTo_EasingSmoothstep;
-	int callback_ref = LUA_NOREF;
-	parseMoveOptionalArgs(state, /*easing_index=*/5, /*callback_index=*/6, easing, callback_ref);
+	LuaVM::LuaValueRef callback_ref;
+	parseMoveOptionalArgs(script, state, /*easing_index=*/5, /*callback_index=*/6, easing, callback_ref);
 
 	const Vec3f start_axis = ob->axis;
 	const float start_angle = ob->angle;
@@ -1750,7 +1760,7 @@ static int luaRotateTo(lua_State* state)
 	sub_lua_vm->server->world_state->markAsChanged();
 
 	// If an onCompleted callback was provided, schedule it to fire when the rotation finishes.
-	if(callback_ref != LUA_NOREF)
+	if(callback_ref.ref != LUA_NOREF)
 		scheduleOneShotServerCallback(sub_lua_vm, script_evaluator, callback_ref, duration);
 #endif // SERVER
 
@@ -2705,7 +2715,7 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 
 	lua_setreadonly(lua_vm->state, /*index=*/-1, /*enabled=*/1); // Set metatable as read-only.
 
-	worldObjectClassMetaTable_ref = lua_ref(lua_vm->state, /*index=*/-1); // Get reference to WorldObjectMetaTable.  Does not pop.
+	worldObjectClassMetaTable_ref = lua_vm->createReferenceToLuaValue(lua_vm->state, /*index=*/-1); // Get reference to WorldObjectMetaTable.  Does not pop.
 	lua_pop(lua_vm->state, 1); // Pop WorldObjectMetaTable from stack
 	//--------------------------- End create User Metatable ---------------------------
 
@@ -2720,7 +2730,7 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 
 	lua_setreadonly(lua_vm->state, /*index=*/-1, /*enabled=*/1); // Set metatable as read-only.
 
-	worldMaterialClassMetaTable_ref = lua_ref(lua_vm->state, /*index=*/-1); // Get reference to WorldMaterialMetaTable.  Does not pop.
+	worldMaterialClassMetaTable_ref = lua_vm->createReferenceToLuaValue(lua_vm->state, /*index=*/-1); // Get reference to WorldMaterialMetaTable.  Does not pop.
 	lua_pop(lua_vm->state, 1); // Pop WorldMaterialMetaTable from stack
 	//--------------------------- End create User Metatable ---------------------------
 	
@@ -2735,7 +2745,7 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 
 	lua_setreadonly(lua_vm->state, /*index=*/-1, /*enabled=*/1); // Set metatable as read-only.
 
-	userClassMetaTable_ref = lua_ref(lua_vm->state, /*index=*/-1); // Get reference to UserClassMetaTable.  Does not pop.
+	userClassMetaTable_ref = lua_vm->createReferenceToLuaValue(lua_vm->state, /*index=*/-1); // Get reference to UserClassMetaTable.  Does not pop.
 	lua_pop(lua_vm->state, 1); // Pop UserClassMetaTable from stack
 	//--------------------------- End create User Metatable ---------------------------
 
@@ -2750,7 +2760,7 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 
 	lua_setreadonly(lua_vm->state, /*index=*/-1, /*enabled=*/1); // Set metatable as read-only.
 
-	avatarClassMetaTable_ref = lua_ref(lua_vm->state, /*index=*/-1); // Get reference to AvatarClassMetaTable.  Does not pop.
+	avatarClassMetaTable_ref = lua_vm->createReferenceToLuaValue(lua_vm->state, /*index=*/-1); // Get reference to AvatarClassMetaTable.  Does not pop.
 	lua_pop(lua_vm->state, 1); // Pop AvatarClassMetaTable from stack
 	//--------------------------- End create Avatar Metatable ---------------------------
 
@@ -2782,4 +2792,11 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 
 SubstrataLuaVM::~SubstrataLuaVM()
 {
+	if(lua_vm.ptr())
+	{
+		lua_vm->destroyReferenceToLuaValue(lua_vm->state, worldObjectClassMetaTable_ref);
+		lua_vm->destroyReferenceToLuaValue(lua_vm->state, worldMaterialClassMetaTable_ref);
+		lua_vm->destroyReferenceToLuaValue(lua_vm->state, userClassMetaTable_ref);
+		lua_vm->destroyReferenceToLuaValue(lua_vm->state, avatarClassMetaTable_ref);
+	}
 }

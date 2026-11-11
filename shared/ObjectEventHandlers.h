@@ -17,7 +17,7 @@ class WorldStateLock;
 struct HandlerFunc
 {
 	WeakReference<LuaScriptEvaluator> script;
-	int handler_func_ref;
+	LuaVM::LuaValueRef handler_func_ref;
 	const void* function_ptr; // Just used for uniquely identifying functions, not dereferenced.
 
 	bool operator == (const HandlerFunc& other) const { return script.ob == other.script.ob && function_ptr == other.function_ptr; }
@@ -38,7 +38,7 @@ struct HandlerList
 /*=====================================================================
 ObjectEventHandlers
 -------------------
-An object script can listen for events that are triggered on other objects, for example onUserUsedObject.
+A Lua object script can listen for events that are triggered on other objects, for example onUserUsedObject.
 
 onUserUsedObject_handlers is a list of all scripts handler functions that are listening for the user-used-object event
 on the object that owns the ObjectEventHandlers instance.
@@ -46,6 +46,8 @@ on the object that owns the ObjectEventHandlers instance.
 class ObjectEventHandlers : public ThreadSafeRefCounted
 {
 public:
+	~ObjectEventHandlers(); // Removes references to Lua handler functions
+
 	void executeOnUserUsedObjectHandlers(UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock);
 	void executeOnUserTouchedObjectHandlers(UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock);
 	void executeOnUserMovedNearToObjectHandlers(UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock);

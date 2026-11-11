@@ -142,6 +142,10 @@ WorldObject::~WorldObject()
 #if GUI_CLIENT
 	assert(physics_object.isNull());
 #endif
+
+	// Destroy Lua event_handlers before we destroy the lua script, so that Lua function refs are freed properly
+	event_handlers = nullptr;
+	lua_script_evaluator = nullptr;
 }
 
 

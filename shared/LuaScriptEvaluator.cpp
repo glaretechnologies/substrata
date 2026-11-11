@@ -75,10 +75,7 @@ LuaScriptEvaluator::LuaScriptEvaluator(const Reference<SubstrataLuaVM>& substrat
 
 
 	for(int i=0; i<MAX_NUM_TIMERS; ++i)
-	{
 		timers[i].id = -1;
-		timers[i].onTimerEvent_ref = LUA_NOREF;
-	}
 
 	LuaScriptOptions options;
 	options.max_num_interrupts = 10000;
@@ -116,6 +113,11 @@ LuaScriptEvaluator::LuaScriptEvaluator(const Reference<SubstrataLuaVM>& substrat
 	}
 	catch(...)
 	{
+		// Destroy any timers
+		for(int i=0; i<MAX_NUM_TIMERS; ++i)
+			if(timers[i].id != -1)
+				destroyTimer(i, timers[i].id);
+
 		// The destructor won't run if the constructor throws, so remove any UI widgets the script created before the error here.
 		removeScriptUIWidgets();
 		throw;
@@ -124,59 +126,66 @@ LuaScriptEvaluator::LuaScriptEvaluator(const Reference<SubstrataLuaVM>& substrat
 	// Add any event handling functions defined in the script to the object event-handler list.
 	// Event handling functions defined in this way basically do implicit addEventListener() calls.
 	{
-		const LuaUtils::LuaFuncRefAndPtr func_info = LuaUtils::getRefToFunction(lua_script->thread_state, "onUserTouchedObject");
-		if(func_info.ref != LUA_NOREF)
+		const LuaScript::LuaFuncRefAndPtr func_info =  lua_script->getRefToFunction("onUserTouchedObject");
+		if(func_info.ref.ref != LUA_NOREF)
 		{
 			HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
-			world_object->getOrCreateEventHandlers()->onUserTouchedObject_handlers.addHandler(handler_func);
+			if(!world_object->getOrCreateEventHandlers()->onUserTouchedObject_handlers.addHandler(handler_func))
+				lua_script->freeRefToFunction(handler_func.handler_func_ref); // if we failed to add the handler to onUserTouchedObject_handlers, remove the reference to the Lua func here.
 		}
 	}
 	{
-		const LuaUtils::LuaFuncRefAndPtr func_info = LuaUtils::getRefToFunction(lua_script->thread_state, "onUserUsedObject");
-		if(func_info.ref != LUA_NOREF)
+		const LuaScript::LuaFuncRefAndPtr func_info = lua_script->getRefToFunction("onUserUsedObject");
+		if(func_info.ref.ref != LUA_NOREF)
 		{
 			HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
-			world_object->getOrCreateEventHandlers()->onUserUsedObject_handlers.addHandler(handler_func);
+			if(!world_object->getOrCreateEventHandlers()->onUserUsedObject_handlers.addHandler(handler_func))
+				lua_script->freeRefToFunction(handler_func.handler_func_ref);
 		}
 	}
 	{
-		const LuaUtils::LuaFuncRefAndPtr func_info = LuaUtils::getRefToFunction(lua_script->thread_state, "onUserMovedNearToObject");
-		if(func_info.ref != LUA_NOREF)
+		const LuaScript::LuaFuncRefAndPtr func_info = lua_script->getRefToFunction("onUserMovedNearToObject");
+		if(func_info.ref.ref != LUA_NOREF)
 		{
 			HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
-			world_object->getOrCreateEventHandlers()->onUserMovedNearToObject_handlers.addHandler(handler_func);
+			if(!world_object->getOrCreateEventHandlers()->onUserMovedNearToObject_handlers.addHandler(handler_func))
+				lua_script->freeRefToFunction(handler_func.handler_func_ref);
 		}
 	}
 	{
-		const LuaUtils::LuaFuncRefAndPtr func_info = LuaUtils::getRefToFunction(lua_script->thread_state, "onUserMovedAwayFromObject");
-		if(func_info.ref != LUA_NOREF)
+		const LuaScript::LuaFuncRefAndPtr func_info = lua_script->getRefToFunction("onUserMovedAwayFromObject");
+		if(func_info.ref.ref != LUA_NOREF)
 		{
 			HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
-			world_object->getOrCreateEventHandlers()->onUserMovedAwayFromObject_handlers.addHandler(handler_func);
+			if(!world_object->getOrCreateEventHandlers()->onUserMovedAwayFromObject_handlers.addHandler(handler_func))
+				lua_script->freeRefToFunction(handler_func.handler_func_ref);
 		}
 	}
 	{
-		const LuaUtils::LuaFuncRefAndPtr func_info = LuaUtils::getRefToFunction(lua_script->thread_state, "onUserEnteredParcel");
-		if(func_info.ref != LUA_NOREF)
+		const LuaScript::LuaFuncRefAndPtr func_info = lua_script->getRefToFunction("onUserEnteredParcel");
+		if(func_info.ref.ref != LUA_NOREF)
 		{
 			HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
-			world_object->getOrCreateEventHandlers()->onUserEnteredParcel_handlers.addHandler(handler_func);
+			if(!world_object->getOrCreateEventHandlers()->onUserEnteredParcel_handlers.addHandler(handler_func))
+				lua_script->freeRefToFunction(handler_func.handler_func_ref);
 		}
 	}
 	{
-		const LuaUtils::LuaFuncRefAndPtr func_info = LuaUtils::getRefToFunction(lua_script->thread_state, "onUserExitedParcel");
-		if(func_info.ref != LUA_NOREF)
+		const LuaScript::LuaFuncRefAndPtr func_info = lua_script->getRefToFunction("onUserExitedParcel");
+		if(func_info.ref.ref != LUA_NOREF)
 		{
 			HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
-			world_object->getOrCreateEventHandlers()->onUserExitedParcel_handlers.addHandler(handler_func);
+			if(!world_object->getOrCreateEventHandlers()->onUserExitedParcel_handlers.addHandler(handler_func))
+				lua_script->freeRefToFunction(handler_func.handler_func_ref);
 		}
 	}
 	{
-		const LuaUtils::LuaFuncRefAndPtr func_info = LuaUtils::getRefToFunction(lua_script->thread_state, "onChatMessage");
-		if(func_info.ref != LUA_NOREF)
+		const LuaScript::LuaFuncRefAndPtr func_info = lua_script->getRefToFunction("onChatMessage");
+		if(func_info.ref.ref != LUA_NOREF)
 		{
 			HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
-			world_object->getOrCreateEventHandlers()->onChatMessage_handlers.addHandler(handler_func);
+			if(!world_object->getOrCreateEventHandlers()->onChatMessage_handlers.addHandler(handler_func))
+				lua_script->freeRefToFunction(handler_func.handler_func_ref);
 		}
 	}
 }
@@ -184,6 +193,11 @@ LuaScriptEvaluator::LuaScriptEvaluator(const Reference<SubstrataLuaVM>& substrat
 
 LuaScriptEvaluator::~LuaScriptEvaluator()
 {
+	// Destroy any timers
+	for(int i=0; i<MAX_NUM_TIMERS; ++i)
+		if(timers[i].id != -1)
+			destroyTimer(i, timers[i].id);
+
 	removeScriptUIWidgets();
 }
 
@@ -198,10 +212,10 @@ void LuaScriptEvaluator::removeScriptUIWidgets()
 }
 
 
-void LuaScriptEvaluator::doOnUserTouchedObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
+void LuaScriptEvaluator::doOnUserTouchedObject(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
 {
 	//conPrint("LuaScriptEvaluator: doOnUserTouchedObject");
-	if(hit_error || (func_ref == LUA_NOREF))
+	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
 
 	try
@@ -211,7 +225,7 @@ void LuaScriptEvaluator::doOnUserTouchedObject(int func_ref, UID avatar_uid, UID
 
 		lua_script->resetExecutionTimeCounter();
 
-		lua_getref(lua_script->thread_state, func_ref); // Pushes function onto the stack.
+		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes function onto the stack.
 
 		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
 
@@ -237,10 +251,10 @@ void LuaScriptEvaluator::doOnUserTouchedObject(int func_ref, UID avatar_uid, UID
 }
 
 
-void LuaScriptEvaluator::doOnUserUsedObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
+void LuaScriptEvaluator::doOnUserUsedObject(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
 {
 	//conPrint("LuaScriptEvaluator: doOnUserUsedObject");
-	if(hit_error || (func_ref == LUA_NOREF))
+	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
 
 	try
@@ -250,7 +264,7 @@ void LuaScriptEvaluator::doOnUserUsedObject(int func_ref, UID avatar_uid, UID ob
 
 		lua_script->resetExecutionTimeCounter();
 
-		lua_getref(lua_script->thread_state, func_ref); // Pushes onUserUsedObject onto the stack.
+		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes onUserUsedObject onto the stack.
 		
 		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
 
@@ -276,10 +290,10 @@ void LuaScriptEvaluator::doOnUserUsedObject(int func_ref, UID avatar_uid, UID ob
 }
 
 
-void LuaScriptEvaluator::doOnUserMovedNearToObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
+void LuaScriptEvaluator::doOnUserMovedNearToObject(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
 {
 	//conPrint("LuaScriptEvaluator: doOnUserMovedNearToObject");
-	if(hit_error || (func_ref == LUA_NOREF))
+	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
 
 	try
@@ -289,7 +303,7 @@ void LuaScriptEvaluator::doOnUserMovedNearToObject(int func_ref, UID avatar_uid,
 
 		lua_script->resetExecutionTimeCounter();
 
-		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
+		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
 		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
 
@@ -315,10 +329,10 @@ void LuaScriptEvaluator::doOnUserMovedNearToObject(int func_ref, UID avatar_uid,
 }
 
 
-void LuaScriptEvaluator::doOnUserMovedAwayFromObject(int func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
+void LuaScriptEvaluator::doOnUserMovedAwayFromObject(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
 {
 	//conPrint("LuaScriptEvaluator: doOnUserMovedAwayFromObject");
-	if(hit_error || (func_ref == LUA_NOREF))
+	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
 
 	try
@@ -328,7 +342,7 @@ void LuaScriptEvaluator::doOnUserMovedAwayFromObject(int func_ref, UID avatar_ui
 
 		lua_script->resetExecutionTimeCounter();
 
-		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
+		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
 		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
 
@@ -354,10 +368,10 @@ void LuaScriptEvaluator::doOnUserMovedAwayFromObject(int func_ref, UID avatar_ui
 }
 
 
-void LuaScriptEvaluator::doOnUserEnteredParcel(int func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept
+void LuaScriptEvaluator::doOnUserEnteredParcel(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept
 {
 	//conPrint("LuaScriptEvaluator: doOnUserEnteredParcel");
-	if(hit_error || (func_ref == LUA_NOREF))
+	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
 
 	try
@@ -367,7 +381,7 @@ void LuaScriptEvaluator::doOnUserEnteredParcel(int func_ref, UID avatar_uid, UID
 
 		lua_script->resetExecutionTimeCounter();
 
-		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
+		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
 		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
 		pushWorldObjectTableOntoStack(lua_script->thread_state, ob_uid);
@@ -393,10 +407,10 @@ void LuaScriptEvaluator::doOnUserEnteredParcel(int func_ref, UID avatar_uid, UID
 }
 
 
-void LuaScriptEvaluator::doOnUserExitedParcel(int func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept
+void LuaScriptEvaluator::doOnUserExitedParcel(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept
 {
 	//conPrint("LuaScriptEvaluator: doOnUserExitedParcel");
-	if(hit_error || (func_ref == LUA_NOREF))
+	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
 
 	try
@@ -406,7 +420,7 @@ void LuaScriptEvaluator::doOnUserExitedParcel(int func_ref, UID avatar_uid, UID 
 
 		lua_script->resetExecutionTimeCounter();
 
-		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
+		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
 		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
 		pushWorldObjectTableOntoStack(lua_script->thread_state, ob_uid);
@@ -432,10 +446,10 @@ void LuaScriptEvaluator::doOnUserExitedParcel(int func_ref, UID avatar_uid, UID 
 }
 
 
-void LuaScriptEvaluator::doOnUserEnteredVehicle(int func_ref, UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock) noexcept
+void LuaScriptEvaluator::doOnUserEnteredVehicle(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock) noexcept
 {
 	// conPrint("LuaScriptEvaluator: doOnUserEnteredVehicle");
-	if(hit_error || (func_ref == LUA_NOREF))
+	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
 
 	try
@@ -445,7 +459,7 @@ void LuaScriptEvaluator::doOnUserEnteredVehicle(int func_ref, UID avatar_uid, UI
 
 		lua_script->resetExecutionTimeCounter();
 
-		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
+		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
 		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
 		pushWorldObjectTableOntoStack(lua_script->thread_state, vehicle_ob_uid);
@@ -468,10 +482,10 @@ void LuaScriptEvaluator::doOnUserEnteredVehicle(int func_ref, UID avatar_uid, UI
 }
 
 
-void LuaScriptEvaluator::doOnUserExitedVehicle(int func_ref, UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock) noexcept
+void LuaScriptEvaluator::doOnUserExitedVehicle(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock) noexcept
 {
 	// conPrint("LuaScriptEvaluator: doOnUserExitedVehicle");
-	if(hit_error || (func_ref == LUA_NOREF))
+	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
 
 	try
@@ -481,7 +495,7 @@ void LuaScriptEvaluator::doOnUserExitedVehicle(int func_ref, UID avatar_uid, UID
 
 		lua_script->resetExecutionTimeCounter();
 
-		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
+		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
 		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
 		pushWorldObjectTableOntoStack(lua_script->thread_state, vehicle_ob_uid);
@@ -504,10 +518,10 @@ void LuaScriptEvaluator::doOnUserExitedVehicle(int func_ref, UID avatar_uid, UID
 }
 
 
-void LuaScriptEvaluator::doOnChatMessage(int func_ref, UID avatar_uid, const std::string& message, WorldStateLock& world_state_lock) noexcept
+void LuaScriptEvaluator::doOnChatMessage(LuaVM::LuaValueRef func_ref, UID avatar_uid, const std::string& message, WorldStateLock& world_state_lock) noexcept
 {
 	// conPrint("LuaScriptEvaluator: doOnChatMessage");
-	if(hit_error || (func_ref == LUA_NOREF))
+	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
 
 	try
@@ -517,7 +531,7 @@ void LuaScriptEvaluator::doOnChatMessage(int func_ref, UID avatar_uid, const std
 
 		lua_script->resetExecutionTimeCounter();
 
-		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
+		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
 		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
 
@@ -541,7 +555,7 @@ void LuaScriptEvaluator::doOnChatMessage(int func_ref, UID avatar_uid, const std
 }
 
 
-void LuaScriptEvaluator::doOnTimerEvent(int onTimerEvent_ref, WorldStateLock& world_state_lock) noexcept
+void LuaScriptEvaluator::doOnTimerEvent(LuaVM::LuaValueRef onTimerEvent_ref, WorldStateLock& world_state_lock) noexcept
 {
 	if(hit_error)
 		return;
@@ -553,7 +567,7 @@ void LuaScriptEvaluator::doOnTimerEvent(int onTimerEvent_ref, WorldStateLock& wo
 
 		lua_script->resetExecutionTimeCounter();
 
-		lua_getref(lua_script->thread_state, onTimerEvent_ref);  // Push function to be called onto stack
+		lua_getref(lua_script->thread_state, onTimerEvent_ref.ref);  // Push function to be called onto stack
 
 		pushWorldObjectTableOntoStack(lua_script->thread_state, this->world_object->uid);
 
@@ -577,9 +591,9 @@ void LuaScriptEvaluator::doOnTimerEvent(int onTimerEvent_ref, WorldStateLock& wo
 }
 
 
-void LuaScriptEvaluator::doOnUIEvent(int func_ref, UID avatar_uid, WorldStateLock& world_state_lock) noexcept
+void LuaScriptEvaluator::doOnUIEvent(LuaVM::LuaValueRef func_ref, UID avatar_uid, WorldStateLock& world_state_lock) noexcept
 {
-	if(hit_error || (func_ref == LUA_NOREF))
+	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
 
 	try
@@ -589,7 +603,7 @@ void LuaScriptEvaluator::doOnUIEvent(int func_ref, UID avatar_uid, WorldStateLoc
 
 		lua_script->resetExecutionTimeCounter();
 
-		lua_getref(lua_script->thread_state, func_ref); // Push function to be called onto stack
+		lua_getref(lua_script->thread_state, func_ref.ref); // Push function to be called onto stack
 
 		// Call function
 		lua_call(lua_script->thread_state, /*nargs=*/0, /*nresults=*/0);
@@ -617,17 +631,17 @@ void LuaScriptEvaluator::destroyTimer(int timer_index, int timer_id)
 		timers[timer_index].id = -1;
 
 		// Free reference to Lua onTimerEvent function, if valid
-		if(timers[timer_index].onTimerEvent_ref != LUA_NOREF)
+		if(timers[timer_index].onTimerEvent_ref.ref != LUA_NOREF)
 		{
-			lua_unref(lua_script->thread_state, timers[timer_index].onTimerEvent_ref); 
-			timers[timer_index].onTimerEvent_ref = LUA_NOREF;
+			lua_script->freeRefToFunction(timers[timer_index].onTimerEvent_ref);
+			timers[timer_index].onTimerEvent_ref = LuaVM::LuaValueRef();
 		}
 	}
 }
 
 
 // See doHTTPGetRequestAsync in SubstrataLuaVM.cpp
-void LuaScriptEvaluator::doOnError(int onError_ref, int error_code, const std::string& error_description, WorldStateLock& world_state_lock) noexcept
+void LuaScriptEvaluator::doOnError(LuaVM::LuaValueRef onError_ref, int error_code, const std::string& error_description, WorldStateLock& world_state_lock) noexcept
 {
 	if(hit_error)
 		return;
@@ -639,7 +653,7 @@ void LuaScriptEvaluator::doOnError(int onError_ref, int error_code, const std::s
 
 		lua_script->resetExecutionTimeCounter();
 
-		lua_getref(lua_script->thread_state, onError_ref);  // Push function to be called onto stack
+		lua_getref(lua_script->thread_state, onError_ref.ref);  // Push function to be called onto stack
 
 		// onError gets passed
 		// {
@@ -671,7 +685,7 @@ void LuaScriptEvaluator::doOnError(int onError_ref, int error_code, const std::s
 
 
 // See doHTTPGetRequestAsync in SubstrataLuaVM.cpp
-void LuaScriptEvaluator::doOnDone(int onDone_ref, Reference<LuaHTTPRequestResult> result, WorldStateLock& world_state_lock) noexcept
+void LuaScriptEvaluator::doOnDone(LuaVM::LuaValueRef onDone_ref, Reference<LuaHTTPRequestResult> result, WorldStateLock& world_state_lock) noexcept
 {
 #if SERVER
 	if(hit_error)
@@ -684,7 +698,7 @@ void LuaScriptEvaluator::doOnDone(int onDone_ref, Reference<LuaHTTPRequestResult
 
 		lua_script->resetExecutionTimeCounter();
 
-		lua_getref(lua_script->thread_state, onDone_ref);  // Push function to be called onto stack
+		lua_getref(lua_script->thread_state, onDone_ref.ref);  // Push function to be called onto stack
 
 		// onDone gets passed:
 		// 
@@ -853,7 +867,7 @@ void LuaScriptEvaluator::pushUserTableOntoStack(lua_State* state, UserID client_
 	LuaUtils::setNumberAsTableField(state, "uid", client_user_id.value()); // NOTE: Call it "uid" for consistency with object, parcel etc.
 
 	// Assign user metatable to the user table
-	lua_getref(state, substrata_lua_vm->userClassMetaTable_ref); // Push UserClassMetaTable onto stack
+	lua_getref(state, substrata_lua_vm->userClassMetaTable_ref.ref); // Push UserClassMetaTable onto stack
 	lua_setmetatable(state, -2); // "Pops a table from the stack and sets it as the new metatable for the value at the given acceptable index."
 }
 
@@ -868,7 +882,7 @@ void LuaScriptEvaluator::pushAvatarTableOntoStack(lua_State* state, UID avatar_u
 	LuaUtils::setNumberAsTableField(state, "uid", (double)avatar_uid.value());
 
 	// Assign avatar metatable to the avatar table
-	lua_getref(state, substrata_lua_vm->avatarClassMetaTable_ref); // Push AvatarClassMetaTable onto stack
+	lua_getref(state, substrata_lua_vm->avatarClassMetaTable_ref.ref); // Push AvatarClassMetaTable onto stack
 	lua_setmetatable(state, -2); // "Pops a table from the stack and sets it as the new metatable for the value at the given acceptable index."
 }
 
@@ -879,7 +893,7 @@ void LuaScriptEvaluator::pushWorldObjectTableOntoStack(lua_State* state, UID ob_
 	lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/1); // Create table
 
 	// Set metatable to worldObjectClassMetaTable
-	lua_getref(state, substrata_lua_vm->worldObjectClassMetaTable_ref); // Pushes worldObjectClassMetaTable_ref onto the stack.
+	lua_getref(state, substrata_lua_vm->worldObjectClassMetaTable_ref.ref); // Pushes worldObjectClassMetaTable_ref onto the stack.
 	lua_setmetatable(state, -2); // "Pops a table from the stack and sets it as the new metatable for the value at the given acceptable index."
 
 	// Set table UID field

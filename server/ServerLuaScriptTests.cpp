@@ -62,6 +62,8 @@ void ServerLuaScriptTests::test()
 		SubstrataLuaVM vm(args);
 		vm.setAsNotIndependentlyHeapAllocated();
 
+		const int initial_num_lua_value_refs = vm.getNumLuaValueReferences();
+
 		ServerTestLuaScriptOutputHandler output_handler;
 
 		WorldObjectRef world_ob = new WorldObject();
@@ -86,6 +88,7 @@ void ServerLuaScriptTests::test()
 		{
 			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, "print('hello')", world_ob.ptr(), main_world_state.ptr(), lock);
 		}
+		testEqual(vm.getNumLuaValueReferences(), initial_num_lua_value_refs);
 
 		//-------------------------------- Test this_object --------------------------------
 		{
@@ -96,6 +99,7 @@ void ServerLuaScriptTests::test()
 			testAssert(!lua_script_evaluator->hit_error);
 			testAssert(output_handler.buf == "this_object.uid: 123");
 		}
+		testAssert(vm.getNumLuaValueReferences() == initial_num_lua_value_refs);
 
 		//-------------------------------- Test IS_SERVER --------------------------------
 		{
@@ -130,6 +134,8 @@ void ServerLuaScriptTests::test()
 			lua_script_evaluator->doOnUserTouchedObject(world_ob->getOrCreateEventHandlers()->onUserTouchedObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
 			testAssert(!lua_script_evaluator->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 touched object 123");
+
+			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
 		}
 
 		//-------------------------------- Test doOnUserUsedObject --------------------------------
@@ -145,6 +151,8 @@ void ServerLuaScriptTests::test()
 			lua_script_evaluator->doOnUserUsedObject(world_ob->getOrCreateEventHandlers()->onUserUsedObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
 			testAssert(!lua_script_evaluator->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 used object 123");
+
+			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
 		}
 
 		//-------------------------------- Test doOnUserMovedNearToObject --------------------------------
@@ -160,6 +168,8 @@ void ServerLuaScriptTests::test()
 			lua_script_evaluator->doOnUserMovedNearToObject(world_ob->getOrCreateEventHandlers()->onUserMovedNearToObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
 			testAssert(!lua_script_evaluator->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 moved near to object 123");
+
+			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
 		}
 
 		//-------------------------------- Test doOnUserMovedAwayFromObject --------------------------------
@@ -175,6 +185,8 @@ void ServerLuaScriptTests::test()
 			lua_script_evaluator->doOnUserMovedAwayFromObject(world_ob->getOrCreateEventHandlers()->onUserMovedAwayFromObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
 			testAssert(!lua_script_evaluator->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 moved away from object 123");
+
+			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
 		}
 
 		//-------------------------------- Test doOnUserEnteredParcel --------------------------------
@@ -190,6 +202,8 @@ void ServerLuaScriptTests::test()
 			lua_script_evaluator->doOnUserEnteredParcel(world_ob->getOrCreateEventHandlers()->onUserEnteredParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
 			testAssert(!lua_script_evaluator->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 entered parcel 789");
+
+			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
 		}
 
 		//-------------------------------- Test doOnUserExitedParcel --------------------------------
@@ -205,6 +219,8 @@ void ServerLuaScriptTests::test()
 			lua_script_evaluator->doOnUserExitedParcel(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
 			testAssert(!lua_script_evaluator->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 exited parcel 789");
+
+			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
 		}
 
 		//-------------------------------- Test onUserEnteredVehicle --------------------------------
@@ -227,6 +243,8 @@ void ServerLuaScriptTests::test()
 			avatar->vehicle_inside_uid = previous_vehicle_uid;
 			testAssert(!lua_script_evaluator->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 entered vehicle 123");
+
+			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
 		}
 
 		//-------------------------------- Test onUserExitedVehicle --------------------------------
@@ -243,6 +261,8 @@ void ServerLuaScriptTests::test()
 			lua_script_evaluator->doOnUserExitedVehicle(world_ob->getOrCreateEventHandlers()->onUserExitedVehicle_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
 			testAssert(!lua_script_evaluator->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 exited vehicle 123");
+
+			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
 		}
 
 		//-------------------------------- Test doOnTimerEvent --------------------------------
@@ -332,7 +352,7 @@ void ServerLuaScriptTests::test()
 			for(int i=0; i<LuaScriptEvaluator::MAX_NUM_TIMERS; ++i)
 			{
 				testAssert(evaluator->timers[i].id == -1);
-				testAssert(evaluator->timers[i].onTimerEvent_ref == LUA_NOREF);
+				testAssert(evaluator->timers[i].onTimerEvent_ref.ref == LUA_NOREF);
 			}
 		}
 
@@ -366,7 +386,7 @@ void ServerLuaScriptTests::test()
 			evaluator->doOnTimerEvent(replacement.onTimerEvent_ref, lock);
 			testAssert(!evaluator->hit_error && output_handler.buf == "replacement");
 			evaluator->destroyTimer(replacement.timer_index, replacement.timer_id);
-			testAssert(evaluator->timers[replacement.timer_index].onTimerEvent_ref == LUA_NOREF);
+			testAssert(evaluator->timers[replacement.timer_index].onTimerEvent_ref.ref == LUA_NOREF);
 		}
 
 		// The script creates a timer with a nil function, then we try and call it.  Check doesn't crash etc.
@@ -504,6 +524,7 @@ void ServerLuaScriptTests::test()
 		}
 
 		//-------------------------------- Test addEventListener --------------------------------
+		// Test a listener function added both implicitly (to object 123) and explicitly (to object 124)
 		{
 			const std::string script_src = 
 				"function onUserTouchedObject(av : Avatar, ob : Object)			\n"
@@ -522,6 +543,7 @@ void ServerLuaScriptTests::test()
 
 			testEqual(output_handler.buf, std::string("Avatar 456 touched object 124")); // NOTE: saying touched 124 here (world_ob2)
 
+			world_ob ->event_handlers = NULL; // Clean up from test
 			world_ob2->event_handlers = NULL; // Clean up from test
 		}
 
@@ -545,6 +567,7 @@ void ServerLuaScriptTests::test()
 
 			testEqual(output_handler.buf, std::string("Avatar 456 touched object 124")); // NOTE: saying touched 124 here (world_ob2)
 
+			world_ob ->event_handlers = NULL; // Clean up from test
 			world_ob2->event_handlers = NULL; // Clean up from test
 		}
 
@@ -685,6 +708,7 @@ void ServerLuaScriptTests::test()
 		}*/
 
 		// Test addEventListener called from a script that is then destroyed.
+		testEqual(vm.getNumLuaValueReferences(), initial_num_lua_value_refs);
 		{
 			const std::string script_src = 
 				"function onUserTouchedObject(av : Avatar, ob : Object)			\n"
@@ -720,6 +744,7 @@ void ServerLuaScriptTests::test()
 
 			world_ob2->event_handlers = NULL; // Clean up from test
 		}
+		testEqual(vm.getNumLuaValueReferences(), initial_num_lua_value_refs);
 
 		//-------------------------------- Test objectstorage.setItem  --------------------------------
 		{
@@ -776,6 +801,8 @@ void ServerLuaScriptTests::test()
 			for(int i=0; i<2000; ++i)
 				lua_script_evaluator->doOnUserExitedParcel(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
 			testAssert(lua_script_evaluator->hit_error);
+
+			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
 		}
 
 		// Test calling objectstorage.setItem with a non-string key
@@ -875,6 +902,8 @@ void ServerLuaScriptTests::test()
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs.size() == 1);
 			lua_script_evaluator->doOnUserExitedParcel(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
 			testAssert(!lua_script_evaluator->hit_error);
+
+			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
 		}
 
 		// Test serialising and deserialising an object
@@ -893,6 +922,8 @@ void ServerLuaScriptTests::test()
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs.size() == 1);
 			lua_script_evaluator->doOnUserExitedParcel(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
 			testAssert(!lua_script_evaluator->hit_error);
+
+			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
 		}
 
 		// Test calling objectstorage.getItem with a key that is not present returns nil

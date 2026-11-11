@@ -99,6 +99,8 @@ public:
 
 	~SubstrataLuaVM();
 
+	int getNumLuaValueReferences() const { return lua_vm->getNumLuaValueReferences(); }
+
 
 	UniqueRef<LuaVM> lua_vm;
 
@@ -112,11 +114,11 @@ public:
 	Server* server;
 #endif
 	
-	int worldObjectClassMetaTable_ref;
-	int worldMaterialClassMetaTable_ref;
-	int userClassMetaTable_ref;
-	int avatarClassMetaTable_ref;
+	LuaVM::LuaValueRef worldObjectClassMetaTable_ref;
+	LuaVM::LuaValueRef worldMaterialClassMetaTable_ref;
+	LuaVM::LuaValueRef userClassMetaTable_ref;
+	LuaVM::LuaValueRef avatarClassMetaTable_ref;
 	//int scriptUIWidgetMetaTable_ref; // Script UI disabled for now.  For handles returned by createUIImage() and createUIButton().
 
-	HashMap<uint32, int> metatable_uid_to_ref_map;
+	HashMap<uint32, LuaVM::LuaValueRef> metatable_uid_to_ref_map;
 };

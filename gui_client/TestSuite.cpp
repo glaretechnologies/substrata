@@ -50,6 +50,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../indigo/UVUnwrapper.h"
 #include "../audio/AudioFileReader.h"
 #include "../lua/LuaTests.h"
+#include "../lua/LuaUtils.h"
 #ifdef _WIN32
 #include "../video/WMFVideoReader.h"
 #endif
@@ -162,6 +163,7 @@ void TestSuite::test()
 #endif
 
 	runTest([&]() { LuaTests::test(); });
+	runTest([&]() { LuaUtils::test(); });
 	runTest([&]() { LuaScriptEvaluator::test(); });
 	runTest([&]() { Parser::doUnitTests(); });
 	runTest([&]() { VoxelsParcelImporter::test(); });

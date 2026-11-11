@@ -279,7 +279,7 @@ public:
 
 	inline static size_t maxNumMaterials() { return 2048; } // There's an object in the cryptovoxels world with 1398 materials.
 
-	// Gets event_handlers.  If event_handlers is null, sets to a new ObjectEventHandlers object first. 
+	// Gets Lua event_handlers.  If event_handlers is null, sets to a new ObjectEventHandlers object first. 
 	Reference<ObjectEventHandlers> getOrCreateEventHandlers();
 
 	inline int minModelLODLevel() const { return BitUtils::isBitSet(flags, MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1) ? -1 : 0; }
