@@ -592,7 +592,7 @@ ${bc7enc_rdo_dir}/ert.h
 
 
 
-set(luaudir ${GLARE_CORE_LIBS_ENV}/luau/0.627)
+set(luaudir ${GLARE_CORE_LIBS_ENV}/luau/0.746)
 
 if(NOT EXISTS ${luaudir}/VM/src/lapi.cpp)
 	message(FATAL_ERROR "Luau files not found, please run scripts/get_libs.rb to download them.")
@@ -602,6 +602,7 @@ include_directories(${luaudir}/VM/include)
 include_directories(${luaudir}/Common/include)
 include_directories(${luaudir}/Ast/include)
 include_directories(${luaudir}/Compiler/include)
+include_directories(${luaudir}/Bytecode/include)
 
 set(luau_vm
 ${luaudir}/VM/src/lapi.cpp
@@ -615,6 +616,9 @@ ${luaudir}/VM/src/lbuflib.cpp
 ${luaudir}/VM/src/lbuiltins.cpp
 ${luaudir}/VM/src/lbuiltins.h
 ${luaudir}/VM/src/lbytecode.h
+${luaudir}/VM/src/lclass.cpp
+${luaudir}/VM/src/lclass.h
+${luaudir}/VM/src/lclasslib.cpp
 ${luaudir}/VM/src/lcommon.h
 ${luaudir}/VM/src/lcorolib.cpp
 ${luaudir}/VM/src/ldblib.cpp
@@ -628,6 +632,7 @@ ${luaudir}/VM/src/lgc.cpp
 ${luaudir}/VM/src/lgc.h
 ${luaudir}/VM/src/lgcdebug.cpp
 ${luaudir}/VM/src/linit.cpp
+${luaudir}/VM/src/lintlib.cpp
 ${luaudir}/VM/src/lmathlib.cpp
 ${luaudir}/VM/src/lmem.cpp
 ${luaudir}/VM/src/lmem.h
@@ -650,6 +655,9 @@ ${luaudir}/VM/src/ltm.h
 ${luaudir}/VM/src/ludata.cpp
 ${luaudir}/VM/src/ludata.h
 ${luaudir}/VM/src/lutf8lib.cpp
+${luaudir}/VM/src/lveclib.cpp
+${luaudir}/VM/src/lvector.cpp
+${luaudir}/VM/src/lvector.h
 ${luaudir}/VM/src/lvm.h
 ${luaudir}/VM/src/lvmexecute.cpp
 ${luaudir}/VM/src/lvmload.cpp
@@ -665,7 +673,6 @@ ${luaudir}/Compiler/src/BuiltinFolding.cpp
 ${luaudir}/Compiler/src/BuiltinFolding.h
 ${luaudir}/Compiler/src/Builtins.cpp
 ${luaudir}/Compiler/src/Builtins.h
-${luaudir}/Compiler/src/BytecodeBuilder.cpp
 ${luaudir}/Compiler/src/Compiler.cpp
 ${luaudir}/Compiler/src/ConstantFolding.cpp
 ${luaudir}/Compiler/src/ConstantFolding.h
@@ -676,30 +683,52 @@ ${luaudir}/Compiler/src/TableShape.cpp
 ${luaudir}/Compiler/src/TableShape.h
 ${luaudir}/Compiler/src/Types.cpp
 ${luaudir}/Compiler/src/Types.h
+${luaudir}/Compiler/src/Utils.h
 ${luaudir}/Compiler/src/ValueTracking.cpp
 ${luaudir}/Compiler/src/ValueTracking.h
 
 ${luaudir}/Compiler/include/luacode.h
-${luaudir}/Compiler/include/Luau/BytecodeBuilder.h
 ${luaudir}/Compiler/include/Luau/Compiler.h
 
+${luaudir}/Ast/src/Allocator.cpp
 ${luaudir}/Ast/src/Ast.cpp
 ${luaudir}/Ast/src/Confusables.cpp
+${luaudir}/Ast/src/Cst.cpp
 ${luaudir}/Ast/src/Lexer.cpp
 ${luaudir}/Ast/src/Location.cpp
 ${luaudir}/Ast/src/Parser.cpp
-${luaudir}/Ast/src/StringUtils.cpp
-${luaudir}/Ast/src/TimeTrace.cpp
+${luaudir}/Ast/src/PrettyPrinter.cpp
 
+${luaudir}/Ast/include/Luau/Allocator.h
 ${luaudir}/Ast/include/Luau/Ast.h
 ${luaudir}/Ast/include/Luau/Confusables.h
+${luaudir}/Ast/include/Luau/Cst.h
 ${luaudir}/Ast/include/Luau/Lexer.h
 ${luaudir}/Ast/include/Luau/Location.h
 ${luaudir}/Ast/include/Luau/ParseOptions.h
 ${luaudir}/Ast/include/Luau/Parser.h
 ${luaudir}/Ast/include/Luau/ParseResult.h
-${luaudir}/Ast/include/Luau/StringUtils.h
-${luaudir}/Ast/include/Luau/TimeTrace.h
+${luaudir}/Ast/include/Luau/PrettyPrinter.h
+
+${luaudir}/Bytecode/src/BytecodeBuilder.cpp
+${luaudir}/Bytecode/src/BytecodeDump.cpp
+${luaudir}/Bytecode/src/BytecodeGraph.cpp
+${luaudir}/Bytecode/src/BytecodeGraphParser.h
+${luaudir}/Bytecode/src/BytecodeGraphSerializer.h
+${luaudir}/Bytecode/src/Sccp.cpp
+
+${luaudir}/Bytecode/include/Luau/BytecodeBuilder.h
+${luaudir}/Bytecode/include/Luau/BytecodeCallInliner.h
+${luaudir}/Bytecode/include/Luau/BytecodeDump.h
+${luaudir}/Bytecode/include/Luau/BytecodeGraph.h
+${luaudir}/Bytecode/include/Luau/BytecodeOps.h
+${luaudir}/Bytecode/include/Luau/BytecodeSlotAllocation.h
+${luaudir}/Bytecode/include/Luau/BytecodeValidation.h
+${luaudir}/Bytecode/include/Luau/Sccp.h
+
+${luaudir}/Common/src/BytecodeWire.cpp
+${luaudir}/Common/src/StringUtils.cpp
+${luaudir}/Common/src/TimeTrace.cpp
 )
 
 

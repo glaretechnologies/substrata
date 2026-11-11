@@ -2589,8 +2589,8 @@ static int avatarClassNewIndexMetaMethod(lua_State* state)
 }
 
 
-// "gets called when a string is created; returned atom can be retrieved via tostringatom"
-static int16_t glareLuaUserAtom(const char* str, size_t stringlen)
+// "gets called when a string is created to assign an atom id"
+static int16_t glareLuaUserAtom(lua_State* L, const char* str, size_t stringlen)
 {
 	// conPrint("glareLuaUserAtom(): str: " + std::string(str, stringlen));
 

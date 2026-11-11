@@ -15,14 +15,14 @@ end
 
 #------------------- Luau ----------------------
 begin
-	tag_dir = $glare_core_libs_dir + "/luau/0.627"
+	tag_dir = $glare_core_libs_dir + "/luau/0.746"
 
 	puts "Checking for already cloned source at '" + tag_dir + "'..."
 
 	if File.exist?(tag_dir)
 		puts "Already cloned there, nothing to do."
 	else
-		print_and_exec_command("git clone --depth 1 --branch 0.627 https://github.com/luau-lang/luau.git \"#{tag_dir}\"")
+		print_and_exec_command("git clone --depth 1 --branch 0.746 https://github.com/luau-lang/luau.git \"#{tag_dir}\"")
 	end
 end
 
