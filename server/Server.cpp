@@ -809,7 +809,7 @@ int main(int argc, char *argv[])
 								}
 								else // Else if timer was a one-shot timer, 'destroy' it.
 								{
-									script_evaluator->destroyTimer(timer.timer_index);
+									script_evaluator->destroyTimer(timer.timer_index, timer.timer_id);
 								}
 							}
 						}

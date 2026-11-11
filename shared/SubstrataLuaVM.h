@@ -105,7 +105,7 @@ public:
 #if GUI_CLIENT
 	GUIClient* gui_client;
 	PlayerPhysics* player_physics;
-	bool is_build_vm;
+	bool is_build_vm; // If true, this VM runs one-shot build scripts (see LuaBuildScript) rather than per-object scripts
 #endif
 
 #if SERVER
@@ -116,6 +116,7 @@ public:
 	int worldMaterialClassMetaTable_ref;
 	int userClassMetaTable_ref;
 	int avatarClassMetaTable_ref;
+	//int scriptUIWidgetMetaTable_ref; // Script UI disabled for now.  For handles returned by createUIImage() and createUIButton().
 
 	HashMap<uint32, int> metatable_uid_to_ref_map;
 };

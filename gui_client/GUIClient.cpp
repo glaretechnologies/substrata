@@ -47,6 +47,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "BoatPhysics.h"
 #include "JoltUtils.h"
 #include "MiniMap.h"
+//#include "LuaScriptUI.h" // Script UI disabled for now
 #include "PhotoModeUI.h"
 #include "ImGUIDrawing.h"
 #include "BuilderAIUI.h"
@@ -544,6 +545,8 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	chat_ui.create(/*gui_client_=*/this, gl_ui);
 
 	key_help_ui = new KeyHelpUI(gl_ui);
+
+	//lua_script_ui = new LuaScriptUI(this, gl_ui); // Script UI disabled for now
 
 	// Chat UI should be drawn above the movement button if present.
 	const float bottom_left_y = misc_info_ui.movement_button ? misc_info_ui.movement_button->getRect().getMax().y : -gl_ui->getViewportMinMaxY();
@@ -1069,6 +1072,8 @@ void GUIClient::shutdown()
 	gear_inventory_ui = nullptr;
 
 	minimap = nullptr;
+
+	//lua_script_ui = nullptr; // Script UI disabled for now
 
 	if(gl_ui.nonNull())
 	{
@@ -6178,6 +6183,10 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 	timer_queue.think();
 
+	// Script UI disabled for now
+	//if(lua_script_ui)
+	//	lua_script_ui->think();
+
 
 	// Do Lua timer callbacks
 	if(false) // TEMP 
@@ -6208,7 +6217,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					}
 					else // Else if timer was a one-shot timer, 'destroy' it.
 					{
-						script_evaluator->destroyTimer(timer.timer_index);
+						script_evaluator->destroyTimer(timer.timer_index, timer.timer_id);
 					}
 				}
 			}
@@ -14177,6 +14186,10 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 
 	builder_ai_ui = nullptr; // We want to reset the Builder AI UI state (turn in progress etc.) so just close the builder AI UI on disconnect from server.
 
+	// Script UI disabled for now
+	//if(lua_script_ui)
+	//	lua_script_ui->removeAllWidgets();
+
 	clearAllObjects();
 	world_state = nullptr;
 
@@ -16078,6 +16091,9 @@ void GUIClient::viewportResized(int w, int h)
 		gear_inventory_ui->viewportResized(w, h);
 	if(minimap)
 		minimap->viewportResized(w, h);
+	// Script UI disabled for now
+	//if(lua_script_ui)
+	//	lua_script_ui->viewportResized();
 }
 
 

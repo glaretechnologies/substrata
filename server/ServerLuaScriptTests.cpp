@@ -211,6 +211,9 @@ void ServerLuaScriptTests::test()
 		{
 			const std::string script_src = 
 				"function onUserEnteredVehicle(av : Avatar, vehicle_ob : Object)			\n"
+				"    local vehicle = coroutine.wrap(function() return av.vehicle_inside end)()\n"
+				"    assert(type(vehicle) == 'table' and vehicle.uid == vehicle_ob.uid)\n"
+				"    assert(vehicle.model_url == vehicle_ob.model_url)\n"
 				"		print('Avatar ' .. tostring(av.uid) .. ' entered vehicle ' .. tostring(vehicle_ob.uid))			\n"
 				"end \n"
 				"addEventListener('onUserEnteredVehicle', 123, onUserEnteredVehicle)   \n";
@@ -218,7 +221,10 @@ void ServerLuaScriptTests::test()
 			output_handler.buf.clear();
 			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserEnteredVehicle_handlers.handler_funcs.size() == 1);
+			const UID previous_vehicle_uid = avatar->vehicle_inside_uid;
+			avatar->vehicle_inside_uid = world_ob->uid;
 			lua_script_evaluator->doOnUserEnteredVehicle(world_ob->getOrCreateEventHandlers()->onUserEnteredVehicle_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
+			avatar->vehicle_inside_uid = previous_vehicle_uid;
 			testAssert(!lua_script_evaluator->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 entered vehicle 123");
 		}
@@ -298,6 +304,69 @@ void ServerLuaScriptTests::test()
 
 			testAssert(!lua_script_evaluator->hit_error);
 			testAssert(output_handler.buf == "");
+		}
+
+		// -1 identifies a free slot internally. It must never be accepted as a Lua handle.
+		{
+			testThrowsExcepContainingString([&]() {
+				Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, "destroyTimer(-1)", world_ob.ptr(), main_world_state.ptr(), lock);
+			}, "Invalid timer ID");
+		}
+
+		// Create eight timers across four slots. Returning a slot index repeats a handle in the second batch.
+		{
+			const std::string script_src =
+				"local function callback() end\n"
+				"local seen = {}\n"
+				"for batch = 1, 2 do\n"
+				"    local handles = {}\n"
+				"    for i = 1, 4 do\n"
+				"        local id = createTimer(callback, 0.1, false)\n"
+				"        assert(not seen[id], 'timer handle reused')\n"
+				"        seen[id] = true\n"
+				"        handles[i] = id\n"
+				"    end\n"
+				"    for i = 4, 1, -1 do destroyTimer(handles[i]) end\n"
+				"end";
+			Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			for(int i=0; i<LuaScriptEvaluator::MAX_NUM_TIMERS; ++i)
+			{
+				testAssert(evaluator->timers[i].id == -1);
+				testAssert(evaluator->timers[i].onTimerEvent_ref == LUA_NOREF);
+			}
+		}
+
+		// A one-shot cancels itself and installs a replacement before the dispatcher cleans up the old timer.
+		{
+			const std::string script_src =
+				"local first\n"
+				"first = createTimer(function()\n"
+				"    destroyTimer(first)\n"
+				"    createTimer(function() print('replacement') end, 0.1, false)\n"
+				"    destroyTimer(first)\n" // A stale Lua handle must leave the replacement alone.
+				"end, 0.1, false)";
+
+			server.timer_queue.clear();
+			output_handler.buf.clear();
+			Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+
+			std::vector<ScriptTimerQueueTimer> triggered;
+			server.timer_queue.update(server.total_timer.elapsed() + 1.0, triggered);
+			testAssert(triggered.size() == 1);
+			const ScriptTimerQueueTimer first = triggered[0];
+			evaluator->doOnTimerEvent(first.onTimerEvent_ref, lock);
+			testAssert(!evaluator->hit_error);
+			evaluator->destroyTimer(first.timer_index, first.timer_id); // Post-callback cleanup for the original one-shot.
+
+			server.timer_queue.update(server.total_timer.elapsed() + 1.0, triggered);
+			testAssert(triggered.size() == 1);
+			const ScriptTimerQueueTimer& replacement = triggered[0];
+			testAssert(replacement.timer_index == first.timer_index && replacement.timer_id != first.timer_id);
+			testAssert(evaluator->timers[replacement.timer_index].id == replacement.timer_id);
+			evaluator->doOnTimerEvent(replacement.onTimerEvent_ref, lock);
+			testAssert(!evaluator->hit_error && output_handler.buf == "replacement");
+			evaluator->destroyTimer(replacement.timer_index, replacement.timer_id);
+			testAssert(evaluator->timers[replacement.timer_index].onTimerEvent_ref == LUA_NOREF);
 		}
 
 		// The script creates a timer with a nil function, then we try and call it.  Check doesn't crash etc.
@@ -401,6 +470,13 @@ void ServerLuaScriptTests::test()
 		{ // Test successful getObjectForUID call
 			const std::string script_src = "local ob = getObjectForUID(123)";
 			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+		}
+		{ // Look up a different object from a coroutine and use the returned handle on the root thread.
+			const std::string script_src =
+				"local ob = coroutine.wrap(function() return getObjectForUID(124) end)()\n"
+				"assert(type(ob) == 'table' and ob.uid == 124)\n"
+				"assert(getmetatable(ob) == getmetatable(this_object))";
+			Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
 		}
 		{ // Test unsuccessful getObjectForUID call
 			const std::string script_src = "local ob = getObjectForUID(6544234)";
@@ -764,7 +840,7 @@ void ServerLuaScriptTests::test()
 			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
 		}
 
-		// Test serialisaing and deserialising a Vec3d
+		// Test serialising and deserialising a Vec3d
 		{
 			const std::string script_src = 
 				"objectstorage.setItem(\"a\", Vec3d(1.0, 2.0, 3.0))				\n"

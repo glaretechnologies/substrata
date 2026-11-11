@@ -49,6 +49,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../opengl/TextureLoadingTests.h"
 #include "../indigo/UVUnwrapper.h"
 #include "../audio/AudioFileReader.h"
+#include "../lua/LuaTests.h"
 #ifdef _WIN32
 #include "../video/WMFVideoReader.h"
 #endif
@@ -160,6 +161,7 @@ void TestSuite::test()
 	const std::string base_dir_path = PlatformUtils::getResourceDirectoryPath();
 #endif
 
+	runTest([&]() { LuaTests::test(); });
 	runTest([&]() { LuaScriptEvaluator::test(); });
 	runTest([&]() { Parser::doUnitTests(); });
 	runTest([&]() { VoxelsParcelImporter::test(); });

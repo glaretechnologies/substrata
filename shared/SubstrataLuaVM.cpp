@@ -17,6 +17,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../gui_client/PlayerPhysics.h"
 #include "../gui_client/GUIClient.h"
 #include "../gui_client/VehiclePhysics.h"
+//#include "../gui_client/LuaScriptUI.h" // Script UI disabled for now
 #elif SERVER
 #include "../server/Server.h"
 #include "../server/LuaHTTPRequestManager.h"
@@ -400,7 +401,7 @@ static int luaGetWorldObjectForUID(lua_State* state)
 
 	/*WorldObject* ob =*/ getWorldObjectForUID(script_evaluator, uid); // Just call this to throw an excep if no such object exists
 
-	script_evaluator->pushWorldObjectTableOntoStack(uid);
+	script_evaluator->pushWorldObjectTableOntoStack(state, uid);
 	return 1;
 }
 
@@ -593,6 +594,271 @@ static int showMessageToUser(lua_State* state)
 
 	return 0;
 }
+
+
+#if 0 // Script UI disabled for now
+//--------------------------- Script UI ---------------------------
+// createUIImage() and createUIButton() return a handle table { id = widget id } with the script UI widget metatable.
+// Widgets only exist on the client.  On the server the functions return a handle with id 0, and operations on it do nothing,
+// so that a script shared between client and server doesn't need to check IS_CLIENT around UI code.
+
+
+static const size_t MAX_UI_TEXT_SIZE = 1000;
+
+
+// Reads a field like {x=1, y=2} from the table, and checks the values are finite with magnitude at most max_abs_val.
+static Vec2f getUIVec2fTableField(lua_State* state, int table_index, const char* key, const Vec2f& default_val, float max_abs_val)
+{
+	const Vec2f v = LuaUtils::getTableVec2fFieldWithDefault(state, table_index, key, default_val);
+
+	if(!isFinite(v.x) || !isFinite(v.y) || (std::fabs(v.x) > max_abs_val) || (std::fabs(v.y) > max_abs_val))
+		throw glare::Exception("Field '" + std::string(key) + "' values must be finite and have magnitude at most " + toString(max_abs_val) + errorContextString(state));
+
+	return v;
+}
+
+
+static std::string getUITextTableField(lua_State* state, int table_index, const char* key)
+{
+	const std::string text = LuaUtils::getTableStringField(state, table_index, key);
+	if(text.size() > MAX_UI_TEXT_SIZE)
+		throw glare::Exception("Field '" + std::string(key) + "' is too long (max " + toString(MAX_UI_TEXT_SIZE) + " bytes)" + errorContextString(state));
+	return text;
+}
+
+
+static void pushUIWidgetHandle(lua_State* state, int widget_id)
+{
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+
+	lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/1);
+	LuaUtils::setNumberAsTableField(state, "id", widget_id);
+
+	lua_getref(state, sub_lua_vm->scriptUIWidgetMetaTable_ref); // Push metatable
+	lua_setmetatable(state, -2); // Pops the metatable and sets it as the metatable of the handle table.
+}
+
+
+#if GUI_CLIENT
+static LuaScriptUIWidget::Anchor getAnchorTableField(lua_State* state, int table_index)
+{
+	std::string anchor_str = LuaUtils::getTableStringFieldWithEmptyDefault(state, table_index, "anchor");
+	if(anchor_str.empty())
+		anchor_str = "centre";
+
+	LuaScriptUIWidget::Anchor anchor;
+	if(!LuaScriptUIWidget::parseAnchor(anchor_str, anchor))
+		throw glare::Exception("Invalid anchor (valid anchors are top-left, top, top-right, left, centre, right, bottom-left, bottom, bottom-right)" + errorContextString(state));
+	return anchor;
+}
+
+
+// Returns NULL if the handle is a dummy handle, or the widget has been destroyed.
+static LuaScriptUIWidget* getUIWidgetForHandle(lua_State* state, int handle_index)
+{
+	const int id = (int)LuaUtils::getTableNumberField(state, handle_index, "id");
+
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	if(!sub_lua_vm->gui_client->lua_script_ui)
+		return NULL;
+	return sub_lua_vm->gui_client->lua_script_ui->getWidget(script_evaluator, id);
+}
+#endif
+
+
+static int createUIImage(lua_State* state)
+{
+	// Arg 1: params : Table, with fields
+	//   image_url : string    Must be declared in the script header with @resource.
+	//   size : {x=w, y=h}     Size in pixels.  Default {x=128, y=128}.
+	//   anchor : string       Viewport anchor point.  Default "centre".
+	//   offset : {x=, y=}     Offset from the anchor point in pixels, +x is right, +y is up.  Default {x=0, y=0}.
+	//   visible : bool        Default true.
+	// Returns a widget handle.
+
+	checkNumArgs(state, /*num_args_required*/1);
+	LuaUtils::checkValueIsTable(state, /*index=*/1);
+
+	const std::string image_URL = LuaUtils::getTableStringField(state, /*table index=*/1, "image_url");
+	const Vec2f size_px   = getUIVec2fTableField(state, /*table index=*/1, "size",   /*default=*/Vec2f(128.f), /*max abs val=*/4096.f);
+	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f),   /*max abs val=*/10000.f);
+	[[maybe_unused]] const bool visible = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "visible", /*default=*/true);
+
+	if(!(size_px.x >= 1.f && size_px.y >= 1.f))
+		throw glare::Exception("createUIImage(): size must be at least 1 pixel" + errorContextString(state));
+
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	if(!script_evaluator->isResourceURLDeclared(image_URL))
+		throw glare::Exception("createUIImage(): image_url '" + image_URL.substr(0, 256) + "' is not declared in the script header.  Declare it with a line like:\n-- @resource " + image_URL.substr(0, 256) + errorContextString(state));
+
+	int widget_id = 0;
+#if GUI_CLIENT
+	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
+
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+	if(sub_lua_vm->gui_client->lua_script_ui)
+		widget_id = sub_lua_vm->gui_client->lua_script_ui->createImage(script_evaluator, toURLString(image_URL), anchor, offset_px, size_px, visible);
+#endif
+
+	pushUIWidgetHandle(state, widget_id);
+	return 1; // Count of returned values
+}
+
+
+static int createUIButton(lua_State* state)
+{
+	// Arg 1: params : Table, with fields
+	//   text : string
+	//   onClick : function    Called with no arguments when the button is clicked.  Optional.
+	//   anchor : string       Viewport anchor point.  Default "centre".
+	//   offset : {x=, y=}     Offset from the anchor point in pixels, +x is right, +y is up.  Default {x=0, y=0}.
+	//   visible : bool        Default true.
+	// Returns a widget handle.
+
+	checkNumArgs(state, /*num_args_required*/1);
+	LuaUtils::checkValueIsTable(state, /*index=*/1);
+
+	[[maybe_unused]] const std::string text = getUITextTableField(state, /*table index=*/1, "text");
+	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f), /*max abs val=*/10000.f);
+	[[maybe_unused]] const bool visible = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "visible", /*default=*/true);
+
+	const int onClick_type = lua_rawgetfield(state, /*table index=*/1, "onClick"); // Push onClick value onto stack
+	if(onClick_type != LUA_TNIL && onClick_type != LUA_TFUNCTION)
+		throw glare::Exception("createUIButton(): onClick must be a function" + errorContextString(state));
+
+	int widget_id = 0;
+#if GUI_CLIENT
+	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
+
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	if(sub_lua_vm->gui_client->lua_script_ui)
+	{
+		const int onClick_ref = (onClick_type == LUA_TFUNCTION) ? lua_ref(state, /*index=*/-1) : LUA_NOREF;
+		try
+		{
+			widget_id = sub_lua_vm->gui_client->lua_script_ui->createButton(script_evaluator, text, anchor, offset_px, onClick_ref, visible); // Takes ownership of onClick_ref
+		}
+		catch(glare::Exception&)
+		{
+			if(onClick_ref != LUA_NOREF)
+				lua_unref(state, onClick_ref);
+			throw;
+		}
+	}
+#endif
+	lua_pop(state, 1); // Pop onClick value
+
+	pushUIWidgetHandle(state, widget_id);
+	return 1; // Count of returned values
+}
+
+
+static int destroyUIWidget(lua_State* state)
+{
+	// Arg 1: widget handle
+
+	checkNumArgs(state, /*num_args_required*/1);
+	LuaUtils::checkValueIsTable(state, /*index=*/1);
+
+#if GUI_CLIENT
+	const int id = (int)LuaUtils::getTableNumberField(state, /*table index=*/1, "id");
+
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	if(sub_lua_vm->gui_client->lua_script_ui)
+		sub_lua_vm->gui_client->lua_script_ui->destroyWidget(script_evaluator, id);
+#endif
+	return 0;
+}
+
+
+// __index metamethod for widget handles.  Called when a field that isn't in the handle table is read.
+static int scriptUIWidgetIndexMetaMethod(lua_State* state)
+{
+	// Arg 1: handle table
+	// Arg 2: key
+	checkNumArgs(state, 2);
+
+	const char* key_str = lua_tolstring(state, /*index=*/2, /*stringlen=*/NULL); // May return NULL if not a string
+	if(!key_str)
+		throw glare::Exception("UI widget: key must be a string" + errorContextString(state));
+
+	if(stringEqual(key_str, "destroy"))
+	{
+		lua_pushcfunction(state, destroyUIWidget, /*debugname=*/"destroy");
+		return 1;
+	}
+	else if(stringEqual(key_str, "visible"))
+	{
+		bool visible = false;
+#if GUI_CLIENT
+		LuaScriptUIWidget* widget = getUIWidgetForHandle(state, /*handle index=*/1);
+		visible = widget && widget->visible;
+#endif
+		lua_pushboolean(state, visible ? 1 : 0);
+		return 1;
+	}
+	else
+		throw glare::Exception("UI widget: Unknown field '" + std::string(key_str) + "'" + errorContextString(state));
+}
+
+
+// __newindex metamethod for widget handles.  Called when a field that isn't in the handle table is assigned to.
+static int scriptUIWidgetNewIndexMetaMethod(lua_State* state)
+{
+	// Arg 1: handle table
+	// Arg 2: key
+	// Arg 3: value
+	checkNumArgs(state, 3);
+
+	const char* key_str = lua_tolstring(state, /*index=*/2, /*stringlen=*/NULL); // May return NULL if not a string
+	if(!key_str)
+		throw glare::Exception("UI widget: key must be a string" + errorContextString(state));
+
+	if(stringEqual(key_str, "visible"))
+	{
+		[[maybe_unused]] const bool visible = LuaUtils::getBool(state, /*index=*/3);
+#if GUI_CLIENT
+		LuaScriptUIWidget* widget = getUIWidgetForHandle(state, /*handle index=*/1);
+		if(widget)
+		{
+			SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+			sub_lua_vm->gui_client->lua_script_ui->setWidgetVisible(*widget, visible);
+		}
+#endif
+	}
+	else if(stringEqual(key_str, "text"))
+	{
+		const std::string text = LuaUtils::getString(state, /*index=*/3);
+		if(text.size() > MAX_UI_TEXT_SIZE)
+			throw glare::Exception("UI widget: text is too long (max " + toString(MAX_UI_TEXT_SIZE) + " bytes)" + errorContextString(state));
+#if GUI_CLIENT
+		LuaScriptUIWidget* widget = getUIWidgetForHandle(state, /*handle index=*/1);
+		if(widget)
+		{
+			if(!widget->button)
+				throw glare::Exception("UI widget: only buttons have a text field" + errorContextString(state));
+
+			SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+			sub_lua_vm->gui_client->lua_script_ui->setButtonText(*widget, text);
+		}
+#endif
+	}
+	else
+		throw glare::Exception("UI widget: Unknown or read-only field '" + std::string(key_str) + "'" + errorContextString(state));
+	return 0;
+}
+#endif // Script UI disabled for now
 
 
 static int objectStorageGetItem(lua_State* state)
@@ -1004,7 +1270,7 @@ static int createTimer(lua_State* state)
 			timer.lua_script_evaluator = script_evaluator;
 			timer_queue.addTimer(cur_time, timer);
 
-			lua_pushnumber(state, (double)i); // Push timer id
+			lua_pushnumber(state, (double)timer_id); // Push timer id
 			return 1; // Count of returned values
 		}
 	}
@@ -1025,6 +1291,8 @@ static int destroyTimer(lua_State* state)
 	checkNumArgs(state, /*num_args_required*/1);
 
 	const int timer_id = (int)LuaUtils::getDoubleArg(state, /*index=*/1);
+	if(timer_id < 0) // Avoid timer_id of -1 which is what destroyed timers have as IDs.
+		throw glare::Exception("destroyTimer(): Invalid timer ID." + errorContextString(state));
 
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
@@ -1032,7 +1300,7 @@ static int destroyTimer(lua_State* state)
 	for(int i=0; i<LuaScriptEvaluator::MAX_NUM_TIMERS; ++i)
 		if(script_evaluator->timers[i].id == timer_id)
 		{
-			script_evaluator->destroyTimer(/*timer index=*/i);
+			script_evaluator->destroyTimer(/*timer index=*/i, timer_id);
 		}
 	
 	return 0; // Count of returned values
@@ -1046,8 +1314,7 @@ static int getNumMaterials(lua_State* state)
 	checkNumArgs(state, /*num_args_required*/1);
 
 	// Get object UID
-	//const UID uid((uint64)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "uid"));
-	const UID ob_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/2, "uid"));
+	const UID ob_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 	
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
@@ -2229,12 +2496,12 @@ static int avatarClassIndexMetaMethod(lua_State* state)
 			vehicle_inside = avatar->entered_vehicle.ptr();
 
 		if(vehicle_inside)
-			script_evaluator->pushWorldObjectTableOntoStack(vehicle_inside->uid);
+			script_evaluator->pushWorldObjectTableOntoStack(state, vehicle_inside->uid);
 		else
 			lua_pushnil(state);
 #else // else server:
 		if(avatar->vehicle_inside_uid.valid())
-			script_evaluator->pushWorldObjectTableOntoStack(avatar->vehicle_inside_uid);
+			script_evaluator->pushWorldObjectTableOntoStack(state, avatar->vehicle_inside_uid);
 		else
 			lua_pushnil(state);
 #endif
@@ -2321,6 +2588,7 @@ static int16_t glareLuaUserAtom(const char* str, size_t stringlen)
 
 // NOTE: These values can't change without breaking deserialisation of these serialised objects.
 static const uint32 Vec3d_metatable_UID			= 1; // See LuaVM::LuaVM()
+static const uint32 Vec2_metatable_UID			= 2; // See LuaVM::LuaVM()
 static const uint32 WorldObject_metatable_UID	= 100;
 static const uint32 WorldMaterial_metatable_UID	= 101;
 static const uint32 User_metatable_UID			= 102;
@@ -2343,19 +2611,21 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 	vm_options.c_funcs = args.vm_c_funcs;
 #endif
 
-	lua_vm.set(new LuaVM(vm_options));
-
-	lua_vm->max_total_mem_allowed = 16 * 1024 * 1024;
+	vm_options.max_total_mem_allowed = 16 * 1024 * 1024;
 #if GUI_CLIENT
 	if(is_build_vm)
-		lua_vm->max_total_mem_allowed = 1024 * 1024 * 1024;
+		vm_options.max_total_mem_allowed = 1024 * 1024 * 1024; // one-shot build scripts (see LuaBuildScript) can use more RAM.
 #endif
+
+	lua_vm.set(new LuaVM(vm_options));
+
 
 	lua_callbacks(lua_vm->state)->userdata = this;
 	lua_callbacks(lua_vm->state)->useratom = glareLuaUserAtom;
 
 
 	metatable_uid_to_ref_map.insert(std::make_pair(Vec3d_metatable_UID, lua_vm->Vec3dMetaTable_ref));
+	metatable_uid_to_ref_map.insert(std::make_pair(Vec2_metatable_UID,  lua_vm->Vec2MetaTable_ref));
 
 	// Functions that reach the LuaScriptEvaluator in LuaScript::userdata are only valid for per-object scripts.  A build-script VM
 	// stores a BuildScriptContext there instead, so those functions are left unregistered on it.  See LuaBuildScript.
@@ -2374,6 +2644,13 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 	{
 		lua_pushcfunction(lua_vm->state, luaGetWorldObjectForUID, /*debugname=*/"getObjectForUID");
 		lua_setglobal(lua_vm->state, "getObjectForUID");
+
+		// Script UI disabled for now
+		//lua_pushcfunction(lua_vm->state, createUIImage, /*debugname=*/"createUIImage");
+		//lua_setglobal(lua_vm->state, "createUIImage");
+		//
+		//lua_pushcfunction(lua_vm->state, createUIButton, /*debugname=*/"createUIButton");
+		//lua_setglobal(lua_vm->state, "createUIButton");
 	}
 	
 	lua_pushcfunction(lua_vm->state, getCurrentTime, /*debugname=*/"getCurrentTime");
@@ -2476,6 +2753,22 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 	avatarClassMetaTable_ref = lua_ref(lua_vm->state, /*index=*/-1); // Get reference to AvatarClassMetaTable.  Does not pop.
 	lua_pop(lua_vm->state, 1); // Pop AvatarClassMetaTable from stack
 	//--------------------------- End create Avatar Metatable ---------------------------
+
+
+#if 0 // Script UI disabled for now
+	//--------------------------- Create script UI widget Metatable ---------------------------
+	// No "uid" field and no entry in metatable_uid_to_ref_map: widget handles can't be serialised (e.g. into object storage).
+	lua_createtable(lua_vm->state, /*num array elems=*/0, /*num non-array elems=*/2);
+
+	lua_vm->setCFunctionAsTableField(scriptUIWidgetIndexMetaMethod,    /*debugname=*/"scriptUIWidgetIndexMetaMethod",    /*key=*/"__index");
+	lua_vm->setCFunctionAsTableField(scriptUIWidgetNewIndexMetaMethod, /*debugname=*/"scriptUIWidgetNewIndexMetaMethod", /*key=*/"__newindex");
+
+	lua_setreadonly(lua_vm->state, /*index=*/-1, /*enabled=*/1); // Set metatable as read-only.
+
+	scriptUIWidgetMetaTable_ref = lua_ref(lua_vm->state, /*index=*/-1); // Does not pop.
+	lua_pop(lua_vm->state, 1); // Pop metatable from stack
+	//--------------------------- End create script UI widget Metatable ---------------------------
+#endif // Script UI disabled for now
 
 	lua_vm->finishInitAndSandbox();
 

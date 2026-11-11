@@ -64,7 +64,9 @@ public:
 
 	void doOnTimerEvent(int onTimerEvent_ref, WorldStateLock& world_state_lock) noexcept;
 
-	void destroyTimer(int timer_index);
+	void doOnUIEvent(int func_ref, UID avatar_uid, WorldStateLock& world_state_lock) noexcept; // For callbacks from UI widgets created by the script, such as button onClick functions.
+
+	void destroyTimer(int timer_index, int timer_id);
 
 	void doOnError(int onError_ref, int error_code, const std::string& error_description, WorldStateLock& world_state_lock) noexcept;
 	void doOnDone(int onDone_ref, Reference<LuaHTTPRequestResult> result, WorldStateLock& world_state_lock) noexcept;
@@ -92,10 +94,12 @@ public:
 	static void test();
 
 //private:
-	void pushUserTableOntoStack(UserID client_user_id);
-	void pushAvatarTableOntoStack(UID avatar_uid);
-	void pushWorldObjectTableOntoStack(UID ob_uid); // OLD: Push a table for this->world_object onto Lua stack.
-	void pushParcelTableOntoStack(ParcelID parcel_id);
+	void removeScriptUIWidgets(); // Removes any UI widgets the script created (client only).
+
+	void pushUserTableOntoStack(lua_State* state, UserID client_user_id);
+	void pushAvatarTableOntoStack(lua_State* state, UID avatar_uid);
+	void pushWorldObjectTableOntoStack(lua_State* state, UID ob_uid); // OLD: Push a table for this->world_object onto Lua stack.
+	void pushParcelTableOntoStack(lua_State* state, ParcelID parcel_id);
 public:
 	Reference<SubstrataLuaVM> substrata_lua_vm;
 	UniqueRef<LuaScript> lua_script;

@@ -13,6 +13,10 @@ Copyright Glare Technologies Limited 2024 -
 #include "FileTypes.h"
 #include "RateLimiter.h"
 #include "../server/LuaHTTPRequestManager.h" // For LuaHTTPRequestResult
+#if GUI_CLIENT
+#include "../gui_client/GUIClient.h"
+//#include "../gui_client/LuaScriptUI.h" // Script UI disabled for now
+#endif
 #include <utils/Exception.h>
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>
@@ -71,7 +75,10 @@ LuaScriptEvaluator::LuaScriptEvaluator(const Reference<SubstrataLuaVM>& substrat
 
 
 	for(int i=0; i<MAX_NUM_TIMERS; ++i)
+	{
 		timers[i].id = -1;
+		timers[i].onTimerEvent_ref = LUA_NOREF;
+	}
 
 	LuaScriptOptions options;
 	options.max_num_interrupts = 10000;
@@ -81,7 +88,7 @@ LuaScriptEvaluator::LuaScriptEvaluator(const Reference<SubstrataLuaVM>& substrat
 
 
 	// Set 'this_object' global variable
-	pushWorldObjectTableOntoStack(world_object->uid);
+	pushWorldObjectTableOntoStack(lua_script->thread_state, world_object->uid);
 	lua_setglobal(lua_script->thread_state, "this_object");
 
 	// Set 'IS_SERVER' global variable.
@@ -103,7 +110,16 @@ LuaScriptEvaluator::LuaScriptEvaluator(const Reference<SubstrataLuaVM>& substrat
 
 
 	SetCurWorldStateLockClass lock_setter(this, world_state_lock);
-	lua_script->exec();
+	try
+	{
+		lua_script->exec();
+	}
+	catch(...)
+	{
+		// The destructor won't run if the constructor throws, so remove any UI widgets the script created before the error here.
+		removeScriptUIWidgets();
+		throw;
+	}
 
 	// Add any event handling functions defined in the script to the object event-handler list.
 	// Event handling functions defined in this way basically do implicit addEventListener() calls.
@@ -168,6 +184,17 @@ LuaScriptEvaluator::LuaScriptEvaluator(const Reference<SubstrataLuaVM>& substrat
 
 LuaScriptEvaluator::~LuaScriptEvaluator()
 {
+	removeScriptUIWidgets();
+}
+
+
+void LuaScriptEvaluator::removeScriptUIWidgets()
+{
+#if GUI_CLIENT
+	// Script UI disabled for now
+	//if(substrata_lua_vm->gui_client && substrata_lua_vm->gui_client->lua_script_ui)
+	//	substrata_lua_vm->gui_client->lua_script_ui->removeWidgetsForScript(this);
+#endif
 }
 
 
@@ -186,9 +213,9 @@ void LuaScriptEvaluator::doOnUserTouchedObject(int func_ref, UID avatar_uid, UID
 
 		lua_getref(lua_script->thread_state, func_ref); // Pushes function onto the stack.
 
-		pushAvatarTableOntoStack(avatar_uid);
+		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
 
-		pushWorldObjectTableOntoStack(ob_uid);
+		pushWorldObjectTableOntoStack(lua_script->thread_state, ob_uid);
 
 		// Call function
 		lua_call(lua_script->thread_state, /*nargs=*/2, /*nresults=*/0);
@@ -225,9 +252,9 @@ void LuaScriptEvaluator::doOnUserUsedObject(int func_ref, UID avatar_uid, UID ob
 
 		lua_getref(lua_script->thread_state, func_ref); // Pushes onUserUsedObject onto the stack.
 		
-		pushAvatarTableOntoStack(avatar_uid);
+		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
 
-		pushWorldObjectTableOntoStack(ob_uid);
+		pushWorldObjectTableOntoStack(lua_script->thread_state, ob_uid);
 
 		// Call function
 		lua_call(lua_script->thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
@@ -264,9 +291,9 @@ void LuaScriptEvaluator::doOnUserMovedNearToObject(int func_ref, UID avatar_uid,
 
 		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
 
-		pushAvatarTableOntoStack(avatar_uid);
+		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
 
-		pushWorldObjectTableOntoStack(ob_uid);
+		pushWorldObjectTableOntoStack(lua_script->thread_state, ob_uid);
 
 		// Call function
 		lua_call(lua_script->thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
@@ -303,9 +330,9 @@ void LuaScriptEvaluator::doOnUserMovedAwayFromObject(int func_ref, UID avatar_ui
 
 		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
 
-		pushAvatarTableOntoStack(avatar_uid);
+		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
 
-		pushWorldObjectTableOntoStack(ob_uid);
+		pushWorldObjectTableOntoStack(lua_script->thread_state, ob_uid);
 
 		// Call function
 		lua_call(lua_script->thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
@@ -342,9 +369,9 @@ void LuaScriptEvaluator::doOnUserEnteredParcel(int func_ref, UID avatar_uid, UID
 
 		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
 
-		pushAvatarTableOntoStack(avatar_uid);
-		pushWorldObjectTableOntoStack(ob_uid);
-		pushParcelTableOntoStack(parcel_id);
+		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
+		pushWorldObjectTableOntoStack(lua_script->thread_state, ob_uid);
+		pushParcelTableOntoStack(lua_script->thread_state, parcel_id);
 
 		// Call function
 		lua_call(lua_script->thread_state, /*nargs=*/3, /*nresults=*/0); // Pops all arguments and function value
@@ -381,9 +408,9 @@ void LuaScriptEvaluator::doOnUserExitedParcel(int func_ref, UID avatar_uid, UID 
 
 		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
 
-		pushAvatarTableOntoStack(avatar_uid);
-		pushWorldObjectTableOntoStack(ob_uid);
-		pushParcelTableOntoStack(parcel_id);
+		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
+		pushWorldObjectTableOntoStack(lua_script->thread_state, ob_uid);
+		pushParcelTableOntoStack(lua_script->thread_state, parcel_id);
 
 		// Call function
 		lua_call(lua_script->thread_state, /*nargs=*/3, /*nresults=*/0); // Pops all arguments and function value
@@ -420,8 +447,8 @@ void LuaScriptEvaluator::doOnUserEnteredVehicle(int func_ref, UID avatar_uid, UI
 
 		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
 
-		pushAvatarTableOntoStack(avatar_uid);
-		pushWorldObjectTableOntoStack(vehicle_ob_uid);
+		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
+		pushWorldObjectTableOntoStack(lua_script->thread_state, vehicle_ob_uid);
 
 		// Call function
 		lua_call(lua_script->thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
@@ -456,8 +483,8 @@ void LuaScriptEvaluator::doOnUserExitedVehicle(int func_ref, UID avatar_uid, UID
 
 		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
 
-		pushAvatarTableOntoStack(avatar_uid);
-		pushWorldObjectTableOntoStack(vehicle_ob_uid);
+		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
+		pushWorldObjectTableOntoStack(lua_script->thread_state, vehicle_ob_uid);
 
 		// Call function
 		lua_call(lua_script->thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
@@ -492,7 +519,7 @@ void LuaScriptEvaluator::doOnChatMessage(int func_ref, UID avatar_uid, const std
 
 		lua_getref(lua_script->thread_state, func_ref); // Pushes func_ref onto the stack.
 
-		pushAvatarTableOntoStack(avatar_uid);
+		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
 
 		LuaUtils::pushString(lua_script->thread_state, message);
 
@@ -528,7 +555,7 @@ void LuaScriptEvaluator::doOnTimerEvent(int onTimerEvent_ref, WorldStateLock& wo
 
 		lua_getref(lua_script->thread_state, onTimerEvent_ref);  // Push function to be called onto stack
 
-		pushWorldObjectTableOntoStack(this->world_object->uid);
+		pushWorldObjectTableOntoStack(lua_script->thread_state, this->world_object->uid);
 
 		// Call function
 		lua_call(lua_script->thread_state, /*nargs=*/1, /*nresults=*/0);
@@ -550,14 +577,52 @@ void LuaScriptEvaluator::doOnTimerEvent(int onTimerEvent_ref, WorldStateLock& wo
 }
 
 
-void LuaScriptEvaluator::destroyTimer(int timer_index)
+void LuaScriptEvaluator::doOnUIEvent(int func_ref, UID avatar_uid, WorldStateLock& world_state_lock) noexcept
 {
-	// Mark slot as free
-	timers[timer_index].id = -1;
+	if(hit_error || (func_ref == LUA_NOREF))
+		return;
 
-	// Free reference to Lua onTimerEvent function, if valid
-	if(timers[timer_index].onTimerEvent_ref != LUA_NOREF)
-		lua_unref(lua_script->thread_state, timers[timer_index].onTimerEvent_ref); 
+	try
+	{
+		SetCurWorldStateLockClass setter(this, world_state_lock);
+		this->calling_avatar_uid = avatar_uid; // So that e.g. playSound() in the callback plays the sound locally.
+
+		lua_script->resetExecutionTimeCounter();
+
+		lua_getref(lua_script->thread_state, func_ref); // Push function to be called onto stack
+
+		// Call function
+		lua_call(lua_script->thread_state, /*nargs=*/0, /*nresults=*/0);
+	}
+	catch(std::exception& e)
+	{
+		if(script_output_handler)
+			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+		hit_error = true;
+	}
+	catch(glare::Exception& e)
+	{
+		if(script_output_handler)
+			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+		hit_error = true;
+	}
+}
+
+
+void LuaScriptEvaluator::destroyTimer(int timer_index, int timer_id)
+{
+	if(timers[timer_index].id == timer_id)
+	{
+		// Mark slot as free
+		timers[timer_index].id = -1;
+
+		// Free reference to Lua onTimerEvent function, if valid
+		if(timers[timer_index].onTimerEvent_ref != LUA_NOREF)
+		{
+			lua_unref(lua_script->thread_state, timers[timer_index].onTimerEvent_ref); 
+			timers[timer_index].onTimerEvent_ref = LUA_NOREF;
+		}
+	}
 }
 
 
@@ -779,60 +844,60 @@ void LuaScriptEvaluator::warnAboutUndeclaredResourceURL(const string_view func_n
 }
 
 
-void LuaScriptEvaluator::pushUserTableOntoStack(UserID client_user_id)
+void LuaScriptEvaluator::pushUserTableOntoStack(lua_State* state, UserID client_user_id)
 {
 	// Create a table ('user') for arg 1
-	lua_createtable(lua_script->thread_state, /*num array elems=*/0, /*num non-array elems=*/1); // Create table
+	lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/1); // Create table
 
 	// Set table UserID field
-	LuaUtils::setNumberAsTableField(lua_script->thread_state, "uid", client_user_id.value()); // NOTE: Call it "uid" for consistency with object, parcel etc.
+	LuaUtils::setNumberAsTableField(state, "uid", client_user_id.value()); // NOTE: Call it "uid" for consistency with object, parcel etc.
 
 	// Assign user metatable to the user table
-	lua_getref(lua_script->thread_state, substrata_lua_vm->userClassMetaTable_ref); // Push UserClassMetaTable onto stack
-	lua_setmetatable(lua_script->thread_state, -2); // "Pops a table from the stack and sets it as the new metatable for the value at the given acceptable index."
+	lua_getref(state, substrata_lua_vm->userClassMetaTable_ref); // Push UserClassMetaTable onto stack
+	lua_setmetatable(state, -2); // "Pops a table from the stack and sets it as the new metatable for the value at the given acceptable index."
 }
 
 
-void LuaScriptEvaluator::pushAvatarTableOntoStack(UID avatar_uid)
+void LuaScriptEvaluator::pushAvatarTableOntoStack(lua_State* state, UID avatar_uid)
 {
 	// Create a table ('avatar') for arg 1
-	lua_createtable(lua_script->thread_state, /*num array elems=*/0, /*num non-array elems=*/1); // Create table
+	lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/1); // Create table
 
 	// Set table uid field
 	// NOTE: Actually using avatar id
-	LuaUtils::setNumberAsTableField(lua_script->thread_state, "uid", (double)avatar_uid.value());
+	LuaUtils::setNumberAsTableField(state, "uid", (double)avatar_uid.value());
 
 	// Assign avatar metatable to the avatar table
-	lua_getref(lua_script->thread_state, substrata_lua_vm->avatarClassMetaTable_ref); // Push AvatarClassMetaTable onto stack
-	lua_setmetatable(lua_script->thread_state, -2); // "Pops a table from the stack and sets it as the new metatable for the value at the given acceptable index."
+	lua_getref(state, substrata_lua_vm->avatarClassMetaTable_ref); // Push AvatarClassMetaTable onto stack
+	lua_setmetatable(state, -2); // "Pops a table from the stack and sets it as the new metatable for the value at the given acceptable index."
 }
 
 
-void LuaScriptEvaluator::pushWorldObjectTableOntoStack(UID ob_uid)
+void LuaScriptEvaluator::pushWorldObjectTableOntoStack(lua_State* state, UID ob_uid)
 {
 	// Create worldObject table
-	lua_createtable(lua_script->thread_state, /*num array elems=*/0, /*num non-array elems=*/1); // Create table
+	lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/1); // Create table
 
 	// Set metatable to worldObjectClassMetaTable
-	lua_getref(lua_script->thread_state, substrata_lua_vm->worldObjectClassMetaTable_ref); // Pushes worldObjectClassMetaTable_ref onto the stack.
-	lua_setmetatable(lua_script->thread_state, -2); // "Pops a table from the stack and sets it as the new metatable for the value at the given acceptable index."
+	lua_getref(state, substrata_lua_vm->worldObjectClassMetaTable_ref); // Pushes worldObjectClassMetaTable_ref onto the stack.
+	lua_setmetatable(state, -2); // "Pops a table from the stack and sets it as the new metatable for the value at the given acceptable index."
 
 	// Set table UID field
-	LuaUtils::setNumberAsTableField(lua_script->thread_state, "uid", (double)ob_uid.value());
+	LuaUtils::setNumberAsTableField(state, "uid", (double)ob_uid.value());
 }
 
 
-void LuaScriptEvaluator::pushParcelTableOntoStack(ParcelID parcel_id)
+void LuaScriptEvaluator::pushParcelTableOntoStack(lua_State* state, ParcelID parcel_id)
 {
 	// Create parcel table
-	lua_createtable(lua_script->thread_state, /*num array elems=*/0, /*num non-array elems=*/1); // Create table
+	lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/1); // Create table
 
 	// Set metatable to worldObjectClassMetaTable
-	//lua_getref(lua_script->thread_state, substrata_lua_vm->worldObjectClassMetaTable_ref); // Pushes worldObjectClassMetaTable_ref onto the stack.
-	//lua_setmetatable(lua_script->thread_state, -2); // "Pops a table from the stack and sets it as the new metatable for the value at the given acceptable index."
+	//lua_getref(state, substrata_lua_vm->worldObjectClassMetaTable_ref); // Pushes worldObjectClassMetaTable_ref onto the stack.
+	//lua_setmetatable(state, -2); // "Pops a table from the stack and sets it as the new metatable for the value at the given acceptable index."
 
 	// Set table UID field
-	LuaUtils::setNumberAsTableField(lua_script->thread_state, "uid", (double)parcel_id.value());
+	LuaUtils::setNumberAsTableField(state, "uid", (double)parcel_id.value());
 }
 
 
