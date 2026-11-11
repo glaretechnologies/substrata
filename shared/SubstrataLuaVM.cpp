@@ -1000,6 +1000,9 @@ static int doHTTPGetRequestAsync(lua_State* state)
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
 
+	if(!BitUtils::isBitSet(sub_lua_vm->server->world_state->feature_flag_info.feature_flags, ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG))
+		throw glare::Exception("Lua HTTP requests feature-flag disabled, not doing request");
+
 	Reference<LuaHTTPRequest> request = new LuaHTTPRequest();
 	request->script_user_id = script_evaluator->world_object->creator_id;
 	request->lua_script_evaluator = script_evaluator;
@@ -1068,6 +1071,9 @@ static int doHTTPPostRequestAsync(lua_State* state)
 	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
 	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
 	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+
+	if(!BitUtils::isBitSet(sub_lua_vm->server->world_state->feature_flag_info.feature_flags, ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG))
+		throw glare::Exception("Lua HTTP requests feature-flag disabled, not doing request");
 
 	Reference<LuaHTTPRequest> request = new LuaHTTPRequest();
 	request->script_user_id = script_evaluator->world_object->creator_id;

@@ -14,6 +14,8 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/Reference.h>
 #include <utils/ThreadManager.h>
 #include <utils/WeakReference.h>
+#include <utils/Vector.h>
+#include <utils/CircularBuffer.h>
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -52,6 +54,8 @@ public:
 	std::string exception_msg;
 	int error_code;
 
+	double return_time;
+
 	enum ErrorCode
 	{
 		ErrorCode_OK = 0,
@@ -71,6 +75,7 @@ public:
 	LuaHTTPRequestManager(Server* server);
 	~LuaHTTPRequestManager();
 
+	// Called on main thread
 	void think();
 
 	// Called on main thread
@@ -79,6 +84,10 @@ public:
 	// Called from worker threads.
 	void enqueueResult(Reference<LuaHTTPRequestResult> result);
 
+	// Set before submitting requests; existing per-user RateLimiters retain their original allowance.
+	int max_requests_per_period;
+	int max_delayed_results;
+
 	ThreadSafeQueue<Reference<LuaHTTPRequest>> request_queue;
 private:
 	ThreadManager thread_manager;
@@ -86,4 +95,8 @@ private:
 	Server* server;
 
 	std::unordered_map<UserID, Reference<RateLimiter>, UserIDHasher> rate_limiters;
+
+	js::Vector<Reference<LuaHTTPRequestResult>, 16> temp_results;
+
+	CircularBuffer<Reference<LuaHTTPRequestResult>> delayed_result_queue;
 };

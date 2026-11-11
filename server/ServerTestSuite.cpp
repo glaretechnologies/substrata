@@ -133,7 +133,7 @@ void ServerTestSuite::test()
 	runTest([&]() { LuaTests::test();													});
 	runTest([&]() { LuaUtils::test();													});
 	runTest([&]() { LuaSerialisation::test();											});
-	runTest([&]() { ServerLuaScriptTests::test();										});
+	runTest([&]() { ServerLuaScriptTests::test();										}, /*mem leak allowed=*/true); // TLS leaks some mem in doHTTPGetRequestAsync tests
 	runTest([&]() { web::ResponseUtils::test();											});
 	runTest([&]() { Parser::doUnitTests();												});
 	runTest([&]() { StringUtils::test();												});

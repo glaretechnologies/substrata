@@ -269,16 +269,10 @@ int main(int argc, char *argv[])
 		ArgumentParser parsed_args(args, syntax, /*allow_unnamed_arg=*/false);
 
 		const bool dev_mode = parsed_args.isArgPresent("--enable_dev_mode");
+		//-----------------------------------------------------------------------------------------
 
 		Server server;
-
-		// Run tests if --test is present.
-		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
-		{
-			ServerTestSuite::test();
-			return 0;
-		}
-		//-----------------------------------------------------------------------------------------
+		
 
 
 		const int listen_port = 7600; // Listen port for sub protocol
@@ -295,6 +289,14 @@ int main(int argc, char *argv[])
 		FileUtils::createDirIfDoesNotExist(server_state_dir);
 
 		TLSSocket::initTLS(base_dir_path);
+
+
+		// Run tests if --test is present.
+		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
+		{
+			ServerTestSuite::test();
+			return 0;
+		}
 
 
 		// Parse server config, if present:

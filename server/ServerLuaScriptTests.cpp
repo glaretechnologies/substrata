@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2024 -
 
 
 #include "Server.h"
+#include "LuaHTTPRequestManager.h"
 #include "ServerWorldState.h"
 #include "../shared/LuaScriptEvaluator.h"
 #include "../shared/SubstrataLuaVM.h"
@@ -20,22 +21,24 @@ Copyright Glare Technologies Limited 2024 -
 #include <lua/LuaUtils.h>
 #include <utils/Exception.h>
 #include <utils/ConPrint.h>
+#include <utils/PlatformUtils.h>
 #include <utils/StringUtils.h>
 #include <utils/TestUtils.h>
 #include <utils/TestExceptionUtils.h>
+#include <utils/Timer.h>
 #include <lualib.h>
 
 
 class ServerTestLuaScriptOutputHandler : public LuaScriptOutputHandler
 {
 public:
-	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len)
+	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override
 	{
 		conPrint("Test Lua: " + std::string(s, len));
 		buf += std::string(s, len);
 	}
 
-	virtual void errorOccurred(LuaScript* script, const std::string& msg)
+	virtual void errorOccurredFromLuaScript(LuaScript* script, const std::string& msg) override
 	{
 		conPrint("Test Lua error: " + msg);
 		buf += msg;
@@ -119,6 +122,322 @@ void ServerLuaScriptTests::test()
 			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
 			testAssert(!lua_script_evaluator->hit_error);
 			testAssert(output_handler.buf == "IS_CLIENT: false");
+		}
+
+		//-------------------------------- Test HTTP callback dispatch and reference lifetimes --------------------------------
+		{
+			// Inject results directly: exercise the real completion path without HTTP servers, network access, or timing dependencies.
+			LuaHTTPRequestManager http_manager(&server);
+			enum HTTPTestCase { Success, Error, RateLimited, SuccessCallbackThrows, ErrorCallbackThrows, ScriptAlreadyErrored, ScriptDestroyed };
+			for(int test_case = Success; test_case <= ScriptDestroyed; ++test_case)
+			{
+				const int refs_before_script = vm.getNumLuaValueReferences();
+				const bool error_result = test_case == Error || test_case == RateLimited || test_case == ErrorCallbackThrows;
+				const int error_code = test_case == RateLimited ? LuaHTTPRequestResult::ErrorCode_RateLimited : LuaHTTPRequestResult::ErrorCode_Other;
+				const std::string script_src =
+					"function httpDone(response)\n"
+					"    assert(response.response_code == 201)\n"
+					"    assert(response.response_message == 'Created')\n"
+					"    assert(response.mime_type == 'application/octet-stream')\n"
+					"    assert(buffer.len(response.body_data) == 3)\n"
+					"    assert(buffer.readu8(response.body_data, 0) == 65)\n"
+					"    assert(buffer.readu8(response.body_data, 1) == 0)\n"
+					"    assert(buffer.readu8(response.body_data, 2) == 255)\n"
+					"    print('done')\n" +
+					std::string(test_case == SuccessCallbackThrows ? "    error('HTTP callback failed')\n" : "") +
+					"end\n"
+					"function httpError(response)\n"
+					"    assert(response.error_code == " + toString(error_code) + ")\n"
+					"    assert(response.error_description == 'test HTTP error')\n"
+					"    print('error')\n" +
+					std::string(test_case == ErrorCallbackThrows ? "    error('HTTP callback failed')\n" : "") +
+					"end\n";
+				output_handler.buf.clear();
+				Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				const int refs_with_script = vm.getNumLuaValueReferences();
+				Reference<LuaHTTPRequest> request = new LuaHTTPRequest();
+				request->lua_script_evaluator = evaluator;
+				request->onDone_ref = evaluator->lua_script->getRefToFunction("httpDone").ref;
+				request->onError_ref = evaluator->lua_script->getRefToFunction("httpError").ref;
+				testEqual(vm.getNumLuaValueReferences(), refs_with_script + 2);
+
+				Reference<LuaHTTPRequestResult> result = new LuaHTTPRequestResult();
+				result->request = request;
+				result->response.response_code = 201;
+				result->response.response_message = "Created";
+				result->response.mime_type = "application/octet-stream";
+				result->data.push_back(65);
+				result->data.push_back(0);
+				result->data.push_back(255);
+				if(error_result)
+				{
+					result->error_code = error_code;
+					result->exception_msg = "test HTTP error";
+				}
+				http_manager.enqueueResult(result);
+
+				if(test_case == ScriptAlreadyErrored)
+					evaluator->hit_error = true;
+				if(test_case == ScriptDestroyed)
+				{
+					evaluator = nullptr;
+					testEqual(vm.getNumLuaValueReferences(), refs_before_script);
+				}
+
+				http_manager.think();
+				if(test_case == ScriptAlreadyErrored || test_case == ScriptDestroyed)
+					testAssert(output_handler.buf.empty());
+				else if(test_case == SuccessCallbackThrows || test_case == ErrorCallbackThrows)
+				{
+					testAssert(evaluator->hit_error);
+					testAssert(output_handler.buf.find("HTTP callback failed") != std::string::npos);
+				}
+				else
+				{
+					testAssert(!evaluator->hit_error);
+					testEqual(output_handler.buf, std::string(error_result ? "error" : "done"));
+				}
+				// Both callbacks (including the unused one) must be released while the script is still alive.
+				testEqual(vm.getNumLuaValueReferences(), test_case == ScriptDestroyed ? refs_before_script : refs_with_script);
+				const std::string output_after_completion = output_handler.buf;
+				http_manager.think();
+				testEqual(output_handler.buf, output_after_completion);
+				evaluator = nullptr;
+				testEqual(vm.getNumLuaValueReferences(), refs_before_script);
+			}
+		}
+
+		//-------------------------------- Test Lua HTTP calls with HTTP disabled --------------------------------
+		{
+			const auto previous_flags = server.world_state->feature_flag_info.feature_flags;
+			server.world_state->feature_flag_info.feature_flags &= ~ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG;
+			server.lua_http_manager = new LuaHTTPRequestManager(&server);
+			for(int use_post = 0; use_post < 2; ++use_post)
+			{
+				for(int use_coroutine = 0; use_coroutine < 2; ++use_coroutine)
+				{
+					const int refs_before_script = vm.getNumLuaValueReferences();
+					const std::string call = use_post ?
+						"doHTTPPostRequestAsync('http://example.invalid/test', 'payload', 'text/plain', {['X-Test'] = 'value'}, done, failed)\n" :
+						"doHTTPGetRequestAsync('http://example.invalid/test', {['X-Test'] = 'value'}, done, failed)\n";
+					const std::string script_src =
+						"local function done(response) print('Unexpected success callback') end\n"
+						"local function failed(response) print('Unexpected error callback') end\n" +
+						(use_coroutine ? "local co = coroutine.create(function()\n" + call + "end)\nlocal ok, err = coroutine.resume(co)\nassert(ok, err)\n" : call);
+					output_handler.buf.clear();
+					bool caught_disabled_exception = false;
+					try
+					{
+						Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+					}
+					catch(const glare::Exception& e)
+					{
+						testAssert(std::string(e.what()).find("Lua HTTP requests feature-flag disabled") != std::string::npos);
+						caught_disabled_exception = true;
+					}
+					testAssert(caught_disabled_exception);
+					// Construction failed: neither the script thread nor callback references should remain.
+					testEqual(vm.getNumLuaValueReferences(), refs_before_script);
+					server.lua_http_manager->think();
+					testAssert(output_handler.buf.empty());
+					testEqual(vm.getNumLuaValueReferences(), refs_before_script);
+				}
+			}
+			server.lua_http_manager = nullptr;
+			server.world_state->feature_flag_info.feature_flags = previous_flags;
+		}
+
+		//-------------------------------- Test a real Lua HTTP GET request --------------------------------
+		{
+			server.lua_http_manager = new LuaHTTPRequestManager(&server);
+
+			const int refs_before_script = vm.getNumLuaValueReferences();
+			const std::string script_src =
+				"local function done(response)\n"
+				"    assert(response.response_code == 200, 'Unexpected HTTP status: ' .. tostring(response.response_code))\n"
+				"    assert(string.find(response.mime_type, 'text/html', 1, true), 'Expected HTML response')\n"
+				"    assert(buffer.len(response.body_data) > 0, 'Empty HTTP response body')\n"
+				"    print(buffer.tostring(response.body_data))\n"
+				"    print('HTTP download complete')\n"
+				"end\n"
+				"local function failed(response)\n"
+				"    error('HTTP download failed: ' .. response.error_description)\n"
+				"end\n"
+				"doHTTPGetRequestAsync('https://forwardscattering.org/post/3', {}, done, failed)\n";
+			output_handler.buf.clear();
+			Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			testEqual(vm.getNumLuaValueReferences(), refs_before_script + 3); // Thread and two pending callbacks.
+
+			Timer request_timer;
+			while(output_handler.buf.empty() && !evaluator->hit_error && request_timer.elapsed() < 30.0)
+			{
+				server.lua_http_manager->think();
+				if(output_handler.buf.empty() && !evaluator->hit_error)
+					PlatformUtils::Sleep(10);
+			}
+
+			// Stop the workers (including any timed-out download) before reporting a test failure.
+			server.lua_http_manager = nullptr;
+			if(output_handler.buf.empty() && !evaluator->hit_error)
+				failTest("Timed out waiting for Lua HTTP GET https://forwardscattering.org/post/3");
+			testAssert(!evaluator->hit_error);
+			testAssert(::hasPrefix(output_handler.buf, "<!DOCTYPE html>"));
+			testAssert(output_handler.buf.find("<html") != std::string::npos);
+			testAssert(output_handler.buf.find("</html>") != std::string::npos);
+			const std::string completion_message = "HTTP download complete";
+			testAssert(output_handler.buf.size() >= completion_message.size());
+			testEqual(output_handler.buf.substr(output_handler.buf.size() - completion_message.size()), completion_message);
+			testEqual(vm.getNumLuaValueReferences(), refs_before_script + 1); // Both callback references were released.
+			evaluator = nullptr;
+			testEqual(vm.getNumLuaValueReferences(), refs_before_script);
+		}
+
+		//-------------------------------- Test rate limiting with real Lua HTTP requests --------------------------------
+		{
+			server.lua_http_manager = new LuaHTTPRequestManager(&server); // Fresh per-user rate-limit allowance.
+			const int refs_before_script = vm.getNumLuaValueReferences();
+			const std::string script_src =
+				"local completed, accepted, rate_limited = 0, 0, 0\n"
+				"local function finished()\n"
+				"    completed += 1\n"
+				"    assert(completed <= 11, 'Duplicate HTTP callback')\n"
+				"    if completed == 11 then\n"
+				"        assert(accepted == 10)\n"
+				"        assert(rate_limited == 1)\n"
+				"        print('Rate-limit test complete')\n"
+				"    end\n"
+				"end\n"
+				"for i = 1, 11 do\n"
+				"    local request_index = i\n"
+				"    local function done(response)\n"
+				"        assert(request_index <= 10, 'Eleventh request was accepted')\n"
+				"        accepted += 1\n"
+				"        finished()\n"
+				"    end\n"
+				"    local function failed(response)\n"
+				"        if response.error_code == " + toString((int)LuaHTTPRequestResult::ErrorCode_RateLimited) + " then\n"
+				"            assert(request_index == 11, 'Request rejected before allowance was exhausted')\n"
+				"            rate_limited += 1\n"
+				"            print('Rate limited')\n"
+				"        else\n"
+				"            assert(request_index <= 10, 'Eleventh request reached the network')\n"
+				"            accepted += 1\n"
+				"            print('Network error: ' .. response.error_description)\n"
+				"        end\n"
+				"        finished()\n"
+				"    end\n"
+				"    doHTTPGetRequestAsync('https://forwardscattering.org/post/3', {}, done, failed)\n"
+				"end\n";
+			output_handler.buf.clear();
+			Timer request_timer;
+			Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			testEqual(vm.getNumLuaValueReferences(), refs_before_script + 23); // Thread plus two references per request.
+
+			const std::string completion_message = "Rate-limit test complete";
+			while(output_handler.buf.find(completion_message) == std::string::npos && !evaluator->hit_error && request_timer.elapsed() < 30.0)
+			{
+				server.lua_http_manager->think();
+				if(output_handler.buf.find("Rate limited") != std::string::npos)
+					testAssert(request_timer.elapsed() >= 2.0); // Rejection must be delivered through the delayed queue.
+				if(output_handler.buf.find(completion_message) == std::string::npos && !evaluator->hit_error)
+					PlatformUtils::Sleep(10);
+			}
+
+			server.lua_http_manager = nullptr;
+			testAssert(!evaluator->hit_error);
+			if(output_handler.buf.find(completion_message) == std::string::npos)
+				failTest("Timed out waiting for the 11 Lua HTTP request callbacks");
+			testAssert(output_handler.buf.find("Rate limited") != std::string::npos);
+			testEqual(vm.getNumLuaValueReferences(), refs_before_script + 1);
+			evaluator = nullptr;
+			testEqual(vm.getNumLuaValueReferences(), refs_before_script);
+		}
+
+		//-------------------------------- Test the delayed HTTP result queue cap --------------------------------
+		{
+			server.lua_http_manager = new LuaHTTPRequestManager(&server);
+			server.lua_http_manager->max_requests_per_period = 1;
+			server.lua_http_manager->max_delayed_results = 1;
+			const int refs_before_script = vm.getNumLuaValueReferences();
+			const std::string callbacks =
+				"function done(response) print('network') end\n"
+				"function failed(response)\n"
+				"    if response.error_code == " + toString((int)LuaHTTPRequestResult::ErrorCode_RateLimited) + " then\n"
+				"        print('limited')\n"
+				"    else\n"
+				"        print('network')\n"
+				"    end\n"
+				"end\n";
+			const std::string call = "doHTTPGetRequestAsync('https://forwardscattering.org/post/3', {}, done, failed)\n";
+			output_handler.buf.clear();
+			Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, callbacks + call + call, world_ob.ptr(), main_world_state.ptr(), lock);
+			const int refs_with_pending_requests = vm.getNumLuaValueReferences();
+			testEqual(refs_with_pending_requests, refs_before_script + 5); // Thread, one accepted request, and one delayed result.
+
+			// Keep the script alive while rejecting a request, so destructor cleanup cannot hide leaked callback refs.
+			Reference<LuaHTTPRequest> rejected_request = new LuaHTTPRequest();
+			rejected_request->script_user_id = world_ob->creator_id;
+			rejected_request->lua_script_evaluator = evaluator;
+			rejected_request->request_type = "GET";
+			rejected_request->URL = "https://forwardscattering.org/post/3";
+			rejected_request->onDone_ref = evaluator->lua_script->getRefToFunction("done").ref;
+			rejected_request->onError_ref = evaluator->lua_script->getRefToFunction("failed").ref;
+			testEqual(vm.getNumLuaValueReferences(), refs_with_pending_requests + 2);
+			bool caught_queue_cap = false;
+			try
+			{
+				server.lua_http_manager->enqueueHTTPRequest(rejected_request);
+			}
+			catch(const glare::Exception& e)
+			{
+				testAssert(std::string(e.what()).find("Too many rate-limited HTTP requests") != std::string::npos);
+				caught_queue_cap = true;
+			}
+			testAssert(caught_queue_cap);
+			testEqual(vm.getNumLuaValueReferences(), refs_with_pending_requests);
+
+			// Also reject during top-level execution, before a Reference owns the newly constructed evaluator.
+			caught_queue_cap = false;
+			try
+			{
+				Reference<LuaScriptEvaluator> rejected_evaluator = new LuaScriptEvaluator(&vm, &output_handler, callbacks + call, world_ob.ptr(), main_world_state.ptr(), lock);
+			}
+			catch(const glare::Exception& e)
+			{
+				testAssert(std::string(e.what()).find("Too many rate-limited HTTP requests") != std::string::npos);
+				caught_queue_cap = true;
+			}
+			testAssert(caught_queue_cap);
+			testEqual(vm.getNumLuaValueReferences(), refs_with_pending_requests);
+
+			Timer request_timer;
+			while(vm.getNumLuaValueReferences() != refs_before_script + 1 && !evaluator->hit_error && request_timer.elapsed() < 30.0)
+			{
+				server.lua_http_manager->think();
+				PlatformUtils::Sleep(10);
+			}
+			testAssert(!evaluator->hit_error);
+			testEqual(vm.getNumLuaValueReferences(), refs_before_script + 1);
+			testAssert(output_handler.buf == "networklimited" || output_handler.buf == "limitednetwork");
+			evaluator = nullptr;
+			testEqual(vm.getNumLuaValueReferences(), refs_before_script);
+
+			// Draining the delayed result frees the queue slot, even though this user's rate allowance is still exhausted.
+			output_handler.buf.clear();
+			evaluator = new LuaScriptEvaluator(&vm, &output_handler, callbacks + call, world_ob.ptr(), main_world_state.ptr(), lock);
+			testEqual(vm.getNumLuaValueReferences(), refs_before_script + 3);
+			request_timer.reset();
+			while(output_handler.buf.empty() && !evaluator->hit_error && request_timer.elapsed() < 10.0)
+			{
+				server.lua_http_manager->think();
+				PlatformUtils::Sleep(10);
+			}
+			server.lua_http_manager = nullptr;
+			testAssert(!evaluator->hit_error);
+			testEqual(output_handler.buf, std::string("limited"));
+			testEqual(vm.getNumLuaValueReferences(), refs_before_script + 1);
+			evaluator = nullptr;
+			testEqual(vm.getNumLuaValueReferences(), refs_before_script);
 		}
 
 		//-------------------------------- Test doOnUserTouchedObject --------------------------------
