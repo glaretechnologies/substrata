@@ -724,14 +724,17 @@ int main(int argc, char *argv[])
 
 							runtimeCheck(lua_vm);
 							ob->lua_script_evaluator = new LuaScriptEvaluator(lua_vm, /*script output handler=*/&server, ob->script, ob, world_state.ptr(), lock);
+							ob->lua_script_evaluator->exec(lock);
 						}
 						catch(LuaScriptExcepWithLocation& e)
 						{
+							ob->lua_script_evaluator = nullptr;
 							conPrint("Error creating LuaScriptEvaluator for ob " + ob->uid.toString() + ": " + e.messageWithLocations());
 							server.logLuaError("Error: " + e.messageWithLocations(), ob->uid, ob->creator_id);
 						}
 						catch(glare::Exception& e)
 						{
+							ob->lua_script_evaluator = nullptr;
 							conPrint("Error creating LuaScriptEvaluator for ob " + ob->uid.toString() + ": " + e.what());
 							server.logLuaError("Error: " + e.what(), ob->uid, ob->creator_id);
 						}

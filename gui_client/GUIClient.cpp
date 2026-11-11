@@ -3675,6 +3675,7 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 					ui_interface->printFromLuaScript("Running script at " + Clock::get12HourClockLocalTimeOfDayString(), ob->uid);
 
 				ob->lua_script_evaluator = new LuaScriptEvaluator(this->lua_vm, /*script output handler=*/this, ob->script, ob, world_state_lock);
+				ob->lua_script_evaluator->exec(world_state_lock);
 
 				// Start loading any audio files the script declares with @resource
 				for(size_t i=0; i<ob->lua_script_evaluator->resource_URLs.size(); ++i)
@@ -3713,6 +3714,7 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 			}
 			catch(glare::Exception& e)
 			{
+				ob->lua_script_evaluator = nullptr;
 				throw glare::Exception("Error while creating Lua script: " + e.what());
 			}
 		}

@@ -43,6 +43,7 @@ public:
 	);
 	~LuaScriptEvaluator();
 
+	void exec(WorldStateLock& world_state_lock); // Execute top-level Lua code.
 
 	void doOnUserTouchedObject(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept;
 	
@@ -104,7 +105,7 @@ public:
 	Reference<SubstrataLuaVM> substrata_lua_vm;
 	UniqueRef<LuaScript> lua_script;
 	LuaScriptOutputHandler* script_output_handler;
-	bool hit_error;
+	bool hit_error; // have we caught an exception while executing Lua code for this script?  If so, don't execute any more handlers.
 
 	WorldObject* world_object;
 #if SERVER
