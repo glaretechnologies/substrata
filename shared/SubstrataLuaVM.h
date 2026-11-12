@@ -121,4 +121,8 @@ public:
 	//int scriptUIWidgetMetaTable_ref; // Script UI disabled for now.  For handles returned by createUIImage() and createUIButton().
 
 	HashMap<uint32, LuaVM::LuaValueRef> metatable_uid_to_ref_map;
+
+	// Stats tracking:
+	uint64 current_period_start_total_num_interrupts;
+	double last_period_interrupts_per_sec;
 };

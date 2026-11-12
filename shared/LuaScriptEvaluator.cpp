@@ -83,26 +83,32 @@ LuaScriptEvaluator::LuaScriptEvaluator(const Reference<SubstrataLuaVM>& substrat
 	options.userdata = this;
 	lua_script.set(new LuaScript(substrata_lua_vm->lua_vm.ptr(), options, script_src));
 
+	try
+	{
+		// Set 'this_object' global variable
+		pushWorldObjectTableOntoStack(lua_script->thread_state, world_object->uid);
+		lua_setglobal(lua_script->thread_state, "this_object");
 
-	// Set 'this_object' global variable
-	pushWorldObjectTableOntoStack(lua_script->thread_state, world_object->uid);
-	lua_setglobal(lua_script->thread_state, "this_object");
-
-	// Set 'IS_SERVER' global variable.
+		// Set 'IS_SERVER' global variable.
 #if SERVER
-	lua_pushboolean(lua_script->thread_state, 1);
+		lua_pushboolean(lua_script->thread_state, 1);
 #else
-	lua_pushboolean(lua_script->thread_state, 0);
+		lua_pushboolean(lua_script->thread_state, 0);
 #endif
-	lua_setglobal(lua_script->thread_state, "IS_SERVER");
+		lua_setglobal(lua_script->thread_state, "IS_SERVER");
 
-// Set 'IS_CLIENT' global variable.
+		// Set 'IS_CLIENT' global variable.
 #if SERVER
-	lua_pushboolean(lua_script->thread_state, 0);
+		lua_pushboolean(lua_script->thread_state, 0);
 #else
-	lua_pushboolean(lua_script->thread_state, 1);
+		lua_pushboolean(lua_script->thread_state, 1);
 #endif
-	lua_setglobal(lua_script->thread_state, "IS_CLIENT");
+		lua_setglobal(lua_script->thread_state, "IS_CLIENT");
+	}
+	catch(std::exception& e) // Lua memory alloc failures throw lua_exception which derives from std::exception.  Handle them.
+	{
+		throw glare::Exception(std::string(e.what()));
+	}
 }
 
 
@@ -194,8 +200,17 @@ void LuaScriptEvaluator::exec(WorldStateLock& world_state_lock)
 	catch(glare::Exception&)
 	{
 		hit_error = true;
+		lua_script->addExecutionTimeToVMAndResetCounter();
 		throw;
 	}
+	catch(std::exception& e) // Lua memory alloc failures throw lua_exception which derives from std::exception.  Handle them.
+	{
+		hit_error = true;
+		lua_script->addExecutionTimeToVMAndResetCounter();
+		throw glare::Exception(std::string(e.what()));
+	}
+
+	lua_script->addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -220,7 +235,7 @@ void LuaScriptEvaluator::doOnUserTouchedObject(LuaVM::LuaValueRef func_ref, UID 
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
 
-		lua_script->resetExecutionTimeCounter();
+		assert(lua_script->num_interrupts == 0);
 
 		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes function onto the stack.
 
@@ -245,6 +260,8 @@ void LuaScriptEvaluator::doOnUserTouchedObject(LuaVM::LuaValueRef func_ref, UID 
 			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), e.what());
 		hit_error = true;
 	}
+
+	lua_script->addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -259,7 +276,7 @@ void LuaScriptEvaluator::doOnUserUsedObject(LuaVM::LuaValueRef func_ref, UID ava
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
 
-		lua_script->resetExecutionTimeCounter();
+		assert(lua_script->num_interrupts == 0);
 
 		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes onUserUsedObject onto the stack.
 		
@@ -284,6 +301,8 @@ void LuaScriptEvaluator::doOnUserUsedObject(LuaVM::LuaValueRef func_ref, UID ava
 			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
+
+	lua_script->addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -298,7 +317,7 @@ void LuaScriptEvaluator::doOnUserMovedNearToObject(LuaVM::LuaValueRef func_ref, 
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
 
-		lua_script->resetExecutionTimeCounter();
+		assert(lua_script->num_interrupts == 0);
 
 		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
@@ -323,6 +342,8 @@ void LuaScriptEvaluator::doOnUserMovedNearToObject(LuaVM::LuaValueRef func_ref, 
 			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
+
+	lua_script->addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -337,7 +358,7 @@ void LuaScriptEvaluator::doOnUserMovedAwayFromObject(LuaVM::LuaValueRef func_ref
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
 
-		lua_script->resetExecutionTimeCounter();
+		assert(lua_script->num_interrupts == 0);
 
 		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
@@ -362,6 +383,8 @@ void LuaScriptEvaluator::doOnUserMovedAwayFromObject(LuaVM::LuaValueRef func_ref
 			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
+
+	lua_script->addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -376,7 +399,7 @@ void LuaScriptEvaluator::doOnUserEnteredParcel(LuaVM::LuaValueRef func_ref, UID 
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
 
-		lua_script->resetExecutionTimeCounter();
+		assert(lua_script->num_interrupts == 0);
 
 		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
@@ -401,6 +424,8 @@ void LuaScriptEvaluator::doOnUserEnteredParcel(LuaVM::LuaValueRef func_ref, UID 
 			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
+
+	lua_script->addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -415,7 +440,7 @@ void LuaScriptEvaluator::doOnUserExitedParcel(LuaVM::LuaValueRef func_ref, UID a
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
 
-		lua_script->resetExecutionTimeCounter();
+		assert(lua_script->num_interrupts == 0);
 
 		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
@@ -440,6 +465,8 @@ void LuaScriptEvaluator::doOnUserExitedParcel(LuaVM::LuaValueRef func_ref, UID a
 			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
+
+	lua_script->addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -454,7 +481,7 @@ void LuaScriptEvaluator::doOnUserEnteredVehicle(LuaVM::LuaValueRef func_ref, UID
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
 
-		lua_script->resetExecutionTimeCounter();
+		assert(lua_script->num_interrupts == 0);
 
 		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
@@ -476,6 +503,8 @@ void LuaScriptEvaluator::doOnUserEnteredVehicle(LuaVM::LuaValueRef func_ref, UID
 			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
+
+	lua_script->addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -490,7 +519,7 @@ void LuaScriptEvaluator::doOnUserExitedVehicle(LuaVM::LuaValueRef func_ref, UID 
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
 
-		lua_script->resetExecutionTimeCounter();
+		assert(lua_script->num_interrupts == 0);
 
 		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
@@ -512,6 +541,8 @@ void LuaScriptEvaluator::doOnUserExitedVehicle(LuaVM::LuaValueRef func_ref, UID 
 			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
+
+	lua_script->addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -526,7 +557,7 @@ void LuaScriptEvaluator::doOnChatMessage(LuaVM::LuaValueRef func_ref, UID avatar
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
 
-		lua_script->resetExecutionTimeCounter();
+		assert(lua_script->num_interrupts == 0);
 
 		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
@@ -549,6 +580,8 @@ void LuaScriptEvaluator::doOnChatMessage(LuaVM::LuaValueRef func_ref, UID avatar
 			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
+
+	lua_script->addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -562,7 +595,7 @@ void LuaScriptEvaluator::doOnTimerEvent(LuaVM::LuaValueRef onTimerEvent_ref, Wor
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = UID::invalidUID();
 
-		lua_script->resetExecutionTimeCounter();
+		assert(lua_script->num_interrupts == 0);
 
 		lua_getref(lua_script->thread_state, onTimerEvent_ref.ref);  // Push function to be called onto stack
 
@@ -585,6 +618,8 @@ void LuaScriptEvaluator::doOnTimerEvent(LuaVM::LuaValueRef onTimerEvent_ref, Wor
 			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
+
+	lua_script->addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -598,7 +633,7 @@ void LuaScriptEvaluator::doOnUIEvent(LuaVM::LuaValueRef func_ref, UID avatar_uid
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid; // So that e.g. playSound() in the callback plays the sound locally.
 
-		lua_script->resetExecutionTimeCounter();
+		assert(lua_script->num_interrupts == 0);
 
 		lua_getref(lua_script->thread_state, func_ref.ref); // Push function to be called onto stack
 
@@ -617,6 +652,8 @@ void LuaScriptEvaluator::doOnUIEvent(LuaVM::LuaValueRef func_ref, UID avatar_uid
 			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
+
+	lua_script->addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -648,7 +685,7 @@ void LuaScriptEvaluator::doOnError(LuaVM::LuaValueRef onError_ref, int error_cod
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = UID::invalidUID();
 
-		lua_script->resetExecutionTimeCounter();
+		assert(lua_script->num_interrupts == 0);
 
 		lua_getref(lua_script->thread_state, onError_ref.ref);  // Push function to be called onto stack
 
@@ -678,6 +715,8 @@ void LuaScriptEvaluator::doOnError(LuaVM::LuaValueRef onError_ref, int error_cod
 			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
+
+	lua_script->addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -693,7 +732,7 @@ void LuaScriptEvaluator::doOnDone(LuaVM::LuaValueRef onDone_ref, Reference<LuaHT
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = UID::invalidUID();
 
-		lua_script->resetExecutionTimeCounter();
+		assert(lua_script->num_interrupts == 0);
 
 		lua_getref(lua_script->thread_state, onDone_ref.ref);  // Push function to be called onto stack
 
@@ -735,6 +774,8 @@ void LuaScriptEvaluator::doOnDone(LuaVM::LuaValueRef onDone_ref, Reference<LuaHT
 			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
 		hit_error = true;
 	}
+
+	lua_script->addExecutionTimeToVMAndResetCounter();
 #else
 	assert(0);
 #endif

@@ -557,7 +557,7 @@ static int luaAddEventListener(lua_State* state)
 	if(added)
 		script_evaluator->num_obs_event_listening++;
 	else
-		script_evaluator->lua_script->freeRefToFunction( handler_func_ref); // Release the reference to the handler func as we are not holding on to it
+		script_evaluator->lua_script->freeRefToFunction(handler_func_ref); // Release the reference to the handler func as we are not holding on to it
 
 #if GUI_CLIENT
 	if(is_spatial_event && ob)
@@ -2616,11 +2616,13 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 #if GUI_CLIENT
 	gui_client(args.gui_client),
 	player_physics(args.player_physics),
-	is_build_vm(args.is_build_vm)
+	is_build_vm(args.is_build_vm),
 #endif
 #if SERVER
-	server(args.server)
+	server(args.server),
 #endif
+	current_period_start_total_num_interrupts(0),
+	last_period_interrupts_per_sec(0)
 {
 	LuaVMOptions vm_options;
 #if GUI_CLIENT

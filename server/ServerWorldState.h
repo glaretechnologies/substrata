@@ -417,7 +417,7 @@ public:
 
 	std::map<UID, GearItemRef> gear_items GUARDED_BY(mutex);
 
-	HashMap<UserID, Reference<SubstrataLuaVM>, UserIDHasher> lua_vms;
+	HashMap<UserID, Reference<SubstrataLuaVM>, UserIDHasher> lua_vms GUARDED_BY(mutex);
 
 	// For the map:
 	MapTileInfo map_tile_info;

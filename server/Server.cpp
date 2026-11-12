@@ -770,6 +770,7 @@ int main(int argc, char *argv[])
 
 
 		Timer save_state_timer;
+		double last_lua_vm_scan_time = 0;
 
 		// A map from world to packet data to send to clients connected to that world.
 		std::unordered_map<ServerWorldState*, std::vector<uint8>> broadcast_packets;
@@ -1393,6 +1394,28 @@ int main(int argc, char *argv[])
 			if((loop_iter % 1024) == 64) // Approx every 100 s.
 				if(isFeatureFlagSet(server.world_state, ServerAllWorldsState::DO_WORLD_MAINTENANCE_FEATURE_FLAG))
 					WorldMaintenance::removeOldVehicles(server.world_state);
+
+
+			if((loop_iter % 100) == 10) // Approx every 10 s.
+			{
+				const double cur_time = Clock::getCurTimeRealSec();
+				const double elapsed = cur_time - last_lua_vm_scan_time;
+
+				{
+					WorldStateLock lock(server.world_state->mutex);
+					for(auto it = server.world_state->lua_vms.begin(); it != server.world_state->lua_vms.end(); ++it)
+					{
+						SubstrataLuaVM* sub_lua_vm = it->second.ptr();
+						LuaVM* lua_vm = sub_lua_vm->lua_vm.ptr();
+						
+						const uint64 last_period_total_num_interrupts = lua_vm->total_num_interrupts - sub_lua_vm->current_period_start_total_num_interrupts;
+						sub_lua_vm->last_period_interrupts_per_sec = last_period_total_num_interrupts / elapsed;
+						sub_lua_vm->current_period_start_total_num_interrupts = lua_vm->total_num_interrupts;
+					}
+				}
+
+				last_lua_vm_scan_time = cur_time;
+			}
 
 			if(server.world_state->hasChanged() && (save_state_timer.elapsed() > 10.0))
 			{

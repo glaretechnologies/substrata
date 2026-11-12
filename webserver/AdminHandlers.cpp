@@ -141,6 +141,39 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 		page_out += "<input type=\"number\" name=\"new_value\" value=\"" + toString(chatbots_enabled ? 1 : 0) + "\">";
 		page_out += "<input type=\"submit\" value=\"Run chatbots\" onclick=\"return confirm('Are you sure you want to change chatbots?');\" >";
 		page_out += "</form>";
+
+
+		// Show some Lua VM stats
+		page_out += "<h2>LuaVM stats</h2>\n";
+		for(auto it = world_state.lua_vms.begin(); it != world_state.lua_vms.end(); ++it)
+		{
+			const UserID user_id = it->first;
+			page_out += "<p>User: <b>";
+			// Look up user
+			auto res = world_state.user_id_to_users.find(user_id);
+			if(res == world_state.user_id_to_users.end())
+			{
+				page_out += "[User not found (id " + toString(user_id.value()) + ")]";
+			}
+			else
+			{
+				const User* user = res->second.ptr();
+				page_out += web::Escaping::HTMLEscape(user->name);
+			}
+			page_out += "</b></p>";
+			const SubstrataLuaVM* sub_lua_vm = it->second.ptr();
+			const LuaVM* lua_vm = sub_lua_vm->lua_vm.ptr();
+			
+			page_out += "<table class=\"stats-table\">\n";
+			page_out += "<tr><td>total_allocated:</td><td>" + uInt64ToStringCommaSeparated(lua_vm->total_allocated) + " B </td></tr>\n";
+			page_out += "<tr><td>total_allocated_high_water_mark: </td><td>" + uInt64ToStringCommaSeparated(lua_vm->total_allocated_high_water_mark) + " B </td></tr>\n";
+			page_out += "<tr><td>max_total_mem_allowed: </td><td>" + uInt64ToStringCommaSeparated(lua_vm->options.max_total_mem_allowed) + " B </td></tr>\n";
+			page_out += "<tr><td>num_mem_allocation_failures: </td><td>" + uInt64ToStringCommaSeparated(lua_vm->num_mem_allocation_failures) + "</td></tr>\n";
+			page_out += "<tr><td>num lua value references: </td><td>" + uInt64ToStringCommaSeparated(lua_vm->getNumLuaValueReferences()) + " refs</td></tr>\n";
+			page_out += "<tr><td>total_num_interrupts: </td><td>" + uInt64ToStringCommaSeparated(lua_vm->total_num_interrupts) + " interrupts</td></tr>\n";
+			page_out += "<tr><td>last_interrupts_per_sec: </td><td>" + doubleToStringMaxNDecimalPlaces(sub_lua_vm->last_period_interrupts_per_sec, 2) + " interrupts/s</td></tr>\n";
+			page_out += "</table>\n";
+		}
 	}
 
 	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);

@@ -712,3 +712,8 @@ a
 	text-align: right;
 	padding: 0.5em;
 }
+
+.stats-table
+{
+	width: auto;
+}
