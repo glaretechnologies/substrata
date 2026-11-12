@@ -770,7 +770,7 @@ int main(int argc, char *argv[])
 
 
 		Timer save_state_timer;
-		double last_lua_vm_scan_time = 0;
+		double last_lua_vm_scan_time = Clock::getCurTimeRealSec();
 
 		// A map from world to packet data to send to clients connected to that world.
 		std::unordered_map<ServerWorldState*, std::vector<uint8>> broadcast_packets;
