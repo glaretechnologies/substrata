@@ -145,6 +145,15 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 
 		// Show some Lua VM stats
 		page_out += "<h2>LuaVM stats</h2>\n";
+
+		uint64 sum_total_allocated = 0;
+		uint64 sum_total_allocated_high_water_mark = 0;
+		uint64 sum_max_total_mem_allowed = 0;
+		uint64 sum_num_mem_allocation_failures = 0;
+		uint64 sum_num_refs = 0;
+		uint64 sum_total_num_interrupts = 0;
+		double sum_last_period_interrupts_per_sec = 0;
+
 		for(auto it = world_state.lua_vms.begin(); it != world_state.lua_vms.end(); ++it)
 		{
 			const UserID user_id = it->first;
@@ -163,18 +172,37 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 			page_out += "</b></p>";
 			const SubstrataLuaVM* sub_lua_vm = it->second.ptr();
 			const LuaVM* lua_vm = sub_lua_vm->lua_vm.ptr();
+
+			sum_total_allocated += lua_vm->total_allocated;
+			sum_total_allocated_high_water_mark += lua_vm->total_allocated_high_water_mark;
+			sum_max_total_mem_allowed += lua_vm->options.max_total_mem_allowed;
+			sum_num_mem_allocation_failures += lua_vm->num_mem_allocation_failures;
+			sum_num_refs += lua_vm->getNumLuaValueReferences();
+			sum_total_num_interrupts += lua_vm->total_num_interrupts;
+			sum_last_period_interrupts_per_sec += sub_lua_vm->last_period_interrupts_per_sec;
 			
 			page_out += "<table class=\"stats-table\">\n";
-			page_out += "<tr><td>total_allocated:</td><td>" + uInt64ToStringCommaSeparated(lua_vm->total_allocated) + " B </td></tr>\n";
+			page_out += "<tr><td>total_allocated:                 </td><td>" + uInt64ToStringCommaSeparated(lua_vm->total_allocated) + " B </td></tr>\n";
 			page_out += "<tr><td>total_allocated_high_water_mark: </td><td>" + uInt64ToStringCommaSeparated(lua_vm->total_allocated_high_water_mark) + " B </td></tr>\n";
-			page_out += "<tr><td>max_total_mem_allowed: </td><td>" + uInt64ToStringCommaSeparated(lua_vm->options.max_total_mem_allowed) + " B </td></tr>\n";
-			page_out += "<tr><td>num_mem_allocation_failures: </td><td>" + uInt64ToStringCommaSeparated(lua_vm->num_mem_allocation_failures) + "</td></tr>\n";
-			page_out += "<tr><td>num lua value references: </td><td>" + uInt64ToStringCommaSeparated(lua_vm->getNumLuaValueReferences()) + " refs</td></tr>\n";
-			page_out += "<tr><td>total_num_interrupts: </td><td>" + uInt64ToStringCommaSeparated(lua_vm->total_num_interrupts) + " interrupts</td></tr>\n";
-			page_out += "<tr><td>last_interrupts_per_sec: </td><td>" + doubleToStringMaxNDecimalPlaces(sub_lua_vm->last_period_interrupts_per_sec, 2) + " interrupts/s</td></tr>\n";
+			page_out += "<tr><td>max_total_mem_allowed:           </td><td>" + uInt64ToStringCommaSeparated(lua_vm->options.max_total_mem_allowed) + " B </td></tr>\n";
+			page_out += "<tr><td>num_mem_allocation_failures:     </td><td>" + uInt64ToStringCommaSeparated(lua_vm->num_mem_allocation_failures) + "</td></tr>\n";
+			page_out += "<tr><td>num lua value references:        </td><td>" + uInt64ToStringCommaSeparated(lua_vm->getNumLuaValueReferences()) + " refs</td></tr>\n";
+			page_out += "<tr><td>total_num_interrupts:            </td><td>" + uInt64ToStringCommaSeparated(lua_vm->total_num_interrupts) + " interrupts</td></tr>\n";
+			page_out += "<tr><td>last_interrupts_per_sec:         </td><td>" + doubleToStringMaxNDecimalPlaces(sub_lua_vm->last_period_interrupts_per_sec, 2) + " interrupts/s</td></tr>\n";
 			page_out += "</table>\n";
 		}
-	}
+
+		page_out += "<h3>Totals</h3>";
+		page_out += "<table class=\"stats-table\">\n";
+		page_out += "<tr><td>total_allocated:                    </td><td>" + uInt64ToStringCommaSeparated(sum_total_allocated) + " B </td></tr>\n";
+		page_out += "<tr><td>total_allocated_high_water_mark:    </td><td>" + uInt64ToStringCommaSeparated(sum_total_allocated_high_water_mark) + " B </td></tr>\n";
+		page_out += "<tr><td>max_total_mem_allowed:              </td><td>" + uInt64ToStringCommaSeparated(sum_max_total_mem_allowed) + " B </td></tr>\n";
+		page_out += "<tr><td>num_mem_allocation_failures:        </td><td>" + uInt64ToStringCommaSeparated(sum_num_mem_allocation_failures) + "</td></tr>\n";
+		page_out += "<tr><td>num lua value references:           </td><td>" + uInt64ToStringCommaSeparated(sum_num_refs) + " refs</td></tr>\n";
+		page_out += "<tr><td>total_num_interrupts:               </td><td>" + uInt64ToStringCommaSeparated(sum_total_num_interrupts) + " interrupts</td></tr>\n";
+		page_out += "<tr><td>last_interrupts_per_sec:            </td><td>" + doubleToStringMaxNDecimalPlaces(sum_last_period_interrupts_per_sec, 2) + " interrupts/s</td></tr>\n";
+		page_out += "</table>\n";
+	} // End lock scope
 
 	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
 }
