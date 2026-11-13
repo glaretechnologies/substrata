@@ -656,6 +656,42 @@ void LuaScriptEvaluator::doOnUIEvent(LuaVM::LuaValueRef func_ref, UID avatar_uid
 }
 
 
+void LuaScriptEvaluator::doOnUIValueChangedEvent(LuaVM::LuaValueRef func_ref, double value, UID avatar_uid, WorldStateLock& world_state_lock) noexcept
+{
+	if(hit_error || (func_ref.ref == LUA_NOREF))
+		return;
+
+	try
+	{
+		SetCurWorldStateLockClass setter(this, world_state_lock);
+		this->calling_avatar_uid = avatar_uid; // So that e.g. playSound() in the callback plays the sound locally.
+
+		assert(lua_script->num_interrupts == 0);
+
+		lua_getref(lua_script->thread_state, func_ref.ref); // Push function to be called onto stack
+
+		lua_pushnumber(lua_script->thread_state, value);
+
+		// Call function
+		lua_call(lua_script->thread_state, /*nargs=*/1, /*nresults=*/0);
+	}
+	catch(std::exception& e)
+	{
+		if(script_output_handler)
+			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+		hit_error = true;
+	}
+	catch(glare::Exception& e)
+	{
+		if(script_output_handler)
+			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+		hit_error = true;
+	}
+
+	lua_script->addExecutionTimeToVMAndResetCounter();
+}
+
+
 void LuaScriptEvaluator::destroyTimer(int timer_index, int timer_id)
 {
 	if(timers[timer_index].id == timer_id)

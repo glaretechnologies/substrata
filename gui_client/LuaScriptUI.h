@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2026 -
 #include <opengl/ui/GLUI.h>
 #include <opengl/ui/GLUICallbackHandler.h>
 #include <opengl/ui/GLUIImage.h>
+#include <opengl/ui/GLUISlider.h>
 #include <opengl/ui/GLUITextButton.h>
 #include <utils/RefCounted.h>
 #include <utils/Reference.h>
@@ -25,7 +26,7 @@ class LuaScriptEvaluator;
 /*=====================================================================
 LuaScriptUIWidget
 -----------------
-A GLUI widget created by a Lua script, with createUIImage() or createUIButton().
+A GLUI widget created by a Lua script, with createUIImage(), createUIButton() or createUISlider().
 =====================================================================*/
 class LuaScriptUIWidget : public RefCounted
 {
@@ -50,17 +51,20 @@ public:
 
 	GLUIImageRef image;
 	GLUITextButtonRef button;
+	GLUISliderRef slider;
 
 	Anchor anchor;
 	Vec2f offset_px; // Offset of the widget from its anchor point, in device-independent pixels.  +x is right, +y is up.
-	Vec2f size_px; // For images.
+	Vec2f size_px; // For images and sliders.
 
 	URLString image_URL;
 	bool image_texture_assigned;
 
 	bool visible; // Visibility requested by the script.  The widget is not drawn while LuaScriptUI is hidden, and an image is not drawn until its texture has loaded, regardless of this.
 
-	LuaVM::LuaValueRef onClick_ref; // Reference to the Lua onClick function, or LUA_NOREF.
+	LuaVM::LuaValueRef callback_ref; // Reference to the Lua onClick function for buttons, or onChange function for sliders.  LUA_NOREF if none.
+
+	bool slider_change_queued; // True if the slider value has changed since the last onChange call, and the widget id is in LuaScriptUI::changed_slider_ids.
 };
 typedef Reference<LuaScriptUIWidget> LuaScriptUIWidgetRef;
 
@@ -73,8 +77,9 @@ Holds the widgets created by Lua scripts on the client.
 Widgets are positioned relative to an anchor point on the viewport (a corner, edge centre or the centre),
 plus an offset in pixels, and are repositioned when the viewport is resized.
 
-Button clicks are queued and the Lua onClick callbacks are run from think(), not from inside GLUI event dispatch,
-so that a callback can safely create or destroy widgets.
+Button clicks and slider value changes are queued and the Lua onClick and onChange callbacks are run from think(), not from inside GLUI event dispatch,
+so that a callback can safely create or destroy widgets.  A slider's onChange is called at most once per think() call, with the latest value,
+so dragging a slider doesn't run the callback for every mouse move event.
 =====================================================================*/
 class LuaScriptUI : public RefCounted, public GLUICallbackHandler
 {
@@ -87,6 +92,8 @@ public:
 	// Return the new widget id.  Throws glare::Exception if the script has too many widgets.
 	int createImage(LuaScriptEvaluator* script_evaluator, const URLString& image_URL, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Vec2f& size_px, bool visible);
 	int createButton(LuaScriptEvaluator* script_evaluator, const std::string& text, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, LuaVM::LuaValueRef onClick_ref, bool visible);
+	int createSlider(LuaScriptEvaluator* script_evaluator, double min_value, double max_value, double initial_value, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Vec2f& size_px,
+		LuaVM::LuaValueRef onChange_ref, bool visible);
 
 	// Returns NULL if there is no widget with the given id belonging to the script.
 	LuaScriptUIWidget* getWidget(LuaScriptEvaluator* script_evaluator, int id);
@@ -95,11 +102,12 @@ public:
 
 	void setWidgetVisible(LuaScriptUIWidget& widget, bool visible);
 	void setButtonText(LuaScriptUIWidget& widget, const std::string& text);
+	void setSliderValue(LuaScriptUIWidget& widget, double value); // Doesn't call onChange.
 
 	void removeWidgetsForScript(LuaScriptEvaluator* script_evaluator);
 	void removeAllWidgets();
 
-	// Assigns any newly loaded image textures, and runs queued onClick callbacks.
+	// Assigns any newly loaded image textures, and runs queued onClick and onChange callbacks.
 	void think();
 
 	void viewportResized();
@@ -108,6 +116,7 @@ public:
 	void setVisible(bool visible);
 
 	virtual void eventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
+	virtual void sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& event) override; // From GLUICallbackHandler
 
 private:
 	size_t numWidgetsForScript(LuaScriptEvaluator* script_evaluator) const;
@@ -124,5 +133,6 @@ private:
 	bool ui_visible; // False while all script widgets are hidden, see setVisible().
 
 	std::vector<int> clicked_widget_ids; // Buttons clicked since the last think() call.
+	std::vector<int> changed_slider_ids; // Sliders whose value changed since the last think() call.
 };
 typedef Reference<LuaScriptUI> LuaScriptUIRef;

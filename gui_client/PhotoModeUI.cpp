@@ -116,39 +116,37 @@ PhotoModeUI::PhotoModeUI(GUIClient* gui_client_, GLUIRef gl_ui_, const Reference
 	{
 		GLUITextButton::CreateArgs args;
 		args.tooltip = "The standard camera mode when not in photo mode.";
-		standard_cam_button = new GLUITextButton(*gl_ui_, "standard camera", Vec2f(0), args);
+		standard_cam_button = new GLUITextButton(*gl_ui_, "standard camera", args);
 		standard_cam_button->handler = this;
 		camera_grid_container->addWidgetOnNewRow(standard_cam_button);
 
-		standard_cam_button->setToggled(false);
+		standard_cam_button->setToggled(true);
 	}
 	{
 		GLUITextButton::CreateArgs args;
 		args.tooltip = "A camera that looks back at the avatar's face.  The avatar will look towards the camera.";
-		selfie_cam_button = new GLUITextButton(*gl_ui_, "selfie camera", Vec2f(0), args);
+		selfie_cam_button = new GLUITextButton(*gl_ui_, "selfie camera", args);
 		selfie_cam_button->handler = this;
 		camera_grid_container->addWidgetOnNewRow(selfie_cam_button);
-
-		selfie_cam_button->setToggled(true);
 	}
 	{
 		GLUITextButton::CreateArgs args;
 		args.tooltip = "A camera with a fixed angle relative to the player avatar or vehicle.";
-		fixed_angle_cam_button = new GLUITextButton(*gl_ui_, "fixed angle camera", Vec2f(0), args);
+		fixed_angle_cam_button = new GLUITextButton(*gl_ui_, "fixed angle camera", args);
 		fixed_angle_cam_button->handler = this;
 		camera_grid_container->addWidgetOnNewRow(fixed_angle_cam_button);
 	}
 	{
 		GLUITextButton::CreateArgs args;
 		args.tooltip = "The free camera can move anywhere and look in any direction";
-		free_cam_button = new GLUITextButton(*gl_ui_, "free camera", Vec2f(0), args);
+		free_cam_button = new GLUITextButton(*gl_ui_, "free camera", args);
 		free_cam_button->handler = this;
 		camera_grid_container->addWidgetOnNewRow(free_cam_button);
 	}
 	{
 		GLUITextButton::CreateArgs args;
 		args.tooltip = "A camera with a fixed position that looks at the avatar";
-		tracking_cam_button = new GLUITextButton(*gl_ui_, "tracking camera", Vec2f(0), args);
+		tracking_cam_button = new GLUITextButton(*gl_ui_, "tracking camera", args);
 		tracking_cam_button->handler = this;
 		camera_grid_container->addWidgetOnNewRow(tracking_cam_button);
 	}
@@ -176,14 +174,14 @@ PhotoModeUI::PhotoModeUI(GUIClient* gui_client_, GLUIRef gl_ui_, const Reference
 		{
 			GLUITextButton::CreateArgs args;
 			args.tooltip = "Disable autofocus.  Focus Distance slider is used instead.";
-			autofocus_off_button = new GLUITextButton(*gl_ui_, "Off", Vec2f(0), args);
+			autofocus_off_button = new GLUITextButton(*gl_ui_, "Off", args);
 			autofocus_off_button->handler = this;
 			autofocus_grid->setCellWidget(1, 0, autofocus_off_button);
 		}
 		{
 			GLUITextButton::CreateArgs args;
 			args.tooltip = "Automatically focus on the nearest avatar eye.";
-			autofocus_eye_button = new GLUITextButton(*gl_ui_, "Eye", Vec2f(0), args);
+			autofocus_eye_button = new GLUITextButton(*gl_ui_, "Eye", args);
 			autofocus_eye_button->handler = this;
 			autofocus_grid->setCellWidget(2, 0, autofocus_eye_button);
 		}
@@ -213,7 +211,7 @@ PhotoModeUI::PhotoModeUI(GUIClient* gui_client_, GLUIRef gl_ui_, const Reference
 	{
 		GLUITextButton::CreateArgs args;
 		args.tooltip = "Reset photo mode camera settings";
-		reset_button = new GLUITextButton(*gl_ui_, "Reset", Vec2f(0), args);
+		reset_button = new GLUITextButton(*gl_ui_, "Reset", args);
 		reset_button->handler = this;
 		camera_grid_container->addWidgetOnNewRow(reset_button);
 	}
@@ -296,21 +294,21 @@ PhotoModeUI::PhotoModeUI(GUIClient* gui_client_, GLUIRef gl_ui_, const Reference
 		{
 			GLUITextButton::CreateArgs args;
 			args.tooltip = "60 fps if rendering at about 60 fps or faster when recording starts, otherwise 30 fps.";
-			video_frame_rate_auto_button = new GLUITextButton(*gl_ui_, "Auto", Vec2f(0), args);
+			video_frame_rate_auto_button = new GLUITextButton(*gl_ui_, "Auto", args);
 			video_frame_rate_auto_button->handler = this;
 			video_frame_rate_grid->setCellWidget(1, 0, video_frame_rate_auto_button);
 		}
 		{
 			GLUITextButton::CreateArgs args;
 			args.tooltip = "Record videos at 30 frames per second.";
-			video_frame_rate_30_button = new GLUITextButton(*gl_ui_, "30 fps", Vec2f(0), args);
+			video_frame_rate_30_button = new GLUITextButton(*gl_ui_, "30 fps", args);
 			video_frame_rate_30_button->handler = this;
 			video_frame_rate_grid->setCellWidget(2, 0, video_frame_rate_30_button);
 		}
 		{
 			GLUITextButton::CreateArgs args;
 			args.tooltip = "Record videos at 60 frames per second.  Frames are repeated if rendering is slower than 60 fps.";
-			video_frame_rate_60_button = new GLUITextButton(*gl_ui_, "60 fps", Vec2f(0), args);
+			video_frame_rate_60_button = new GLUITextButton(*gl_ui_, "60 fps", args);
 			video_frame_rate_60_button->handler = this;
 			video_frame_rate_grid->setCellWidget(3, 0, video_frame_rate_60_button);
 		}
@@ -363,7 +361,7 @@ PhotoModeUI::PhotoModeUI(GUIClient* gui_client_, GLUIRef gl_ui_, const Reference
 	{
 		GLUITextButton::CreateArgs args;
 		args.tooltip = "Show photos folder";
-		show_screenshots_button = new GLUITextButton(*gl_ui_, "Show photos", Vec2f(0), args);
+		show_screenshots_button = new GLUITextButton(*gl_ui_, "Show photos", args);
 		show_screenshots_button->handler = this;
 		grid_container->addWidgetOnNewRow(show_screenshots_button);
 	}
@@ -372,14 +370,14 @@ PhotoModeUI::PhotoModeUI(GUIClient* gui_client_, GLUIRef gl_ui_, const Reference
 		const bool is_video = lastSavedItemIsVideo();
 		GLUITextButton::CreateArgs args;
 		args.tooltip = is_video ? "Upload the last recorded video to the website" : "Upload photo to the website";
-		upload_photo_button = new GLUITextButton(*gl_ui_, is_video ? "Upload video" : "Upload photo", Vec2f(0), args);
+		upload_photo_button = new GLUITextButton(*gl_ui_, is_video ? "Upload video" : "Upload photo", args);
 		upload_photo_button->handler = this;
 		grid_container->addWidgetOnNewRow(upload_photo_button);
 	}
 	{
 		GLUITextButton::CreateArgs args;
 		args.tooltip = "Hide user interface";
-		hide_ui_button = new GLUITextButton(*gl_ui_, "Hide UI", Vec2f(0), args);
+		hide_ui_button = new GLUITextButton(*gl_ui_, "Hide UI", args);
 		hide_ui_button->handler = this;
 		grid_container->addWidgetOnNewRow(hide_ui_button);
 	}
@@ -1025,14 +1023,14 @@ void PhotoModeUI::showUploadPhotoWidget()
 	{
 		GLUITextButton::CreateArgs args;
 		args.z = -0.5f;
-		ok_button = new GLUITextButton(*gl_ui, "Upload", Vec2f(0), args);
+		ok_button = new GLUITextButton(*gl_ui, "Upload", args);
 		ok_button->handler = this;
 		gl_ui->addWidget(ok_button);
 	}
 	{
 		GLUITextButton::CreateArgs args;
 		args.z = -0.5f;
-		cancel_button = new GLUITextButton(*gl_ui, "Cancel", Vec2f(0), args);
+		cancel_button = new GLUITextButton(*gl_ui, "Cancel", args);
 		cancel_button->handler = this;
 		gl_ui->addWidget(cancel_button);
 	}

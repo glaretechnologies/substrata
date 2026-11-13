@@ -633,10 +633,10 @@ static int showMessage(lua_State* state)
 
 
 //--------------------------- Script UI ---------------------------
-// If false, createUIImage() and createUIButton() are not registered, so scripts can't create UI widgets.
-static const bool ENABLE_SCRIPT_UI = false;
+// If false, createUIImage(), createUIButton() and createUISlider() are not registered, so scripts can't create UI widgets.
+static const bool ENABLE_SCRIPT_UI = false
 
-// createUIImage() and createUIButton() return a handle table { id = widget id } with the script UI widget metatable.
+// createUIImage(), createUIButton() and createUISlider() return a handle table { id = widget id } with the script UI widget metatable.
 // Widgets only exist on the client.  On the server the functions return a handle with id 0, and operations on it do nothing,
 // so that a script shared between client and server doesn't need to check IS_CLIENT around UI code.
 
@@ -798,6 +798,69 @@ static int createUIButton(lua_State* state)
 }
 
 
+static int createUISlider(lua_State* state)
+{
+	// Arg 1: params : Table, with fields
+	//   min : number          Default 0.
+	//   max : number          Default 1.
+	//   value : number        Initial value, clamped to [min, max].  Default min.
+	//   onChange : function   Called with the new value when the user changes the value.  Optional.
+	//   width : number        Width in pixels.  Default 200.
+	//   anchor : string       Viewport anchor point.  Default "centre".
+	//   offset : {x=, y=}     Offset from the anchor point in pixels, +x is right, +y is up.  Default {x=0, y=0}.
+	//   visible : bool        Default true.
+	// Returns a widget handle.
+
+	checkNumArgs(state, /*num_args_required*/1);
+	LuaUtils::checkValueIsTable(state, /*index=*/1);
+
+	const double min_value = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "min", /*default=*/0.0);
+	const double max_value = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "max", /*default=*/1.0);
+	[[maybe_unused]] const double value = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "value", /*default=*/min_value);
+	const double width = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "width", /*default=*/200.0);
+	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f), /*max abs val=*/10000.f);
+	[[maybe_unused]] const bool visible = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "visible", /*default=*/true);
+
+	if(!isFinite(min_value) || !isFinite(max_value) || !isFinite(value) || (std::fabs(min_value) > 1.0e15) || (std::fabs(max_value) > 1.0e15))
+		throw glare::Exception("createUISlider(): min, max and value must be finite, and min and max must have magnitude at most 1e15" + errorContextString(state));
+	if(!(min_value < max_value))
+		throw glare::Exception("createUISlider(): min must be less than max" + errorContextString(state));
+	if(!(width >= 20.0 && width <= 4096.0))
+		throw glare::Exception("createUISlider(): width must be between 20 and 4096 pixels" + errorContextString(state));
+
+	const int onChange_type = lua_rawgetfield(state, /*table index=*/1, "onChange"); // Push onChange value onto stack
+	if(onChange_type != LUA_TNIL && onChange_type != LUA_TFUNCTION)
+		throw glare::Exception("createUISlider(): onChange must be a function" + errorContextString(state));
+
+	int widget_id = 0;
+#if GUI_CLIENT
+	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
+
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
+	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+
+	if(sub_lua_vm->gui_client->lua_script_ui)
+	{
+		const LuaVM::LuaValueRef onChange_ref = (onChange_type == LUA_TFUNCTION) ? script->getRefToFunctionOnStack(state, /*index=*/-1) : LuaVM::LuaValueRef();
+		try
+		{
+			widget_id = sub_lua_vm->gui_client->lua_script_ui->createSlider(script_evaluator, min_value, max_value, value, anchor, offset_px, /*size_px=*/Vec2f((float)width, 21.f), onChange_ref, visible); // Takes ownership of onChange_ref
+		}
+		catch(glare::Exception&)
+		{
+			script->freeRefToFunction(onChange_ref); // Does nothing for LUA_NOREF.
+			throw;
+		}
+	}
+#endif
+	lua_pop(state, 1); // Pop onChange value
+
+	pushUIWidgetHandle(state, widget_id);
+	return 1; // Count of returned values
+}
+
+
 static int destroyUIWidget(lua_State* state)
 {
 	// Arg 1: widget handle
@@ -845,6 +908,21 @@ static int scriptUIWidgetIndexMetaMethod(lua_State* state)
 		lua_pushboolean(state, visible ? 1 : 0);
 		return 1;
 	}
+	else if(stringEqual(key_str, "value"))
+	{
+		double value = 0;
+#if GUI_CLIENT
+		LuaScriptUIWidget* widget = getUIWidgetForHandle(state, /*handle index=*/1);
+		if(widget)
+		{
+			if(!widget->slider)
+				throw glare::Exception("UI widget: only sliders have a value field" + errorContextString(state));
+			value = widget->slider->getValue();
+		}
+#endif
+		lua_pushnumber(state, value);
+		return 1;
+	}
 	else
 		throw glare::Exception("UI widget: Unknown field '" + std::string(key_str) + "'" + errorContextString(state));
 }
@@ -888,6 +966,23 @@ static int scriptUIWidgetNewIndexMetaMethod(lua_State* state)
 
 			SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
 			sub_lua_vm->gui_client->lua_script_ui->setButtonText(*widget, text);
+		}
+#endif
+	}
+	else if(stringEqual(key_str, "value"))
+	{
+		[[maybe_unused]] const double value = LuaUtils::getDoubleArg(state, /*index=*/3);
+		if(!isFinite(value))
+			throw glare::Exception("UI widget: value must be finite" + errorContextString(state));
+#if GUI_CLIENT
+		LuaScriptUIWidget* widget = getUIWidgetForHandle(state, /*handle index=*/1);
+		if(widget)
+		{
+			if(!widget->slider)
+				throw glare::Exception("UI widget: only sliders have a value field" + errorContextString(state));
+
+			SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+			sub_lua_vm->gui_client->lua_script_ui->setSliderValue(*widget, value);
 		}
 #endif
 	}
@@ -2699,6 +2794,9 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 
 			lua_pushcfunction(lua_vm->state, createUIButton, /*debugname=*/"createUIButton");
 			lua_setglobal(lua_vm->state, "createUIButton");
+
+			lua_pushcfunction(lua_vm->state, createUISlider, /*debugname=*/"createUISlider");
+			lua_setglobal(lua_vm->state, "createUISlider");
 		}
 	}
 	

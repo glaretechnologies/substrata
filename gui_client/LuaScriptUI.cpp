@@ -90,6 +90,7 @@ int LuaScriptUI::createImage(LuaScriptEvaluator* script_evaluator, const URLStri
 	widget->image_URL = image_URL;
 	widget->image_texture_assigned = false;
 	widget->visible = visible;
+	widget->slider_change_queued = false;
 
 	widget->image = new GLUIImage(*gl_ui, /*tex_path=*/"", /*tooltip=*/"");
 	widget->image->setMouseOverColour(Colour3f(1.f)); // No mouse-over highlight
@@ -131,12 +132,47 @@ int LuaScriptUI::createButton(LuaScriptEvaluator* script_evaluator, const std::s
 	widget->size_px = Vec2f(0.f);
 	widget->image_texture_assigned = false;
 	widget->visible = visible;
-	widget->onClick_ref = onClick_ref;
+	widget->callback_ref = onClick_ref;
+	widget->slider_change_queued = false;
 
 	GLUITextButton::CreateArgs args;
-	widget->button = new GLUITextButton(*gl_ui, UTF8Utils::sanitiseUTF8String(text), /*botleft=*/Vec2f(0.f), args);
+	widget->button = new GLUITextButton(*gl_ui, UTF8Utils::sanitiseUTF8String(text), args);
 	widget->button->handler = this;
 	gl_ui->addWidget(widget->button);
+
+	updateWidgetTransform(*widget);
+	updateWidgetDrawn(*widget);
+
+	widgets[widget->id] = widget;
+	return widget->id;
+}
+
+
+int LuaScriptUI::createSlider(LuaScriptEvaluator* script_evaluator, double min_value, double max_value, double initial_value, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Vec2f& size_px,
+	LuaVM::LuaValueRef onChange_ref, bool visible)
+{
+	if(numWidgetsForScript(script_evaluator) >= MAX_NUM_WIDGETS_PER_SCRIPT)
+		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
+
+	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
+	widget->id = next_widget_id++;
+	widget->script_evaluator = script_evaluator;
+	widget->anchor = anchor;
+	widget->offset_px = offset_px;
+	widget->size_px = size_px;
+	widget->image_texture_assigned = false;
+	widget->visible = visible;
+	widget->callback_ref = onChange_ref;
+	widget->slider_change_queued = false;
+
+	GLUISlider::CreateArgs args;
+	args.fixed_size = size_px;
+	args.min_value = min_value;
+	args.max_value = max_value;
+	args.initial_value = myClamp(initial_value, min_value, max_value);
+	widget->slider = new GLUISlider(*gl_ui, args);
+	widget->slider->handler = this;
+	gl_ui->addWidget(widget->slider);
 
 	updateWidgetTransform(*widget);
 	updateWidgetDrawn(*widget);
@@ -183,6 +219,13 @@ void LuaScriptUI::setButtonText(LuaScriptUIWidget& widget, const std::string& te
 }
 
 
+void LuaScriptUI::setSliderValue(LuaScriptUIWidget& widget, double value)
+{
+	if(widget.slider)
+		widget.slider->setValueNoEvent(value); // Clamps to the slider range.
+}
+
+
 void LuaScriptUI::removeWidgetsForScript(LuaScriptEvaluator* script_evaluator)
 {
 	for(auto it = widgets.begin(); it != widgets.end();)
@@ -204,6 +247,7 @@ void LuaScriptUI::removeAllWidgets()
 		removeWidgetFromUI(*it->second);
 	widgets.clear();
 	clicked_widget_ids.clear();
+	changed_slider_ids.clear();
 }
 
 
@@ -211,11 +255,12 @@ void LuaScriptUI::removeWidgetFromUI(LuaScriptUIWidget& widget)
 {
 	checkRemoveAndDeleteWidget(gl_ui, widget.image);
 	checkRemoveAndDeleteWidget(gl_ui, widget.button);
+	checkRemoveAndDeleteWidget(gl_ui, widget.slider);
 
-	if(widget.onClick_ref.ref != LUA_NOREF)
+	if(widget.callback_ref.ref != LUA_NOREF)
 	{
-		widget.script_evaluator->lua_script->freeRefToFunction(widget.onClick_ref);
-		widget.onClick_ref = LuaVM::LuaValueRef();
+		widget.script_evaluator->lua_script->freeRefToFunction(widget.callback_ref);
+		widget.callback_ref = LuaVM::LuaValueRef();
 	}
 }
 
@@ -226,22 +271,37 @@ void LuaScriptUI::think()
 		if(it->second->image && !it->second->image_texture_assigned)
 			checkAssignImageTexture(*it->second);
 
-	if(!clicked_widget_ids.empty() && gui_client->world_state)
+	if((!clicked_widget_ids.empty() || !changed_slider_ids.empty()) && gui_client->world_state)
 	{
-		std::vector<int> ids;
-		ids.swap(clicked_widget_ids);
+		std::vector<int> clicked_ids;
+		clicked_ids.swap(clicked_widget_ids);
+
+		std::vector<int> changed_ids;
+		changed_ids.swap(changed_slider_ids);
 
 		WorldStateLock lock(gui_client->world_state->mutex);
 
-		for(size_t i=0; i<ids.size(); ++i)
+		for(size_t i=0; i<clicked_ids.size(); ++i)
 		{
 			// Look up the widget again, as an earlier callback may have destroyed it.
-			auto res = widgets.find(ids[i]);
+			auto res = widgets.find(clicked_ids[i]);
 			if(res != widgets.end())
 			{
 				LuaScriptUIWidgetRef widget = res->second; // Hold a reference, as the callback may destroy the widget.
-				if(widget->onClick_ref.ref != LUA_NOREF)
-					widget->script_evaluator->doOnUIEvent(widget->onClick_ref, gui_client->client_avatar_uid, lock);
+				if(widget->callback_ref.ref != LUA_NOREF)
+					widget->script_evaluator->doOnUIEvent(widget->callback_ref, gui_client->client_avatar_uid, lock);
+			}
+		}
+
+		for(size_t i=0; i<changed_ids.size(); ++i)
+		{
+			auto res = widgets.find(changed_ids[i]);
+			if(res != widgets.end())
+			{
+				LuaScriptUIWidgetRef widget = res->second;
+				widget->slider_change_queued = false;
+				if(widget->callback_ref.ref != LUA_NOREF)
+					widget->script_evaluator->doOnUIValueChangedEvent(widget->callback_ref, widget->slider->getValue(), gui_client->client_avatar_uid, lock);
 			}
 		}
 	}
@@ -277,6 +337,25 @@ void LuaScriptUI::eventOccurred(GLUICallbackEvent& event)
 }
 
 
+void LuaScriptUI::sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& event)
+{
+	for(auto it = widgets.begin(); it != widgets.end(); ++it)
+	{
+		LuaScriptUIWidget* widget = it->second.ptr();
+		if(widget->slider.ptr() == event.widget)
+		{
+			if(!widget->slider_change_queued)
+			{
+				widget->slider_change_queued = true;
+				changed_slider_ids.push_back(it->first);
+			}
+			event.accepted = true;
+			return;
+		}
+	}
+}
+
+
 void LuaScriptUI::updateWidgetTransform(LuaScriptUIWidget& widget)
 {
 	const float max_y = gl_ui->getViewportMinMaxY();
@@ -298,6 +377,11 @@ void LuaScriptUI::updateWidgetTransform(LuaScriptUIWidget& widget)
 		const Vec2f dims = widget.button->getDims();
 		widget.button->setPos(anchor_pos + offset - Vec2f(fractions.x * dims.x, fractions.y * dims.y));
 	}
+	if(widget.slider)
+	{
+		const Vec2f dims = widget.slider->getDims(); // GLUISlider::viewportResized() updates the dims from the fixed pixel size.
+		widget.slider->setPos(anchor_pos + offset - Vec2f(fractions.x * dims.x, fractions.y * dims.y));
+	}
 }
 
 
@@ -307,6 +391,8 @@ void LuaScriptUI::updateWidgetDrawn(LuaScriptUIWidget& widget)
 		widget.image->setVisible(ui_visible && widget.visible && widget.image_texture_assigned);
 	if(widget.button)
 		widget.button->setVisible(ui_visible && widget.visible);
+	if(widget.slider)
+		widget.slider->setVisible(ui_visible && widget.visible);
 }
 
 

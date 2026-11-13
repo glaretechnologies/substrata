@@ -78,7 +78,7 @@ void GestureUI::create(GUIClient* gui_client_, GLUIRef gl_ui_)
 		{
 			GLUITextButton::CreateArgs args;
 			args.tooltip = "Summon bike";
-			summon_bike_button = new GLUITextButton(*gl_ui, "Summon bike", Vec2f(0), args);
+			summon_bike_button = new GLUITextButton(*gl_ui, "Summon bike", args);
 			summon_bike_button->setVisible(vehicle_buttons_visible);
 			summon_bike_button->handler = this;
 			gl_ui->addWidget(summon_bike_button);
@@ -86,7 +86,7 @@ void GestureUI::create(GUIClient* gui_client_, GLUIRef gl_ui_)
 		{
 			GLUITextButton::CreateArgs args;
 			args.tooltip = "Summon car";
-			summon_car_button = new GLUITextButton(*gl_ui, "Summon car", Vec2f(0), args);
+			summon_car_button = new GLUITextButton(*gl_ui, "Summon car", args);
 			summon_car_button->setVisible(vehicle_buttons_visible);
 			summon_car_button->handler = this;
 			gl_ui->addWidget(summon_car_button);
@@ -94,7 +94,7 @@ void GestureUI::create(GUIClient* gui_client_, GLUIRef gl_ui_)
 		{
 			GLUITextButton::CreateArgs args;
 			args.tooltip = "Summon boat";
-			summon_boat_button = new GLUITextButton(*gl_ui, "Summon boat", Vec2f(0), args);
+			summon_boat_button = new GLUITextButton(*gl_ui, "Summon boat", args);
 			summon_boat_button->setVisible(vehicle_buttons_visible);
 			summon_boat_button->handler = this;
 			gl_ui->addWidget(summon_boat_button);
@@ -102,7 +102,7 @@ void GestureUI::create(GUIClient* gui_client_, GLUIRef gl_ui_)
 		{
 			GLUITextButton::CreateArgs args;
 			args.tooltip = "Summon jet ski";
-			summon_jetski_button = new GLUITextButton(*gl_ui, "Summon jet ski", Vec2f(0), args);
+			summon_jetski_button = new GLUITextButton(*gl_ui, "Summon jet ski", args);
 			summon_jetski_button->setVisible(vehicle_buttons_visible);
 			summon_jetski_button->handler = this;
 			gl_ui->addWidget(summon_jetski_button);
@@ -110,7 +110,7 @@ void GestureUI::create(GUIClient* gui_client_, GLUIRef gl_ui_)
 		{
 			GLUITextButton::CreateArgs args;
 			args.tooltip = "Summon snowboard";
-			summon_snowboard_button = new GLUITextButton(*gl_ui, "Summon snowboard", Vec2f(0), args);
+			summon_snowboard_button = new GLUITextButton(*gl_ui, "Summon snowboard", args);
 			summon_snowboard_button->setVisible(vehicle_buttons_visible);
 			summon_snowboard_button->handler = this;
 			gl_ui->addWidget(summon_snowboard_button);
@@ -118,7 +118,7 @@ void GestureUI::create(GUIClient* gui_client_, GLUIRef gl_ui_)
 		{
 			GLUITextButton::CreateArgs args;
 			args.tooltip = "Summon hovercar";
-			summon_hovercar_button = new GLUITextButton(*gl_ui, "Summon hovercar", Vec2f(0), args);
+			summon_hovercar_button = new GLUITextButton(*gl_ui, "Summon hovercar", args);
 			summon_hovercar_button->setVisible(vehicle_buttons_visible);
 			summon_hovercar_button->handler = this;
 			gl_ui->addWidget(summon_hovercar_button);

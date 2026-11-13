@@ -66,6 +66,7 @@ public:
 	void doOnTimerEvent(LuaVM::LuaValueRef onTimerEvent_ref, WorldStateLock& world_state_lock) noexcept;
 
 	void doOnUIEvent(LuaVM::LuaValueRef func_ref, UID avatar_uid, WorldStateLock& world_state_lock) noexcept; // For callbacks from UI widgets created by the script, such as button onClick functions.
+	void doOnUIValueChangedEvent(LuaVM::LuaValueRef func_ref, double value, UID avatar_uid, WorldStateLock& world_state_lock) noexcept; // Calls func_ref(value), e.g. for slider onChange functions.
 
 	void destroyTimer(int timer_index, int timer_id);
 
