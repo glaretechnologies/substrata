@@ -135,7 +135,7 @@ BuilderAIUI::BuilderAIUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 		create_args.background_colour = panel_background_col;
 		create_args.background_alpha = 0.8f;
 		create_args.font_size_px = font_size_px;
-		msg_line_edit = new GLUILineEdit(*gl_ui, /*dummy botleft=*/Vec2f(0.f), create_args);
+		msg_line_edit = new GLUILineEdit(*gl_ui, create_args);
 		msg_line_edit->debug_name = "msg_line_edit";
 
 		GLUILineEdit* line_edit_ptr = msg_line_edit.ptr();

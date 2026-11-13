@@ -68,7 +68,7 @@ void ChatUI::create(GUIClient* gui_client_, GLUIRef gl_ui_)
 			create_args.background_colour = chat_background_col;
 			create_args.background_alpha = 0.8f;
 			create_args.font_size_px = font_size_px;
-			chat_line_edit = new GLUILineEdit(*gl_ui, /*dummy botleft=*/Vec2f(0.f), create_args);
+			chat_line_edit = new GLUILineEdit(*gl_ui, create_args);
 
 			GLUILineEdit* chat_line_edit_ptr = chat_line_edit.ptr();
 			chat_line_edit->on_enter_pressed = [chat_line_edit_ptr, gui_client_]()

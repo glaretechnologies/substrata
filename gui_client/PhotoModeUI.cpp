@@ -1016,7 +1016,7 @@ void PhotoModeUI::showUploadPhotoWidget()
 		args.text_colour = toLinearSRGB(Colour3f(0.1f));
 		args.background_colour = Colour3f(0.7f);
 		args.mouseover_background_colour = Colour3f(0.8f);
-		caption_line_edit = new GLUILineEdit(*gl_ui, Vec2f(0.f), args);
+		caption_line_edit = new GLUILineEdit(*gl_ui, args);
 		gl_ui->addWidget(caption_line_edit);
 	}
 

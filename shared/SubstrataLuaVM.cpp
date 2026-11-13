@@ -634,7 +634,7 @@ static int showMessage(lua_State* state)
 
 //--------------------------- Script UI ---------------------------
 // If false, createUIImage(), createUIButton() and createUISlider() are not registered, so scripts can't create UI widgets.
-static const bool ENABLE_SCRIPT_UI = false
+static const bool ENABLE_SCRIPT_UI = false;
 
 // createUIImage(), createUIButton() and createUISlider() return a handle table { id = widget id } with the script UI widget metatable.
 // Widgets only exist on the client.  On the server the functions return a handle with id 0, and operations on it do nothing,

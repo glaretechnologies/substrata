@@ -527,7 +527,7 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 			args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
 			args.fixed_size.x = 600;
 			//args.background_alpha = 0;
-			name_line_edit = new GLUILineEdit(*gl_ui, Vec2f(0.f), args);
+			name_line_edit = new GLUILineEdit(*gl_ui, args);
 			name_line_edit->setText(gear_item->name);
 			name_line_edit->on_text_changed = [this] () { this->gearItemChanged(); };
 			controls_grid->setCellWidget(/*x=*/0, /*y=*/controls_grid_y + 1, name_line_edit);
@@ -551,7 +551,7 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 			args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
 			args.fixed_size.x = 600;
 			//args.background_alpha = 0;
-			desc_line_edit = new GLUILineEdit(*gl_ui, Vec2f(0.f), args);
+			desc_line_edit = new GLUILineEdit(*gl_ui, args);
 			desc_line_edit->setText(gear_item->description);
 			desc_line_edit->on_text_changed = [this] () { this->gearItemChanged(); };
 			controls_grid->setCellWidget(/*x=*/0, /*y=*/controls_grid_y + 1, desc_line_edit);
