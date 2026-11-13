@@ -202,7 +202,7 @@ void ChatUI::recreateTextViewsForMessage(ChatMessage& chatmessage, int row_index
 	//	name_args.font_size_px = font_size_px;
 	//	name_args.background_alpha = 0;
 	//	name_args.max_width = text_area_w;
-	//	chatmessage.name_text = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(chatmessage.avatar_name), Vec2f(0.f), name_args);
+	//	chatmessage.name_text = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(chatmessage.avatar_name), name_args);
 	//	chatmessage.name_text->setVisible(this->expanded && visible);
 	//	gl_ui->addWidget(chatmessage.name_text);
 	//
@@ -216,7 +216,7 @@ void ChatUI::recreateTextViewsForMessage(ChatMessage& chatmessage, int row_index
 		msg_args.background_corner_radius_px = corner_radius_px;
 		//msg_args.line_0_x_offset = chatmessage.name_text->getRect().getWidths().x;// + gl_ui->getUIWidthForDevIndepPixelWidth(font_size_px / 3.f);
 		msg_args.max_width = text_area_w;
-		chatmessage.msg_text = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(chatmessage.avatar_name + chatmessage.msg), Vec2f(0.f), msg_args);
+		chatmessage.msg_text = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(chatmessage.avatar_name + chatmessage.msg), msg_args);
 		chatmessage.msg_text->setVisible(this->expanded && visible);
 		gl_ui->addWidget(chatmessage.msg_text);
 

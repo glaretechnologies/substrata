@@ -5912,7 +5912,7 @@ void GUIClient::updateDiagnosticAABBForObject(WorldObject* ob)
 			if(ob->diagnostic_text_view.isNull())
 			{
 				GLUITextView::CreateArgs create_args;
-				ob->diagnostic_text_view = new GLUITextView(*this->gl_ui, diag_text, Vec2f(0.f, 0.f), create_args);
+				ob->diagnostic_text_view = new GLUITextView(*this->gl_ui, diag_text, create_args);
 			}
 			else
 			{
@@ -18311,7 +18311,7 @@ void GUIClient::updateVideoRecording()
 				args.font_size_px = 16;
 				args.text_selectable = false;
 				args.z = -0.4f;
-				video_recording_indicator = new GLUITextView(*gl_ui, "REC", Vec2f(0), args);
+				video_recording_indicator = new GLUITextView(*gl_ui, "REC", args);
 				gl_ui->addWidget(video_recording_indicator);
 			}
 
@@ -18333,7 +18333,7 @@ void GUIClient::showErrorNotification(const std::string& message)
 	//args.background_alpha = 0.8f;
 	args.text_colour = Colour3f(0.f);
 	args.padding_px = 8;
-	GLUITextViewRef text_view = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(message), Vec2f(0,0), args);
+	GLUITextViewRef text_view = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(message), args);
 
 	gl_ui->addWidget(text_view);
 
@@ -18359,7 +18359,7 @@ void GUIClient::showInfoNotification(const std::string& message)
 	//args.background_alpha = 0.8f;
 	args.text_colour = Colour3f(0.f);
 	args.padding_px = 8;
-	GLUITextViewRef text_view = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(message), Vec2f(0,0), args);
+	GLUITextViewRef text_view = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(message), args);
 
 	gl_ui->addWidget(text_view);
 

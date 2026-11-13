@@ -110,7 +110,7 @@ void KeyHelpUI::rebuild()
 			args.font_size_px = font_size_px - 1;
 			args.padding_px = 1;
 			args.text_selectable = false;
-			grid_container->addWidgetOnNewRow(new GLUITextView(*gl_ui, section.title, Vec2f(0.f), args));
+			grid_container->addWidgetOnNewRow(new GLUITextView(*gl_ui, section.title, args));
 		}
 
 		GLUIGridContainer::CreateArgs entries_grid_args;
@@ -129,7 +129,7 @@ void KeyHelpUI::rebuild()
 				args.font_size_px = font_size_px;
 				args.padding_px = 1;
 				args.text_selectable = false;
-				entries_grid->setCellWidget(/*x=*/0, /*y=*/(int)i, new GLUITextView(*gl_ui, section.entries[i].keys, Vec2f(0.f), args));
+				entries_grid->setCellWidget(/*x=*/0, /*y=*/(int)i, new GLUITextView(*gl_ui, section.entries[i].keys, args));
 			}
 			// Action
 			{
@@ -139,7 +139,7 @@ void KeyHelpUI::rebuild()
 				args.font_size_px = font_size_px;
 				args.padding_px = 1;
 				args.text_selectable = false;
-				entries_grid->setCellWidget(/*x=*/1, /*y=*/(int)i, new GLUITextView(*gl_ui, section.entries[i].action, Vec2f(0.f), args));
+				entries_grid->setCellWidget(/*x=*/1, /*y=*/(int)i, new GLUITextView(*gl_ui, section.entries[i].action, args));
 			}
 		}
 

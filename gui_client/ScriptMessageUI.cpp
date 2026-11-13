@@ -46,7 +46,7 @@ void ScriptMessageUI::showMessage(const std::string& message)
 	args.padding_px = 14;
 	args.max_width = 1.2f;
 	args.text_selectable = false;
-	text_view = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(message), Vec2f(0.f), args);
+	text_view = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(message), args);
 	text_view->setBackgroundAlpha(0.f);
 	gl_ui->addWidget(text_view);
 

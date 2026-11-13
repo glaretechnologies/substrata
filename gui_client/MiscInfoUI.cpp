@@ -168,7 +168,8 @@ void MiscInfoUI::showServerAdminMessage(const std::string& msg)
 		if(admin_msg_text_view.isNull())
 		{
 			GLUITextView::CreateArgs create_args;
-			admin_msg_text_view = new GLUITextView(*gl_ui, msg, /*botleft=*/Vec2f(0.1f, 0.9f), create_args); // Create off-screen
+			create_args.botleft = Vec2f(0.1f, 0.9f);
+			admin_msg_text_view = new GLUITextView(*gl_ui, msg, create_args); // Create off-screen
 			admin_msg_text_view->setTextColour(Colour3f(1.0f, 0.6f, 0.3f));
 			gl_ui->addWidget(admin_msg_text_view);
 		}
@@ -208,7 +209,8 @@ void MiscInfoUI::showVehicleSpeed(float speed_km_per_h)
 			create_args.font_size_px = speed_font_size_px;
 			create_args.background_alpha = 0;
 			create_args.text_selectable = false;
-			prebuilt_digits[i] = new GLUITextView(*gl_ui, toString(digit_val), Vec2f(0.f + (-NUM_DIGIT_PLACES + digit_place) * gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance), text_y), create_args);
+			create_args.botleft = Vec2f(0.f + (-NUM_DIGIT_PLACES + digit_place) * gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance), text_y);
+			prebuilt_digits[i] = new GLUITextView(*gl_ui, toString(digit_val), create_args);
 		}
 	}
 
@@ -238,7 +240,8 @@ void MiscInfoUI::showVehicleSpeed(float speed_km_per_h)
 		create_args.font_size_px = speed_font_size_px;
 		create_args.background_alpha = 0;
 		create_args.text_selectable = false;
-		unit_string_view = new GLUITextView(*gl_ui, msg, /*botleft=*/Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance) * 0, text_y), create_args); // Create off-screen
+		create_args.botleft = Vec2f(gl_ui->getUIWidthForDevIndepPixelWidth(speed_font_x_advance) * 0, text_y);
+		unit_string_view = new GLUITextView(*gl_ui, msg, create_args); // Create off-screen
 		unit_string_view->setTextColour(Colour3f(1.0f, 1.0f, 1.0f));
 		gl_ui->addWidget(unit_string_view);
 	}

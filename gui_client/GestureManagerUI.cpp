@@ -110,7 +110,7 @@ void GestureManagerUI::rebuildGridForGestureSettings()
 			GLUITextView::CreateArgs text_args;
 			text_args.background_alpha = 0;
 			text_args.tooltip = toStdString(setting.anim_URL);
-			gesture_name_text = new GLUITextView(*gl_ui, setting.friendly_name, Vec2f(0.f), text_args);
+			gesture_name_text = new GLUITextView(*gl_ui, setting.friendly_name, text_args);
 			grid_container->setCellWidget(/*x=*/cell_x++, /*y=*/(int)i, gesture_name_text);
 		}
 

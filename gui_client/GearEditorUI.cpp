@@ -252,7 +252,7 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 	//{
 	//	GLUITextView::CreateArgs args;
 	//	args.background_alpha = 0;
-	//	GLUITextViewRef avatar_header_text = new GLUITextView(*gl_ui, "Preview", Vec2f(0.f), args);
+	//	GLUITextViewRef avatar_header_text = new GLUITextView(*gl_ui, "Preview", args);
 	//	outer_grid->setCellWidget(/*x=*/0, /*y=*/0, avatar_header_text);
 	//}
 	{
@@ -336,7 +336,7 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 	//{
 	//	GLUITextView::CreateArgs args;
 	//	args.background_alpha = 0;
-	//	GLUITextViewRef equipped_header_text = new GLUITextView(*gl_ui, "C", Vec2f(0.f), args);
+	//	GLUITextViewRef equipped_header_text = new GLUITextView(*gl_ui, "C", args);
 	//	outer_grid->setCellWidget(/*x=*/1, /*y=*/0, equipped_header_text);
 	//}
 	{
@@ -359,7 +359,7 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 		{
 			GLUITextView::CreateArgs args;
 			args.background_alpha = 0;
-			GLUITextViewRef text = new GLUITextView(*gl_ui, "Bone", Vec2f(0.f), args);
+			GLUITextViewRef text = new GLUITextView(*gl_ui, "Bone", args);
 			controls_grid->setCellWidget(/*x=*/0, /*y=*/controls_grid_y, text);
 		}
 
@@ -402,7 +402,7 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 	{
 		GLUITextView::CreateArgs args;
 		args.background_alpha = 0;
-		GLUITextViewRef equipped_header_text = new GLUITextView(*gl_ui, "Scale x/y/z", Vec2f(0.f), args);
+		GLUITextViewRef equipped_header_text = new GLUITextView(*gl_ui, "Scale x/y/z", args);
 		numeric_controls_grid->setCellWidget(/*x=*/0, /*y=*/numeric_controls_grid_y, equipped_header_text);
 	}
 
@@ -438,7 +438,7 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 	{
 		GLUITextView::CreateArgs args;
 		args.background_alpha = 0;
-		GLUITextViewRef equipped_header_text = new GLUITextView(*gl_ui, "Rotation z/y/x", Vec2f(0.f), args);
+		GLUITextViewRef equipped_header_text = new GLUITextView(*gl_ui, "Rotation z/y/x", args);
 		numeric_controls_grid->setCellWidget(/*x=*/0, /*y=*/numeric_controls_grid_y, equipped_header_text);
 	}
 
@@ -476,7 +476,7 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 	{
 		GLUITextView::CreateArgs args;
 		args.background_alpha = 0;
-		GLUITextViewRef equipped_header_text = new GLUITextView(*gl_ui, "Position x/y/z", Vec2f(0.f), args);
+		GLUITextViewRef equipped_header_text = new GLUITextView(*gl_ui, "Position x/y/z", args);
 		numeric_controls_grid->setCellWidget(/*x=*/0, /*y=*/numeric_controls_grid_y, equipped_header_text);
 	}
 
@@ -517,7 +517,7 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 		{
 			GLUITextView::CreateArgs args;
 			args.background_alpha = 0;
-			GLUITextViewRef text = new GLUITextView(*gl_ui, "Name", Vec2f(0.f), args);
+			GLUITextViewRef text = new GLUITextView(*gl_ui, "Name", args);
 			controls_grid->setCellWidget(/*x=*/0, /*y=*/controls_grid_y, text);
 		}
 
@@ -541,7 +541,7 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 		{
 			GLUITextView::CreateArgs args;
 			args.background_alpha = 0;
-			GLUITextViewRef text = new GLUITextView(*gl_ui, "Description", Vec2f(0.f), args);
+			GLUITextViewRef text = new GLUITextView(*gl_ui, "Description", args);
 			controls_grid->setCellWidget(/*x=*/0, /*y=*/controls_grid_y, text);
 		}
 
@@ -567,7 +567,7 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 		{
 			GLUITextView::CreateArgs args;
 			args.background_alpha = 0;
-			GLUITextViewRef text = new GLUITextView(*gl_ui, can_change ? "Allow cloning" : "Allow cloning (can only be changed by gear item creator)", Vec2f(0.f), args);
+			GLUITextViewRef text = new GLUITextView(*gl_ui, can_change ? "Allow cloning" : "Allow cloning (can only be changed by gear item creator)", args);
 			controls_grid->setCellWidget(/*x=*/0, /*y=*/controls_grid_y, text);
 		}
 

@@ -167,7 +167,7 @@ PhotoModeUI::PhotoModeUI(GUIClient* gui_client_, GLUIRef gl_ui_, const Reference
 			text_view_args.text_colour = Colour3f(0.9f);
 			text_view_args.tooltip = "Autofocus";
 
-			autofocus_label = new GLUITextView(*gl_ui, "Autofocus", Vec2f(0), text_view_args);
+			autofocus_label = new GLUITextView(*gl_ui, "Autofocus", text_view_args);
 			autofocus_grid->setCellWidget(0, 0, autofocus_label);
 		}
 
@@ -288,7 +288,7 @@ PhotoModeUI::PhotoModeUI(GUIClient* gui_client_, GLUIRef gl_ui_, const Reference
 			text_view_args.text_colour = Colour3f(0.9f);
 			text_view_args.tooltip = "Frame rate of recorded videos";
 
-			video_frame_rate_label = new GLUITextView(*gl_ui, "Frame rate", Vec2f(0), text_view_args);
+			video_frame_rate_label = new GLUITextView(*gl_ui, "Frame rate", text_view_args);
 			video_frame_rate_grid->setCellWidget(0, 0, video_frame_rate_label);
 		}
 		{
@@ -422,7 +422,7 @@ void PhotoModeUI::makePhotoModeSlider(PhotoModeSlider& slider, const std::string
 	text_view_args.text_colour = Colour3f(0.9f);
 	text_view_args.tooltip = tooltip;
 
-	slider.label = new GLUITextView(*gl_ui, label, Vec2f(0), text_view_args);
+	slider.label = new GLUITextView(*gl_ui, label, text_view_args);
 	slider_grid->setCellWidget(0, 0, slider.label);
 
 	//-------------------------------- Create slider ------------------------------
@@ -438,7 +438,7 @@ void PhotoModeUI::makePhotoModeSlider(PhotoModeSlider& slider, const std::string
 	slider_grid->setCellWidget(1, 0, slider.slider);
 
 	//-------------------------------- Create value text view ------------------------------
-	slider.value_view = new GLUITextView(*gl_ui, doubleToStringMaxNDecimalPlaces(args.initial_value, 2), Vec2f(0), text_view_args);
+	slider.value_view = new GLUITextView(*gl_ui, doubleToStringMaxNDecimalPlaces(args.initial_value, 2), text_view_args);
 	slider_grid->setCellWidget(2, 0, slider.value_view);
 
 	parent_grid_container->addWidgetOnNewRow(slider_grid);
@@ -1003,7 +1003,7 @@ void PhotoModeUI::showUploadPhotoWidget()
 		args.text_colour = toLinearSRGB(Colour3f(0.1f));
 		args.tooltip = "Caption";
 		args.z = -0.5f;
-		caption_label = new GLUITextView(*gl_ui, "Caption:", Vec2f(0.f), args);
+		caption_label = new GLUITextView(*gl_ui, "Caption:", args);
 		gl_ui->addWidget(caption_label);
 	}
 
@@ -1283,7 +1283,7 @@ void PhotoModeUI::uploadPhoto()
 		args.text_selectable = false;
 		args.z = -0.4f;
 		checkRemoveAndDeleteWidget(gl_ui, upload_progress_view);
-		upload_progress_view = new GLUITextView(*gl_ui, "Uploading... (0%)", Vec2f(0), args);
+		upload_progress_view = new GLUITextView(*gl_ui, "Uploading... (0%)", args);
 		gl_ui->addWidget(upload_progress_view);
 		updateUploadProgressViewPos();
 	}

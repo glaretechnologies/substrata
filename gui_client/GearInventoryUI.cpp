@@ -106,7 +106,7 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 		GLUITextView::CreateArgs args;
 		args.background_alpha = 0;
 		args.font_size_px = SECTION_HEADER_TEXT_FONT_SIZE_PX;
-		GLUITextViewRef avatar_header_text = new GLUITextView(*gl_ui, "Preview", Vec2f(0.f), args);
+		GLUITextViewRef avatar_header_text = new GLUITextView(*gl_ui, "Preview", args);
 		outer_grid->setCellWidget(/*x=*/0, /*y=*/0, avatar_header_text);
 	}
 	{
@@ -121,7 +121,7 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 		GLUITextView::CreateArgs args;
 		args.background_alpha = 0;
 		args.font_size_px = SECTION_HEADER_TEXT_FONT_SIZE_PX;
-		GLUITextViewRef equipped_header_text = new GLUITextView(*gl_ui, "Equipped Gear", Vec2f(0.f), args);
+		GLUITextViewRef equipped_header_text = new GLUITextView(*gl_ui, "Equipped Gear", args);
 		outer_grid->setCellWidget(/*x=*/1, /*y=*/0, equipped_header_text);
 	}
 	{
@@ -141,7 +141,7 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 		GLUITextView::CreateArgs args;
 		args.background_alpha = 0;
 		args.font_size_px = SECTION_HEADER_TEXT_FONT_SIZE_PX;
-		GLUITextViewRef all_gear_header_text = new GLUITextView(*gl_ui, "All Gear", Vec2f(0.f), args);
+		GLUITextViewRef all_gear_header_text = new GLUITextView(*gl_ui, "All Gear", args);
 		outer_grid->setCellWidget(/*x=*/2, /*y=*/0, all_gear_header_text);
 	}
 	{

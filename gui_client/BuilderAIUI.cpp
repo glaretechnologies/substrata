@@ -109,7 +109,7 @@ BuilderAIUI::BuilderAIUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 		args.font_size_px = font_size_px;
 		args.text_colour = Colour3f(0.6f);
 		args.background_alpha = 0.0f;
-		status_text = new GLUITextView(*gl_ui, "", Vec2f(0.f), args);
+		status_text = new GLUITextView(*gl_ui, "", args);
 		status_text->debug_name = "status_text";
 			
 		main_grid_container->addWidgetOnNewRow(status_text);
@@ -228,7 +228,7 @@ void BuilderAIUI::recreateTextViewsForMessage(BuilderAIMessage& msg, int row_ind
 	msg_args.max_width = text_area_max_width;
 	msg_args.text_colour = msg.is_error ? error_text_col : (msg.from_user ? user_text_col : assistant_text_col);
 
-	msg.msg_text = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(msg.text), Vec2f(0.f), msg_args);
+	msg.msg_text = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(msg.text), msg_args);
 	msg.msg_text->setVisible(this->expanded && visible);
 	gl_ui->addWidget(msg.msg_text);
 

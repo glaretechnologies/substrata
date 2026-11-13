@@ -28,7 +28,7 @@ void ObInfoUI::create(GUIClient* gui_client_, GLUIRef gl_ui_)
 	gl_ui = gl_ui_;
 
 	GLUITextView::CreateArgs create_args;
-	info_text_view = new GLUITextView(*gl_ui, "", Vec2f(0.f), create_args);
+	info_text_view = new GLUITextView(*gl_ui, "", create_args);
 	info_text_view->setVisible(false);
 	//info_text_view->handler = this;
 	gl_ui->addWidget(info_text_view);
