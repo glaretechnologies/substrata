@@ -1107,7 +1107,7 @@ static void doOneMainLoopIter()
 						doing_cam_rotate_mouse_drag = true;
 					}
 				}
-				else if(e.button.clicks == 2) // Double click:
+				else if(e.button.clicks >= 2) // Double click (or later click in a multi-click sequence):
 				{
 					gui_client->mouseDoubleClicked(mouse_event);
 				}
@@ -1126,7 +1126,7 @@ static void doOneMainLoopIter()
 
 				// conPrint("SDL_MOUSEBUTTONUP, pos: " + Vec2i(e.button.x, e.button.y).toString() + ", clicks: " + toString(e.button.clicks));
 
-				if(e.button.clicks != 2) // If not the release from the second click in a double-click (already implicitly handled in mouseDoubleClicked above)
+				if(e.button.clicks < 2) // If not the release from the second or later click in a multi-click (already implicitly handled in mouseDoubleClicked above)
 				{
 					SDL_SetRelativeMouseMode(SDL_FALSE);
 					doing_cam_rotate_mouse_drag = false;
