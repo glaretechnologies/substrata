@@ -118,7 +118,7 @@ public:
 	LuaVM::LuaValueRef worldMaterialClassMetaTable_ref;
 	LuaVM::LuaValueRef userClassMetaTable_ref;
 	LuaVM::LuaValueRef avatarClassMetaTable_ref;
-	//int scriptUIWidgetMetaTable_ref; // Script UI disabled for now.  For handles returned by createUIImage() and createUIButton().
+	LuaVM::LuaValueRef scriptUIWidgetMetaTable_ref; // For handles returned by createUIImage() and createUIButton().
 
 	HashMap<uint32, LuaVM::LuaValueRef> metatable_uid_to_ref_map;
 

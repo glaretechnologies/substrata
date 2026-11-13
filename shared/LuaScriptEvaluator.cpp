@@ -15,7 +15,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../server/LuaHTTPRequestManager.h" // For LuaHTTPRequestResult
 #if GUI_CLIENT
 #include "../gui_client/GUIClient.h"
-//#include "../gui_client/LuaScriptUI.h" // Script UI disabled for now
+#include "../gui_client/LuaScriptUI.h"
 #endif
 #include <utils/Exception.h>
 #include <utils/ConPrint.h>
@@ -217,9 +217,8 @@ void LuaScriptEvaluator::exec(WorldStateLock& world_state_lock)
 void LuaScriptEvaluator::removeScriptUIWidgets()
 {
 #if GUI_CLIENT
-	// Script UI disabled for now
-	//if(substrata_lua_vm->gui_client && substrata_lua_vm->gui_client->lua_script_ui)
-	//	substrata_lua_vm->gui_client->lua_script_ui->removeWidgetsForScript(this);
+	if(substrata_lua_vm->gui_client && substrata_lua_vm->gui_client->lua_script_ui)
+		substrata_lua_vm->gui_client->lua_script_ui->removeWidgetsForScript(this);
 #endif
 }
 

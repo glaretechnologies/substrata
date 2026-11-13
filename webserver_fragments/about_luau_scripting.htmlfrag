@@ -254,6 +254,18 @@ Shows a string message on the screen of the user of the given avatar.  The messa
 
 
 
+<div class="code-func-definition">showMessage(msg : String)</div>
+
+<div class="code-arg"><span class="code-arg-code">msg : String</span><span class="code-arg-descrip">The message to show.</span></div>
+
+<div class="code-func-description">
+Shows a string message on the screen of the local user.  The message will be displayed for a few seconds.
+Useful in client-side code where there is no avatar to pass to showMessageToUser(), such as a UI button onClick function.
+Does nothing when called on the server.
+</div>
+
+
+
 <div class="code-func-definition">createTimer(onTimerEvent : function, interval_time_s : number, repeating : bool) : number</div>
 
 <div class="code-arg"><span class="code-arg-code">onTimerEvent : function</span><span class="code-arg-descrip">The timer event handler to be called when the timer fires.</span></div>

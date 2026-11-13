@@ -17,7 +17,8 @@ Copyright Glare Technologies Limited 2024 -
 #include "../gui_client/PlayerPhysics.h"
 #include "../gui_client/GUIClient.h"
 #include "../gui_client/VehiclePhysics.h"
-//#include "../gui_client/LuaScriptUI.h" // Script UI disabled for now
+#include "../gui_client/LuaScriptUI.h"
+#include "../gui_client/ScriptMessageUI.h"
 #elif SERVER
 #include "../server/Server.h"
 #include "../server/LuaHTTPRequestManager.h"
@@ -587,7 +588,7 @@ static int showMessageToUser(lua_State* state)
 #if GUI_CLIENT
 	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
 
-	// showScriptMessage() makes a GLUITextView and adds it to the widget list, so it needs the main thread.  Build scripts run on
+	// showMessage() makes a GLUITextView and adds it to the widget list, so it needs the main thread.  Build scripts run on
 	// an MCP handler thread.
 	if(sub_lua_vm->is_build_vm)
 		return 0;
@@ -595,7 +596,8 @@ static int showMessageToUser(lua_State* state)
 	if(av_uid == sub_lua_vm->gui_client->client_avatar_uid)
 	{
 		// We want to send to ourselves
-		sub_lua_vm->gui_client->showScriptMessage(msg);
+		if(sub_lua_vm->gui_client->script_message_ui)
+			sub_lua_vm->gui_client->script_message_ui->showMessage(msg);
 	}
 #endif
 
@@ -603,8 +605,37 @@ static int showMessageToUser(lua_State* state)
 }
 
 
-#if 0 // Script UI disabled for now
+// showMessage(msg): shows the message to the local user.  For client-side code that has no avatar to pass to showMessageToUser(),
+// such as UI button onClick callbacks.  Does nothing on the server.
+static int showMessage(lua_State* state)
+{
+	// Expected args:
+	// Arg 1: msg : String
+
+	checkNumArgs(state, /*num_args_required*/1);
+
+	[[maybe_unused]] const std::string msg = LuaUtils::getString(state, /*index=*/1);
+
+#if GUI_CLIENT
+	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+
+	// showMessage() makes a GLUITextView and adds it to the widget list, so it needs the main thread.  Build scripts run on
+	// an MCP handler thread.
+	if(sub_lua_vm->is_build_vm)
+		return 0;
+
+	if(sub_lua_vm->gui_client->script_message_ui)
+		sub_lua_vm->gui_client->script_message_ui->showMessage(msg);
+#endif
+
+	return 0;
+}
+
+
 //--------------------------- Script UI ---------------------------
+// If false, createUIImage() and createUIButton() are not registered, so scripts can't create UI widgets.
+static const bool ENABLE_SCRIPT_UI = false;
+
 // createUIImage() and createUIButton() return a handle table { id = widget id } with the script UI widget metatable.
 // Widgets only exist on the client.  On the server the functions return a handle with id 0, and operations on it do nothing,
 // so that a script shared between client and server doesn't need to check IS_CLIENT around UI code.
@@ -641,7 +672,7 @@ static void pushUIWidgetHandle(lua_State* state, int widget_id)
 	lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/1);
 	LuaUtils::setNumberAsTableField(state, "id", widget_id);
 
-	lua_getref(state, sub_lua_vm->scriptUIWidgetMetaTable_ref); // Push metatable
+	lua_getref(state, sub_lua_vm->scriptUIWidgetMetaTable_ref.ref); // Push metatable
 	lua_setmetatable(state, -2); // Pops the metatable and sets it as the metatable of the handle table.
 }
 
@@ -748,15 +779,14 @@ static int createUIButton(lua_State* state)
 
 	if(sub_lua_vm->gui_client->lua_script_ui)
 	{
-		const int onClick_ref = (onClick_type == LUA_TFUNCTION) ? lua_ref(state, /*index=*/-1) : LUA_NOREF;
+		const LuaVM::LuaValueRef onClick_ref = (onClick_type == LUA_TFUNCTION) ? script->getRefToFunctionOnStack(state, /*index=*/-1) : LuaVM::LuaValueRef();
 		try
 		{
 			widget_id = sub_lua_vm->gui_client->lua_script_ui->createButton(script_evaluator, text, anchor, offset_px, onClick_ref, visible); // Takes ownership of onClick_ref
 		}
 		catch(glare::Exception&)
 		{
-			if(onClick_ref != LUA_NOREF)
-				lua_unref(state, onClick_ref);
+			script->freeRefToFunction(onClick_ref); // Does nothing for LUA_NOREF.
 			throw;
 		}
 	}
@@ -865,7 +895,6 @@ static int scriptUIWidgetNewIndexMetaMethod(lua_State* state)
 		throw glare::Exception("UI widget: Unknown or read-only field '" + std::string(key_str) + "'" + errorContextString(state));
 	return 0;
 }
-#endif // Script UI disabled for now
 
 
 static int objectStorageGetItem(lua_State* state)
@@ -2663,12 +2692,14 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 		lua_pushcfunction(lua_vm->state, luaGetWorldObjectForUID, /*debugname=*/"getObjectForUID");
 		lua_setglobal(lua_vm->state, "getObjectForUID");
 
-		// Script UI disabled for now
-		//lua_pushcfunction(lua_vm->state, createUIImage, /*debugname=*/"createUIImage");
-		//lua_setglobal(lua_vm->state, "createUIImage");
-		//
-		//lua_pushcfunction(lua_vm->state, createUIButton, /*debugname=*/"createUIButton");
-		//lua_setglobal(lua_vm->state, "createUIButton");
+		if(ENABLE_SCRIPT_UI)
+		{
+			lua_pushcfunction(lua_vm->state, createUIImage, /*debugname=*/"createUIImage");
+			lua_setglobal(lua_vm->state, "createUIImage");
+
+			lua_pushcfunction(lua_vm->state, createUIButton, /*debugname=*/"createUIButton");
+			lua_setglobal(lua_vm->state, "createUIButton");
+		}
 	}
 	
 	lua_pushcfunction(lua_vm->state, getCurrentTime, /*debugname=*/"getCurrentTime");
@@ -2676,6 +2707,9 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 	
 	lua_pushcfunction(lua_vm->state, showMessageToUser, /*debugname=*/"showMessageToUser");
 	lua_setglobal(lua_vm->state, "showMessageToUser");
+
+	lua_pushcfunction(lua_vm->state, showMessage, /*debugname=*/"showMessage");
+	lua_setglobal(lua_vm->state, "showMessage");
 
 	if(register_object_script_funcs)
 	{
@@ -2773,7 +2807,6 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 	//--------------------------- End create Avatar Metatable ---------------------------
 
 
-#if 0 // Script UI disabled for now
 	//--------------------------- Create script UI widget Metatable ---------------------------
 	// No "uid" field and no entry in metatable_uid_to_ref_map: widget handles can't be serialised (e.g. into object storage).
 	lua_createtable(lua_vm->state, /*num array elems=*/0, /*num non-array elems=*/2);
@@ -2783,10 +2816,9 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 
 	lua_setreadonly(lua_vm->state, /*index=*/-1, /*enabled=*/1); // Set metatable as read-only.
 
-	scriptUIWidgetMetaTable_ref = lua_ref(lua_vm->state, /*index=*/-1); // Does not pop.
+	scriptUIWidgetMetaTable_ref = lua_vm->createReferenceToLuaValue(lua_vm->state, /*index=*/-1); // Does not pop.
 	lua_pop(lua_vm->state, 1); // Pop metatable from stack
 	//--------------------------- End create script UI widget Metatable ---------------------------
-#endif // Script UI disabled for now
 
 	lua_vm->finishInitAndSandbox();
 
@@ -2806,5 +2838,6 @@ SubstrataLuaVM::~SubstrataLuaVM()
 		lua_vm->destroyReferenceToLuaValue(lua_vm->state, worldMaterialClassMetaTable_ref);
 		lua_vm->destroyReferenceToLuaValue(lua_vm->state, userClassMetaTable_ref);
 		lua_vm->destroyReferenceToLuaValue(lua_vm->state, avatarClassMetaTable_ref);
+		lua_vm->destroyReferenceToLuaValue(lua_vm->state, scriptUIWidgetMetaTable_ref);
 	}
 }

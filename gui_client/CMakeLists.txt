@@ -303,6 +303,10 @@ ${CMAKE_SOURCE_DIR}/gui_client/GestureManagerUI.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/GestureManagerUI.h
 ${CMAKE_SOURCE_DIR}/gui_client/GearInventoryUI.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/GearInventoryUI.h
+${CMAKE_SOURCE_DIR}/gui_client/LuaScriptUI.cpp
+${CMAKE_SOURCE_DIR}/gui_client/LuaScriptUI.h
+${CMAKE_SOURCE_DIR}/gui_client/ScriptMessageUI.cpp
+${CMAKE_SOURCE_DIR}/gui_client/ScriptMessageUI.h
 ${CMAKE_SOURCE_DIR}/gui_client/GearEditorUI.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/GearEditorUI.h
 ${CMAKE_SOURCE_DIR}/gui_client/AvatarPreviewGLUIWidget.cpp

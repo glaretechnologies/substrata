@@ -101,6 +101,8 @@ struct PBOAsyncUploadedTextureInfo;
 class OpenGLUploadThread;
 class AnimatedTextureManager;
 class MiniMap;
+class LuaScriptUI;
+class ScriptMessageUI;
 class GaussianSplatRenderer;
 class GaussianSplatData;
 class VBOPool;
@@ -315,7 +317,6 @@ public:
 	void playScriptSound(const WorldObject& ob, const URLString& URL); // Play a sound declared by a script with @resource, at the object position.  Does nothing if the sound hasn't been loaded yet.
 	void showErrorNotification(const std::string& message);
 	void showInfoNotification(const std::string& message);
-	void showScriptMessage(const std::string& message);
 	void updateNotifications(double cur_time);
 	void setNotificationsVisible(bool visible);
 	void hideUI();
@@ -809,6 +810,8 @@ public:
 	Reference<PhotoModeUI> photo_mode_ui;
 	Reference<GearInventoryUI> gear_inventory_ui;
 	Reference<MiniMap> minimap;
+	Reference<LuaScriptUI> lua_script_ui; // UI widgets created by Lua scripts.
+	Reference<ScriptMessageUI> script_message_ui; // Messages shown by Lua scripts with showMessageToUser().
 
 	bool running_destructor;
 
@@ -968,8 +971,6 @@ public:
 		GLUITextViewRef text_view;
 	};
 	std::list<Notification> notifications;
-
-	std::list<Notification> script_messages;
 
 	Reference<SubstrataLuaVM> lua_vm;
 

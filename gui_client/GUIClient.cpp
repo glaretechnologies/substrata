@@ -47,7 +47,8 @@ Copyright Glare Technologies Limited 2024 -
 #include "BoatPhysics.h"
 #include "JoltUtils.h"
 #include "MiniMap.h"
-//#include "LuaScriptUI.h" // Script UI disabled for now
+#include "LuaScriptUI.h"
+#include "ScriptMessageUI.h"
 #include "PhotoModeUI.h"
 #include "ImGUIDrawing.h"
 #include "BuilderAIUI.h"
@@ -546,7 +547,9 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 
 	key_help_ui = new KeyHelpUI(gl_ui);
 
-	//lua_script_ui = new LuaScriptUI(this, gl_ui); // Script UI disabled for now
+	lua_script_ui = new LuaScriptUI(this, gl_ui);
+
+	script_message_ui = new ScriptMessageUI(gl_ui);
 
 	// Chat UI should be drawn above the movement button if present.
 	const float bottom_left_y = misc_info_ui.movement_button ? misc_info_ui.movement_button->getRect().getMax().y : -gl_ui->getViewportMinMaxY();
@@ -1045,10 +1048,7 @@ void GUIClient::shutdown()
 
 	checkRemoveAndDeleteWidget(gl_ui, video_recording_indicator);
 
-	// Remove the script_messages from the UI
-	for(auto it = script_messages.begin(); it != script_messages.end(); ++it)
-		gl_ui->removeWidget(it->text_view); 
-	script_messages.clear();
+	script_message_ui = nullptr;
 
 	default_array_tex = nullptr;
 	processing_placeholder_texture = nullptr;
@@ -1073,7 +1073,7 @@ void GUIClient::shutdown()
 
 	minimap = nullptr;
 
-	//lua_script_ui = nullptr; // Script UI disabled for now
+	lua_script_ui = nullptr;
 
 	if(gl_ui.nonNull())
 	{
@@ -6185,9 +6185,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 	timer_queue.think();
 
-	// Script UI disabled for now
-	//if(lua_script_ui)
-	//	lua_script_ui->think();
+	if(lua_script_ui)
+		lua_script_ui->think();
 
 
 	// Do Lua timer callbacks
@@ -6568,6 +6567,9 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	//ui->indigoView->timerThink();
 
 	updateNotifications(cur_time);
+
+	if(script_message_ui)
+		script_message_ui->think();
 
 	updateGroundPlane();
 
@@ -14188,9 +14190,8 @@ void GUIClient::disconnectFromServerAndClearAllObjects() // Remove any WorldObje
 
 	builder_ai_ui = nullptr; // We want to reset the Builder AI UI state (turn in progress etc.) so just close the builder AI UI on disconnect from server.
 
-	// Script UI disabled for now
-	//if(lua_script_ui)
-	//	lua_script_ui->removeAllWidgets();
+	if(lua_script_ui)
+		lua_script_ui->removeAllWidgets();
 
 	clearAllObjects();
 	world_state = nullptr;
@@ -16093,9 +16094,8 @@ void GUIClient::viewportResized(int w, int h)
 		gear_inventory_ui->viewportResized(w, h);
 	if(minimap)
 		minimap->viewportResized(w, h);
-	// Script UI disabled for now
-	//if(lua_script_ui)
-	//	lua_script_ui->viewportResized();
+	if(lua_script_ui)
+		lua_script_ui->viewportResized();
 }
 
 
@@ -17947,8 +17947,6 @@ void GUIClient::focusOut()
 static const size_t MAX_NUM_NOTIFICATIONS = 5;
 static const double NOTIFICATION_DISPLAY_TIME = 5.0;
 
-static const size_t MAX_NUM_SCRIPT_MESSAGES = 1;
-static const double SCRIPT_MESSAGE_DISPLAY_TIME = 3.0;
 
 
 void GUIClient::updateNotifications(double cur_time)
@@ -17984,40 +17982,6 @@ void GUIClient::updateNotifications(double cur_time)
 		it->text_view->setTextAlpha(alpha);
 		it->text_view->setBackgroundAlpha(alpha);
 	}
-
-
-	//------------------------- Update script messages too ------------------------------------------
-	
-	// Check to see if we should remove any old notifications
-	for(auto it = script_messages.begin(); it != script_messages.end();)
-	{
-		if(cur_time >  it->creation_time + SCRIPT_MESSAGE_DISPLAY_TIME)
-		{
-			gl_ui->removeWidget(it->text_view); // Remove the notification from the UI
-			it = script_messages.erase(it); // remove from list
-		}
-		else
-			++it;
-	}
-
-	// Go through list again and update position of all script messages
-	i=0;
-	for(auto it = script_messages.begin(); it != script_messages.end(); ++it, ++i)
-	{
-		it->text_view->setPos(
-			Vec2f(
-				myMax(-1.f, -it->text_view->getRect().getWidths().x / 2.f),
-				gl_ui->getViewportMinMaxY() * 0.5f //  - gl_ui->getUIWidthForDevIndepPixelWidth(40 + i * 40.f)
-			)
-		);
-
-		// Make the notification fade out when it is nearly time to remove it.
-		const float frac = (float)((cur_time - it->creation_time) / SCRIPT_MESSAGE_DISPLAY_TIME);
-		const float alpha = myClamp(1.f - Maths::smoothStep(0.8f, 1.2f, frac) * 2, 0.f, 1.f);
-
-		it->text_view->setTextAlpha(alpha);
-		it->text_view->setBackgroundAlpha(alpha);
-	}
 }
 
 
@@ -18039,6 +18003,8 @@ void GUIClient::hideUI()
 		photo_mode_ui->setVisible(false);
 	if(minimap)
 		minimap->setVisible(false);
+	if(lua_script_ui)
+		lua_script_ui->setVisible(false);
 
 	showInfoNotification("Hiding user interface.  Press [ESC] to unhide");
 
@@ -18059,6 +18025,8 @@ void GUIClient::unhideUIIfHidden()
 			photo_mode_ui->setVisible(true);
 		if(minimap)
 			minimap->setVisible(true);
+		if(lua_script_ui)
+			lua_script_ui->setVisible(true);
 
 		ui_hidden = false;
 	}
@@ -18315,32 +18283,6 @@ void GUIClient::showInfoNotification(const std::string& message)
 		Notification& notification = notifications.front();
 		gl_ui->removeWidget(notification.text_view);
 		notifications.pop_front(); // remove from list
-	}
-}
-
-
-void GUIClient::showScriptMessage(const std::string& message)
-{
-	GLUITextView::CreateArgs args;
-	args.background_colour = toLinearSRGB(Colour3f(230 / 255.f));
-	//args.background_alpha = 0.8f;
-	args.text_colour = Colour3f(0.f);
-	args.padding_px = 8;
-	GLUITextViewRef text_view = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(message), Vec2f(0,0), args);
-
-	gl_ui->addWidget(text_view);
-
-	Notification n;
-	n.creation_time = Clock::getTimeSinceInit();
-	n.text_view = text_view;
-	script_messages.push_back(n);
-
-	if(script_messages.size() > MAX_NUM_SCRIPT_MESSAGES)
-	{
-		// Remove the first (oldest) notification
-		Notification& notification = script_messages.front();
-		gl_ui->removeWidget(notification.text_view);
-		script_messages.pop_front(); // remove from list
 	}
 }
 
