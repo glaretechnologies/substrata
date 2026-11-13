@@ -149,9 +149,9 @@ void ScriptEditorWindow::mouseDoubleClickedInOutput(ScriptEditorOutputTextEdit* 
 	}
 	else if(sender == executionOutputTextEdit)
 	{
-		QTextCursor cursor = executionOutputTextEdit->cursorForPosition(e->pos());
+		const QTextCursor output_cursor = executionOutputTextEdit->cursorForPosition(e->pos());
 
-		const std::string line = QtUtils::toStdString(cursor.block().text());
+		const std::string line = QtUtils::toStdString(output_cursor.block().text());
 
 		// Example runtime error messages:
 		// Error while creating Lua script: [string "script"]:10: attempt to call a nil value
