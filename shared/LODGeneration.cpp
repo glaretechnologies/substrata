@@ -1738,8 +1738,6 @@ void LODGeneration::test()
 			testAssert(lod_map_uint8->getHeight() == 32);
 			testAssert(lod_map_uint8->getN() == 3);*/
 		}
-
-		return;
 #endif
 
 
