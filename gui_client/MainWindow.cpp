@@ -11,7 +11,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 #include "AboutDialog.h"
-#include "ShaderEditorDialog.h"
+#include "ScriptEditorWindow.h"
 #include "CreateObjectsDialog.h"
 #include "ClientThread.h"
 #include "GoToPositionDialog.h"
@@ -812,7 +812,7 @@ MainWindow::~MainWindow()
 
 	// Delete script editor windows now, while script_editors is still valid, as their destroyed() handlers remove them from it.
 	// (Otherwise they would be deleted as child widgets after script_editors has been destroyed.)
-	const std::map<UID, ShaderEditorDialog*> editors = script_editors;
+	const std::map<UID, ScriptEditorWindow*> editors = script_editors;
 	for(auto it = editors.begin(); it != editors.end(); ++it)
 		delete it->second;
 
@@ -3627,7 +3627,7 @@ void MainWindow::clientDisconnectingFromServer()
 
 	// Close script editor windows without applying their edits, as their objects are about to be cleared.
 	// Iterate over a copy, as closing a window removes it from script_editors.
-	const std::map<UID, ShaderEditorDialog*> editors = script_editors;
+	const std::map<UID, ScriptEditorWindow*> editors = script_editors;
 	for(auto it = editors.begin(); it != editors.end(); ++it)
 		it->second->closeWithoutApplying();
 }
@@ -4328,7 +4328,7 @@ void MainWindow::openScriptEditorSlot()
 		return;
 	}
 
-	ShaderEditorDialog* editor = new ShaderEditorDialog(this, base_dir_path);
+	ScriptEditorWindow* editor = new ScriptEditorWindow(this, base_dir_path);
 	editor->setAttribute(Qt::WA_DeleteOnClose);
 	editor->resource_manager = gui_client.resource_manager.ptr();
 	const bool read_only = !ui->objectEditor->isScriptEditable();
@@ -4341,8 +4341,8 @@ void MainWindow::openScriptEditorSlot()
 	editor->initialise(ui->objectEditor->getScriptText());
 	editor->setReadOnly(read_only);
 
-	connect(editor, &ShaderEditorDialog::shaderChanged, this, [this, ob_uid, editor]() { scriptChangedInEditor(ob_uid, editor); });
-	connect(editor, &ShaderEditorDialog::openServerScriptLogSignal, this, &MainWindow::openServerScriptLogSlot);
+	connect(editor, &ScriptEditorWindow::shaderChanged, this, [this, ob_uid, editor]() { scriptChangedInEditor(ob_uid, editor); });
+	connect(editor, &ScriptEditorWindow::openServerScriptLogSignal, this, &MainWindow::openServerScriptLogSlot);
 	connect(editor, &QObject::destroyed, this, [this, ob_uid]() { script_editors.erase(ob_uid); });
 
 	script_editors[ob_uid] = editor;
@@ -4363,7 +4363,7 @@ void MainWindow::objectEditorScriptTextEditedSlot()
 
 // A script editor window applied its script, e.g. the Apply button was clicked or the window was closed after editing.
 // The script in the window is authoritative: it replaces the object's current script, even if that was changed by someone else meanwhile.
-void MainWindow::scriptChangedInEditor(UID ob_uid, ShaderEditorDialog* editor)
+void MainWindow::scriptChangedInEditor(UID ob_uid, ScriptEditorWindow* editor)
 {
 	const std::string script = QtUtils::toIndString(editor->getShaderText());
 

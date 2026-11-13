@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>ShaderEditorDialog</class>
- <widget class="QMainWindow" name="ShaderEditorDialog">
+ <class>ScriptEditorWindow</class>
+ <widget class="QMainWindow" name="ScriptEditorWindow">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -168,7 +168,7 @@
      </widget>
     </item>
     <item>
-     <widget class="ShaderEditorOutputTextEdit" name="buildOutputTextEdit">
+     <widget class="ScriptEditorOutputTextEdit" name="buildOutputTextEdit">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
         <horstretch>0</horstretch>
@@ -194,7 +194,7 @@
      </widget>
     </item>
     <item>
-     <widget class="ShaderEditorOutputTextEdit" name="executionOutputTextEdit">
+     <widget class="ScriptEditorOutputTextEdit" name="executionOutputTextEdit">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
         <horstretch>0</horstretch>
@@ -240,9 +240,9 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>ShaderEditorOutputTextEdit</class>
+   <class>ScriptEditorOutputTextEdit</class>
    <extends>QTextEdit</extends>
-   <header>ShaderEditorOutputTextEdit.h</header>
+   <header>ScriptEditorOutputTextEdit.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

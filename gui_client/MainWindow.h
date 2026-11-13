@@ -39,7 +39,7 @@ class MiniDmpSender;
 class MCPRenderRequest;
 class GPUTimeMeasurement;
 class VoxelsParcelImportDialog;
-class ShaderEditorDialog;
+class ScriptEditorWindow;
 
 
 class MainWindow final : public QMainWindow, public PrintOutput, public UIInterface
@@ -216,9 +216,9 @@ private:
 
 	void handlePasteOrDropMimeData(const QMimeData* mime_data);
 
-	void scriptChangedInEditor(UID ob_uid, ShaderEditorDialog* editor);
+	void scriptChangedInEditor(UID ob_uid, ScriptEditorWindow* editor);
 
-	std::map<UID, ShaderEditorDialog*> script_editors; // Open script editor windows, keyed by object UID.  The windows delete themselves when closed.
+	std::map<UID, ScriptEditorWindow*> script_editors; // Open script editor windows, keyed by object UID.  The windows delete themselves when closed.
 
 public:
 	void showErrorNotification(const std::string& msg);

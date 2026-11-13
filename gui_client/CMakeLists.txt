@@ -88,7 +88,7 @@ if(NOT USE_SDL)
 	addMocFileRule(gui_client ChangePasswordDialog)
 	addMocFileRule(gui_client MaterialBrowser)
 	addMocFileRule(gui_client IndigoView)
-	addMocFileRule(gui_client ShaderEditorDialog)
+	addMocFileRule(gui_client ScriptEditorWindow)
 	addMocFileRule(gui_client AboutDialog)
 	addMocFileRule(gui_client MainOptionsDialog)
 	addMocFileRule(gui_client MainOptionsDialog)
@@ -124,7 +124,7 @@ if(NOT USE_SDL)
 	addUIFileRule(gui_client ResetPasswordDialog)
 	addUIFileRule(gui_client ChangePasswordDialog)
 	addUIFileRule(gui_client MaterialBrowser)
-	addUIFileRule(gui_client ShaderEditorDialog)
+	addUIFileRule(gui_client ScriptEditorWindow)
 	addUIFileRule(gui_client AboutDialog)
 	addUIFileRule(gui_client MainOptionsDialog)
 	addUIFileRule(gui_client GoToParcelDialog)
@@ -410,9 +410,9 @@ else()
 		${CMAKE_SOURCE_DIR}/gui_client/TerrainSpecSectionWidget.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/TerrainSpecSectionWidget.h
 		${CMAKE_SOURCE_DIR}/gui_client/TerrainSpecSectionWidget.ui
-		${CMAKE_SOURCE_DIR}/gui_client/ShaderEditorDialog.cpp
-		${CMAKE_SOURCE_DIR}/gui_client/ShaderEditorDialog.h
-		${CMAKE_SOURCE_DIR}/gui_client/ShaderEditorDialog.ui
+		${CMAKE_SOURCE_DIR}/gui_client/ScriptEditorWindow.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/ScriptEditorWindow.h
+		${CMAKE_SOURCE_DIR}/gui_client/ScriptEditorWindow.ui
 		${CMAKE_SOURCE_DIR}/gui_client/ResetPasswordDialog.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/ResetPasswordDialog.h
 		${CMAKE_SOURCE_DIR}/gui_client/ResetPasswordDialog.ui
@@ -429,8 +429,8 @@ else()
 		${CMAKE_SOURCE_DIR}/gui_client/URLWidget.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/URLWidget.h
 		${CMAKE_SOURCE_DIR}/gui_client/URLWidget.ui
-		${CMAKE_SOURCE_DIR}/gui_client/ShaderEditorOutputTextEdit.cpp
-		${CMAKE_SOURCE_DIR}/gui_client/ShaderEditorOutputTextEdit.h
+		${CMAKE_SOURCE_DIR}/gui_client/ScriptEditorOutputTextEdit.cpp
+		${CMAKE_SOURCE_DIR}/gui_client/ScriptEditorOutputTextEdit.h
 		${CMAKE_SOURCE_DIR}/gui_client/CreateObjectsDialog.cpp
 		${CMAKE_SOURCE_DIR}/gui_client/CreateObjectsDialog.h
 		${CMAKE_SOURCE_DIR}/gui_client/CreateObjectsDialog.ui
@@ -462,7 +462,7 @@ if(NOT USE_SDL)
 	${CMAKE_SOURCE_DIR}/gui_client/moc_ChangePasswordDialog.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_MaterialBrowser.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_IndigoView.cpp
-	${CMAKE_SOURCE_DIR}/gui_client/moc_ShaderEditorDialog.cpp
+	${CMAKE_SOURCE_DIR}/gui_client/moc_ScriptEditorWindow.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_AboutDialog.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_MainOptionsDialog.cpp
 	${CMAKE_SOURCE_DIR}/gui_client/moc_GoToParcelDialog.cpp
@@ -491,7 +491,7 @@ if(NOT USE_SDL)
 	${CMAKE_SOURCE_DIR}/gui_client/ui_ResetPasswordDialog.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_ChangePasswordDialog.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_MaterialBrowser.h
-	${CMAKE_SOURCE_DIR}/gui_client/ui_ShaderEditorDialog.h
+	${CMAKE_SOURCE_DIR}/gui_client/ui_ScriptEditorWindow.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_AboutDialog.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_MainOptionsDialog.h
 	${CMAKE_SOURCE_DIR}/gui_client/ui_GoToParcelDialog.h

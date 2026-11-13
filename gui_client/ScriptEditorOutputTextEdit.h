@@ -1,5 +1,5 @@
 /*=====================================================================
-ShaderEditorOutputTextEdit.h
+ScriptEditorOutputTextEdit.h
 ----------------------------
 Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
@@ -7,20 +7,20 @@ Copyright Glare Technologies Limited 2024 -
 
 
 #include <QtWidgets/QTextEdit>
-class ShaderEditorDialog;
+class ScriptEditorWindow;
 
 
 /*=====================================================================
-ShaderEditorOutputTextEdit
+ScriptEditorOutputTextEdit
 --------------------------
 This class is just so we can override mouseDoubleClickEvent().
 =====================================================================*/
-class ShaderEditorOutputTextEdit : public QTextEdit
+class ScriptEditorOutputTextEdit : public QTextEdit
 {
 public:
-	ShaderEditorOutputTextEdit(QWidget* parent);
+	ScriptEditorOutputTextEdit(QWidget* parent);
 
 	virtual void mouseDoubleClickEvent(QMouseEvent *e) override;
 
-	ShaderEditorDialog* shader_editor_dialog;
+	ScriptEditorWindow* script_editor_window;
 };

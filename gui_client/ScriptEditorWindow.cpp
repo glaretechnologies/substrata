@@ -1,9 +1,9 @@
 /*=====================================================================
-ShaderEditorDialog.cpp
+ScriptEditorWindow.cpp
 ----------------------
 Copyright Glare Technologies Limited 2019 -
 =====================================================================*/
-#include "ShaderEditorDialog.h"
+#include "ScriptEditorWindow.h"
 
 
 #include "WinterShaderEvaluator.h"
@@ -47,7 +47,7 @@ const int SHADER_EDIT_TIMEOUT = 300;
 const int SYNTAX_HIGHLIGHT_TIMEOUT = 100;
 
 
-ShaderEditorDialog::ShaderEditorDialog(QWidget* parent, std::string base_dir_path_)
+ScriptEditorWindow::ScriptEditorWindow(QWidget* parent, std::string base_dir_path_)
 :	QMainWindow(parent),
 	resource_manager(NULL),
 	base_dir_path(base_dir_path_),
@@ -55,8 +55,8 @@ ShaderEditorDialog::ShaderEditorDialog(QWidget* parent, std::string base_dir_pat
 {
 	setupUi(this);
 
-	this->buildOutputTextEdit    ->shader_editor_dialog = this;
-	this->executionOutputTextEdit->shader_editor_dialog = this;
+	this->buildOutputTextEdit    ->script_editor_window = this;
+	this->executionOutputTextEdit->script_editor_window = this;
 
 	QSettings settings("Glare Technologies", "Cyberspace");
 	this->restoreGeometry(settings.value("shadereditor/geometry").toByteArray());
@@ -85,12 +85,12 @@ ShaderEditorDialog::ShaderEditorDialog(QWidget* parent, std::string base_dir_pat
 }
 
 
-ShaderEditorDialog::~ShaderEditorDialog()
+ScriptEditorWindow::~ScriptEditorWindow()
 {
 }
 
 
-void ShaderEditorDialog::initialise(const std::string& shader)
+void ScriptEditorWindow::initialise(const std::string& shader)
 {
 	this->blockSignals(true);
 
@@ -107,7 +107,7 @@ void ShaderEditorDialog::initialise(const std::string& shader)
 }
 
 
-void ShaderEditorDialog::update(const std::string& shader)
+void ScriptEditorWindow::update(const std::string& shader)
 {
 	this->blockSignals(true);
 	shaderEdit->blockSignals(true);
@@ -117,13 +117,13 @@ void ShaderEditorDialog::update(const std::string& shader)
 }
 
 
-QString ShaderEditorDialog::getShaderText()
+QString ScriptEditorWindow::getShaderText()
 {
 	return shaderEdit->document()->toPlainText();
 }
 
 
-void ShaderEditorDialog::mouseDoubleClickedInOutput(ShaderEditorOutputTextEdit* sender, QMouseEvent* e)
+void ScriptEditorWindow::mouseDoubleClickedInOutput(ScriptEditorOutputTextEdit* sender, QMouseEvent* e)
 {
 	if(sender == buildOutputTextEdit)
 	{
@@ -190,7 +190,7 @@ void ShaderEditorDialog::mouseDoubleClickedInOutput(ShaderEditorOutputTextEdit* 
 }
 
 
-void ShaderEditorDialog::setReadOnly(bool read_only)
+void ScriptEditorWindow::setReadOnly(bool read_only)
 {
 	shaderEdit->setReadOnly(read_only);
 
@@ -204,7 +204,7 @@ void ShaderEditorDialog::setReadOnly(bool read_only)
 }
 
 
-void ShaderEditorDialog::closeWithoutApplying()
+void ScriptEditorWindow::closeWithoutApplying()
 {
 	text_has_changed = false;
 	emit_shader_changed_timer->stop();
@@ -212,7 +212,7 @@ void ShaderEditorDialog::closeWithoutApplying()
 }
 
 
-void ShaderEditorDialog::keyPressEvent(QKeyEvent* event)
+void ScriptEditorWindow::keyPressEvent(QKeyEvent* event)
 {
 	if(event->key() == Qt::Key_Escape)
 	{
@@ -222,7 +222,7 @@ void ShaderEditorDialog::keyPressEvent(QKeyEvent* event)
 }
 
 
-void ShaderEditorDialog::closeEvent(QCloseEvent* event)
+void ScriptEditorWindow::closeEvent(QCloseEvent* event)
 {
 	if(text_has_changed)
 		emit shaderChanged();
@@ -234,13 +234,13 @@ void ShaderEditorDialog::closeEvent(QCloseEvent* event)
 }
 
 
-void ShaderEditorDialog::mouseDoubleClickEvent(QMouseEvent* e)
+void ScriptEditorWindow::mouseDoubleClickEvent(QMouseEvent* e)
 {
 
 }
 
 
-void ShaderEditorDialog::on_shaderEdit_textChanged()
+void ScriptEditorWindow::on_shaderEdit_textChanged()
 {
 	text_has_changed = true;
 	emit_shader_changed_timer->start(SHADER_EDIT_TIMEOUT);
@@ -248,7 +248,7 @@ void ShaderEditorDialog::on_shaderEdit_textChanged()
 }
 
 
-void ShaderEditorDialog::on_applyChangesPushButton_clicked()
+void ScriptEditorWindow::on_applyChangesPushButton_clicked()
 {
 	buildCodeAndShowResults();
 
@@ -315,7 +315,7 @@ static void showResourceAddedDialog(QWidget* parent, const URLString& URL, const
 }
 
 
-void ShaderEditorDialog::on_addFileAsResourcePushButton_clicked()
+void ScriptEditorWindow::on_addFileAsResourcePushButton_clicked()
 {
 	if(!resource_manager)
 		return;
@@ -390,7 +390,7 @@ void ShaderEditorDialog::on_addFileAsResourcePushButton_clicked()
 }
 
 
-void ShaderEditorDialog::emitShaderChangedTimerFired()
+void ScriptEditorWindow::emitShaderChangedTimerFired()
 {
 	const std::string shader = QtUtils::toIndString(shaderEdit->document()->toPlainText());
 	if(hasPrefix(shader, "--lua"))
@@ -402,7 +402,7 @@ void ShaderEditorDialog::emitShaderChangedTimerFired()
 }
 
 
-void ShaderEditorDialog::flashExecOutputTimerFired()
+void ScriptEditorWindow::flashExecOutputTimerFired()
 {
 	// Restore output widget background colours to white
 	{
@@ -418,7 +418,7 @@ void ShaderEditorDialog::flashExecOutputTimerFired()
 }
 
 
-void ShaderEditorDialog::buildCodeAndShowResults()
+void ScriptEditorWindow::buildCodeAndShowResults()
 {
 	const QSize status_label_size(60, 4);
 
@@ -590,7 +590,7 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 }
 
 
-void ShaderEditorDialog::shaderEditCursorPositionChanged()
+void ScriptEditorWindow::shaderEditCursorPositionChanged()
 {
 	const int line_num = shaderEdit->textCursor().blockNumber() + 1;
 
@@ -600,14 +600,14 @@ void ShaderEditorDialog::shaderEditCursorPositionChanged()
 }
 
 
-void ShaderEditorDialog::on_openServerScriptLogLabel_linkActivated(const QString& link)
+void ScriptEditorWindow::on_openServerScriptLogLabel_linkActivated(const QString& link)
 {
 	// Emit a signal instead of opening the link directly, so that MainWindow can get the hostname we are connected to and use that in the URL.
 	emit openServerScriptLogSignal();
 }
 
 
-void ShaderEditorDialog::printFromLuaScript(const std::string& msg)
+void ScriptEditorWindow::printFromLuaScript(const std::string& msg)
 {
 	// Only show runtime output if the build succeeded
 	if(error_locations.empty())
@@ -624,7 +624,7 @@ void ShaderEditorDialog::printFromLuaScript(const std::string& msg)
 }
 
 
-void ShaderEditorDialog::luaErrorOccurred(const std::string& msg)
+void ScriptEditorWindow::luaErrorOccurred(const std::string& msg)
 {
 	// Only show runtime errors if the build succeeded
 	if(error_locations.empty())

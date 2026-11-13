@@ -1,12 +1,12 @@
 /*=====================================================================
-ShaderEditorDialog.h
--------------------
+ScriptEditorWindow.h
+--------------------
 Copyright Glare Technologies Limited 2019 -
 =====================================================================*/
 #pragma once
 
 
-#include "ui_ShaderEditorDialog.h"
+#include "ui_ScriptEditorWindow.h"
 #include "ISLSyntaxHighlighter.h"
 
 
@@ -16,23 +16,23 @@ class ResourceManager;
 
 
 /*=====================================================================
-ShaderEditorDialog
--------------------
-
+ScriptEditorWindow
+------------------
+Window for editing an object's script.  There is one per object being edited, see MainWindow::openScriptEditorSlot().
 =====================================================================*/
-class ShaderEditorDialog : public QMainWindow, public Ui_ShaderEditorDialog
+class ScriptEditorWindow : public QMainWindow, public Ui_ScriptEditorWindow
 {
 	Q_OBJECT
 public:
-	ShaderEditorDialog(QWidget* parent, std::string base_dir_path);
-	virtual ~ShaderEditorDialog();
+	ScriptEditorWindow(QWidget* parent, std::string base_dir_path);
+	virtual ~ScriptEditorWindow();
 
 	void initialise(const std::string& shader);
 	void update(const std::string& shader);
 
 	QString getShaderText();
 
-	void mouseDoubleClickedInOutput(ShaderEditorOutputTextEdit* sender, QMouseEvent* e);
+	void mouseDoubleClickedInOutput(ScriptEditorOutputTextEdit* sender, QMouseEvent* e);
 
 	void printFromLuaScript(const std::string& msg);
 	void luaErrorOccurred(const std::string& msg);
