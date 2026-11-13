@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 #include "AboutDialog.h"
+#include "ShaderEditorDialog.h"
 #include "CreateObjectsDialog.h"
 #include "ClientThread.h"
 #include "GoToPositionDialog.h"
@@ -472,9 +473,7 @@ void MainWindow::initialiseUI()
 	}
 
 	ui->glWidget->setBaseDir(base_dir_path, /*print output=*/this, settings);
-	ui->objectEditor->base_dir_path = base_dir_path;
 	ui->objectEditor->settings = settings;
-	ui->objectEditor->resource_manager = gui_client.resource_manager.ptr(); // resource_manager is created in GUIClient::postConnectInitialise(), which is called before initialiseUI().
 
 	// Add a spacer to right-align the UserDetailsWidget (see http://www.setnode.com/blog/right-aligning-a-button-in-a-qtoolbar/)
 	QWidget* spacer = new QWidget();
@@ -572,12 +571,12 @@ void MainWindow::initialiseUI()
 	connect(ui->glWidget, SIGNAL(pasteShortcutActivated()), this, SLOT(glWidgetPasteShortcutTriggered()));
 	connect(ui->objectEditor, SIGNAL(objectTransformChanged()), this, SLOT(objectTransformEditedSlot()));
 	connect(ui->objectEditor, SIGNAL(objectChanged()), this, SLOT(objectEditedSlot()));
-	connect(ui->objectEditor, SIGNAL(scriptChangedFromEditorSignal()), this, SLOT(scriptChangedFromEditorSlot()));
+	connect(ui->objectEditor, SIGNAL(openScriptEditorSignal()), this, SLOT(openScriptEditorSlot()));
+	connect(ui->objectEditor, SIGNAL(scriptTextEditedSignal()), this, SLOT(objectEditorScriptTextEditedSlot()));
 	connect(ui->objectEditor, SIGNAL(bakeObjectLightmap()), this, SLOT(bakeObjectLightmapSlot()));
 	connect(ui->objectEditor, SIGNAL(bakeObjectLightmapHighQual()), this, SLOT(bakeObjectLightmapHighQualSlot()));
 	connect(ui->objectEditor, SIGNAL(removeLightmapSignal()), this, SLOT(removeLightmapSignalSlot()));
 	connect(ui->objectEditor, SIGNAL(posAndRot3DControlsToggled()), this, SLOT(posAndRot3DControlsToggledSlot()));
-	connect(ui->objectEditor, SIGNAL(openServerScriptLogSignal()), this, SLOT(openServerScriptLogSlot()));
 	connect(ui->parcelEditor, SIGNAL(parcelChanged()), this, SLOT(parcelEditedSlot()));
 	connect(ui->worldSettingsWidget, SIGNAL(settingsChangedSignal()), this, SLOT(worldSettingsChangedSlot()));
 	connect(user_details, SIGNAL(logInClicked()), this, SLOT(on_actionLogIn_triggered()));
@@ -811,6 +810,12 @@ MainWindow::~MainWindow()
 {
 	running_destructor = true; // Set this to not append log messages during destruction, causes assert failure in Qt.
 
+	// Delete script editor windows now, while script_editors is still valid, as their destroyed() handlers remove them from it.
+	// (Otherwise they would be deleted as child widgets after script_editors has been destroyed.)
+	const std::map<UID, ShaderEditorDialog*> editors = script_editors;
+	for(auto it = editors.begin(); it != editors.end(); ++it)
+		delete it->second;
+
 	delete main_task_manager;
 	delete high_priority_task_manager;
 
@@ -941,13 +946,25 @@ void MainWindow::logMessage(const std::string& msg) // Append to LogWindow log d
 
 void MainWindow::printFromLuaScript(const std::string& msg, UID object_uid)
 {
-	ui->objectEditor->printFromLuaScript(msg, object_uid);
+	auto res = script_editors.find(object_uid);
+	if(res != script_editors.end())
+		res->second->printFromLuaScript(msg);
 }
 
 
 void MainWindow::luaErrorOccurred(const std::string& msg, UID object_uid)
 {
-	ui->objectEditor->luaErrorOccurred(msg, object_uid);
+	auto res = script_editors.find(object_uid);
+	if(res != script_editors.end())
+		res->second->luaErrorOccurred(msg);
+}
+
+
+void MainWindow::objectDeleted(UID object_uid)
+{
+	auto res = script_editors.find(object_uid);
+	if(res != script_editors.end())
+		res->second->setWindowTitle(res->second->windowTitle() + " (object deleted)");
 }
 
 
@@ -3607,6 +3624,12 @@ void MainWindow::clientDisconnectingFromServer()
 
 	// An import sends to gui_client's connection and reads its world state, both of which are about to be cleared or replaced.
 	voxels_parcel_import_thread_manager.killThreadsBlocking();
+
+	// Close script editor windows without applying their edits, as their objects are about to be cleared.
+	// Iterate over a copy, as closing a window removes it from script_editors.
+	const std::map<UID, ShaderEditorDialog*> editors = script_editors;
+	for(auto it = editors.begin(); it != editors.end(); ++it)
+		it->second->closeWithoutApplying();
 }
 
 
@@ -4290,12 +4313,80 @@ void MainWindow::objectEditedSlot()
 }
 
 
-void MainWindow::scriptChangedFromEditorSlot()
+// The Edit Script button in the object editor was clicked.  Opens a script editor window for the object being edited, or raises the existing one.
+// Script editor windows are independent of the selection: they stay open and usable when their object is deselected.
+void MainWindow::openScriptEditorSlot()
 {
-	if(gui_client.selected_ob)
-		BitUtils::setBit(gui_client.selected_ob->changed_flags, WorldObject::SCRIPT_CHANGED);
+	const UID ob_uid = ui->objectEditor->getEditingObUID();
 
-	objectEditedSlot();
+	auto res = script_editors.find(ob_uid);
+	if(res != script_editors.end())
+	{
+		res->second->show();
+		res->second->raise();
+		res->second->activateWindow();
+		return;
+	}
+
+	ShaderEditorDialog* editor = new ShaderEditorDialog(this, base_dir_path);
+	editor->setAttribute(Qt::WA_DeleteOnClose);
+	editor->resource_manager = gui_client.resource_manager.ptr();
+	const bool read_only = !ui->objectEditor->isScriptEditable();
+	editor->setWindowTitle(QtUtils::toQString("Script Editor for object " + ob_uid.toString() + (read_only ? " [Read only - no edit permissions]" : "")));
+
+	// Offset the window from the saved position, so that multiple script editor windows don't exactly overlap.
+	const int offset_px = 30 * (int)script_editors.size();
+	editor->move(editor->pos() + QPoint(offset_px, offset_px));
+
+	editor->initialise(ui->objectEditor->getScriptText());
+	editor->setReadOnly(read_only);
+
+	connect(editor, &ShaderEditorDialog::shaderChanged, this, [this, ob_uid, editor]() { scriptChangedInEditor(ob_uid, editor); });
+	connect(editor, &ShaderEditorDialog::openServerScriptLogSignal, this, &MainWindow::openServerScriptLogSlot);
+	connect(editor, &QObject::destroyed, this, [this, ob_uid]() { script_editors.erase(ob_uid); });
+
+	script_editors[ob_uid] = editor;
+
+	editor->show();
+	editor->raise();
+}
+
+
+// The script was edited in the object editor's script text box.  Update the object's script editor window, if open.
+void MainWindow::objectEditorScriptTextEditedSlot()
+{
+	auto res = script_editors.find(ui->objectEditor->getEditingObUID());
+	if(res != script_editors.end())
+		res->second->update(ui->objectEditor->getScriptText());
+}
+
+
+// A script editor window applied its script, e.g. the Apply button was clicked or the window was closed after editing.
+// The script in the window is authoritative: it replaces the object's current script, even if that was changed by someone else meanwhile.
+void MainWindow::scriptChangedInEditor(UID ob_uid, ShaderEditorDialog* editor)
+{
+	const std::string script = QtUtils::toIndString(editor->getShaderText());
+
+	if(gui_client.selected_ob && (gui_client.selected_ob->uid == ob_uid))
+	{
+		// Apply via the object editor, so that the object editor stays in sync with the object.
+		ui->objectEditor->setScriptText(script);
+
+		BitUtils::setBit(gui_client.selected_ob->changed_flags, WorldObject::SCRIPT_CHANGED); // Reload the script even if the text is unchanged, e.g. when Apply is clicked.
+
+		objectEditedSlot();
+	}
+	else
+	{
+		try
+		{
+			gui_client.setObjectScript(ob_uid, script);
+		}
+		catch(glare::Exception& e)
+		{
+			showErrorNotification("Could not apply script: " + e.what());
+		}
+	}
 }
 
 

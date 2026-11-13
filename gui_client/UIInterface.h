@@ -46,6 +46,9 @@ public:
 	virtual void printFromLuaScript(const std::string& msg, UID object_uid) {}
 	virtual void luaErrorOccurred(const std::string& msg, UID object_uid) {}
 
+	// An object was removed from the world, e.g. because it was deleted.  Used to mark any script editor window for the object.
+	virtual void objectDeleted(UID object_uid) {}
+
 	// UserDetailsWidget:
 	virtual void setTextAsNotLoggedIn() = 0;
 	virtual void setTextAsLoggedIn(const std::string& username) = 0;

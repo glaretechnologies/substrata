@@ -7445,6 +7445,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 						this->world_state->objects.erase(ob->uid);
 
+						ui_interface->objectDeleted(ob->uid);
+
 						active_objects.erase(ob);
 						obs_with_animated_tex.erase(ob);
 						web_view_obs.erase(ob);
@@ -13364,14 +13366,11 @@ void GUIClient::objectEdited()
 			}
 		}
 
-		// Scripted objects (e.g. objects being path controlled), need to be kinematic.  If we enabled a script, but the existing physics object is not kinematic, reload the physics object.
-		const bool physics_rebuild_needed_for_script_enabling = BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::SCRIPT_CHANGED) &&
-			selected_ob->physics_object && !selected_ob->physics_object->isKinematic() && !selected_ob->script.empty() &&
-			(selected_ob->object_type == WorldObject::ObjectType_Generic || selected_ob->object_type == WorldObject::ObjectType_VoxelGroup);
-		
-		if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED) || 
-			(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED) || BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED)) ||
-			physics_rebuild_needed_for_script_enabling)
+		if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::SCRIPT_CHANGED))
+			checkMakePhysicsObjectKinematicIfScripted(selected_ob.ptr());
+
+		if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED) ||
+			(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED) || BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED)))
 		{
 			if(vehicle_controllers.find(selected_ob.ptr()) != vehicle_controllers.end()) // If there is a vehicle controller for selected_ob:
 			{
@@ -13692,47 +13691,7 @@ void GUIClient::objectEdited()
 		}
 
 		if(BitUtils::isBitSet(selected_ob->changed_flags, WorldObject::SCRIPT_CHANGED))
-		{
-			try
-			{
-				WorldStateLock lock(this->world_state->mutex);
-
-				// Try loading script first
-				loadScriptForObject(this->selected_ob.ptr(), lock);
-
-				// If we got here, new script was valid and loaded successfully.
-					
-				// If we were controlling a vehicle whose script just changed, we want to update the vehicle controller.  We will do this by destroying it and creating a new one,
-				// then making the user enter the vehicle again.
-				// If the script failed to load, due to e.g. a syntax error, then we don't want to destroy the vehicle controller, hence this code is after loadScriptForObject().
-				// See if we were in a vehicle whose script just changed.  Set prev_seat_index to the seat we were in if so.
-				int prev_seat_index = -1;
-				if(vehicle_controller_inside.nonNull() && vehicle_controller_inside->getControlledObject() == selected_ob.ptr())
-					prev_seat_index = cur_seat_index;
-
-				destroyVehiclePhysicsControllingObject(selected_ob.ptr()); // Destroy old vehicle controller for object
-
-				if(prev_seat_index >= 0) // If we were in the vehicle for this object:
-				{
-					if(this->selected_ob->vehicle_script.nonNull())
-					{
-						Reference<VehiclePhysics> controller = createVehicleControllerForScript(this->selected_ob.ptr());
-						vehicle_controllers.insert(std::make_pair(this->selected_ob.ptr(), controller));
-						this->vehicle_controller_inside = controller;
-						this->vehicle_controller_inside->userEnteredVehicle(/*seat index=*/prev_seat_index);
-					}
-				}
-			}
-			catch(glare::Exception& e)
-			{
-				// Don't show a modal message box on script error, display non-modal error notification (and write to log) instead.
-				logMessage("Error while loading script: " + e.what());
-				showErrorNotification("Error while loading script: " + e.what());
-
-				// Pass to UIInterface to show on script editor window if applicable
-				ui_interface->luaErrorOccurred(e.what(), selected_ob->uid);
-			}
-		}
+			reloadChangedScriptForObject(selected_ob.ptr());
 
 		if(selected_ob->browser_vid_player.nonNull())
 			selected_ob->browser_vid_player->videoURLMayHaveChanged(this, opengl_engine.ptr(), selected_ob.ptr());
@@ -13749,6 +13708,138 @@ void GUIClient::objectEdited()
 		if(this->terrain_system.nonNull() && ::hasPrefix(selected_ob->content, "biome:"))
 			this->terrain_system->invalidateVegetationMap(selected_ob->getAABBWS());
 	}
+}
+
+
+// Scripted objects (e.g. objects being path controlled) need a kinematic physics object, as moveKinematicObject() ignores non-kinematic bodies.
+// If ob has a script, but its physics object is static, recreate the physics object as kinematic, with the same shape.
+// Dynamic objects stay dynamic.
+void GUIClient::checkMakePhysicsObjectKinematicIfScripted(WorldObject* ob)
+{
+	if(!ob->physics_object || ob->physics_object->isKinematic() || ob->physics_object->isDynamic() || ob->script.empty() || ob->isDynamic())
+		return;
+
+	if(!(ob->object_type == WorldObject::ObjectType_Generic || ob->object_type == WorldObject::ObjectType_VoxelGroup))
+		return;
+
+	if(vehicle_controllers.find(ob) != vehicle_controllers.end()) // Don't replace the physics object of a vehicle being controlled.
+		return;
+
+	const PhysicsObjectRef old_physics_ob = ob->physics_object;
+
+	PhysicsObjectRef new_physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
+	new_physics_ob->shape = old_physics_ob->shape; // Includes any centre-of-mass offset decoration.
+	new_physics_ob->is_sensor = ob->isSensor();
+	new_physics_ob->userdata = ob;
+	new_physics_ob->userdata_type = 0;
+	new_physics_ob->ob_uid = ob->uid;
+	new_physics_ob->pos = ob->pos.toVec4fPoint();
+	new_physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+	new_physics_ob->scale = useScaleForWorldOb(ob->scale);
+	new_physics_ob->motion_type = PhysicsObject::MotionType_kinematic;
+	new_physics_ob->is_sphere = old_physics_ob->is_sphere;
+	new_physics_ob->is_cube   = old_physics_ob->is_cube;
+	new_physics_ob->mass = ob->mass;
+	new_physics_ob->friction = ob->friction;
+	new_physics_ob->restitution = ob->restitution;
+
+	checkRemoveObAndSetRefToNull(physics_world, ob->physics_object);
+
+	ob->physics_object = new_physics_ob;
+	physics_world->addObject(new_physics_ob);
+}
+
+
+// Loads the changed script for ob (which should have the SCRIPT_CHANGED flag set), and recreates any vehicle controller for it.
+// Script load errors are shown as notifications and passed to the object's script editor window, not thrown.
+void GUIClient::reloadChangedScriptForObject(WorldObject* ob)
+{
+	try
+	{
+		WorldStateLock lock(this->world_state->mutex);
+
+		// Try loading script first
+		loadScriptForObject(ob, lock);
+
+		// If we got here, new script was valid and loaded successfully.
+
+		// If we were controlling a vehicle whose script just changed, we want to update the vehicle controller.  We will do this by destroying it and creating a new one,
+		// then making the user enter the vehicle again.
+		// If the script failed to load, due to e.g. a syntax error, then we don't want to destroy the vehicle controller, hence this code is after loadScriptForObject().
+		// See if we were in a vehicle whose script just changed.  Set prev_seat_index to the seat we were in if so.
+		int prev_seat_index = -1;
+		if(vehicle_controller_inside.nonNull() && vehicle_controller_inside->getControlledObject() == ob)
+			prev_seat_index = cur_seat_index;
+
+		destroyVehiclePhysicsControllingObject(ob); // Destroy old vehicle controller for object
+
+		if(prev_seat_index >= 0) // If we were in the vehicle for this object:
+		{
+			if(ob->vehicle_script.nonNull())
+			{
+				Reference<VehiclePhysics> controller = createVehicleControllerForScript(ob);
+				vehicle_controllers.insert(std::make_pair(ob, controller));
+				this->vehicle_controller_inside = controller;
+				this->vehicle_controller_inside->userEnteredVehicle(/*seat index=*/prev_seat_index);
+			}
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		// Don't show a modal message box on script error, display non-modal error notification (and write to log) instead.
+		logMessage("Error while loading script: " + e.what());
+		showErrorNotification("Error while loading script: " + e.what());
+
+		// Pass to UIInterface to show on script editor window if applicable
+		ui_interface->luaErrorOccurred(e.what(), ob->uid);
+	}
+}
+
+
+// Sets the script of the object with the given UID, sends the change to the server, and reloads the script.
+// Used by script editor windows, which stay open when their object is not selected.
+// For the selected object, the object editor path (objectEdited()) should be used instead, so that the object editor stays in sync.
+// Throws glare::Exception if there is no such object or the script is too long.
+void GUIClient::setObjectScript(UID ob_uid, const std::string& script)
+{
+	WorldObjectRef ob;
+	{
+		Lock lock(this->world_state->mutex);
+		auto res = this->world_state->objects.find(ob_uid);
+		if(res == this->world_state->objects.end())
+			throw glare::Exception("Could not find object " + ob_uid.toString() + ", it may have been deleted.");
+		ob = res.getValue();
+	}
+
+	if(!objectModificationAllowedWithMsg(*ob, "edit"))
+		return;
+
+	if(script.size() > WorldObject::MAX_SCRIPT_SIZE)
+		throw glare::Exception("Script is too long (max " + toString(WorldObject::MAX_SCRIPT_SIZE) + " bytes).");
+
+	undo_buffer.startWorldObjectEdit(*ob);
+
+	ob->script = script;
+	BitUtils::setBit(ob->changed_flags, WorldObject::SCRIPT_CHANGED);
+	ob->last_modified_time = TimeStamp::currentTime(); // Gets set on server as well, this is just for updating the local display.
+
+	undo_buffer.finishWorldObjectEdit(*ob);
+	force_new_undo_edit = true; // So that the next object editor edit (of the selected object) doesn't get merged into this edit.
+
+	{
+		Lock lock(this->world_state->mutex);
+
+		// Mark as from-local-dirty to send an object updated message to the server
+		ob->from_local_other_dirty = true;
+		this->world_state->dirty_from_local_objects.insert(ob);
+	}
+
+	checkMakePhysicsObjectKinematicIfScripted(ob.ptr());
+
+	reloadChangedScriptForObject(ob.ptr());
+
+	// Download any resources newly declared by the script.
+	startDownloadingResourcesForObject(ob.ptr(), ob->getLODLevel(cam_controller.getPosition()));
 }
 
 

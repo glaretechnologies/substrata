@@ -37,6 +37,10 @@ public:
 	void printFromLuaScript(const std::string& msg);
 	void luaErrorOccurred(const std::string& msg);
 
+	void setReadOnly(bool read_only); // For when the user doesn't have permission to edit the object.
+
+	void closeWithoutApplying(); // Closes the window without emitting shaderChanged for any unapplied edits.
+
 	ResourceManager* resource_manager; // Used by 'Add file as Resource'.  May be null.
 signals:;
 	void shaderChanged();

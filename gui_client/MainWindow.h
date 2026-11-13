@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/ArgumentParser.h>
 #include <utils/ThreadManager.h>
 #include <deque>
+#include <map>
 #include <utils/Timer.h>
 #include <utils/ComObHandle.h>
 #include <utils/SocketBufferOutStream.h>
@@ -38,6 +39,7 @@ class MiniDmpSender;
 class MCPRenderRequest;
 class GPUTimeMeasurement;
 class VoxelsParcelImportDialog;
+class ShaderEditorDialog;
 
 
 class MainWindow final : public QMainWindow, public PrintOutput, public UIInterface
@@ -151,7 +153,8 @@ private slots:;
 
 	void objectTransformEditedSlot();
 	void objectEditedSlot();
-	void scriptChangedFromEditorSlot();
+	void openScriptEditorSlot();
+	void objectEditorScriptTextEditedSlot();
 	void parcelEditedSlot();
 	void worldSettingsChangedSlot();
 	void environmentSettingChangedSlot();
@@ -213,6 +216,10 @@ private:
 
 	void handlePasteOrDropMimeData(const QMimeData* mime_data);
 
+	void scriptChangedInEditor(UID ob_uid, ShaderEditorDialog* editor);
+
+	std::map<UID, ShaderEditorDialog*> script_editors; // Open script editor windows, keyed by object UID.  The windows delete themselves when closed.
+
 public:
 	void showErrorNotification(const std::string& msg);
 	void showInfoNotification(const std::string& msg);
@@ -234,6 +241,8 @@ public:
 	// A lua script created by the logged in user printed something
 	virtual void printFromLuaScript(const std::string& msg, UID object_uid) override;
 	virtual void luaErrorOccurred(const std::string& msg, UID object_uid) override;
+
+	virtual void objectDeleted(UID object_uid) override; // Marks the object's script editor window, if open.
 
 	// UserDetailsWidget:
 	virtual void setTextAsNotLoggedIn() override;

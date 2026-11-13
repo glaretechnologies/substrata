@@ -255,6 +255,9 @@ public:
 	void summonCar();
 	void objectTransformEdited();
 	void objectEdited();
+	void setObjectScript(UID ob_uid, const std::string& script); // For script editor windows.  Throws glare::Exception if there is no such object or the script is too long.
+	void reloadChangedScriptForObject(WorldObject* ob);
+	void checkMakePhysicsObjectKinematicIfScripted(WorldObject* ob);
 	void posAndRot3DControlsToggled(bool enabled);
 	void mousePressed(MouseEvent& e);
 	void mouseReleased(MouseEvent& e);

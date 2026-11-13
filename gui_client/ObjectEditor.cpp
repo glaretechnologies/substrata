@@ -1,7 +1,6 @@
 #include "ObjectEditor.h"
 
 
-#include "ShaderEditorDialog.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../indigo/TextureServer.h"
 #include "../indigo/globals.h"
@@ -40,9 +39,7 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 :	QWidget(parent),
 	selected_mat_index(0),
 	edit_timer(new QTimer(this)),
-	shader_editor(NULL),
 	settings(NULL),
-	resource_manager(NULL),
 	spotlight_col(0.85f)
 {
 	setupUi(this);
@@ -752,7 +749,8 @@ void ObjectEditor::setControlsEditable(bool editable)
 
 	this->matEditor->setControlsEditable(editable);
 
-	this->editScriptPushButton->setEnabled(editable);
+	// The edit script button stays enabled, so the script can be viewed in a script editor window, which is read-only if !editable.
+	this->editScriptPushButton->setText(editable ? "Edit" : "View");
 	this->bakeLightmapPushButton->setEnabled(editable);
 	this->bakeLightmapHighQualPushButton->setEnabled(editable);
 	this->removeLightmapPushButton->setEnabled(editable);
@@ -818,22 +816,20 @@ void ObjectEditor::on_newMaterialPushButton_clicked(bool checked)
 
 void ObjectEditor::on_editScriptPushButton_clicked(bool checked)
 {
-	if(!shader_editor)
-	{
-		shader_editor = new ShaderEditorDialog(this, base_dir_path);
-		shader_editor->resource_manager = resource_manager;
+	emit openScriptEditorSignal();
+}
 
-		shader_editor->setWindowTitle("Script Editor");
 
-		QObject::connect(shader_editor, SIGNAL(shaderChanged()), SLOT(scriptChangedFromEditor()));
+std::string ObjectEditor::getScriptText() const
+{
+	return QtUtils::toIndString(this->scriptTextEdit->toPlainText());
+}
 
-		QObject::connect(shader_editor, SIGNAL(openServerScriptLogSignal()), this, SIGNAL(openServerScriptLogSignal()));
-	}
 
-	shader_editor->initialise(QtUtils::toIndString(this->scriptTextEdit->toPlainText()));
-
-	shader_editor->show();
-	shader_editor->raise();
+void ObjectEditor::setScriptText(const std::string& script)
+{
+	SignalBlocker b(this->scriptTextEdit);
+	this->scriptTextEdit->setPlainText(QtUtils::toQString(script));
 }
 
 
@@ -870,19 +866,7 @@ void ObjectEditor::scriptTextEditChanged()
 {
 	edit_timer->start();
 
-	if(shader_editor)
-		shader_editor->update(QtUtils::toIndString(scriptTextEdit->toPlainText()));
-}
-
-
-void ObjectEditor::scriptChangedFromEditor()
-{
-	{
-		SignalBlocker b(this->scriptTextEdit);
-		this->scriptTextEdit->setPlainText(shader_editor->getShaderText());
-	}
-
-	emit scriptChangedFromEditorSignal(); // objectChanged();
+	emit scriptTextEditedSignal();
 }
 
 
@@ -913,20 +897,6 @@ void ObjectEditor::materialSelectedInBrowser(const std::string& path)
 		m.showMessage("Error while opening material: " + QtUtils::toQString(e.what()));
 		m.exec();
 	}
-}
-
-
-void ObjectEditor::printFromLuaScript(const std::string& msg, UID object_uid)
-{
-	if((this->editing_ob_uid == object_uid) && shader_editor)
-		shader_editor->printFromLuaScript(msg);
-}
-
-
-void ObjectEditor::luaErrorOccurred(const std::string& msg, UID object_uid)
-{
-	if((this->editing_ob_uid == object_uid) && shader_editor)
-		shader_editor->luaErrorOccurred(msg);
 }
 
 

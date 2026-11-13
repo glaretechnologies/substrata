@@ -190,6 +190,28 @@ void ShaderEditorDialog::mouseDoubleClickedInOutput(ShaderEditorOutputTextEdit* 
 }
 
 
+void ShaderEditorDialog::setReadOnly(bool read_only)
+{
+	shaderEdit->setReadOnly(read_only);
+
+	// Use a light grey background for read-only scripts, so it's clear they can't be edited.
+	QPalette p = shaderEdit->palette();
+	p.setColor(QPalette::Base, read_only ? QColor(248, 248, 248) : QApplication::palette().color(QPalette::Base));
+	shaderEdit->setPalette(p);
+
+	applyChangesPushButton->setEnabled(!read_only);
+	addFileAsResourcePushButton->setEnabled(!read_only);
+}
+
+
+void ShaderEditorDialog::closeWithoutApplying()
+{
+	text_has_changed = false;
+	emit_shader_changed_timer->stop();
+	close();
+}
+
+
 void ShaderEditorDialog::keyPressEvent(QKeyEvent* event)
 {
 	if(event->key() == Qt::Key_Escape)

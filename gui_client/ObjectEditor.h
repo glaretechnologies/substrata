@@ -17,8 +17,6 @@
 namespace Indigo { class Mesh; }
 class TextureServer;
 class EnvEmitter;
-class ShaderEditorDialog;
-class ResourceManager;
 
 
 class ObjectEditor : public QWidget, public Ui::ObjectEditor
@@ -56,31 +54,30 @@ public:
 
 	bool posAndRot3DControlsEnabled() { return show3DControlsCheckBox->isChecked(); }
 
-	void printFromLuaScript(const std::string& msg, UID object_uid);
-	void luaErrorOccurred(const std::string& msg, UID object_uid);
+	UID getEditingObUID() const { return editing_ob_uid; }
+	std::string getScriptText() const;
+	void setScriptText(const std::string& script); // Doesn't emit any signals.
+	bool isScriptEditable() const { return !scriptTextEdit->isReadOnly(); }
 
 	QSettings* settings;
-	std::string base_dir_path;
-	ResourceManager* resource_manager; // Passed to the script editor for 'Add file as Resource'.
 protected:
 
 signals:;
 	void objectTransformChanged();
 	void objectChanged();
-	void scriptChangedFromEditorSignal();
+	void openScriptEditorSignal(); // The Edit Script button was clicked.  The script editor window for the object being edited should be opened.
+	void scriptTextEditedSignal(); // The script was edited in the object editor's script text box.
 	void bakeObjectLightmap();
 	void bakeObjectLightmapHighQual();
 	void removeLightmapSignal();
 	void posAndRot3DControlsToggled();
-	void openServerScriptLogSignal();
-	
+
 private slots:
 	void on_visitURLLabel_linkActivated(const QString& link);
 	void on_materialComboBox_currentIndexChanged(int index);
 	void on_newMaterialPushButton_clicked(bool checked);
 	void targetURLChanged();
 	void scriptTextEditChanged();
-	void scriptChangedFromEditor();
 	void on_editScriptPushButton_clicked(bool checked);
 	void on_bakeLightmapPushButton_clicked(bool checked);
 	void on_bakeLightmapHighQualPushButton_clicked(bool checked);
@@ -104,8 +101,6 @@ private:
 	int selected_mat_index;
 
 	QTimer* edit_timer;
-
-	ShaderEditorDialog* shader_editor;
 
 	// Store the ratios between the scale components, used when link-scales is enabled.
 	// Store ratios instead of individual values, as this allows us to preserve the rations if the scales are set to zero at some point.
