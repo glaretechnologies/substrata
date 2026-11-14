@@ -721,8 +721,8 @@ static int createUIImage(lua_State* state)
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
 
 	const std::string image_URL = LuaUtils::getTableStringField(state, /*table index=*/1, "image_url");
-	const Vec2f size_px   = getUIVec2fTableField(state, /*table index=*/1, "size",   /*default=*/Vec2f(128.f), /*max abs val=*/4096.f);
-	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f),   /*max abs val=*/10000.f);
+	const Vec2f size_px   = getUIVec2fTableField(state, /*table index=*/1, "size", /*default=*/Vec2f(128.f), /*max abs val=*/4096.f);
+	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f), /*max abs val=*/10000.f);
 	[[maybe_unused]] const bool visible = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "visible", /*default=*/true);
 
 	if(!(size_px.x >= 1.f && size_px.y >= 1.f))
@@ -765,10 +765,6 @@ static int createUIButton(lua_State* state)
 	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f), /*max abs val=*/10000.f);
 	[[maybe_unused]] const bool visible = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "visible", /*default=*/true);
 
-	const int onClick_type = lua_rawgetfield(state, /*table index=*/1, "onClick"); // Push onClick value onto stack
-	if(onClick_type != LUA_TNIL && onClick_type != LUA_TFUNCTION)
-		throw glare::Exception("createUIButton(): onClick must be a function" + errorContextString(state));
-
 	int widget_id = 0;
 #if GUI_CLIENT
 	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
@@ -779,7 +775,7 @@ static int createUIButton(lua_State* state)
 
 	if(sub_lua_vm->gui_client->lua_script_ui)
 	{
-		const LuaVM::LuaValueRef onClick_ref = (onClick_type == LUA_TFUNCTION) ? script->getRefToFunctionOnStack(state, /*index=*/-1) : LuaVM::LuaValueRef();
+		const LuaVM::LuaValueRef onClick_ref = script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onClick");
 		try
 		{
 			widget_id = sub_lua_vm->gui_client->lua_script_ui->createButton(script_evaluator, text, anchor, offset_px, onClick_ref, visible); // Takes ownership of onClick_ref
@@ -791,7 +787,6 @@ static int createUIButton(lua_State* state)
 		}
 	}
 #endif
-	lua_pop(state, 1); // Pop onClick value
 
 	pushUIWidgetHandle(state, widget_id);
 	return 1; // Count of returned values
@@ -828,10 +823,6 @@ static int createUISlider(lua_State* state)
 	if(!(width >= 20.0 && width <= 4096.0))
 		throw glare::Exception("createUISlider(): width must be between 20 and 4096 pixels" + errorContextString(state));
 
-	const int onChange_type = lua_rawgetfield(state, /*table index=*/1, "onChange"); // Push onChange value onto stack
-	if(onChange_type != LUA_TNIL && onChange_type != LUA_TFUNCTION)
-		throw glare::Exception("createUISlider(): onChange must be a function" + errorContextString(state));
-
 	int widget_id = 0;
 #if GUI_CLIENT
 	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
@@ -842,7 +833,7 @@ static int createUISlider(lua_State* state)
 
 	if(sub_lua_vm->gui_client->lua_script_ui)
 	{
-		const LuaVM::LuaValueRef onChange_ref = (onChange_type == LUA_TFUNCTION) ? script->getRefToFunctionOnStack(state, /*index=*/-1) : LuaVM::LuaValueRef();
+		const LuaVM::LuaValueRef onChange_ref = script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onChange");
 		try
 		{
 			widget_id = sub_lua_vm->gui_client->lua_script_ui->createSlider(script_evaluator, min_value, max_value, value, anchor, offset_px, /*size_px=*/Vec2f((float)width, 21.f), onChange_ref, visible); // Takes ownership of onChange_ref
@@ -854,7 +845,6 @@ static int createUISlider(lua_State* state)
 		}
 	}
 #endif
-	lua_pop(state, 1); // Pop onChange value
 
 	pushUIWidgetHandle(state, widget_id);
 	return 1; // Count of returned values

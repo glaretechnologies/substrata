@@ -113,6 +113,10 @@ void ServerTestSuite::test()
 
 	Timer timer;
 
+	runTest([&]() { LuaTests::test();													});
+	runTest([&]() { LuaUtils::test();													});
+	runTest([&]() { LuaSerialisation::test();											});
+	runTest([&]() { ServerLuaScriptTests::test();										}, /*mem leak allowed=*/true); // TLS leaks some mem in doHTTPGetRequestAsync tests
 	runTest([&]() { JSONParser::test();													});
 	runTest([&]() { js::VectorUnitTests::test();										});
 	runTest([&]() { WorldHandlers::test();												});
@@ -130,10 +134,6 @@ void ServerTestSuite::test()
 	runTest([&]() { doArrayRefTests();													});
 	runTest([&]() { URL::test();														});
 	runTest([&]() { ReferenceTest::run();												});
-	runTest([&]() { LuaTests::test();													});
-	runTest([&]() { LuaUtils::test();													});
-	runTest([&]() { LuaSerialisation::test();											});
-	runTest([&]() { ServerLuaScriptTests::test();										}, /*mem leak allowed=*/true); // TLS leaks some mem in doHTTPGetRequestAsync tests
 	runTest([&]() { web::ResponseUtils::test();											});
 	runTest([&]() { Parser::doUnitTests();												});
 	runTest([&]() { StringUtils::test();												});
