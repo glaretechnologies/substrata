@@ -1,5 +1,5 @@
 /*=====================================================================
-LuaScriptEvaluator.h
+SubstrataLuaScript.h
 --------------------
 Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
@@ -27,21 +27,21 @@ class LuaHTTPRequestResult;
 
 
 /*=====================================================================
-LuaScriptEvaluator
+SubstrataLuaScript
 ------------------
 Per-WorldObject
 =====================================================================*/
-class LuaScriptEvaluator : public WeakRefCounted
+class SubstrataLuaScript : public WeakRefCounted
 {
 public:
-	LuaScriptEvaluator(const Reference<SubstrataLuaVM>& substrata_lua_vm, LuaScriptOutputHandler* script_output_handler, 
+	SubstrataLuaScript(const Reference<SubstrataLuaVM>& substrata_lua_vm, LuaScriptOutputHandler* script_output_handler, 
 		const std::string& script_src, WorldObject* world_object,
 #if SERVER
 		ServerWorldState* world_state, // The world that the object belongs to.
 #endif
 		WorldStateLock& world_state_lock // Since this constructor executes Lua code, we need to hold the world state lock
 	);
-	~LuaScriptEvaluator();
+	~SubstrataLuaScript();
 
 	void exec(WorldStateLock& world_state_lock); // Execute top-level Lua code.
 
