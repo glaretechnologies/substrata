@@ -11,7 +11,7 @@ Copyright Glare Technologies Limited 2019 -
 #include "ObjectPathController.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/FileTypes.h"
-#include "../shared/LuaScriptEvaluator.h"
+#include "../shared/SubstrataLuaScript.h"
 #include "../shared/WorldObject.h"
 #include <QtCore/QTimer>
 #include <QtWidgets/QFileDialog>
@@ -346,7 +346,7 @@ void ScriptEditorWindow::on_addFileAsResourcePushButton_clicked()
 		std::string script = QtUtils::toIndString(shaderEdit->document()->toPlainText());
 
 		DependencyURLVector declared_URLs;
-		LuaScriptEvaluator::appendScriptResourceURLs(script, /*allocator=*/nullptr, declared_URLs);
+		SubstrataLuaScript::appendScriptResourceURLs(script, /*allocator=*/nullptr, declared_URLs);
 		bool already_declared = false;
 		for(size_t i=0; i<declared_URLs.size(); ++i)
 			if(declared_URLs[i].URL == URL)
@@ -357,12 +357,12 @@ void ScriptEditorWindow::on_addFileAsResourcePushButton_clicked()
 		{
 			script_note = "The script already declares this resource.";
 		}
-		else if(declared_URLs.size() >= LuaScriptEvaluator::MAX_NUM_RESOURCE_URLS)
+		else if(declared_URLs.size() >= SubstrataLuaScript::MAX_NUM_RESOURCE_URLS)
 		{
-			script_note = "The script already declares the maximum of " + toString(LuaScriptEvaluator::MAX_NUM_RESOURCE_URLS) + " resources, so the @resource line was not added.  "
+			script_note = "The script already declares the maximum of " + toString(SubstrataLuaScript::MAX_NUM_RESOURCE_URLS) + " resources, so the @resource line was not added.  "
 				"The file will be uploaded once an object script declares it with an @resource line.";
 		}
-		else if(!LuaScriptEvaluator::addScriptResourceDeclaration(script, URL))
+		else if(!SubstrataLuaScript::addScriptResourceDeclaration(script, URL))
 		{
 			script_note = "The script is not a Lua script (it doesn't start with '--lua'), so the @resource line was not added.  "
 				"The file will be uploaded once an object script declares it with an @resource line.";

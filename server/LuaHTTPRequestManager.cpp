@@ -8,7 +8,7 @@ Copyright Glare Technologies Limited 2024 -
 
 #include "LuaHTTPWorkerThread.h"
 #include "Server.h"
-#include "../shared/LuaScriptEvaluator.h"
+#include "../shared/SubstrataLuaScript.h"
 
 
 LuaHTTPRequestManager::LuaHTTPRequestManager(Server* server_)
@@ -48,15 +48,15 @@ void LuaHTTPRequestManager::think()
 
 		Reference<LuaHTTPRequest> request = result->request;
 
-		Reference<LuaScriptEvaluator> script_evaluator = request->lua_script_evaluator.upgradeToStrongRef();
-		if(script_evaluator)
+		Reference<SubstrataLuaScript> sub_lua_script = request->sub_lua_script.upgradeToStrongRef();
+		if(sub_lua_script)
 		{
 			WorldStateLock world_state_lock(server->world_state->mutex);
 
 			if(!result->exception_msg.empty())
 			{
 				// Call the script onError function
-				script_evaluator->doOnError(request->onError_ref, 
+				sub_lua_script->doOnError(request->onError_ref, 
 					/*error code=*/result->error_code,
 					result->exception_msg, // error description
 					world_state_lock
@@ -65,12 +65,12 @@ void LuaHTTPRequestManager::think()
 			else
 			{
 				// Call the script onDone function
-				script_evaluator->doOnDone(request->onDone_ref, result, world_state_lock);
+				sub_lua_script->doOnDone(request->onDone_ref, result, world_state_lock);
 			}
 
 			// We are done with the request now, so free references to the Lua handler functions.
-			script_evaluator->lua_script->freeRefToFunction(request->onDone_ref);
-			script_evaluator->lua_script->freeRefToFunction(request->onError_ref);
+			sub_lua_script->lua_script->freeRefToFunction(request->onDone_ref);
+			sub_lua_script->lua_script->freeRefToFunction(request->onError_ref);
 		}
 	}
 	temp_results.clear();
@@ -81,8 +81,8 @@ void LuaHTTPRequestManager::think()
 	while(delayed_result_queue.nonEmpty() && (cur_time > delayed_result_queue.front()->return_time))
 	{
 		Reference<LuaHTTPRequestResult> result = delayed_result_queue.popAndReturnFront();
-		Reference<LuaScriptEvaluator> script_evaluator = result->request->lua_script_evaluator.upgradeToStrongRef();
-		if(script_evaluator)
+		Reference<SubstrataLuaScript> sub_lua_script = result->request->sub_lua_script.upgradeToStrongRef();
+		if(sub_lua_script)
 		{
 			WorldStateLock world_state_lock(server->world_state->mutex);
 
@@ -90,7 +90,7 @@ void LuaHTTPRequestManager::think()
 			if(!result->exception_msg.empty())
 			{
 				// Call the script onError function
-				script_evaluator->doOnError(result->request->onError_ref, 
+				sub_lua_script->doOnError(result->request->onError_ref, 
 					/*error code=*/result->error_code,
 					result->exception_msg, // error description
 					world_state_lock
@@ -98,8 +98,8 @@ void LuaHTTPRequestManager::think()
 			}
 
 			// We are done with the request now, so free references to the Lua handler functions.
-			script_evaluator->lua_script->freeRefToFunction(result->request->onDone_ref);
-			script_evaluator->lua_script->freeRefToFunction(result->request->onError_ref);
+			sub_lua_script->lua_script->freeRefToFunction(result->request->onDone_ref);
+			sub_lua_script->lua_script->freeRefToFunction(result->request->onError_ref);
 		}
 	}
 }
@@ -142,12 +142,12 @@ void LuaHTTPRequestManager::enqueueHTTPRequest(Reference<LuaHTTPRequest> request
 		if(delayed_result_queue.size() >= (size_t)max_delayed_results)
 		{
 			// Free the handler refs, since this request won't be queued.
-			LuaScriptEvaluator* script_evaluator = request->lua_script_evaluator.getPtrIfAlive(); // Don't use upgradeToStrongRef as it can crash if this is called during LuaScriptEvaluator constructor when refcount is zero.
+			SubstrataLuaScript* sub_lua_script = request->sub_lua_script.getPtrIfAlive(); // Don't use upgradeToStrongRef as it can crash if this is called during SubstrataLuaScript constructor when refcount is zero.
 			// Instead use getPtrIfAlive since this function is called on main thread from lua code.
-			if(script_evaluator)
+			if(sub_lua_script)
 			{
-				script_evaluator->lua_script->freeRefToFunction(request->onDone_ref);
-				script_evaluator->lua_script->freeRefToFunction(request->onError_ref);
+				sub_lua_script->lua_script->freeRefToFunction(request->onDone_ref);
+				sub_lua_script->lua_script->freeRefToFunction(request->onError_ref);
 			}
 			conPrint("Too many rate-limited HTTP requests, not enqueuing result into delayed_result_queue");
 			throw glare::Exception("Too many rate-limited HTTP requests");

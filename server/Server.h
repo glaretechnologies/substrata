@@ -9,7 +9,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "ServerWorldState.h"
 #include "ThreadManager.h"
 #include "../shared/ResourceManager.h"
-#include "../shared/LuaScriptEvaluator.h"
+#include "../shared/SubstrataLuaScript.h"
 #include "../shared/ScriptTimerQueue.h"
 #include <IPAddress.h>
 #include <utils/UniqueRef.h>

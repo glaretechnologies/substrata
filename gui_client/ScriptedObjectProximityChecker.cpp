@@ -7,7 +7,7 @@ Copyright Glare Technologies Limited 2024 -
 
 
 #include "GUIClient.h"
-#include "../shared/LuaScriptEvaluator.h"
+#include "../shared/SubstrataLuaScript.h"
 #include "../shared/ObjectEventHandlers.h"
 #include "../shared/MessageUtils.h"
 #include "../shared/Protocol.h"

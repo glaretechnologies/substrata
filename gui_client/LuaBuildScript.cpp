@@ -382,7 +382,7 @@ struct BuildModelInfo
 /*
 State for a single build-script run.  Stored in LuaScript::userdata, so the C functions registered for the script can reach it.
 
-Per-object scripts store a LuaScriptEvaluator there instead, which is why the globals that expect one are not registered on a
+Per-object scripts store a SubstrataLuaScript there instead, which is why the globals that expect one are not registered on a
 build VM (see SubstrataLuaVMArgs::is_build_vm).
 */
 class BuildScriptContext
@@ -1450,7 +1450,7 @@ static int getTerrainHeights(lua_State* state)
 
 
 // Build scripts print via build_print, so this handler just catches output from anything else that writes through the script output
-// handler.  It must not assume LuaScript::userdata is a LuaScriptEvaluator, unlike GUIClient's handler.
+// handler.  It must not assume LuaScript::userdata is a SubstrataLuaScript, unlike GUIClient's handler.
 class BuildScriptOutputHandler : public LuaScriptOutputHandler
 {
 public:
@@ -1824,7 +1824,7 @@ void LuaBuildScript::test()
 		testAssert(StringUtils::containsString(results.output, "was not a table"));
 	}
 
-	// Test that the globals that need a LuaScriptEvaluator are absent, rather than present and reading a BuildScriptContext as one.
+	// Test that the globals that need a SubstrataLuaScript are absent, rather than present and reading a BuildScriptContext as one.
 	{
 		LuaBuildScriptResults results;
 		LuaBuildScript::run(/*gui_client=*/NULL, /*builder_state=*/NULL, "createTimer(1.0, false)", LuaBuildScriptOptions(), results);

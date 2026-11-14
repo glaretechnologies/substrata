@@ -723,19 +723,19 @@ int main(int argc, char *argv[])
 								lua_vm = res->second.ptr();
 
 							runtimeCheck(lua_vm);
-							ob->lua_script_evaluator = new LuaScriptEvaluator(lua_vm, /*script output handler=*/&server, ob->script, ob, world_state.ptr(), lock);
-							ob->lua_script_evaluator->exec(lock);
+							ob->sub_lua_script = new SubstrataLuaScript(lua_vm, /*script output handler=*/&server, ob->script, ob, world_state.ptr(), lock);
+							ob->sub_lua_script->exec(lock);
 						}
 						catch(LuaScriptExcepWithLocation& e)
 						{
-							ob->lua_script_evaluator = nullptr;
-							conPrint("Error creating LuaScriptEvaluator for ob " + ob->uid.toString() + ": " + e.messageWithLocations());
+							ob->sub_lua_script = nullptr;
+							conPrint("Error creating SubstrataLuaScript for ob " + ob->uid.toString() + ": " + e.messageWithLocations());
 							server.logLuaError("Error: " + e.messageWithLocations(), ob->uid, ob->creator_id);
 						}
 						catch(glare::Exception& e)
 						{
-							ob->lua_script_evaluator = nullptr;
-							conPrint("Error creating LuaScriptEvaluator for ob " + ob->uid.toString() + ": " + e.what());
+							ob->sub_lua_script = nullptr;
+							conPrint("Error creating SubstrataLuaScript for ob " + ob->uid.toString() + ": " + e.what());
 							server.logLuaError("Error: " + e.what(), ob->uid, ob->creator_id);
 						}
 					}
@@ -798,14 +798,14 @@ int main(int argc, char *argv[])
 					{
 						ScriptTimerQueueTimer& timer = server.temp_triggered_timers[i];
 			
-						LuaScriptEvaluator* script_evaluator = timer.lua_script_evaluator.getPtrIfAlive();
-						if(script_evaluator)
+						SubstrataLuaScript* sub_lua_script = timer.sub_lua_script.getPtrIfAlive();
+						if(sub_lua_script)
 						{
 							// Check timer is still valid (has not been destroyed by destroyTimer), by checking the timer id with the same index is still equal to our timer id.
-							assert(timer.timer_index >= 0 && timer.timer_index <= LuaScriptEvaluator::MAX_NUM_TIMERS);
-							if(timer.timer_id == script_evaluator->timers[timer.timer_index].id)
+							assert(timer.timer_index >= 0 && timer.timer_index <= SubstrataLuaScript::MAX_NUM_TIMERS);
+							if(timer.timer_id == sub_lua_script->timers[timer.timer_index].id)
 							{
-								script_evaluator->doOnTimerEvent(timer.onTimerEvent_ref, lock); // Execute the Lua timer event callback function
+								sub_lua_script->doOnTimerEvent(timer.onTimerEvent_ref, lock); // Execute the Lua timer event callback function
 
 								if(timer.repeating)
 								{
@@ -815,7 +815,7 @@ int main(int argc, char *argv[])
 								}
 								else // Else if timer was a one-shot timer, 'destroy' it.
 								{
-									script_evaluator->destroyTimer(timer.timer_index, timer.timer_id);
+									sub_lua_script->destroyTimer(timer.timer_index, timer.timer_id);
 								}
 							}
 						}
@@ -1515,9 +1515,9 @@ void Server::printFromLuaScript(LuaScript* script, const char* s, size_t len)
 
 	// Store log message for user in the per-user script message log.
 	
-	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
 
-	logLuaMessage(message, UserScriptLogMessage::MessageType_print, script_evaluator->world_object->uid, script_evaluator->world_object->creator_id);
+	logLuaMessage(message, UserScriptLogMessage::MessageType_print, sub_lua_script->world_object->uid, sub_lua_script->world_object->creator_id);
 }
 
 
@@ -1527,9 +1527,9 @@ void Server::errorOccurredFromLuaScript(LuaScript* script, const std::string& ms
 
 	// Store log message for user in the per-user script message log.
 
-	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
 
-	logLuaError("Error: " + msg, script_evaluator->world_object->uid, script_evaluator->world_object->creator_id);
+	logLuaError("Error: " + msg, sub_lua_script->world_object->uid, sub_lua_script->world_object->creator_id);
 }
 
 

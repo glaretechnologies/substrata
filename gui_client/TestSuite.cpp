@@ -20,7 +20,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "../shared/VoxelMeshBuilding.h"
 #include "../shared/LODGeneration.h"
 #include "../shared/ImageDecoding.h"
-#include "../shared/LuaScriptEvaluator.h"
+#include "../shared/SubstrataLuaScript.h"
 #include "../physics/TreeTest.h"
 #include "../opengl/TextureLoading.h"
 #include "../opengl/OpenGLEngineTests.h"
@@ -164,7 +164,7 @@ void TestSuite::test()
 
 	runTest([&]() { LuaTests::test(); });
 	runTest([&]() { LuaUtils::test(); });
-	runTest([&]() { LuaScriptEvaluator::test(); });
+	runTest([&]() { SubstrataLuaScript::test(); });
 	runTest([&]() { Parser::doUnitTests(); });
 	runTest([&]() { VoxelsParcelImporter::test(); });
 	runTest([&]() { MP4FastStart::test(); });

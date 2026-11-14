@@ -17,7 +17,7 @@ Copyright Glare Technologies Limited 2024 -
 
 
 class LuaScript;
-class LuaScriptEvaluator;
+class SubstrataLuaScript;
 
 
 class ScriptTimerQueueTimer
@@ -34,7 +34,7 @@ public:
 	double period;
 	int timer_index;
 	int timer_id;
-	WeakReference<LuaScriptEvaluator> lua_script_evaluator;
+	WeakReference<SubstrataLuaScript> sub_lua_script;
 };
 
 

@@ -53,10 +53,10 @@ static void freeRefsInHandlerList(HandlerList& list)
 	for(size_t i=0; i<list.handler_funcs.size(); ++i)
 	{
 		HandlerFunc& func = list.handler_funcs[i];
-		Reference<LuaScriptEvaluator> lua_script_evaluator = func.script.upgradeToStrongRef();
-		if(lua_script_evaluator)
+		Reference<SubstrataLuaScript> sub_lua_script = func.script.upgradeToStrongRef();
+		if(sub_lua_script)
 		{
-			lua_script_evaluator->lua_script->freeRefToFunction(func.handler_func_ref);
+			sub_lua_script->lua_script->freeRefToFunction(func.handler_func_ref);
 		}
 	}
 }
@@ -83,7 +83,7 @@ void ObjectEventHandlers::executeOnUserUsedObjectHandlers(UID avatar_uid, UID ob
 	for(size_t z=0; z<onUserUsedObject_handlers.handler_funcs.size(); )
 	{
 		HandlerFunc& handler_func = onUserUsedObject_handlers.handler_funcs[z];
-		if(LuaScriptEvaluator* eval = handler_func.script.getPtrIfAlive())
+		if(SubstrataLuaScript* eval = handler_func.script.getPtrIfAlive())
 		{
 			eval->doOnUserUsedObject(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid, world_state_lock);
 			z++;
@@ -100,7 +100,7 @@ void ObjectEventHandlers::executeOnUserTouchedObjectHandlers(UID avatar_uid, UID
 	for(size_t z=0; z<onUserTouchedObject_handlers.handler_funcs.size(); )
 	{
 		HandlerFunc& handler_func = onUserTouchedObject_handlers.handler_funcs[z];
-		if(LuaScriptEvaluator* eval = handler_func.script.getPtrIfAlive())
+		if(SubstrataLuaScript* eval = handler_func.script.getPtrIfAlive())
 		{
 			eval->doOnUserTouchedObject(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid, world_state_lock);
 			z++;
@@ -117,7 +117,7 @@ void ObjectEventHandlers::executeOnUserMovedNearToObjectHandlers(UID avatar_uid,
 	for(size_t z=0; z<onUserMovedNearToObject_handlers.handler_funcs.size(); )
 	{
 		HandlerFunc& handler_func = onUserMovedNearToObject_handlers.handler_funcs[z];
-		if(LuaScriptEvaluator* eval = handler_func.script.getPtrIfAlive())
+		if(SubstrataLuaScript* eval = handler_func.script.getPtrIfAlive())
 		{
 			eval->doOnUserMovedNearToObject(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid, world_state_lock);
 			z++;
@@ -134,7 +134,7 @@ void ObjectEventHandlers::executeOnUserMovedAwayFromObjectHandlers(UID avatar_ui
 	for(size_t z=0; z<onUserMovedAwayFromObject_handlers.handler_funcs.size(); )
 	{
 		HandlerFunc& handler_func = onUserMovedAwayFromObject_handlers.handler_funcs[z];
-		if(LuaScriptEvaluator* eval = handler_func.script.getPtrIfAlive())
+		if(SubstrataLuaScript* eval = handler_func.script.getPtrIfAlive())
 		{
 			eval->doOnUserMovedAwayFromObject(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid, world_state_lock);
 			z++;
@@ -150,7 +150,7 @@ void ObjectEventHandlers::executeOnUserEnteredParcelHandlers(UID avatar_uid, UID
 	for(size_t z=0; z<onUserEnteredParcel_handlers.handler_funcs.size(); )
 	{
 		HandlerFunc& handler_func = onUserEnteredParcel_handlers.handler_funcs[z];
-		if(LuaScriptEvaluator* eval = handler_func.script.getPtrIfAlive())
+		if(SubstrataLuaScript* eval = handler_func.script.getPtrIfAlive())
 		{
 			eval->doOnUserEnteredParcel(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid, parcel_id, world_state_lock);
 			z++;
@@ -166,7 +166,7 @@ void ObjectEventHandlers::executeOnUserExitedParcelHandlers(UID avatar_uid, UID 
 	for(size_t z=0; z<onUserExitedParcel_handlers.handler_funcs.size(); )
 	{
 		HandlerFunc& handler_func = onUserExitedParcel_handlers.handler_funcs[z];
-		if(LuaScriptEvaluator* eval = handler_func.script.getPtrIfAlive())
+		if(SubstrataLuaScript* eval = handler_func.script.getPtrIfAlive())
 		{
 			eval->doOnUserExitedParcel(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, ob_uid, parcel_id, world_state_lock);
 			z++;
@@ -182,7 +182,7 @@ void ObjectEventHandlers::executeOnUserEnteredVehicleHandlers(UID avatar_uid, UI
 	for(size_t z=0; z<onUserEnteredVehicle_handlers.handler_funcs.size(); )
 	{
 		HandlerFunc& handler_func = onUserEnteredVehicle_handlers.handler_funcs[z];
-		if(LuaScriptEvaluator* eval = handler_func.script.getPtrIfAlive())
+		if(SubstrataLuaScript* eval = handler_func.script.getPtrIfAlive())
 		{
 			eval->doOnUserEnteredVehicle(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, vehicle_ob_uid, world_state_lock);
 			z++;
@@ -198,7 +198,7 @@ void ObjectEventHandlers::executeOnUserExitedVehicleHandlers(UID avatar_uid, UID
 	for(size_t z=0; z<onUserExitedVehicle_handlers.handler_funcs.size(); )
 	{
 		HandlerFunc& handler_func = onUserExitedVehicle_handlers.handler_funcs[z];
-		if(LuaScriptEvaluator* eval = handler_func.script.getPtrIfAlive())
+		if(SubstrataLuaScript* eval = handler_func.script.getPtrIfAlive())
 		{
 			eval->doOnUserExitedVehicle(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, vehicle_ob_uid, world_state_lock);
 			z++;
@@ -214,7 +214,7 @@ void ObjectEventHandlers::executeOnChatMessageHandlers(UID avatar_uid, const std
 	for(size_t z=0; z<onChatMessage_handlers.handler_funcs.size(); )
 	{
 		HandlerFunc& handler_func = onChatMessage_handlers.handler_funcs[z];
-		if(LuaScriptEvaluator* eval = handler_func.script.getPtrIfAlive())
+		if(SubstrataLuaScript* eval = handler_func.script.getPtrIfAlive())
 		{
 			eval->doOnChatMessage(handler_func.handler_func_ref, /*avatar_uid=*/avatar_uid, message, world_state_lock);
 			z++;

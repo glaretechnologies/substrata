@@ -42,7 +42,7 @@ namespace glare { class ArenaAllocator; }
 namespace Scripting { class VehicleScript; }
 class ResourceManager;
 class WinterShaderEvaluator;
-class LuaScriptEvaluator;
+class SubstrataLuaScript;
 class ObjectMoveToController;
 class ObjectEventHandlers;
 class Matrix4f;
@@ -590,7 +590,7 @@ public:
 	Vec4f linear_vel; // Just for storing before sending out in a ObjectPhysicsTransformUpdate message.
 	Vec4f angular_vel;
 
-	Reference<LuaScriptEvaluator> lua_script_evaluator;
+	Reference<SubstrataLuaScript> sub_lua_script;
 
 	Reference<ObjectEventHandlers> event_handlers;
 

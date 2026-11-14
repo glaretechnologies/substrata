@@ -7,7 +7,7 @@ Copyright Glare Technologies Limited 2026 -
 
 
 #include "GUIClient.h"
-#include "../shared/LuaScriptEvaluator.h"
+#include "../shared/SubstrataLuaScript.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/WorldStateLock.h"
 #include <lua/LuaScript.h>
@@ -66,24 +66,24 @@ LuaScriptUI::~LuaScriptUI()
 }
 
 
-size_t LuaScriptUI::numWidgetsForScript(LuaScriptEvaluator* script_evaluator) const
+size_t LuaScriptUI::numWidgetsForScript(SubstrataLuaScript* sub_lua_script) const
 {
 	size_t num = 0;
 	for(auto it = widgets.begin(); it != widgets.end(); ++it)
-		if(it->second->script_evaluator == script_evaluator)
+		if(it->second->sub_lua_script == sub_lua_script)
 			num++;
 	return num;
 }
 
 
-int LuaScriptUI::createImage(LuaScriptEvaluator* script_evaluator, const URLString& image_URL, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Vec2f& size_px, bool visible)
+int LuaScriptUI::createImage(SubstrataLuaScript* sub_lua_script, const URLString& image_URL, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Vec2f& size_px, bool visible)
 {
-	if(numWidgetsForScript(script_evaluator) >= MAX_NUM_WIDGETS_PER_SCRIPT)
+	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
 		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
 
 	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
 	widget->id = next_widget_id++;
-	widget->script_evaluator = script_evaluator;
+	widget->sub_lua_script = sub_lua_script;
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = size_px;
@@ -119,14 +119,14 @@ int LuaScriptUI::createImage(LuaScriptEvaluator* script_evaluator, const URLStri
 }
 
 
-int LuaScriptUI::createButton(LuaScriptEvaluator* script_evaluator, const std::string& text, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, LuaVM::LuaValueRef onClick_ref, bool visible)
+int LuaScriptUI::createButton(SubstrataLuaScript* sub_lua_script, const std::string& text, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, LuaVM::LuaValueRef onClick_ref, bool visible)
 {
-	if(numWidgetsForScript(script_evaluator) >= MAX_NUM_WIDGETS_PER_SCRIPT)
+	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
 		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
 
 	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
 	widget->id = next_widget_id++;
-	widget->script_evaluator = script_evaluator;
+	widget->sub_lua_script = sub_lua_script;
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = Vec2f(0.f);
@@ -148,15 +148,15 @@ int LuaScriptUI::createButton(LuaScriptEvaluator* script_evaluator, const std::s
 }
 
 
-int LuaScriptUI::createSlider(LuaScriptEvaluator* script_evaluator, double min_value, double max_value, double initial_value, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Vec2f& size_px,
+int LuaScriptUI::createSlider(SubstrataLuaScript* sub_lua_script, double min_value, double max_value, double initial_value, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Vec2f& size_px,
 	LuaVM::LuaValueRef onChange_ref, bool visible)
 {
-	if(numWidgetsForScript(script_evaluator) >= MAX_NUM_WIDGETS_PER_SCRIPT)
+	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
 		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
 
 	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
 	widget->id = next_widget_id++;
-	widget->script_evaluator = script_evaluator;
+	widget->sub_lua_script = sub_lua_script;
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = size_px;
@@ -182,19 +182,19 @@ int LuaScriptUI::createSlider(LuaScriptEvaluator* script_evaluator, double min_v
 }
 
 
-LuaScriptUIWidget* LuaScriptUI::getWidget(LuaScriptEvaluator* script_evaluator, int id)
+LuaScriptUIWidget* LuaScriptUI::getWidget(SubstrataLuaScript* sub_lua_script, int id)
 {
 	auto res = widgets.find(id);
-	if(res == widgets.end() || (res->second->script_evaluator != script_evaluator)) // Scripts can only access their own widgets.
+	if(res == widgets.end() || (res->second->sub_lua_script != sub_lua_script)) // Scripts can only access their own widgets.
 		return NULL;
 	return res->second.ptr();
 }
 
 
-void LuaScriptUI::destroyWidget(LuaScriptEvaluator* script_evaluator, int id)
+void LuaScriptUI::destroyWidget(SubstrataLuaScript* sub_lua_script, int id)
 {
 	auto res = widgets.find(id);
-	if(res == widgets.end() || (res->second->script_evaluator != script_evaluator))
+	if(res == widgets.end() || (res->second->sub_lua_script != sub_lua_script))
 		return;
 
 	removeWidgetFromUI(*res->second);
@@ -226,11 +226,11 @@ void LuaScriptUI::setSliderValue(LuaScriptUIWidget& widget, double value)
 }
 
 
-void LuaScriptUI::removeWidgetsForScript(LuaScriptEvaluator* script_evaluator)
+void LuaScriptUI::removeWidgetsForScript(SubstrataLuaScript* sub_lua_script)
 {
 	for(auto it = widgets.begin(); it != widgets.end();)
 	{
-		if(it->second->script_evaluator == script_evaluator)
+		if(it->second->sub_lua_script == sub_lua_script)
 		{
 			removeWidgetFromUI(*it->second);
 			it = widgets.erase(it);
@@ -259,7 +259,7 @@ void LuaScriptUI::removeWidgetFromUI(LuaScriptUIWidget& widget)
 
 	if(widget.callback_ref.ref != LUA_NOREF)
 	{
-		widget.script_evaluator->lua_script->freeRefToFunction(widget.callback_ref);
+		widget.sub_lua_script->lua_script->freeRefToFunction(widget.callback_ref);
 		widget.callback_ref = LuaVM::LuaValueRef();
 	}
 }
@@ -289,7 +289,7 @@ void LuaScriptUI::think()
 			{
 				LuaScriptUIWidgetRef widget = res->second; // Hold a reference, as the callback may destroy the widget.
 				if(widget->callback_ref.ref != LUA_NOREF)
-					widget->script_evaluator->doOnUIEvent(widget->callback_ref, gui_client->client_avatar_uid, lock);
+					widget->sub_lua_script->doOnUIEvent(widget->callback_ref, gui_client->client_avatar_uid, lock);
 			}
 		}
 
@@ -301,7 +301,7 @@ void LuaScriptUI::think()
 				LuaScriptUIWidgetRef widget = res->second;
 				widget->slider_change_queued = false;
 				if(widget->callback_ref.ref != LUA_NOREF)
-					widget->script_evaluator->doOnUIValueChangedEvent(widget->callback_ref, widget->slider->getValue(), gui_client->client_avatar_uid, lock);
+					widget->sub_lua_script->doOnUIValueChangedEvent(widget->callback_ref, widget->slider->getValue(), gui_client->client_avatar_uid, lock);
 			}
 		}
 	}

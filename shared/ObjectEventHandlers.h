@@ -6,7 +6,7 @@ Copyright Glare Technologies Limited 2024 -
 #pragma once
 
 
-#include "LuaScriptEvaluator.h"
+#include "SubstrataLuaScript.h"
 #include <utils/ThreadSafeRefCounted.h>
 #include <utils/WeakReference.h>
 #include <vector>
@@ -16,7 +16,7 @@ class WorldStateLock;
 
 struct HandlerFunc
 {
-	WeakReference<LuaScriptEvaluator> script;
+	WeakReference<SubstrataLuaScript> script;
 	LuaVM::LuaValueRef handler_func_ref;
 	const void* function_ptr; // Just used for uniquely identifying functions, not dereferenced.
 

@@ -21,7 +21,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <unordered_map>
 
 
-class LuaScriptEvaluator;
+class SubstrataLuaScript;
 class Server;
 
 
@@ -36,7 +36,7 @@ public:
 	std::string content_type; // For POST
 	std::vector<std::string> additional_headers;
 
-	WeakReference<LuaScriptEvaluator> lua_script_evaluator;
+	WeakReference<SubstrataLuaScript> sub_lua_script;
 	LuaVM::LuaValueRef onDone_ref;
 	LuaVM::LuaValueRef onError_ref;
 };

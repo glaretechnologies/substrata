@@ -565,8 +565,8 @@ SET(shared_files
 ../shared/WorldSettings.h
 ../shared/VoxelMeshBuilding.cpp
 ../shared/VoxelMeshBuilding.h
-../shared/LuaScriptEvaluator.cpp
-../shared/LuaScriptEvaluator.h
+../shared/SubstrataLuaScript.cpp
+../shared/SubstrataLuaScript.h
 ../shared/SubstrataLuaVM.cpp
 ../shared/SubstrataLuaVM.h
 ../shared/ScriptTimerQueue.cpp

@@ -1,9 +1,9 @@
 /*=====================================================================
-LuaScriptEvaluator.cpp
+SubstrataLuaScript.cpp
 ----------------------
 Copyright Glare Technologies Limited 2024 -
 =====================================================================*/
-#include "LuaScriptEvaluator.h"
+#include "SubstrataLuaScript.h"
 
 
 #include "ObjectEventHandlers.h"
@@ -26,28 +26,28 @@ Copyright Glare Technologies Limited 2024 -
 #include <lualib.h>
 
 
-// Sets script_evaluator->cur_world_state_lock pointer to the world_state_lock address for the lifetime of the object.
+// Sets sub_lua_script->cur_world_state_lock pointer to the world_state_lock address for the lifetime of the object.
 // This is so functions that are called from lua code can check that we hold the world state lock.
 class SetCurWorldStateLockClass
 {
 public:
-	SetCurWorldStateLockClass(LuaScriptEvaluator* script_evaluator_, WorldStateLock& world_state_lock)
-	:	script_evaluator(script_evaluator_)
+	SetCurWorldStateLockClass(SubstrataLuaScript* sub_lua_script_, WorldStateLock& world_state_lock)
+	:	sub_lua_script(sub_lua_script_)
 	{
-		script_evaluator_->cur_world_state_lock = &world_state_lock;
+		sub_lua_script_->cur_world_state_lock = &world_state_lock;
 	}
 
 	~SetCurWorldStateLockClass()
 	{
-		script_evaluator->cur_world_state_lock = nullptr;
+		sub_lua_script->cur_world_state_lock = nullptr;
 	}
 
 private:
-	LuaScriptEvaluator* script_evaluator;
+	SubstrataLuaScript* sub_lua_script;
 };
 
 
-LuaScriptEvaluator::LuaScriptEvaluator(const Reference<SubstrataLuaVM>& substrata_lua_vm_, LuaScriptOutputHandler* script_output_handler_, 
+SubstrataLuaScript::SubstrataLuaScript(const Reference<SubstrataLuaVM>& substrata_lua_vm_, LuaScriptOutputHandler* script_output_handler_, 
 	const std::string& script_src, WorldObject* world_object_,
 #if SERVER
 		ServerWorldState* world_state_, // The world that the object belongs to.
@@ -112,7 +112,7 @@ LuaScriptEvaluator::LuaScriptEvaluator(const Reference<SubstrataLuaVM>& substrat
 }
 
 
-LuaScriptEvaluator::~LuaScriptEvaluator()
+SubstrataLuaScript::~SubstrataLuaScript()
 {
 	// Destroy any timers
 	for(int i=0; i<MAX_NUM_TIMERS; ++i)
@@ -123,7 +123,7 @@ LuaScriptEvaluator::~LuaScriptEvaluator()
 }
 
 
-void LuaScriptEvaluator::exec(WorldStateLock& world_state_lock)
+void SubstrataLuaScript::exec(WorldStateLock& world_state_lock)
 {
 	SetCurWorldStateLockClass lock_setter(this, world_state_lock);
 	
@@ -137,7 +137,7 @@ void LuaScriptEvaluator::exec(WorldStateLock& world_state_lock)
 			const LuaScript::LuaFuncRefAndPtr func_info =  lua_script->getRefToFunction("onUserTouchedObject");
 			if(func_info.ref.ref != LUA_NOREF)
 			{
-				HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
+				HandlerFunc handler_func({WeakReference<SubstrataLuaScript>(this), func_info.ref, func_info.func_ptr});
 				if(!world_object->getOrCreateEventHandlers()->onUserTouchedObject_handlers.addHandler(handler_func))
 					lua_script->freeRefToFunction(handler_func.handler_func_ref); // if we failed to add the handler to onUserTouchedObject_handlers, remove the reference to the Lua func here.
 			}
@@ -146,7 +146,7 @@ void LuaScriptEvaluator::exec(WorldStateLock& world_state_lock)
 			const LuaScript::LuaFuncRefAndPtr func_info = lua_script->getRefToFunction("onUserUsedObject");
 			if(func_info.ref.ref != LUA_NOREF)
 			{
-				HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
+				HandlerFunc handler_func({WeakReference<SubstrataLuaScript>(this), func_info.ref, func_info.func_ptr});
 				if(!world_object->getOrCreateEventHandlers()->onUserUsedObject_handlers.addHandler(handler_func))
 					lua_script->freeRefToFunction(handler_func.handler_func_ref);
 			}
@@ -155,7 +155,7 @@ void LuaScriptEvaluator::exec(WorldStateLock& world_state_lock)
 			const LuaScript::LuaFuncRefAndPtr func_info = lua_script->getRefToFunction("onUserMovedNearToObject");
 			if(func_info.ref.ref != LUA_NOREF)
 			{
-				HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
+				HandlerFunc handler_func({WeakReference<SubstrataLuaScript>(this), func_info.ref, func_info.func_ptr});
 				if(!world_object->getOrCreateEventHandlers()->onUserMovedNearToObject_handlers.addHandler(handler_func))
 					lua_script->freeRefToFunction(handler_func.handler_func_ref);
 			}
@@ -164,7 +164,7 @@ void LuaScriptEvaluator::exec(WorldStateLock& world_state_lock)
 			const LuaScript::LuaFuncRefAndPtr func_info = lua_script->getRefToFunction("onUserMovedAwayFromObject");
 			if(func_info.ref.ref != LUA_NOREF)
 			{
-				HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
+				HandlerFunc handler_func({WeakReference<SubstrataLuaScript>(this), func_info.ref, func_info.func_ptr});
 				if(!world_object->getOrCreateEventHandlers()->onUserMovedAwayFromObject_handlers.addHandler(handler_func))
 					lua_script->freeRefToFunction(handler_func.handler_func_ref);
 			}
@@ -173,7 +173,7 @@ void LuaScriptEvaluator::exec(WorldStateLock& world_state_lock)
 			const LuaScript::LuaFuncRefAndPtr func_info = lua_script->getRefToFunction("onUserEnteredParcel");
 			if(func_info.ref.ref != LUA_NOREF)
 			{
-				HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
+				HandlerFunc handler_func({WeakReference<SubstrataLuaScript>(this), func_info.ref, func_info.func_ptr});
 				if(!world_object->getOrCreateEventHandlers()->onUserEnteredParcel_handlers.addHandler(handler_func))
 					lua_script->freeRefToFunction(handler_func.handler_func_ref);
 			}
@@ -182,7 +182,7 @@ void LuaScriptEvaluator::exec(WorldStateLock& world_state_lock)
 			const LuaScript::LuaFuncRefAndPtr func_info = lua_script->getRefToFunction("onUserExitedParcel");
 			if(func_info.ref.ref != LUA_NOREF)
 			{
-				HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
+				HandlerFunc handler_func({WeakReference<SubstrataLuaScript>(this), func_info.ref, func_info.func_ptr});
 				if(!world_object->getOrCreateEventHandlers()->onUserExitedParcel_handlers.addHandler(handler_func))
 					lua_script->freeRefToFunction(handler_func.handler_func_ref);
 			}
@@ -191,7 +191,7 @@ void LuaScriptEvaluator::exec(WorldStateLock& world_state_lock)
 			const LuaScript::LuaFuncRefAndPtr func_info = lua_script->getRefToFunction("onChatMessage");
 			if(func_info.ref.ref != LUA_NOREF)
 			{
-				HandlerFunc handler_func({WeakReference<LuaScriptEvaluator>(this), func_info.ref, func_info.func_ptr});
+				HandlerFunc handler_func({WeakReference<SubstrataLuaScript>(this), func_info.ref, func_info.func_ptr});
 				if(!world_object->getOrCreateEventHandlers()->onChatMessage_handlers.addHandler(handler_func))
 					lua_script->freeRefToFunction(handler_func.handler_func_ref);
 			}
@@ -214,7 +214,7 @@ void LuaScriptEvaluator::exec(WorldStateLock& world_state_lock)
 }
 
 
-void LuaScriptEvaluator::removeScriptUIWidgets()
+void SubstrataLuaScript::removeScriptUIWidgets()
 {
 #if GUI_CLIENT
 	if(substrata_lua_vm->gui_client && substrata_lua_vm->gui_client->lua_script_ui)
@@ -223,9 +223,9 @@ void LuaScriptEvaluator::removeScriptUIWidgets()
 }
 
 
-void LuaScriptEvaluator::doOnUserTouchedObject(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
+void SubstrataLuaScript::doOnUserTouchedObject(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
 {
-	//conPrint("LuaScriptEvaluator: doOnUserTouchedObject");
+	//conPrint("SubstrataLuaScript: doOnUserTouchedObject");
 	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
 
@@ -264,9 +264,9 @@ void LuaScriptEvaluator::doOnUserTouchedObject(LuaVM::LuaValueRef func_ref, UID 
 }
 
 
-void LuaScriptEvaluator::doOnUserUsedObject(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
+void SubstrataLuaScript::doOnUserUsedObject(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
 {
-	//conPrint("LuaScriptEvaluator: doOnUserUsedObject");
+	//conPrint("SubstrataLuaScript: doOnUserUsedObject");
 	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
 
@@ -305,9 +305,9 @@ void LuaScriptEvaluator::doOnUserUsedObject(LuaVM::LuaValueRef func_ref, UID ava
 }
 
 
-void LuaScriptEvaluator::doOnUserMovedNearToObject(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
+void SubstrataLuaScript::doOnUserMovedNearToObject(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
 {
-	//conPrint("LuaScriptEvaluator: doOnUserMovedNearToObject");
+	//conPrint("SubstrataLuaScript: doOnUserMovedNearToObject");
 	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
 
@@ -346,9 +346,9 @@ void LuaScriptEvaluator::doOnUserMovedNearToObject(LuaVM::LuaValueRef func_ref, 
 }
 
 
-void LuaScriptEvaluator::doOnUserMovedAwayFromObject(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
+void SubstrataLuaScript::doOnUserMovedAwayFromObject(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
 {
-	//conPrint("LuaScriptEvaluator: doOnUserMovedAwayFromObject");
+	//conPrint("SubstrataLuaScript: doOnUserMovedAwayFromObject");
 	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
 
@@ -387,9 +387,9 @@ void LuaScriptEvaluator::doOnUserMovedAwayFromObject(LuaVM::LuaValueRef func_ref
 }
 
 
-void LuaScriptEvaluator::doOnUserEnteredParcel(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept
+void SubstrataLuaScript::doOnUserEnteredParcel(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept
 {
-	//conPrint("LuaScriptEvaluator: doOnUserEnteredParcel");
+	//conPrint("SubstrataLuaScript: doOnUserEnteredParcel");
 	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
 
@@ -428,9 +428,9 @@ void LuaScriptEvaluator::doOnUserEnteredParcel(LuaVM::LuaValueRef func_ref, UID 
 }
 
 
-void LuaScriptEvaluator::doOnUserExitedParcel(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept
+void SubstrataLuaScript::doOnUserExitedParcel(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, ParcelID parcel_id, WorldStateLock& world_state_lock) noexcept
 {
-	//conPrint("LuaScriptEvaluator: doOnUserExitedParcel");
+	//conPrint("SubstrataLuaScript: doOnUserExitedParcel");
 	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
 
@@ -469,9 +469,9 @@ void LuaScriptEvaluator::doOnUserExitedParcel(LuaVM::LuaValueRef func_ref, UID a
 }
 
 
-void LuaScriptEvaluator::doOnUserEnteredVehicle(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock) noexcept
+void SubstrataLuaScript::doOnUserEnteredVehicle(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock) noexcept
 {
-	// conPrint("LuaScriptEvaluator: doOnUserEnteredVehicle");
+	// conPrint("SubstrataLuaScript: doOnUserEnteredVehicle");
 	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
 
@@ -507,9 +507,9 @@ void LuaScriptEvaluator::doOnUserEnteredVehicle(LuaVM::LuaValueRef func_ref, UID
 }
 
 
-void LuaScriptEvaluator::doOnUserExitedVehicle(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock) noexcept
+void SubstrataLuaScript::doOnUserExitedVehicle(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID vehicle_ob_uid, WorldStateLock& world_state_lock) noexcept
 {
-	// conPrint("LuaScriptEvaluator: doOnUserExitedVehicle");
+	// conPrint("SubstrataLuaScript: doOnUserExitedVehicle");
 	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
 
@@ -545,9 +545,9 @@ void LuaScriptEvaluator::doOnUserExitedVehicle(LuaVM::LuaValueRef func_ref, UID 
 }
 
 
-void LuaScriptEvaluator::doOnChatMessage(LuaVM::LuaValueRef func_ref, UID avatar_uid, const std::string& message, WorldStateLock& world_state_lock) noexcept
+void SubstrataLuaScript::doOnChatMessage(LuaVM::LuaValueRef func_ref, UID avatar_uid, const std::string& message, WorldStateLock& world_state_lock) noexcept
 {
-	// conPrint("LuaScriptEvaluator: doOnChatMessage");
+	// conPrint("SubstrataLuaScript: doOnChatMessage");
 	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
 
@@ -584,7 +584,7 @@ void LuaScriptEvaluator::doOnChatMessage(LuaVM::LuaValueRef func_ref, UID avatar
 }
 
 
-void LuaScriptEvaluator::doOnTimerEvent(LuaVM::LuaValueRef onTimerEvent_ref, WorldStateLock& world_state_lock) noexcept
+void SubstrataLuaScript::doOnTimerEvent(LuaVM::LuaValueRef onTimerEvent_ref, WorldStateLock& world_state_lock) noexcept
 {
 	if(hit_error)
 		return;
@@ -622,7 +622,7 @@ void LuaScriptEvaluator::doOnTimerEvent(LuaVM::LuaValueRef onTimerEvent_ref, Wor
 }
 
 
-void LuaScriptEvaluator::doOnUIEvent(LuaVM::LuaValueRef func_ref, UID avatar_uid, WorldStateLock& world_state_lock) noexcept
+void SubstrataLuaScript::doOnUIEvent(LuaVM::LuaValueRef func_ref, UID avatar_uid, WorldStateLock& world_state_lock) noexcept
 {
 	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
@@ -656,7 +656,7 @@ void LuaScriptEvaluator::doOnUIEvent(LuaVM::LuaValueRef func_ref, UID avatar_uid
 }
 
 
-void LuaScriptEvaluator::doOnUIValueChangedEvent(LuaVM::LuaValueRef func_ref, double value, UID avatar_uid, WorldStateLock& world_state_lock) noexcept
+void SubstrataLuaScript::doOnUIValueChangedEvent(LuaVM::LuaValueRef func_ref, double value, UID avatar_uid, WorldStateLock& world_state_lock) noexcept
 {
 	if(hit_error || (func_ref.ref == LUA_NOREF))
 		return;
@@ -692,7 +692,7 @@ void LuaScriptEvaluator::doOnUIValueChangedEvent(LuaVM::LuaValueRef func_ref, do
 }
 
 
-void LuaScriptEvaluator::destroyTimer(int timer_index, int timer_id)
+void SubstrataLuaScript::destroyTimer(int timer_index, int timer_id)
 {
 	if(timers[timer_index].id == timer_id)
 	{
@@ -710,7 +710,7 @@ void LuaScriptEvaluator::destroyTimer(int timer_index, int timer_id)
 
 
 // See doHTTPGetRequestAsync in SubstrataLuaVM.cpp
-void LuaScriptEvaluator::doOnError(LuaVM::LuaValueRef onError_ref, int error_code, const std::string& error_description, WorldStateLock& world_state_lock) noexcept
+void SubstrataLuaScript::doOnError(LuaVM::LuaValueRef onError_ref, int error_code, const std::string& error_description, WorldStateLock& world_state_lock) noexcept
 {
 	if(hit_error)
 		return;
@@ -756,7 +756,7 @@ void LuaScriptEvaluator::doOnError(LuaVM::LuaValueRef onError_ref, int error_cod
 
 
 // See doHTTPGetRequestAsync in SubstrataLuaVM.cpp
-void LuaScriptEvaluator::doOnDone(LuaVM::LuaValueRef onDone_ref, Reference<LuaHTTPRequestResult> result, WorldStateLock& world_state_lock) noexcept
+void SubstrataLuaScript::doOnDone(LuaVM::LuaValueRef onDone_ref, Reference<LuaHTTPRequestResult> result, WorldStateLock& world_state_lock) noexcept
 {
 #if SERVER
 	if(hit_error)
@@ -820,7 +820,7 @@ void LuaScriptEvaluator::doOnDone(LuaVM::LuaValueRef onDone_ref, Reference<LuaHT
 static inline bool isLineEndOrEOF(const Parser& parser) { return parser.eof() || (parser.current() == '\r') || (parser.current() == '\n'); }
 
 
-void LuaScriptEvaluator::appendScriptResourceURLs(const string_view script, glare::ArenaAllocator* allocator, DependencyURLVector& urls_out)
+void SubstrataLuaScript::appendScriptResourceURLs(const string_view script, glare::ArenaAllocator* allocator, DependencyURLVector& urls_out)
 {
 	Parser parser(script.data(), script.size());
 	if(!parser.parseString("--lua"))
@@ -857,7 +857,7 @@ void LuaScriptEvaluator::appendScriptResourceURLs(const string_view script, glar
 }
 
 
-bool LuaScriptEvaluator::addScriptResourceDeclaration(std::string& script, const string_view URL)
+bool SubstrataLuaScript::addScriptResourceDeclaration(std::string& script, const string_view URL)
 {
 	const std::string declaration = "-- @resource " + std::string(URL) + "\n";
 
@@ -903,7 +903,7 @@ bool LuaScriptEvaluator::addScriptResourceDeclaration(std::string& script, const
 }
 
 
-bool LuaScriptEvaluator::isResourceURLDeclared(const string_view URL) const
+bool SubstrataLuaScript::isResourceURLDeclared(const string_view URL) const
 {
 	for(size_t i=0; i<resource_URLs.size(); ++i)
 		if(resource_URLs[i].URL == URL)
@@ -912,7 +912,7 @@ bool LuaScriptEvaluator::isResourceURLDeclared(const string_view URL) const
 }
 
 
-void LuaScriptEvaluator::warnAboutUndeclaredResourceURL(const string_view func_name, const string_view URL)
+void SubstrataLuaScript::warnAboutUndeclaredResourceURL(const string_view func_name, const string_view URL)
 {
 	// Don't store or copy URLs that can't be valid resource URLs, as a script can pass arbitrarily large strings.
 	if(URL.size() > WorldObject::MAX_URL_SIZE)
@@ -931,7 +931,7 @@ void LuaScriptEvaluator::warnAboutUndeclaredResourceURL(const string_view func_n
 }
 
 
-void LuaScriptEvaluator::pushUserTableOntoStack(lua_State* state, UserID client_user_id)
+void SubstrataLuaScript::pushUserTableOntoStack(lua_State* state, UserID client_user_id)
 {
 	// Create a table ('user') for arg 1
 	lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/1); // Create table
@@ -945,7 +945,7 @@ void LuaScriptEvaluator::pushUserTableOntoStack(lua_State* state, UserID client_
 }
 
 
-void LuaScriptEvaluator::pushAvatarTableOntoStack(lua_State* state, UID avatar_uid)
+void SubstrataLuaScript::pushAvatarTableOntoStack(lua_State* state, UID avatar_uid)
 {
 	// Create a table ('avatar') for arg 1
 	lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/1); // Create table
@@ -960,7 +960,7 @@ void LuaScriptEvaluator::pushAvatarTableOntoStack(lua_State* state, UID avatar_u
 }
 
 
-void LuaScriptEvaluator::pushWorldObjectTableOntoStack(lua_State* state, UID ob_uid)
+void SubstrataLuaScript::pushWorldObjectTableOntoStack(lua_State* state, UID ob_uid)
 {
 	// Create worldObject table
 	lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/1); // Create table
@@ -974,7 +974,7 @@ void LuaScriptEvaluator::pushWorldObjectTableOntoStack(lua_State* state, UID ob_
 }
 
 
-void LuaScriptEvaluator::pushParcelTableOntoStack(lua_State* state, ParcelID parcel_id)
+void SubstrataLuaScript::pushParcelTableOntoStack(lua_State* state, ParcelID parcel_id)
 {
 	// Create parcel table
 	lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/1); // Create table
@@ -997,7 +997,7 @@ void LuaScriptEvaluator::pushParcelTableOntoStack(lua_State* state, ParcelID par
 static std::vector<std::string> getScriptResourceURLsAsStrings(const std::string& script)
 {
 	DependencyURLVector urls;
-	LuaScriptEvaluator::appendScriptResourceURLs(script, /*allocator=*/nullptr, urls);
+	SubstrataLuaScript::appendScriptResourceURLs(script, /*allocator=*/nullptr, urls);
 
 	std::vector<std::string> res;
 	for(size_t i=0; i<urls.size(); ++i)
@@ -1006,7 +1006,7 @@ static std::vector<std::string> getScriptResourceURLsAsStrings(const std::string
 }
 
 
-void LuaScriptEvaluator::test()
+void SubstrataLuaScript::test()
 {
 #if 1
 	// Scripts without a header

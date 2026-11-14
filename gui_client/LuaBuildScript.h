@@ -59,7 +59,7 @@ Runs a one-shot Luau 'build script', for the run_lua_build_script MCP tool
 (see MCPClientHandler).
 
 Build scripts are a different thing from the per-object scripts run by
-LuaScriptEvaluator: they run once to completion, are not attached to a world
+SubstrataLuaScript: they run once to completion, are not attached to a world
 object, and have their own set of globals, registered per-script so they are
 not visible to object scripts.
 

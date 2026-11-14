@@ -7,7 +7,7 @@ Copyright Glare Technologies Limited 2016 -
 
 
 #include "ResourceManager.h"
-#include "LuaScriptEvaluator.h"
+#include "SubstrataLuaScript.h"
 #include "ObjectEventHandlers.h"
 #include "URLUtils.h"
 #if GUI_CLIENT
@@ -145,7 +145,7 @@ WorldObject::~WorldObject()
 
 	// Destroy Lua event_handlers before we destroy the lua script, so that Lua function refs are freed properly
 	event_handlers = nullptr;
-	lua_script_evaluator = nullptr;
+	sub_lua_script = nullptr;
 }
 
 
@@ -300,7 +300,7 @@ void WorldObject::appendDependencyURLs(int ob_lod_level, const GetDependencyOpti
 
 	// Parse "--@resource URL" dependencies from Lua scripts.  TODO: cache them if the parsing is too slow.
 	if(!script.empty())
-		LuaScriptEvaluator::appendScriptResourceURLs(script, options.allocator, URLs_out);
+		SubstrataLuaScript::appendScriptResourceURLs(script, options.allocator, URLs_out);
 }
 
 
@@ -334,7 +334,7 @@ void WorldObject::appendDependencyURLsForAllLODLevels(const GetDependencyOptions
 
 	// Parse "--@resource URL" dependencies from Lua scripts.  TODO: cache them if the parsing is too slow.
 	if(!script.empty())
-		LuaScriptEvaluator::appendScriptResourceURLs(script, options.allocator, URLs_out);
+		SubstrataLuaScript::appendScriptResourceURLs(script, options.allocator, URLs_out);
 }
 
 
@@ -364,7 +364,7 @@ void WorldObject::appendDependencyURLsBaseLevel(const GetDependencyOptions& opti
 
 	// Parse "--@resource URL" dependencies from Lua scripts.  TODO: cache them if the parsing is too slow.
 	if(!script.empty())
-		LuaScriptEvaluator::appendScriptResourceURLs(script, options.allocator, URLs_out);
+		SubstrataLuaScript::appendScriptResourceURLs(script, options.allocator, URLs_out);
 }
 
 

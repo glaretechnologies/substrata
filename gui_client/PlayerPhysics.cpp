@@ -11,7 +11,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "PhysicsObject.h"
 #include "JoltUtils.h"
 #include "../shared/WorldObject.h"
-#include "../shared/LuaScriptEvaluator.h"
+#include "../shared/SubstrataLuaScript.h"
 #include <utils/StringUtils.h>
 #include <utils/ConPrint.h>
 #include <utils/PlatformUtils.h>

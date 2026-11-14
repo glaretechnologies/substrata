@@ -14,7 +14,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "WorkerThreadUploadPhotoHandling.h"
 #include "WorkerThreadTests.h"
 #include "../shared/WorldObject.h"
-#include "../shared/LuaScriptEvaluator.h"
+#include "../shared/SubstrataLuaScript.h"
 #include "../shared/RateLimiter.h"
 #include "../shared/LODGeneration.h"
 #include "../ethereum/RLP.h"
@@ -125,7 +125,7 @@ void ServerTestSuite::test()
 	runTest([&]() { WorkerThreadTests::test();											});
 	runTest([&]() { glare::testArray();													});
 	runTest([&]() { WorldObject::test();												});
-	runTest([&]() { LuaScriptEvaluator::test();											});
+	runTest([&]() { SubstrataLuaScript::test();											});
 	runTest([&]() { testLRUCache();														});
 	runTest([&]() { TimeStamp::test();													});
 	runTest([&]() { SubEvent::test();													});

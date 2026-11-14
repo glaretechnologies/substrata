@@ -12,7 +12,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "Server.h"
 #include "LuaHTTPRequestManager.h"
 #include "ServerWorldState.h"
-#include "../shared/LuaScriptEvaluator.h"
+#include "../shared/SubstrataLuaScript.h"
 #include "../shared/SubstrataLuaVM.h"
 #include "../shared/WorldObject.h"
 #include "../shared/ObjectEventHandlers.h"
@@ -87,16 +87,16 @@ void ServerLuaScriptTests::test()
 		main_world_state->getObjects(lock)[world_ob2->uid] = world_ob2;
 		main_world_state->getAvatars(lock)[avatar->uid] = avatar;
 		
-		//-------------------------------- Create a LuaScriptEvaluator, don't execute though --------------------------------
+		//-------------------------------- Create a SubstrataLuaScript, don't execute though --------------------------------
 		{
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, "print('hello')", world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "print('hello')", world_ob.ptr(), main_world_state.ptr(), lock);
 		}
 		testEqual(vm.getNumLuaValueReferences(), initial_num_lua_value_refs);
 
-		//-------------------------------- Create a LuaScriptEvaluator, execute --------------------------------
+		//-------------------------------- Create a SubstrataLuaScript, execute --------------------------------
 		{
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, "print('hello')", world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "print('hello')", world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 		}
 		testEqual(vm.getNumLuaValueReferences(), initial_num_lua_value_refs);
 
@@ -105,9 +105,9 @@ void ServerLuaScriptTests::test()
 			const std::string script_src = "print('this_object.uid: ' .. tostring(this_object.uid))  assert(this_object.uid == 123.0)\n";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
+			testAssert(!sub_lua_script->hit_error);
 			testAssert(output_handler.buf == "this_object.uid: 123");
 		}
 		testAssert(vm.getNumLuaValueReferences() == initial_num_lua_value_refs);
@@ -117,9 +117,9 @@ void ServerLuaScriptTests::test()
 			const std::string script_src = "print('IS_SERVER: ' .. tostring(IS_SERVER))  assert(IS_SERVER == true)\n";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
+			testAssert(!sub_lua_script->hit_error);
 			testAssert(output_handler.buf == "IS_SERVER: true");
 		}
 
@@ -128,9 +128,9 @@ void ServerLuaScriptTests::test()
 			const std::string script_src = "print('IS_CLIENT: ' .. tostring(IS_CLIENT))  assert(IS_CLIENT == false)\n";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
+			testAssert(!sub_lua_script->hit_error);
 			testAssert(output_handler.buf == "IS_CLIENT: false");
 		}
 
@@ -143,11 +143,11 @@ void ServerLuaScriptTests::test()
 				"end";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserTouchedObject_handlers.handler_funcs.size() == 1);
-			lua_script_evaluator->doOnUserTouchedObject(world_ob->getOrCreateEventHandlers()->onUserTouchedObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			sub_lua_script->doOnUserTouchedObject(world_ob->getOrCreateEventHandlers()->onUserTouchedObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
+			testAssert(!sub_lua_script->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 touched object 123");
 
 			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
@@ -162,11 +162,11 @@ void ServerLuaScriptTests::test()
 				"end";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserUsedObject_handlers.handler_funcs.size() == 1);
-			lua_script_evaluator->doOnUserUsedObject(world_ob->getOrCreateEventHandlers()->onUserUsedObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			sub_lua_script->doOnUserUsedObject(world_ob->getOrCreateEventHandlers()->onUserUsedObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
+			testAssert(!sub_lua_script->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 used object 123");
 
 			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
@@ -180,11 +180,11 @@ void ServerLuaScriptTests::test()
 				"end";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserMovedNearToObject_handlers.handler_funcs.size() == 1);
-			lua_script_evaluator->doOnUserMovedNearToObject(world_ob->getOrCreateEventHandlers()->onUserMovedNearToObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			sub_lua_script->doOnUserMovedNearToObject(world_ob->getOrCreateEventHandlers()->onUserMovedNearToObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
+			testAssert(!sub_lua_script->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 moved near to object 123");
 
 			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
@@ -198,11 +198,11 @@ void ServerLuaScriptTests::test()
 				"end";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserMovedAwayFromObject_handlers.handler_funcs.size() == 1);
-			lua_script_evaluator->doOnUserMovedAwayFromObject(world_ob->getOrCreateEventHandlers()->onUserMovedAwayFromObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			sub_lua_script->doOnUserMovedAwayFromObject(world_ob->getOrCreateEventHandlers()->onUserMovedAwayFromObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
+			testAssert(!sub_lua_script->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 moved away from object 123");
 
 			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
@@ -216,11 +216,11 @@ void ServerLuaScriptTests::test()
 				"end";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserEnteredParcel_handlers.handler_funcs.size() == 1);
-			lua_script_evaluator->doOnUserEnteredParcel(world_ob->getOrCreateEventHandlers()->onUserEnteredParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			sub_lua_script->doOnUserEnteredParcel(world_ob->getOrCreateEventHandlers()->onUserEnteredParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
+			testAssert(!sub_lua_script->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 entered parcel 789");
 
 			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
@@ -234,11 +234,11 @@ void ServerLuaScriptTests::test()
 				"end";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs.size() == 1);
-			lua_script_evaluator->doOnUserExitedParcel(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			sub_lua_script->doOnUserExitedParcel(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
+			testAssert(!sub_lua_script->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 exited parcel 789");
 
 			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
@@ -256,14 +256,14 @@ void ServerLuaScriptTests::test()
 				"addEventListener('onUserEnteredVehicle', 123, onUserEnteredVehicle)   \n";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserEnteredVehicle_handlers.handler_funcs.size() == 1);
 			const UID previous_vehicle_uid = avatar->vehicle_inside_uid;
 			avatar->vehicle_inside_uid = world_ob->uid;
-			lua_script_evaluator->doOnUserEnteredVehicle(world_ob->getOrCreateEventHandlers()->onUserEnteredVehicle_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
+			sub_lua_script->doOnUserEnteredVehicle(world_ob->getOrCreateEventHandlers()->onUserEnteredVehicle_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
 			avatar->vehicle_inside_uid = previous_vehicle_uid;
-			testAssert(!lua_script_evaluator->hit_error);
+			testAssert(!sub_lua_script->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 entered vehicle 123");
 
 			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
@@ -278,11 +278,11 @@ void ServerLuaScriptTests::test()
 				"addEventListener('onUserExitedVehicle', 123, onUserExitedVehicle)   \n";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserExitedVehicle_handlers.handler_funcs.size() == 1);
-			lua_script_evaluator->doOnUserExitedVehicle(world_ob->getOrCreateEventHandlers()->onUserExitedVehicle_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			sub_lua_script->doOnUserExitedVehicle(world_ob->getOrCreateEventHandlers()->onUserExitedVehicle_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
+			testAssert(!sub_lua_script->hit_error);
 			testAssert(output_handler.buf == "Avatar 456 exited vehicle 123");
 
 			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
@@ -299,14 +299,14 @@ void ServerLuaScriptTests::test()
 				"createTimer(onTimerEvent, 0.1, false)	";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 
-			testAssert(lua_script_evaluator->timers[0].id == lua_script_evaluator->next_timer_id - 1);
+			testAssert(sub_lua_script->timers[0].id == sub_lua_script->next_timer_id - 1);
 			
-			lua_script_evaluator->doOnTimerEvent(lua_script_evaluator->timers[0].onTimerEvent_ref, lock);
+			sub_lua_script->doOnTimerEvent(sub_lua_script->timers[0].onTimerEvent_ref, lock);
 
-			testAssert(!lua_script_evaluator->hit_error);
+			testAssert(!sub_lua_script->hit_error);
 			testAssert(output_handler.buf == "onTimerEvent");
 		}
 
@@ -320,12 +320,12 @@ void ServerLuaScriptTests::test()
 				"destroyTimer(timer_handle)";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 
-			testAssert(lua_script_evaluator->timers[0].id == -1);
+			testAssert(sub_lua_script->timers[0].id == -1);
 
-			testAssert(!lua_script_evaluator->hit_error);
+			testAssert(!sub_lua_script->hit_error);
 			testAssert(output_handler.buf == "");
 		}
 
@@ -342,21 +342,21 @@ void ServerLuaScriptTests::test()
 				"destroyTimer(123)"; // Test destroying an invalid timer, should have no effect.
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 
 			for(int i=0; i<4; ++i)
-				testAssert(lua_script_evaluator->timers[i].id == -1);
+				testAssert(sub_lua_script->timers[i].id == -1);
 
-			testAssert(!lua_script_evaluator->hit_error);
+			testAssert(!sub_lua_script->hit_error);
 			testAssert(output_handler.buf == "");
 		}
 
 		// -1 identifies a free slot internally. It must never be accepted as a Lua handle.
 		{
 			testThrowsExcepContainingString([&]() {
-				Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, "destroyTimer(-1)", world_ob.ptr(), main_world_state.ptr(), lock);
-				evaluator->exec(lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "destroyTimer(-1)", world_ob.ptr(), main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
 			}, "Invalid timer ID");
 		}
 
@@ -375,12 +375,12 @@ void ServerLuaScriptTests::test()
 				"    end\n"
 				"    for i = 4, 1, -1 do destroyTimer(handles[i]) end\n"
 				"end";
-			Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			evaluator->exec(lock);
-			for(int i=0; i<LuaScriptEvaluator::MAX_NUM_TIMERS; ++i)
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
+			for(int i=0; i<SubstrataLuaScript::MAX_NUM_TIMERS; ++i)
 			{
-				testAssert(evaluator->timers[i].id == -1);
-				testAssert(evaluator->timers[i].onTimerEvent_ref.ref == LUA_NOREF);
+				testAssert(sub_lua_script->timers[i].id == -1);
+				testAssert(sub_lua_script->timers[i].onTimerEvent_ref.ref == LUA_NOREF);
 			}
 		}
 
@@ -396,26 +396,26 @@ void ServerLuaScriptTests::test()
 
 			server.timer_queue.clear();
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 
 			std::vector<ScriptTimerQueueTimer> triggered;
 			server.timer_queue.update(server.total_timer.elapsed() + 1.0, triggered);
 			testAssert(triggered.size() == 1);
 			const ScriptTimerQueueTimer first = triggered[0];
-			evaluator->doOnTimerEvent(first.onTimerEvent_ref, lock);
-			testAssert(!evaluator->hit_error);
-			evaluator->destroyTimer(first.timer_index, first.timer_id); // Post-callback cleanup for the original one-shot.
+			sub_lua_script->doOnTimerEvent(first.onTimerEvent_ref, lock);
+			testAssert(!sub_lua_script->hit_error);
+			sub_lua_script->destroyTimer(first.timer_index, first.timer_id); // Post-callback cleanup for the original one-shot.
 
 			server.timer_queue.update(server.total_timer.elapsed() + 1.0, triggered);
 			testAssert(triggered.size() == 1);
 			const ScriptTimerQueueTimer& replacement = triggered[0];
 			testAssert(replacement.timer_index == first.timer_index && replacement.timer_id != first.timer_id);
-			testAssert(evaluator->timers[replacement.timer_index].id == replacement.timer_id);
-			evaluator->doOnTimerEvent(replacement.onTimerEvent_ref, lock);
-			testAssert(!evaluator->hit_error && output_handler.buf == "replacement");
-			evaluator->destroyTimer(replacement.timer_index, replacement.timer_id);
-			testAssert(evaluator->timers[replacement.timer_index].onTimerEvent_ref.ref == LUA_NOREF);
+			testAssert(sub_lua_script->timers[replacement.timer_index].id == replacement.timer_id);
+			sub_lua_script->doOnTimerEvent(replacement.onTimerEvent_ref, lock);
+			testAssert(!sub_lua_script->hit_error && output_handler.buf == "replacement");
+			sub_lua_script->destroyTimer(replacement.timer_index, replacement.timer_id);
+			testAssert(sub_lua_script->timers[replacement.timer_index].onTimerEvent_ref.ref == LUA_NOREF);
 		}
 		testEqual(vm.getNumLuaValueReferences(), initial_num_lua_value_refs);
 
@@ -425,8 +425,8 @@ void ServerLuaScriptTests::test()
 				"local timer_handle = createTimer(nil, 0.1, false)	";
 			// Should get: createTimer(): arg 1 must be a function
 			testThrowsExcepContainingString([&]() { 
-					Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-					evaluator->exec(lock);
+					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+					sub_lua_script->exec(lock);
 				},
 				"arg 1 must be a function"
 			);
@@ -442,8 +442,8 @@ void ServerLuaScriptTests::test()
 				"for i=1, 10 do  createTimer(onTimerEvent, 0.1, false)	end";
 			// Should get: createTimer(): arg 1 must be a function
 			testThrowsExcepContainingString([&]() { 
-					Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-					evaluator->exec(lock);
+					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+					sub_lua_script->exec(lock);
 				},
 				"Could not create timer"
 			);
@@ -465,24 +465,24 @@ void ServerLuaScriptTests::test()
 			output_handler.buf.clear();
 			server.timer_queue.clear();
 
-			temp_world_ob->lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, temp_world_ob.ptr(), main_world_state.ptr(), lock);
-			temp_world_ob->lua_script_evaluator->exec(lock);
+			temp_world_ob->sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, temp_world_ob.ptr(), main_world_state.ptr(), lock);
+			temp_world_ob->sub_lua_script->exec(lock);
 
-			testAssert(temp_world_ob->lua_script_evaluator->timers[0].id == temp_world_ob->lua_script_evaluator->next_timer_id - 1);
+			testAssert(temp_world_ob->sub_lua_script->timers[0].id == temp_world_ob->sub_lua_script->next_timer_id - 1);
 			
 			// The timer event should have got added to the server timer queue.  Dequeue it.
 			std::vector<ScriptTimerQueueTimer> triggered_timers;
 			server.timer_queue.update(/*cur time=*/server.total_timer.elapsed() + 1.0, triggered_timers);
 			testAssert(triggered_timers.size() == 1);
 
-			testAssert(triggered_timers[0].lua_script_evaluator.getPtrIfAlive() == temp_world_ob->lua_script_evaluator.ptr());
+			testAssert(triggered_timers[0].sub_lua_script.getPtrIfAlive() == temp_world_ob->sub_lua_script.ptr());
 
 			// Delete the ob
 			main_world_state->getObjects(lock).erase(temp_world_ob->uid);
 			temp_world_ob = nullptr;
 
-			// Test the weak reference notices that the object and its lua_script_evaluator has been destroyed
-			testAssert(triggered_timers[0].lua_script_evaluator.getPtrIfAlive() == nullptr);
+			// Test the weak reference notices that the object and its sub_lua_script has been destroyed
+			testAssert(triggered_timers[0].sub_lua_script.getPtrIfAlive() == nullptr);
 		}
 		testEqual(vm.getNumLuaValueReferences(), initial_num_lua_value_refs);
 
@@ -496,14 +496,14 @@ void ServerLuaScriptTests::test()
 				"createTimer(onTimerEvent, 0.1, false)							\n";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 
-			testAssert(lua_script_evaluator->timers[0].id == lua_script_evaluator->next_timer_id - 1);
+			testAssert(sub_lua_script->timers[0].id == sub_lua_script->next_timer_id - 1);
 
-			lua_script_evaluator->doOnTimerEvent(lua_script_evaluator->timers[0].onTimerEvent_ref, lock);
+			sub_lua_script->doOnTimerEvent(sub_lua_script->timers[0].onTimerEvent_ref, lock);
 
-			testAssert(!lua_script_evaluator->hit_error);
+			testAssert(!sub_lua_script->hit_error);
 			testAssert(output_handler.buf == "onTimerEvent");
 		}
 
@@ -518,14 +518,14 @@ void ServerLuaScriptTests::test()
 				"timer_handle = createTimer(onTimerEvent, 0.1, false)			\n";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 
-			testAssert(lua_script_evaluator->timers[0].id == lua_script_evaluator->next_timer_id - 1);
+			testAssert(sub_lua_script->timers[0].id == sub_lua_script->next_timer_id - 1);
 
-			lua_script_evaluator->doOnTimerEvent(lua_script_evaluator->timers[0].onTimerEvent_ref, lock);
+			sub_lua_script->doOnTimerEvent(sub_lua_script->timers[0].onTimerEvent_ref, lock);
 
-			testAssert(!lua_script_evaluator->hit_error);
+			testAssert(!sub_lua_script->hit_error);
 			testAssert(output_handler.buf == "onTimerEvent");
 		}
 		testEqual(vm.getNumLuaValueReferences(), initial_num_lua_value_refs);
@@ -534,22 +534,22 @@ void ServerLuaScriptTests::test()
 		//-------------------------------- Test getObjectForUID --------------------------------
 		{ // Test successful getObjectForUID call
 			const std::string script_src = "local ob = getObjectForUID(123)";
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 		}
 		{ // Look up a different object from a coroutine and use the returned handle on the root thread.
 			const std::string script_src =
 				"local ob = coroutine.wrap(function() return getObjectForUID(124) end)()\n"
 				"assert(type(ob) == 'table' and ob.uid == 124)\n"
 				"assert(getmetatable(ob) == getmetatable(this_object))";
-			Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 		}
 		{ // Test unsuccessful getObjectForUID call
 			const std::string script_src = "local ob = getObjectForUID(6544234)";
 			testThrowsExcepContainingString([&]() { 
-					Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-					evaluator->exec(lock); 
+					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+					sub_lua_script->exec(lock); 
 				}, 
 				"No object with UID 6544234"
 			);
@@ -559,29 +559,29 @@ void ServerLuaScriptTests::test()
 		//-------------------------------- Test getCurrentTime --------------------------------
 		{
 			const std::string script_src = "getCurrentTime()";
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 		}
 
 		//-------------------------------- Test showMessageToUser --------------------------------
 		{
 			const std::string script_src = "local avatar = {uid=456}   showMessageToUser('hello thar', avatar)";
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 		}
 		{ // Test invalid showMessageToUser call (avatar has no uid field)
 			const std::string script_src = "local avatar = {}   showMessageToUser('hello thar', avatar)";
 			testExceptionExpected([&]() { 
-				Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-				evaluator->exec(lock); 
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock); 
 			});
 
 		}
 		{ // Test invalid showMessageToUser call (avatar not a table)
 			const std::string script_src = "local avatar = 123.0   showMessageToUser('hello thar', avatar)";
 			testExceptionExpected([&]() { 
-				Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-				evaluator->exec(lock); 
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock); 
 			});
 		}
 
@@ -595,11 +595,11 @@ void ServerLuaScriptTests::test()
 				"addEventListener('onUserTouchedObject', 124, onUserTouchedObject)			";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 
 			testAssert(world_ob2->event_handlers && world_ob2->event_handlers->onUserTouchedObject_handlers.nonEmpty());
-			testAssert(world_ob2->event_handlers->onUserTouchedObject_handlers.handler_funcs[0].script.getPtrIfAlive() == lua_script_evaluator.ptr());
+			testAssert(world_ob2->event_handlers->onUserTouchedObject_handlers.handler_funcs[0].script.getPtrIfAlive() == sub_lua_script.ptr());
 
 			// Execute the event handler
 			world_ob2->event_handlers->executeOnUserTouchedObjectHandlers(avatar->uid, world_ob2->uid, lock);
@@ -620,11 +620,11 @@ void ServerLuaScriptTests::test()
 				"addEventListener('onUserTouchedObject', 124, onUserTouchedObject)			\n";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 
 			testAssert(world_ob2->event_handlers && world_ob2->event_handlers->onUserTouchedObject_handlers.handler_funcs.size() == 1);
-			testAssert(world_ob2->event_handlers->onUserTouchedObject_handlers.handler_funcs[0].script.getPtrIfAlive() == lua_script_evaluator.ptr());
+			testAssert(world_ob2->event_handlers->onUserTouchedObject_handlers.handler_funcs[0].script.getPtrIfAlive() == sub_lua_script.ptr());
 
 			// Execute the event handler
 			world_ob2->event_handlers->executeOnUserTouchedObjectHandlers(avatar->uid, world_ob2->uid, lock);
@@ -646,11 +646,11 @@ void ServerLuaScriptTests::test()
 				"addEventListener('onUserTouchedObject', 123, onUserTouchedObject)			\n"; // Try and add the same listener to the same object
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 
 			testAssert(world_ob->event_handlers && world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs.size() == 1);
-			testAssert(world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs[0].script.getPtrIfAlive() == lua_script_evaluator.ptr());
+			testAssert(world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs[0].script.getPtrIfAlive() == sub_lua_script.ptr());
 
 			// Execute the event handler
 			world_ob->event_handlers->executeOnUserTouchedObjectHandlers(avatar->uid, world_ob->uid, lock);
@@ -672,11 +672,11 @@ void ServerLuaScriptTests::test()
 				")																								\n";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 
 			testAssert(world_ob->event_handlers && world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs.size() == 1);
-			testAssert(world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs[0].script.getPtrIfAlive() == lua_script_evaluator.ptr());
+			testAssert(world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs[0].script.getPtrIfAlive() == sub_lua_script.ptr());
 
 			// Execute the event handler
 			world_ob->event_handlers->executeOnUserTouchedObjectHandlers(avatar->uid, world_ob->uid, lock);
@@ -699,11 +699,11 @@ void ServerLuaScriptTests::test()
 				"end																							\n";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 
 			testAssert(world_ob->event_handlers && world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs.size() == 1);
-			testAssert(world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs[0].script.getPtrIfAlive() == lua_script_evaluator.ptr());
+			testAssert(world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs[0].script.getPtrIfAlive() == sub_lua_script.ptr());
 
 			// Execute the event handler
 			world_ob->event_handlers->executeOnUserTouchedObjectHandlers(avatar->uid, world_ob->uid, lock);
@@ -729,11 +729,11 @@ void ServerLuaScriptTests::test()
 				"end																								\n";
 
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 
 			testAssert(world_ob->event_handlers && world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs.size() == 1);
-			testAssert(world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs[0].script.getPtrIfAlive() == lua_script_evaluator.ptr());
+			testAssert(world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs[0].script.getPtrIfAlive() == sub_lua_script.ptr());
 
 			// Execute the event handler
 			world_ob->event_handlers->executeOnUserTouchedObjectHandlers(avatar->uid, world_ob->uid, lock);
@@ -752,8 +752,8 @@ void ServerLuaScriptTests::test()
 				"addEventListener('notAnEvent', 124, onUserTouchedObject)			\n";
 
 			testThrowsExcepContainingString([&]() { 
-					Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-					evaluator->exec(lock); 
+					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+					sub_lua_script->exec(lock); 
 				}, 
 				"Unknown event"
 			);
@@ -768,8 +768,8 @@ void ServerLuaScriptTests::test()
 				"addEventListener('notAnEvent', 124111111, onUserTouchedObject)			\n";
 
 			testThrowsExcepContainingString([&]() { 
-					Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-					evaluator->exec(lock); 
+					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+					sub_lua_script->exec(lock); 
 				}, 
 				"No object"
 			);
@@ -784,7 +784,7 @@ void ServerLuaScriptTests::test()
 				"end				\n"
 				"for i=1, 10000 do addEventListener('onUserTouchedObject', 124, onUserTouchedObject)		end	\n";
 
-			testThrowsExcepContainingString([&]() { new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock); }, "too many event listeners");
+			testThrowsExcepContainingString([&]() { new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock); }, "too many event listeners");
 		}*/
 
 		// Test addEventListener called from a script that is then destroyed.
@@ -803,11 +803,11 @@ void ServerLuaScriptTests::test()
 			temp_world_ob->uid = UID(200);
 			main_world_state->getObjects(lock)[temp_world_ob->uid] = temp_world_ob;
 
-			temp_world_ob->lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, temp_world_ob.ptr(), main_world_state.ptr(), lock);
-			temp_world_ob->lua_script_evaluator->exec(lock);
+			temp_world_ob->sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, temp_world_ob.ptr(), main_world_state.ptr(), lock);
+			temp_world_ob->sub_lua_script->exec(lock);
 
 			testAssert(world_ob2->event_handlers && world_ob2->event_handlers->onUserTouchedObject_handlers.handler_funcs.size() == 1);
-			testAssert(world_ob2->event_handlers->onUserTouchedObject_handlers.handler_funcs[0].script.getPtrIfAlive() == temp_world_ob->lua_script_evaluator.ptr());
+			testAssert(world_ob2->event_handlers->onUserTouchedObject_handlers.handler_funcs[0].script.getPtrIfAlive() == temp_world_ob->sub_lua_script.ptr());
 
 			// Execute the event handler
 			world_ob2->event_handlers->executeOnUserTouchedObjectHandlers(avatar->uid, world_ob2->uid, lock);
@@ -833,8 +833,8 @@ void ServerLuaScriptTests::test()
 
 			server.world_state->object_storage_items.clear();
 
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 
 			testAssert(server.world_state->object_storage_items.size() == 1);
 			const ObjectStorageKey key(world_ob->uid, "a");
@@ -849,8 +849,8 @@ void ServerLuaScriptTests::test()
 
 			server.world_state->object_storage_items.clear();
 
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 
 			testAssert(server.world_state->object_storage_items.size() == 1);
 			const ObjectStorageKey key(world_ob->uid, "a");
@@ -863,8 +863,8 @@ void ServerLuaScriptTests::test()
 		{
 			testThrowsExcepContainingString([&]() { 
 				const std::string script_src = "for i=1,2000 do objectstorage.setItem(tostring(i), i) end";
-				Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-				lua_script_evaluator->exec(lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
 			},
 			"Too many object storage items for object");
 		}
@@ -879,13 +879,13 @@ void ServerLuaScriptTests::test()
 				"		i += 1																	\n"
 				"end";
 
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs.size() == 1);
 
 			for(int i=0; i<2000; ++i)
-				lua_script_evaluator->doOnUserExitedParcel(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
-			testAssert(lua_script_evaluator->hit_error);
+				sub_lua_script->doOnUserExitedParcel(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
+			testAssert(sub_lua_script->hit_error);
 
 			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
 		}
@@ -894,8 +894,8 @@ void ServerLuaScriptTests::test()
 		{
 			testThrowsExcepContainingString([&]() { 
 				const std::string script_src = "objectstorage.setItem({a=1.0}, 1000.0)";
-				Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-				lua_script_evaluator->exec(lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
 			},
 			"Argument 1 was not a string");
 		}
@@ -904,8 +904,8 @@ void ServerLuaScriptTests::test()
 		{
 			testThrowsExcepContainingString([&]() { 
 				const std::string script_src = "objectstorage.setItem('" + std::string(1000, 'a') + "', 1000.0)";
-				Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-				lua_script_evaluator->exec(lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
 			},
 			"Key is too long");
 		}
@@ -919,8 +919,8 @@ void ServerLuaScriptTests::test()
 					"	t[i] = i		\n"
 					"end				\n"
 					"objectstorage.setItem('a', t)";
-				Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-				lua_script_evaluator->exec(lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
 			},
 			"Serialised data exceeded max_serialised_size_B");
 		}
@@ -934,8 +934,8 @@ void ServerLuaScriptTests::test()
 
 			server.world_state->clearObjectStorageItems();
 
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 
 			testAssert(server.world_state->object_storage_items.size() == 1);
 			const ObjectStorageKey key(world_ob->uid, "a");
@@ -953,8 +953,8 @@ void ServerLuaScriptTests::test()
 
 			server.world_state->clearObjectStorageItems();
 
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 		}
 
 		// Test serialising and deserialising a Vec3d
@@ -968,8 +968,8 @@ void ServerLuaScriptTests::test()
 
 			server.world_state->clearObjectStorageItems();
 
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 
 			testAssert(server.world_state->object_storage_items.size() == 1);
 			const ObjectStorageKey key(world_ob->uid, "a");
@@ -989,11 +989,11 @@ void ServerLuaScriptTests::test()
 
 			world_ob->event_handlers = NULL;
 			server.world_state->clearObjectStorageItems();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs.size() == 1);
-			lua_script_evaluator->doOnUserExitedParcel(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			sub_lua_script->doOnUserExitedParcel(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
+			testAssert(!sub_lua_script->hit_error);
 
 			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
 		}
@@ -1010,11 +1010,11 @@ void ServerLuaScriptTests::test()
 
 			world_ob->event_handlers = NULL;
 			server.world_state->clearObjectStorageItems();
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs.size() == 1);
-			lua_script_evaluator->doOnUserExitedParcel(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			sub_lua_script->doOnUserExitedParcel(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
+			testAssert(!sub_lua_script->hit_error);
 
 			world_ob->event_handlers = nullptr; // Free ObjectEventHandlers, which frees references to Lua event handler functions.
 		}
@@ -1027,8 +1027,8 @@ void ServerLuaScriptTests::test()
 
 			server.world_state->clearObjectStorageItems();
 
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 
 			testAssert(server.world_state->object_storage_items.size() == 0); // Check didn't add item
 		}
@@ -1037,8 +1037,8 @@ void ServerLuaScriptTests::test()
 		{
 			testThrowsExcepContainingString([&]() { 
 				const std::string script_src = "objectstorage.getItem({a=1.0})";
-				Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-				lua_script_evaluator->exec(lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
 			},
 			"Argument 1 was not a string");
 		}
@@ -1049,9 +1049,9 @@ void ServerLuaScriptTests::test()
 				"local x = parseJSON('123.456')						\n"
 				"assert(x == 123.456)								\n";
 
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
+			testAssert(!sub_lua_script->hit_error);
 		}
 
 		// Test converting an array
@@ -1065,9 +1065,9 @@ void ServerLuaScriptTests::test()
 				"assert(x[3] == 'abc')											\n"
 				"assert(x[4] == nil)											\n";
 
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
+			testAssert(!sub_lua_script->hit_error);
 		}
 
 		// Test converting an object
@@ -1081,9 +1081,9 @@ void ServerLuaScriptTests::test()
 				"assert(x['c'] == 'abc')										\n"
 				"assert(x['d'] == nil)											\n";
 
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
+			testAssert(!sub_lua_script->hit_error);
 		}
 
 		// Test converting a nested object
@@ -1097,9 +1097,9 @@ void ServerLuaScriptTests::test()
 				"print(x[1])													\n"
 				"assert(c == 100.0)												\n";
 
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
+			testAssert(!sub_lua_script->hit_error);
 		}
 
 		// Test converting an empty object
@@ -1109,9 +1109,9 @@ void ServerLuaScriptTests::test()
 				"print(x)														\n"
 				"assert(#x == 0)												\n";
 
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
+			testAssert(!sub_lua_script->hit_error);
 		}
 
 		// Test converting an empty array
@@ -1121,9 +1121,9 @@ void ServerLuaScriptTests::test()
 				"print(x)														\n"
 				"assert(#x == 0)												\n";
 
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
+			testAssert(!sub_lua_script->hit_error);
 		}
 
 		// Test converting just null
@@ -1132,9 +1132,9 @@ void ServerLuaScriptTests::test()
 				"local x = parseJSON('null')									\n"
 				"assert(x == nil)												\n";
 
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
+			testAssert(!sub_lua_script->hit_error);
 		}
 
 		// Test converting a deeply nested object
@@ -1145,50 +1145,50 @@ void ServerLuaScriptTests::test()
 			script_src += "{}" + std::string(100, '}') + "')						\n"
 				"												\n";
 			//conPrint(script_src);
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
+			testAssert(!sub_lua_script->hit_error);
 		}
 		// Test converting a deeply nested array
 		{
 			std::string script_src = "local x = parseJSON('" + 
 				std::string(100, '[') + "[]" + std::string(100, ']') + "')						\n";
 			//conPrint(script_src);
-			Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			lua_script_evaluator->exec(lock);
-			testAssert(!lua_script_evaluator->hit_error);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
+			testAssert(!sub_lua_script->hit_error);
 		}
 
 		// Test some invalid json
 		testThrowsExcepContainingString([&]()
 			{
 				std::string script_src = "local x = parseJSON(' ')    ";
-				Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-				lua_script_evaluator->exec(lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
 			},
 			"Error while parsing JSON:"
 		);
 		testThrowsExcepContainingString([&]()
 			{
 				std::string script_src = "local x = parseJSON('[[[')    ";
-				Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-				lua_script_evaluator->exec(lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
 			},
 			"Error while parsing JSON:"
 		);
 		testThrowsExcepContainingString([&]()
 			{
 				std::string script_src = "local x = parseJSON('truAAA')    ";
-				Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-				lua_script_evaluator->exec(lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
 			},
 			"Error while parsing JSON:"
 		);
 		testThrowsExcepContainingString([&]()
 			{
 				std::string script_src = "local x = parseJSON(true)    ";
-				Reference<LuaScriptEvaluator> lua_script_evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-				lua_script_evaluator->exec(lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
 			},
 			"was not a string"
 		);
@@ -1223,13 +1223,13 @@ void ServerLuaScriptTests::test()
 					std::string(test_case == ErrorCallbackThrows ? "    error('HTTP callback failed')\n" : "") +
 					"end\n";
 				output_handler.buf.clear();
-				Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-				evaluator->exec(lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
 				const int refs_with_script = vm.getNumLuaValueReferences();
 				Reference<LuaHTTPRequest> request = new LuaHTTPRequest();
-				request->lua_script_evaluator = evaluator;
-				request->onDone_ref = evaluator->lua_script->getRefToFunction("httpDone").ref;
-				request->onError_ref = evaluator->lua_script->getRefToFunction("httpError").ref;
+				request->sub_lua_script = sub_lua_script;
+				request->onDone_ref = sub_lua_script->lua_script->getRefToFunction("httpDone").ref;
+				request->onError_ref = sub_lua_script->lua_script->getRefToFunction("httpError").ref;
 				testEqual(vm.getNumLuaValueReferences(), refs_with_script + 2);
 
 				Reference<LuaHTTPRequestResult> result = new LuaHTTPRequestResult();
@@ -1248,10 +1248,10 @@ void ServerLuaScriptTests::test()
 				http_manager.enqueueResult(result);
 
 				if(test_case == ScriptAlreadyErrored)
-					evaluator->hit_error = true;
+					sub_lua_script->hit_error = true;
 				if(test_case == ScriptDestroyed)
 				{
-					evaluator = nullptr;
+					sub_lua_script = nullptr;
 					testEqual(vm.getNumLuaValueReferences(), refs_before_script);
 				}
 
@@ -1260,12 +1260,12 @@ void ServerLuaScriptTests::test()
 					testAssert(output_handler.buf.empty());
 				else if(test_case == SuccessCallbackThrows || test_case == ErrorCallbackThrows)
 				{
-					testAssert(evaluator->hit_error);
+					testAssert(sub_lua_script->hit_error);
 					testAssert(output_handler.buf.find("HTTP callback failed") != std::string::npos);
 				}
 				else
 				{
-					testAssert(!evaluator->hit_error);
+					testAssert(!sub_lua_script->hit_error);
 					testEqual(output_handler.buf, std::string(error_result ? "error" : "done"));
 				}
 				// Both callbacks (including the unused one) must be released while the script is still alive.
@@ -1273,7 +1273,7 @@ void ServerLuaScriptTests::test()
 				const std::string output_after_completion = output_handler.buf;
 				http_manager.think();
 				testEqual(output_handler.buf, output_after_completion);
-				evaluator = nullptr;
+				sub_lua_script = nullptr;
 				testEqual(vm.getNumLuaValueReferences(), refs_before_script);
 			}
 		}
@@ -1299,8 +1299,8 @@ void ServerLuaScriptTests::test()
 					bool caught_disabled_exception = false;
 					try
 					{
-						Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-						evaluator->exec(lock);
+						Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+						sub_lua_script->exec(lock);
 					}
 					catch(const glare::Exception& e)
 					{
@@ -1337,23 +1337,23 @@ void ServerLuaScriptTests::test()
 				"end\n"
 				"doHTTPGetRequestAsync('https://forwardscattering.org/post/3', {}, done, failed)\n";
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 			testEqual(vm.getNumLuaValueReferences(), refs_before_script + 3); // Thread and two pending callbacks.
 
 			Timer request_timer;
-			while(output_handler.buf.empty() && !evaluator->hit_error && request_timer.elapsed() < 30.0)
+			while(output_handler.buf.empty() && !sub_lua_script->hit_error && request_timer.elapsed() < 30.0)
 			{
 				server.lua_http_manager->think();
-				if(output_handler.buf.empty() && !evaluator->hit_error)
+				if(output_handler.buf.empty() && !sub_lua_script->hit_error)
 					PlatformUtils::Sleep(10);
 			}
 
 			// Stop the workers (including any timed-out download) before reporting a test failure.
 			server.lua_http_manager = nullptr;
-			if(output_handler.buf.empty() && !evaluator->hit_error)
+			if(output_handler.buf.empty() && !sub_lua_script->hit_error)
 				failTest("Timed out waiting for Lua HTTP GET https://forwardscattering.org/post/3");
-			testAssert(!evaluator->hit_error);
+			testAssert(!sub_lua_script->hit_error);
 			testAssert(::hasPrefix(output_handler.buf, "<!DOCTYPE html>"));
 			testAssert(output_handler.buf.find("<html") != std::string::npos);
 			testAssert(output_handler.buf.find("</html>") != std::string::npos);
@@ -1361,7 +1361,7 @@ void ServerLuaScriptTests::test()
 			testAssert(output_handler.buf.size() >= completion_message.size());
 			testEqual(output_handler.buf.substr(output_handler.buf.size() - completion_message.size()), completion_message);
 			testEqual(vm.getNumLuaValueReferences(), refs_before_script + 1); // Both callback references were released.
-			evaluator = nullptr;
+			sub_lua_script = nullptr;
 			testEqual(vm.getNumLuaValueReferences(), refs_before_script);
 		}
 
@@ -1403,27 +1403,27 @@ void ServerLuaScriptTests::test()
 				"end\n";
 			output_handler.buf.clear();
 			Timer request_timer;
-			Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-			evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 			testEqual(vm.getNumLuaValueReferences(), refs_before_script + 23); // Thread plus two references per request.
 
 			const std::string completion_message = "Rate-limit test complete";
-			while(output_handler.buf.find(completion_message) == std::string::npos && !evaluator->hit_error && request_timer.elapsed() < 30.0)
+			while(output_handler.buf.find(completion_message) == std::string::npos && !sub_lua_script->hit_error && request_timer.elapsed() < 30.0)
 			{
 				server.lua_http_manager->think();
 				if(output_handler.buf.find("Rate limited") != std::string::npos)
 					testAssert(request_timer.elapsed() >= 2.0); // Rejection must be delivered through the delayed queue.
-				if(output_handler.buf.find(completion_message) == std::string::npos && !evaluator->hit_error)
+				if(output_handler.buf.find(completion_message) == std::string::npos && !sub_lua_script->hit_error)
 					PlatformUtils::Sleep(10);
 			}
 
 			server.lua_http_manager = nullptr;
-			testAssert(!evaluator->hit_error);
+			testAssert(!sub_lua_script->hit_error);
 			if(output_handler.buf.find(completion_message) == std::string::npos)
 				failTest("Timed out waiting for the 11 Lua HTTP request callbacks");
 			testAssert(output_handler.buf.find("Rate limited") != std::string::npos);
 			testEqual(vm.getNumLuaValueReferences(), refs_before_script + 1);
-			evaluator = nullptr;
+			sub_lua_script = nullptr;
 			testEqual(vm.getNumLuaValueReferences(), refs_before_script);
 		}
 
@@ -1444,19 +1444,19 @@ void ServerLuaScriptTests::test()
 				"end\n";
 			const std::string call = "doHTTPGetRequestAsync('https://forwardscattering.org/post/3', {}, done, failed)\n";
 			output_handler.buf.clear();
-			Reference<LuaScriptEvaluator> evaluator = new LuaScriptEvaluator(&vm, &output_handler, callbacks + call + call, world_ob.ptr(), main_world_state.ptr(), lock);
-			evaluator->exec(lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, callbacks + call + call, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 			const int refs_with_pending_requests = vm.getNumLuaValueReferences();
 			testEqual(refs_with_pending_requests, refs_before_script + 5); // Thread, one accepted request, and one delayed result.
 
 			// Keep the script alive while rejecting a request, so destructor cleanup cannot hide leaked callback refs.
 			Reference<LuaHTTPRequest> rejected_request = new LuaHTTPRequest();
 			rejected_request->script_user_id = world_ob->creator_id;
-			rejected_request->lua_script_evaluator = evaluator;
+			rejected_request->sub_lua_script = sub_lua_script;
 			rejected_request->request_type = "GET";
 			rejected_request->URL = "https://forwardscattering.org/post/3";
-			rejected_request->onDone_ref = evaluator->lua_script->getRefToFunction("done").ref;
-			rejected_request->onError_ref = evaluator->lua_script->getRefToFunction("failed").ref;
+			rejected_request->onDone_ref = sub_lua_script->lua_script->getRefToFunction("done").ref;
+			rejected_request->onError_ref = sub_lua_script->lua_script->getRefToFunction("failed").ref;
 			testEqual(vm.getNumLuaValueReferences(), refs_with_pending_requests + 2);
 			bool caught_queue_cap = false;
 			try
@@ -1475,7 +1475,7 @@ void ServerLuaScriptTests::test()
 			caught_queue_cap = false;
 			try
 			{
-				Reference<LuaScriptEvaluator> rejected_evaluator = new LuaScriptEvaluator(&vm, &output_handler, callbacks + call, world_ob.ptr(), main_world_state.ptr(), lock);
+				Reference<SubstrataLuaScript> rejected_evaluator = new SubstrataLuaScript(&vm, &output_handler, callbacks + call, world_ob.ptr(), main_world_state.ptr(), lock);
 				rejected_evaluator->exec(lock);
 			}
 			catch(const glare::Exception& e)
@@ -1487,33 +1487,33 @@ void ServerLuaScriptTests::test()
 			testEqual(vm.getNumLuaValueReferences(), refs_with_pending_requests);
 
 			Timer request_timer;
-			while(vm.getNumLuaValueReferences() != refs_before_script + 1 && !evaluator->hit_error && request_timer.elapsed() < 30.0)
+			while(vm.getNumLuaValueReferences() != refs_before_script + 1 && !sub_lua_script->hit_error && request_timer.elapsed() < 30.0)
 			{
 				server.lua_http_manager->think();
 				PlatformUtils::Sleep(10);
 			}
-			testAssert(!evaluator->hit_error);
+			testAssert(!sub_lua_script->hit_error);
 			testEqual(vm.getNumLuaValueReferences(), refs_before_script + 1);
 			testAssert(output_handler.buf == "networklimited" || output_handler.buf == "limitednetwork");
-			evaluator = nullptr;
+			sub_lua_script = nullptr;
 			testEqual(vm.getNumLuaValueReferences(), refs_before_script);
 
 			// Draining the delayed result frees the queue slot, even though this user's rate allowance is still exhausted.
 			output_handler.buf.clear();
-			evaluator = new LuaScriptEvaluator(&vm, &output_handler, callbacks + call, world_ob.ptr(), main_world_state.ptr(), lock);
-			evaluator->exec(lock);
+			sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, callbacks + call, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
 			testEqual(vm.getNumLuaValueReferences(), refs_before_script + 3);
 			request_timer.reset();
-			while(output_handler.buf.empty() && !evaluator->hit_error && request_timer.elapsed() < 10.0)
+			while(output_handler.buf.empty() && !sub_lua_script->hit_error && request_timer.elapsed() < 10.0)
 			{
 				server.lua_http_manager->think();
 				PlatformUtils::Sleep(10);
 			}
 			server.lua_http_manager = nullptr;
-			testAssert(!evaluator->hit_error);
+			testAssert(!sub_lua_script->hit_error);
 			testEqual(output_handler.buf, std::string("limited"));
 			testEqual(vm.getNumLuaValueReferences(), refs_before_script + 1);
-			evaluator = nullptr;
+			sub_lua_script = nullptr;
 			testEqual(vm.getNumLuaValueReferences(), refs_before_script);
 		}
 	}

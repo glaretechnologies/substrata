@@ -86,8 +86,8 @@ SET(shared_files
 ../shared/WorldMaterial.h
 ../shared/SubstrataLuaVM.cpp
 ../shared/SubstrataLuaVM.h
-../shared/LuaScriptEvaluator.cpp
-../shared/LuaScriptEvaluator.h
+../shared/SubstrataLuaScript.cpp
+../shared/SubstrataLuaScript.h
 ../shared/ScriptTimerQueue.cpp
 ../shared/ScriptTimerQueue.h
 ../shared/ObjectEventHandlers.cpp

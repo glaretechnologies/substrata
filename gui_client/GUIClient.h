@@ -40,7 +40,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../video/VideoRecorder.h"
 //#include "../opengl/TransformGizmo.h"
 #include "../shared/WorldObject.h"
-#include "../shared/LuaScriptEvaluator.h"
+#include "../shared/SubstrataLuaScript.h"
 #include "../shared/ScriptTimerQueue.h"
 #include "../settings/SettingsStore.h"
 #include <ui/UIEvents.h>

@@ -47,7 +47,7 @@ _________                   _______________        |
 
 
 _____________________
-|LuaScriptEvaluator |
+|SubstrataLuaScript |
 |------------------ |
 |lua_script         |
  -|-----------------
@@ -80,7 +80,7 @@ public:
 		PlayerPhysics* player_physics;
 
 		// If true, this VM runs one-shot build scripts (see LuaBuildScript) rather than per-object scripts.  Globals that need a
-		// LuaScriptEvaluator in LuaScript::userdata are not registered on such a VM, since build scripts store their own state there.
+		// SubstrataLuaScript in LuaScript::userdata are not registered on such a VM, since build scripts store their own state there.
 		bool is_build_vm;
 
 		// Extra global functions for the underlying LuaVM, set before it is sandboxed.  See LuaVMOptions::c_funcs.

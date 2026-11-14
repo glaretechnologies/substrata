@@ -67,7 +67,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../shared/ImageDecoding.h"
 #include "../shared/MessageUtils.h"
 #include "../shared/FileTypes.h"
-#include "../shared/LuaScriptEvaluator.h"
+#include "../shared/SubstrataLuaScript.h"
 #include "../shared/SubstrataLuaVM.h"
 #include "../shared/ObjectEventHandlers.h"
 #include "../shared/WorldStateLock.h"
@@ -2232,17 +2232,17 @@ void GUIClient::printFromLuaScript(LuaScript* script, const char* s, size_t len)
 {
 	// If this is our script, print message to console and log
 
-	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
-	if(script_evaluator->world_object->creator_id == this->logged_in_user_id)
+	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	if(sub_lua_script->world_object->creator_id == this->logged_in_user_id)
 	{
 		const std::string msg(s, len);
 
-		const std::string augmented_msg = "Lua (ob " + script_evaluator->world_object->uid.toString() + "): " + std::string(s, len);
+		const std::string augmented_msg = "Lua (ob " + sub_lua_script->world_object->uid.toString() + "): " + std::string(s, len);
 		conPrint(augmented_msg);
 		logMessage(augmented_msg);
 
 		// Pass to UIInterface to show on script editor window if applicable
-		ui_interface->printFromLuaScript(msg, script_evaluator->world_object->uid);
+		ui_interface->printFromLuaScript(msg, sub_lua_script->world_object->uid);
 	}
 }
 
@@ -2251,15 +2251,15 @@ void GUIClient::errorOccurredFromLuaScript(LuaScript* script, const std::string&
 {
 	// If this is our script, print message to console and log
 
-	LuaScriptEvaluator* script_evaluator = (LuaScriptEvaluator*)script->userdata;
-	if(script_evaluator->world_object->creator_id == this->logged_in_user_id)
+	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	if(sub_lua_script->world_object->creator_id == this->logged_in_user_id)
 	{
-		const std::string full_msg = "Lua error (ob " + script_evaluator->world_object->uid.toString() + "): " + msg + "\nScript will be disabled.";
+		const std::string full_msg = "Lua error (ob " + sub_lua_script->world_object->uid.toString() + "): " + msg + "\nScript will be disabled.";
 		conPrint(full_msg);
 		logMessage(full_msg);
 
 		// Pass to UIInterface to show on script editor window if applicable
-		ui_interface->luaErrorOccurred(msg, script_evaluator->world_object->uid);
+		ui_interface->luaErrorOccurred(msg, sub_lua_script->world_object->uid);
 	}
 }
 
@@ -3666,7 +3666,7 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 
 		if(hasPrefix(ob->script, "--lua"))
 		{
-			ob->lua_script_evaluator = NULL;
+			ob->sub_lua_script = NULL;
 			scripted_ob_proximity_checker.removeObject(ob);
 
 			try
@@ -3674,13 +3674,13 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 				if((ob->creator_id == this->logged_in_user_id) && (selected_ob == ob))
 					ui_interface->printFromLuaScript("Running script at " + Clock::get12HourClockLocalTimeOfDayString(), ob->uid);
 
-				ob->lua_script_evaluator = new LuaScriptEvaluator(this->lua_vm, /*script output handler=*/this, ob->script, ob, world_state_lock);
-				ob->lua_script_evaluator->exec(world_state_lock);
+				ob->sub_lua_script = new SubstrataLuaScript(this->lua_vm, /*script output handler=*/this, ob->script, ob, world_state_lock);
+				ob->sub_lua_script->exec(world_state_lock);
 
 				// Start loading any audio files the script declares with @resource
-				for(size_t i=0; i<ob->lua_script_evaluator->resource_URLs.size(); ++i)
+				for(size_t i=0; i<ob->sub_lua_script->resource_URLs.size(); ++i)
 				{
-					const URLString& URL = ob->lua_script_evaluator->resource_URLs[i].URL;
+					const URLString& URL = ob->sub_lua_script->resource_URLs[i].URL;
 					if(FileTypes::hasAudioFileExtension(URL)) // Scripts can declare other resource types, such as images and models.
 					{
 						ResourceRef resource = resource_manager->getExistingResourceForURL(URL);
@@ -3714,7 +3714,7 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 			}
 			catch(glare::Exception& e)
 			{
-				ob->lua_script_evaluator = nullptr;
+				ob->sub_lua_script = nullptr;
 				throw glare::Exception("Error while creating Lua script: " + e.what());
 			}
 		}
@@ -6201,14 +6201,14 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 		{
 			ScriptTimerQueueTimer& timer = temp_triggered_timers[i];
 			
-			LuaScriptEvaluator* script_evaluator = timer.lua_script_evaluator.getPtrIfAlive();
-			if(script_evaluator)
+			SubstrataLuaScript* sub_lua_script = timer.sub_lua_script.getPtrIfAlive();
+			if(sub_lua_script)
 			{
 				// Check timer is still valid (has not been destroyed by destroyTimer), by checking the timer id with the same index is still equal to our timer id.
-				assert(timer.timer_index >= 0 && timer.timer_index <= LuaScriptEvaluator::MAX_NUM_TIMERS);
-				if(timer.timer_id == script_evaluator->timers[timer.timer_index].id)
+				assert(timer.timer_index >= 0 && timer.timer_index <= SubstrataLuaScript::MAX_NUM_TIMERS);
+				if(timer.timer_id == sub_lua_script->timers[timer.timer_index].id)
 				{
-					script_evaluator->doOnTimerEvent(timer.onTimerEvent_ref, lock); // Execute the Lua timer event callback function
+					sub_lua_script->doOnTimerEvent(timer.onTimerEvent_ref, lock); // Execute the Lua timer event callback function
 
 					if(timer.repeating)
 					{
@@ -6218,7 +6218,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					}
 					else // Else if timer was a one-shot timer, 'destroy' it.
 					{
-						script_evaluator->destroyTimer(timer.timer_index, timer.timer_id);
+						sub_lua_script->destroyTimer(timer.timer_index, timer.timer_id);
 					}
 				}
 			}
@@ -9506,7 +9506,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 								}
 
 								// If we (pre-)loaded a script audio resource:
-								if(loaded_msg->sound_file && ob->lua_script_evaluator && ob->lua_script_evaluator->isResourceURLDeclared(loaded_msg->audio_url))
+								if(loaded_msg->sound_file && ob->sub_lua_script && ob->sub_lua_script->isResourceURLDeclared(loaded_msg->audio_url))
 								{
 									// Insert the sound into audio engine so we can play it immediately when playSound is called.
 									audio_engine.insertSoundFile(resource_manager->pathForURL(loaded_msg->audio_url), loaded_msg->sound_file);
@@ -10622,7 +10622,7 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 										if(ob->audio_source_url == URL)
 											loadAudioForObject(ob, m->loaded_buffer);
 
-										if(ob->lua_script_evaluator && ob->lua_script_evaluator->isResourceURLDeclared(URL))
+										if(ob->sub_lua_script && ob->sub_lua_script->isResourceURLDeclared(URL))
 										{
 											// For a script resource:
 											// if is wav, or if is mp3 and sufficiently short (file size < X bytes?) preload into audio engine.
