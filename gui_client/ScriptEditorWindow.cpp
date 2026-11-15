@@ -472,6 +472,7 @@ void ScriptEditorWindow::buildCodeAndShowResults()
 		try
 		{
 			LuaVM lua_vm;
+			lua_vm.setAsNotIndependentlyHeapAllocated();
 			lua_vm.finishInitAndSandbox();
 
 			LuaScriptOptions options;

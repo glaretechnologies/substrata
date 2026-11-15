@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/ThreadSafeRefCounted.h>
 #include <utils/UniqueRef.h>
 #include <utils/HashMap.h>
+#include <utils/Reference.h>
 #include <string>
 #include <vector>
 class PlayerPhysics;
@@ -22,50 +23,41 @@ class Server;
 SubstrataLuaVM
 --------------
 
-
-Userdata
---------
-
 __________________
 | SubstrataLuaVM |
 | -------------- |
-|                |<--------------------------------
-| lua_vm         |                                 |
- --|--------------                                 |
-   |                                               |
-   v                                               |
-_________                   _______________        |                   
-| LuaVM |                   | lua_State   |        |                   
-| ----- |                   | ---------   |        |                    
-|       |                   | cb.userdata |--------          NOTE: cb is callback data
-|       |                   |             |                            
-| state |  ----------->     | ud          |                  NOTE: ud is auxiliary data to frealloc / glareLuaAlloc        
- ------                     ---|----------
-  ^                            |
-  |----------------------------
-
-
-
-_____________________
-|SubstrataLuaScript |
-|------------------ |
-|lua_script         |
- -|-----------------
-  |         ^
-  |         |
-  |          -------
-  |                 |
-  v                 |
-________________    |         _____________
-| LuaScript    |    |         | lua_State |
-| ---------    |    |         | --------- |
-| lua_vm       |    |         |           |
-|              |    |         |           |
-| userdata  ---|----          |           |
-| thread_state | -----------> | userdata  |             NOTE: userdata is accessed via lua_getthreaddata()
- --------------                -----|-----
-  ^                                 |
-  |----------------------------------
+|                |
+| lua_vm         |<-----
+ --|--------------     |
+   |                   |
+   v                   |
+_________              |    _____________                      ________________ 
+| LuaVM |              |    | lua_State |                      | global_State  |
+| ----- |              |    | --------- |                      | ------------  |
+|       |              |    |           |                      |               |
+|       |              |    |           |                      |               |                            
+| state | -------------|--> | global ---|--------------------> | ud            |                NOTE: ud is auxiliary data to frealloc / glareLuaAlloc        
+ ------                |    | userdata  |                      ---|------------
+  ^                    |     -----------                          |       ^
+  |                    |                                          |       |
+  ---------------------|-------------------------------------------       |
+                       |                                                  |
+                       |                                                  |
+                       |                                                  |
+                       -----------------                                  |
+                                       |                                  |
+                                       |                                  |
+__________________________________     |         _____________            |
+| SubstrataLuaScript : LuaScript  |    |         | lua_State |            |
+| ---------                       |    |         | --------- |            |
+| lua_vm                          |    |         |           |            |
+| substrata_lua_vm ---------------|----          |           |            |
+| userdata                        |              | global ---|-------------
+| thread_state -------------------|------------> | userdata--|---            
+ ---------------------------------                -----------   |                                                                 NOTE: userdata is accessed via lua_getthreaddata()
+                 ^                                              |
+                 |                                              |
+                 ------------------------------------------------
 
 =====================================================================*/
 class SubstrataLuaVM : public ThreadSafeRefCounted
@@ -102,7 +94,7 @@ public:
 	int getNumLuaValueReferences() const { return lua_vm->getNumLuaValueReferences(); }
 
 
-	UniqueRef<LuaVM> lua_vm;
+	Reference<LuaVM> lua_vm;
 
 #if GUI_CLIENT
 	GUIClient* gui_client;

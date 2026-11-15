@@ -19,10 +19,12 @@ LuaHTTPRequestManager::LuaHTTPRequestManager(Server* server_)
 	if(!server->config.do_lua_http_request_rate_limiting)
 		conPrint("Lua HTTP request rate limiting is disabled.");
 
+#if !FUZZING // When fuzzing, don't make any requests.  They stay in request_queue, and the fuzzer makes the results.
 	for(int i=0; i<4; ++i)
 	{
 		thread_manager.addThread(new LuaHTTPWorkerThread(this));
 	}
+#endif
 }
 
 
@@ -69,8 +71,8 @@ void LuaHTTPRequestManager::think()
 			}
 
 			// We are done with the request now, so free references to the Lua handler functions.
-			sub_lua_script->lua_script->freeRefToFunction(request->onDone_ref);
-			sub_lua_script->lua_script->freeRefToFunction(request->onError_ref);
+			sub_lua_script->freeRefToFunction(request->onDone_ref);
+			sub_lua_script->freeRefToFunction(request->onError_ref);
 		}
 	}
 	temp_results.clear();
@@ -98,8 +100,8 @@ void LuaHTTPRequestManager::think()
 			}
 
 			// We are done with the request now, so free references to the Lua handler functions.
-			sub_lua_script->lua_script->freeRefToFunction(result->request->onDone_ref);
-			sub_lua_script->lua_script->freeRefToFunction(result->request->onError_ref);
+			sub_lua_script->freeRefToFunction(result->request->onDone_ref);
+			sub_lua_script->freeRefToFunction(result->request->onError_ref);
 		}
 	}
 }
@@ -146,8 +148,8 @@ void LuaHTTPRequestManager::enqueueHTTPRequest(Reference<LuaHTTPRequest> request
 			// Instead use getPtrIfAlive since this function is called on main thread from lua code.
 			if(sub_lua_script)
 			{
-				sub_lua_script->lua_script->freeRefToFunction(request->onDone_ref);
-				sub_lua_script->lua_script->freeRefToFunction(request->onError_ref);
+				sub_lua_script->freeRefToFunction(request->onDone_ref);
+				sub_lua_script->freeRefToFunction(request->onError_ref);
 			}
 			conPrint("Too many rate-limited HTTP requests, not enqueuing result into delayed_result_queue");
 			throw glare::Exception("Too many rate-limited HTTP requests");

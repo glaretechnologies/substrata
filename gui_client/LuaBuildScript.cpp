@@ -1827,9 +1827,9 @@ void LuaBuildScript::test()
 	// Test that the globals that need a SubstrataLuaScript are absent, rather than present and reading a BuildScriptContext as one.
 	{
 		LuaBuildScriptResults results;
-		LuaBuildScript::run(/*gui_client=*/NULL, /*builder_state=*/NULL, "createTimer(1.0, false)", LuaBuildScriptOptions(), results);
+		LuaBuildScript::run(/*gui_client=*/NULL, /*builder_state=*/NULL, "assert(createTimer == nil and showMessage == nil and showMessageToUser == nil and getCurrentTime == nil)", LuaBuildScriptOptions(), results);
 
-		testAssert(!results.success);
+		testAssert(results.success);
 	}
 
 	// Test that the execution budget aborts a long-running script.

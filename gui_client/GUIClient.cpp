@@ -3674,7 +3674,7 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 				if((ob->creator_id == this->logged_in_user_id) && (selected_ob == ob))
 					ui_interface->printFromLuaScript("Running script at " + Clock::get12HourClockLocalTimeOfDayString(), ob->uid);
 
-				ob->sub_lua_script = new SubstrataLuaScript(this->lua_vm, /*script output handler=*/this, ob->script, ob, world_state_lock);
+				ob->sub_lua_script = new SubstrataLuaScript(this->lua_vm, /*script output handler=*/this, ob->script, ob, this, world_state_lock);
 				ob->sub_lua_script->exec(world_state_lock);
 
 				// Start loading any audio files the script declares with @resource

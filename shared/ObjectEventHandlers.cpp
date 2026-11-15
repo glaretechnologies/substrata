@@ -56,7 +56,7 @@ static void freeRefsInHandlerList(HandlerList& list)
 		Reference<SubstrataLuaScript> sub_lua_script = func.script.upgradeToStrongRef();
 		if(sub_lua_script)
 		{
-			sub_lua_script->lua_script->freeRefToFunction(func.handler_func_ref);
+			sub_lua_script->freeRefToFunction(func.handler_func_ref);
 		}
 	}
 }

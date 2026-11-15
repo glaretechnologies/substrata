@@ -24,6 +24,8 @@ class WorldObject;
 class ServerWorldState;
 class WorldStateLock;
 class LuaHTTPRequestResult;
+class GUIClient;
+class Server;
 
 
 /*=====================================================================
@@ -31,12 +33,16 @@ SubstrataLuaScript
 ------------------
 Per-WorldObject
 =====================================================================*/
-class SubstrataLuaScript : public WeakRefCounted
+class SubstrataLuaScript : public LuaScript, public WeakRefCounted
 {
 public:
-	SubstrataLuaScript(const Reference<SubstrataLuaVM>& substrata_lua_vm, LuaScriptOutputHandler* script_output_handler, 
+	SubstrataLuaScript(const Reference<SubstrataLuaVM>& substrata_lua_vm, LuaScriptOutputHandler* script_output_handler,
 		const std::string& script_src, WorldObject* world_object,
+#if GUI_CLIENT
+		GUIClient* gui_client,
+#endif
 #if SERVER
+		Server* server,
 		ServerWorldState* world_state, // The world that the object belongs to.
 #endif
 		WorldStateLock& world_state_lock // Since this constructor executes Lua code, we need to hold the world state lock
@@ -104,12 +110,16 @@ public:
 	void pushParcelTableOntoStack(lua_State* state, ParcelID parcel_id);
 public:
 	Reference<SubstrataLuaVM> substrata_lua_vm;
-	UniqueRef<LuaScript> lua_script;
-	LuaScriptOutputHandler* script_output_handler;
 	bool hit_error; // have we caught an exception while executing Lua code for this script?  If so, don't execute any more handlers.
 
 	WorldObject* world_object;
+
+#if GUI_CLIENT
+	GUIClient* gui_client;
+#endif
+
 #if SERVER
+	Server* server;
 	ServerWorldState* world_state; // The world that the object belongs to.
 #endif
 

@@ -56,7 +56,7 @@ static const char* RUN_LUA_BUILD_SCRIPT_TOOL_JSON =
 			"such as onUserTouchedObject. "
 			"The language is Luau (as used by Roblox), but none of the Roblox API exists here: there is no Instance, Vector3, "
 			"CFrame, task or game. Available globals are createObject(), createMesh(), getOrCreateGroup(), deleteObjectsInGroup(), "
-			"getTerrainHeight(), getTerrainHeights(), print(), getCurrentTime(), parseJSON(), Vec3d(x,y,z) and Vec3f(x,y,z). Indexes are "
+			"getTerrainHeight(), getTerrainHeights(), print(), parseJSON(), Vec3d(x,y,z) and Vec3f(x,y,z). Indexes are "
 			"1-based, as in all Lua. "
 			"Vec3d and Vec3f are different types and are NOT interchangeable: positions are Vec3d, everything else below is Vec3f. "
 			"Distances are in metres and z is up, so a person is about 1.8 high and a doorway about 2.1. "
@@ -393,7 +393,7 @@ void MCPClientRequestHandler::handleRunLuaBuildScript(const JSONNode& root, web:
 		else
 			script_src = args.getChildStringValue("script");
 
-		// Build scripts read world state (e.g. getCurrentTime), so require a connected world.
+		// Build scripts create objects and query terrain in the current world, so require a connected world.
 		if(main_window->gui_client.world_state.isNull())
 			throw glare::Exception("Not connected to a world.");
 

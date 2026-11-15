@@ -238,6 +238,12 @@ static void checkNumArgs(lua_State* state, int num_args_required)
 }
 
 
+static SubstrataLuaScript* getSubstrataLuaScript(lua_State* state)
+{
+	return static_cast<SubstrataLuaScript*>(static_cast<LuaScript*>(lua_getthreaddata(state)));
+}
+
+
 #if 0 // GUI_CLIENT
 static void enqueueMessageToSend(ClientThread& client_thread, SocketBufferOutStream& packet)
 {
@@ -307,25 +313,23 @@ static int createObject(lua_State* state)
 
 	//assert(lua_gettop(state) == initial_stack_size); // Check stack is same size as at the start of the function
 
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
+
 #if GUI_CLIENT
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
 
 	// Send CreateObject message to server
 	{
-		MessageUtils::initPacket(sub_lua_vm->gui_client->scratch_packet, Protocol::CreateObject);
-		ob->writeToNetworkStream(sub_lua_vm->gui_client->scratch_packet);
+		MessageUtils::initPacket(sub_lua_script->gui_client->scratch_packet, Protocol::CreateObject);
+		ob->writeToNetworkStream(sub_lua_script->gui_client->scratch_packet);
 
-		enqueueMessageToSend(*sub_lua_vm->gui_client->client_thread, sub_lua_vm->gui_client->scratch_packet);
+		enqueueMessageToSend(*sub_lua_script->gui_client->client_thread, sub_lua_script->gui_client->scratch_packet);
 	}
 #elif SERVER
 
 	// Insert object into world state
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
 
 	{
-		ob->uid = sub_lua_vm->server->world_state->getNextObjectUID();
+		ob->uid = sub_lua_script->server->world_state->getNextObjectUID();
 		ob->state = WorldObject::State_JustCreated;
 		ob->from_remote_other_dirty = true;
 	
@@ -344,9 +348,6 @@ static int createObject(lua_State* state)
 
 // Find a WorldObject for the given UID.  Throws exception if no such object with UID found.
 static WorldObject* getWorldObjectForUID(SubstrataLuaScript* sub_lua_script, const UID uid)
-#if GUI_CLIENT
-	
-#endif
 {
 	// See if the UID is that of the sub_lua_script object, in which case we can use the sub_lua_script pointer and avoid the map lookup.
 	if(uid == sub_lua_script->world_object->uid)
@@ -355,8 +356,7 @@ static WorldObject* getWorldObjectForUID(SubstrataLuaScript* sub_lua_script, con
 	{
 #if GUI_CLIENT
 		{
-			SubstrataLuaVM* sub_lua_vm = sub_lua_script->substrata_lua_vm.ptr(); //(SubstrataLuaVM*)lua_callbacks(state)->userdata;
-			WorldState* world_state = sub_lua_vm->gui_client->world_state.ptr();
+			WorldState* world_state = sub_lua_script->gui_client->world_state.ptr();
 
 			checkHoldWorldStateMutex(sub_lua_script, world_state);
 
@@ -397,8 +397,7 @@ static int luaGetWorldObjectForUID(lua_State* state)
 
 	const UID uid((uint64)LuaUtils::getDoubleArg(state, /*index=*/1));
 
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
 	/*WorldObject* ob =*/ getWorldObjectForUID(sub_lua_script, uid); // Just call this to throw an excep if no such object exists
 
@@ -414,11 +413,12 @@ static int getCurrentTime(lua_State* state)
 
 	checkNumArgs(state, /*num_args_required*/0);
 
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
+
 #if GUI_CLIENT
-	lua_pushnumber(state, sub_lua_vm->gui_client->world_state->getCurrentGlobalTime()); // NOTE: do we want to use global time for this?
+	lua_pushnumber(state, sub_lua_script->gui_client->world_state->getCurrentGlobalTime()); // NOTE: do we want to use global time for this?
 #elif SERVER
-	lua_pushnumber(state, sub_lua_vm->server->getCurrentGlobalTime()); // NOTE: do we want to use global time for this?
+	lua_pushnumber(state, sub_lua_script->server->getCurrentGlobalTime()); // NOTE: do we want to use global time for this?
 #endif
 	return 1;
 }
@@ -444,17 +444,7 @@ static int luaAddEventListener(lua_State* state)
 	// Get object UID
 	const UID ob_uid = UID((uint64)LuaUtils::getDoubleArg(state, /*index=*/2));
 
-
-	const void* handler_func_ptr = lua_topointer(state, /*index=*/3);
-
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
-	
-#if GUI_CLIENT
-	SubstrataLuaVM* sub_lua_vm = sub_lua_script->substrata_lua_vm.ptr();
-	WorldState* world_state = sub_lua_vm->gui_client->world_state.ptr();
-#endif
-
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 	
 	// For the client, we may be trying to add an event listener for an object that has not been sent from the server and loaded yet.
 	// In this case getWorldObjectForUID will throw an exception.
@@ -479,6 +469,7 @@ static int luaAddEventListener(lua_State* state)
 	else
 	{
 		// conPrint("================ luaAddEventListener(): Object " + ob_uid.toString() + " was null (not loaded yet), adding to pending_event_handlers instead.");
+		WorldState* world_state = sub_lua_script->gui_client->world_state.ptr();
 		if(world_state->pending_event_handlers[ob_uid].isNull())
 			world_state->pending_event_handlers[ob_uid] = new ObjectEventHandlers();
 		ob_event_handlers = world_state->pending_event_handlers[ob_uid];
@@ -545,7 +536,9 @@ static int luaAddEventListener(lua_State* state)
 		throw glare::Exception("Unknown event '" + std::string(event_name) + "'" + errorContextString(state));
 	}
 
-	const LuaVM::LuaValueRef handler_func_ref = sub_lua_script->lua_script->getRefToFunctionOnStack(state, /*index=*/3); // Get a reference to the Lua handler function
+	const LuaVM::LuaValueRef handler_func_ref = sub_lua_script->getRefToFunctionOnStack(state, /*index=*/3); // Get a reference to the Lua handler function
+
+	const void* handler_func_ptr = lua_topointer(state, /*index=*/3);
 
 	HandlerFunc handler_func;
 	handler_func.script = WeakReference<SubstrataLuaScript>(sub_lua_script);
@@ -558,11 +551,11 @@ static int luaAddEventListener(lua_State* state)
 	if(added)
 		sub_lua_script->num_obs_event_listening++;
 	else
-		sub_lua_script->lua_script->freeRefToFunction(handler_func_ref); // Release the reference to the handler func as we are not holding on to it
+		sub_lua_script->freeRefToFunction(handler_func_ref); // Release the reference to the handler func as we are not holding on to it
 
 #if GUI_CLIENT
 	if(is_spatial_event && ob)
-		sub_lua_vm->gui_client->scripted_ob_proximity_checker.addObject(ob);
+		sub_lua_script->gui_client->scripted_ob_proximity_checker.addObject(ob);
 #endif
 
 	return 0;
@@ -586,18 +579,14 @@ static int showMessageToUser(lua_State* state)
 #endif
 
 #if GUI_CLIENT
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
 
-	// showMessage() makes a GLUITextView and adds it to the widget list, so it needs the main thread.  Build scripts run on
-	// an MCP handler thread.
-	if(sub_lua_vm->is_build_vm)
-		return 0;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
-	if(av_uid == sub_lua_vm->gui_client->client_avatar_uid)
+	if(av_uid == sub_lua_script->gui_client->client_avatar_uid)
 	{
 		// We want to send to ourselves
-		if(sub_lua_vm->gui_client->script_message_ui)
-			sub_lua_vm->gui_client->script_message_ui->showMessage(msg);
+		if(sub_lua_script->gui_client->script_message_ui)
+			sub_lua_script->gui_client->script_message_ui->showMessage(msg);
 	}
 #endif
 
@@ -617,15 +606,10 @@ static int showMessage(lua_State* state)
 	[[maybe_unused]] const std::string msg = LuaUtils::getString(state, /*index=*/1);
 
 #if GUI_CLIENT
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
-	// showMessage() makes a GLUITextView and adds it to the widget list, so it needs the main thread.  Build scripts run on
-	// an MCP handler thread.
-	if(sub_lua_vm->is_build_vm)
-		return 0;
-
-	if(sub_lua_vm->gui_client->script_message_ui)
-		sub_lua_vm->gui_client->script_message_ui->showMessage(msg);
+	if(sub_lua_script->gui_client->script_message_ui)
+		sub_lua_script->gui_client->script_message_ui->showMessage(msg);
 #endif
 
 	return 0;
@@ -665,14 +649,12 @@ static std::string getUITextTableField(lua_State* state, int table_index, const 
 }
 
 
-static void pushUIWidgetHandle(lua_State* state, int widget_id)
+static void pushUIWidgetHandle(SubstrataLuaScript* sub_lua_script, lua_State* state, int widget_id)
 {
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-
 	lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/1);
 	LuaUtils::setNumberAsTableField(state, "id", widget_id);
 
-	lua_getref(state, sub_lua_vm->scriptUIWidgetMetaTable_ref.ref); // Push metatable
+	lua_getref(state, sub_lua_script->substrata_lua_vm->scriptUIWidgetMetaTable_ref.ref); // Push metatable
 	lua_setmetatable(state, -2); // Pops the metatable and sets it as the metatable of the handle table.
 }
 
@@ -696,13 +678,11 @@ static LuaScriptUIWidget* getUIWidgetForHandle(lua_State* state, int handle_inde
 {
 	const int id = (int)LuaUtils::getTableNumberField(state, handle_index, "id");
 
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
-	if(!sub_lua_vm->gui_client->lua_script_ui)
+	if(!sub_lua_script->gui_client->lua_script_ui)
 		return NULL;
-	return sub_lua_vm->gui_client->lua_script_ui->getWidget(sub_lua_script, id);
+	return sub_lua_script->gui_client->lua_script_ui->getWidget(sub_lua_script, id);
 }
 #endif
 
@@ -728,8 +708,7 @@ static int createUIImage(lua_State* state)
 	if(!(size_px.x >= 1.f && size_px.y >= 1.f))
 		throw glare::Exception("createUIImage(): size must be at least 1 pixel" + errorContextString(state));
 
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
 	if(!sub_lua_script->isResourceURLDeclared(image_URL))
 		throw glare::Exception("createUIImage(): image_url '" + image_URL.substr(0, 256) + "' is not declared in the script header.  Declare it with a line like:\n-- @resource " + image_URL.substr(0, 256) + errorContextString(state));
@@ -738,12 +717,11 @@ static int createUIImage(lua_State* state)
 #if GUI_CLIENT
 	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
 
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-	if(sub_lua_vm->gui_client->lua_script_ui)
-		widget_id = sub_lua_vm->gui_client->lua_script_ui->createImage(sub_lua_script, toURLString(image_URL), anchor, offset_px, size_px, visible);
+	if(sub_lua_script->gui_client->lua_script_ui)
+		widget_id = sub_lua_script->gui_client->lua_script_ui->createImage(sub_lua_script, toURLString(image_URL), anchor, offset_px, size_px, visible);
 #endif
 
-	pushUIWidgetHandle(state, widget_id);
+	pushUIWidgetHandle(sub_lua_script, state, widget_id);
 	return 1; // Count of returned values
 }
 
@@ -765,30 +743,28 @@ static int createUIButton(lua_State* state)
 	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f), /*max abs val=*/10000.f);
 	[[maybe_unused]] const bool visible = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "visible", /*default=*/true);
 
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
+
 	int widget_id = 0;
 #if GUI_CLIENT
 	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
 
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
-
-	if(sub_lua_vm->gui_client->lua_script_ui)
+	if(sub_lua_script->gui_client->lua_script_ui)
 	{
-		const LuaVM::LuaValueRef onClick_ref = script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onClick");
+		const LuaVM::LuaValueRef onClick_ref = sub_lua_script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onClick");
 		try
 		{
-			widget_id = sub_lua_vm->gui_client->lua_script_ui->createButton(sub_lua_script, text, anchor, offset_px, onClick_ref, visible); // Takes ownership of onClick_ref
+			widget_id = sub_lua_script->gui_client->lua_script_ui->createButton(sub_lua_script, text, anchor, offset_px, onClick_ref, visible); // Takes ownership of onClick_ref
 		}
 		catch(glare::Exception&)
 		{
-			script->freeRefToFunction(onClick_ref); // Does nothing for LUA_NOREF.
+			sub_lua_script->freeRefToFunction(onClick_ref); // Does nothing for LUA_NOREF.
 			throw;
 		}
 	}
 #endif
 
-	pushUIWidgetHandle(state, widget_id);
+	pushUIWidgetHandle(sub_lua_script, state, widget_id);
 	return 1; // Count of returned values
 }
 
@@ -823,30 +799,28 @@ static int createUISlider(lua_State* state)
 	if(!(width >= 20.0 && width <= 4096.0))
 		throw glare::Exception("createUISlider(): width must be between 20 and 4096 pixels" + errorContextString(state));
 
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
+
 	int widget_id = 0;
 #if GUI_CLIENT
 	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
 
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
-
-	if(sub_lua_vm->gui_client->lua_script_ui)
+	if(sub_lua_script->gui_client->lua_script_ui)
 	{
-		const LuaVM::LuaValueRef onChange_ref = script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onChange");
+		const LuaVM::LuaValueRef onChange_ref = sub_lua_script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onChange");
 		try
 		{
-			widget_id = sub_lua_vm->gui_client->lua_script_ui->createSlider(sub_lua_script, min_value, max_value, value, anchor, offset_px, /*size_px=*/Vec2f((float)width, 21.f), onChange_ref, visible); // Takes ownership of onChange_ref
+			widget_id = sub_lua_script->gui_client->lua_script_ui->createSlider(sub_lua_script, min_value, max_value, value, anchor, offset_px, /*size_px=*/Vec2f((float)width, 21.f), onChange_ref, visible); // Takes ownership of onChange_ref
 		}
 		catch(glare::Exception&)
 		{
-			script->freeRefToFunction(onChange_ref); // Does nothing for LUA_NOREF.
+			sub_lua_script->freeRefToFunction(onChange_ref); // Does nothing for LUA_NOREF.
 			throw;
 		}
 	}
 #endif
 
-	pushUIWidgetHandle(state, widget_id);
+	pushUIWidgetHandle(sub_lua_script, state, widget_id);
 	return 1; // Count of returned values
 }
 
@@ -861,12 +835,10 @@ static int destroyUIWidget(lua_State* state)
 #if GUI_CLIENT
 	const int id = (int)LuaUtils::getTableNumberField(state, /*table index=*/1, "id");
 
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
-	if(sub_lua_vm->gui_client->lua_script_ui)
-		sub_lua_vm->gui_client->lua_script_ui->destroyWidget(sub_lua_script, id);
+	if(sub_lua_script->gui_client->lua_script_ui)
+		sub_lua_script->gui_client->lua_script_ui->destroyWidget(sub_lua_script, id);
 #endif
 	return 0;
 }
@@ -930,6 +902,8 @@ static int scriptUIWidgetNewIndexMetaMethod(lua_State* state)
 	if(!key_str)
 		throw glare::Exception("UI widget: key must be a string" + errorContextString(state));
 
+	[[maybe_unused]] SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
+
 	if(stringEqual(key_str, "visible"))
 	{
 		[[maybe_unused]] const bool visible = LuaUtils::getBool(state, /*index=*/3);
@@ -937,8 +911,7 @@ static int scriptUIWidgetNewIndexMetaMethod(lua_State* state)
 		LuaScriptUIWidget* widget = getUIWidgetForHandle(state, /*handle index=*/1);
 		if(widget)
 		{
-			SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-			sub_lua_vm->gui_client->lua_script_ui->setWidgetVisible(*widget, visible);
+			sub_lua_script->gui_client->lua_script_ui->setWidgetVisible(*widget, visible);
 		}
 #endif
 	}
@@ -954,8 +927,7 @@ static int scriptUIWidgetNewIndexMetaMethod(lua_State* state)
 			if(!widget->button)
 				throw glare::Exception("UI widget: only buttons have a text field" + errorContextString(state));
 
-			SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-			sub_lua_vm->gui_client->lua_script_ui->setButtonText(*widget, text);
+			sub_lua_script->gui_client->lua_script_ui->setButtonText(*widget, text);
 		}
 #endif
 	}
@@ -971,8 +943,7 @@ static int scriptUIWidgetNewIndexMetaMethod(lua_State* state)
 			if(!widget->slider)
 				throw glare::Exception("UI widget: only sliders have a value field" + errorContextString(state));
 
-			SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-			sub_lua_vm->gui_client->lua_script_ui->setSliderValue(*widget, value);
+			sub_lua_script->gui_client->lua_script_ui->setSliderValue(*widget, value);
 		}
 #endif
 	}
@@ -995,11 +966,9 @@ static int objectStorageGetItem(lua_State* state)
 	lua_pushnil(state); // Return nil 
 #endif
 #if SERVER
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
-	ServerAllWorldsState* world_state = sub_lua_vm->server->world_state.ptr();
+	ServerAllWorldsState* world_state = sub_lua_script->server->world_state.ptr();
 	checkHoldWorldStateMutex(sub_lua_script, world_state);
 
 	ObjectStorageKey key;
@@ -1015,7 +984,7 @@ static int objectStorageGetItem(lua_State* state)
 		try
 		{
 			BufferViewInStream stream(ArrayRef<uint8>(res->second->data.data(), res->second->data.size()));
-			LuaSerialisation::deserialise(state, sub_lua_vm->metatable_uid_to_ref_map, stream); // Pushes deserialised Lua value onto Lua stack.
+			LuaSerialisation::deserialise(state, sub_lua_script->substrata_lua_vm->metatable_uid_to_ref_map, stream); // Pushes deserialised Lua value onto Lua stack.
 		}
 		catch(glare::Exception& /*e*/)
 		{
@@ -1040,11 +1009,9 @@ static int objectStorageSetItem(lua_State* state)
 		throw glare::Exception("Key is too long");
 
 #if SERVER
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
-	ServerAllWorldsState* world_state = sub_lua_vm->server->world_state.ptr();
+	ServerAllWorldsState* world_state = sub_lua_script->server->world_state.ptr();
 	checkHoldWorldStateMutex(sub_lua_script, world_state);
 
 	try
@@ -1110,11 +1077,9 @@ static int doHTTPGetRequestAsync(lua_State* state)
 	LuaUtils::checkArgIsFunction(state, /*index=*/4);
 
 #if SERVER
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
-	if(!BitUtils::isBitSet(sub_lua_vm->server->world_state->feature_flag_info.feature_flags, ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG))
+	if(!BitUtils::isBitSet(sub_lua_script->server->world_state->feature_flag_info.feature_flags, ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG))
 		throw glare::Exception("Lua HTTP requests feature-flag disabled, not doing request");
 
 	Reference<LuaHTTPRequest> request = new LuaHTTPRequest();
@@ -1138,10 +1103,10 @@ static int doHTTPGetRequestAsync(lua_State* state)
 		lua_pop(state, 1); // Remove value, keep key on stack for next lua_next call
 	}
 
-	request->onDone_ref  = script->getRefToFunctionOnStack(state, /*index=*/3);
-	request->onError_ref = script->getRefToFunctionOnStack(state, /*index=*/4);
+	request->onDone_ref  = sub_lua_script->getRefToFunctionOnStack(state, /*index=*/3);
+	request->onError_ref = sub_lua_script->getRefToFunctionOnStack(state, /*index=*/4);
 
-	sub_lua_vm->server->enqueueLuaHTTPRequest(request);
+	sub_lua_script->server->enqueueLuaHTTPRequest(request);
 #endif
 	return 0;
 }
@@ -1182,11 +1147,9 @@ static int doHTTPPostRequestAsync(lua_State* state)
 	LuaUtils::checkArgIsFunction(state, /*index=*/6);
 
 #if SERVER
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
-	if(!BitUtils::isBitSet(sub_lua_vm->server->world_state->feature_flag_info.feature_flags, ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG))
+	if(!BitUtils::isBitSet(sub_lua_script->server->world_state->feature_flag_info.feature_flags, ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG))
 		throw glare::Exception("Lua HTTP requests feature-flag disabled, not doing request");
 
 	Reference<LuaHTTPRequest> request = new LuaHTTPRequest();
@@ -1212,10 +1175,10 @@ static int doHTTPPostRequestAsync(lua_State* state)
 		lua_pop(state, 1); // Remove value, keep key on stack for next lua_next call
 	}
 
-	request->onDone_ref  = script->getRefToFunctionOnStack(state, /*index=*/5);
-	request->onError_ref = script->getRefToFunctionOnStack(state, /*index=*/6);
+	request->onDone_ref  = sub_lua_script->getRefToFunctionOnStack(state, /*index=*/5);
+	request->onError_ref = sub_lua_script->getRefToFunctionOnStack(state, /*index=*/6);
 
-	sub_lua_vm->server->enqueueLuaHTTPRequest(request);
+	sub_lua_script->server->enqueueLuaHTTPRequest(request);
 #endif
 	return 0;
 }
@@ -1234,11 +1197,9 @@ static int getSecret(lua_State* state)
 	lua_pushnil(state);
 #endif
 #if SERVER
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
-	ServerAllWorldsState* world_state = sub_lua_vm->server->world_state.ptr();
+	ServerAllWorldsState* world_state = sub_lua_script->server->world_state.ptr();
 	checkHoldWorldStateMutex(sub_lua_script, world_state);
 
 	const UserSecretKey key(/*user_id = */sub_lua_script->world_object->creator_id, secret_name);
@@ -1361,21 +1322,18 @@ static int createTimer(lua_State* state)
 	// Don't allow the interval time to be too low.
 	const double interval_time = myMax(0.1, raw_interval_time);
 
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 #if GUI_CLIENT
-	const double cur_time = sub_lua_vm->gui_client->total_timer.elapsed();
-	ScriptTimerQueue& timer_queue = sub_lua_vm->gui_client->script_timer_queue;
+	const double cur_time = sub_lua_script->gui_client->total_timer.elapsed();
+	ScriptTimerQueue& timer_queue = sub_lua_script->gui_client->script_timer_queue;
 #elif SERVER
-	const double cur_time = sub_lua_vm->server->total_timer.elapsed();
-	ScriptTimerQueue& timer_queue = sub_lua_vm->server->timer_queue;
+	const double cur_time = sub_lua_script->server->total_timer.elapsed();
+	ScriptTimerQueue& timer_queue = sub_lua_script->server->timer_queue;
 #endif
 
 
 	// Get a reference to the onTimerEvent function
-	const LuaVM::LuaValueRef onTimerEvent_ref = script->getRefToFunctionOnStack(state, /*index=*/1);
+	const LuaVM::LuaValueRef onTimerEvent_ref = sub_lua_script->getRefToFunctionOnStack(state, /*index=*/1);
 
 
 	// Find free timer slot
@@ -1406,7 +1364,7 @@ static int createTimer(lua_State* state)
 	}
 
 	// If got here, there are no free timer slots
-	script->freeRefToFunction(onTimerEvent_ref); // Free the callback reference so we don't leak it
+	sub_lua_script->freeRefToFunction(onTimerEvent_ref); // Free the callback reference so we don't leak it
 	throw glare::Exception("createTimer(): Could not create timer, 4 timers already created." + errorContextString(state));
 //#else
 //	throw glare::Exception("createTimer(): todo on server.");
@@ -1424,8 +1382,7 @@ static int destroyTimer(lua_State* state)
 	if(timer_id < 0) // Avoid timer_id of -1 which is what destroyed timers have as IDs.
 		throw glare::Exception("destroyTimer(): Invalid timer ID." + errorContextString(state));
 
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
 	for(int i=0; i<SubstrataLuaScript::MAX_NUM_TIMERS; ++i)
 		if(sub_lua_script->timers[i].id == timer_id)
@@ -1446,8 +1403,7 @@ static int getNumMaterials(lua_State* state)
 	// Get object UID
 	const UID ob_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 	
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
 	WorldObject* ob = getWorldObjectForUID(sub_lua_script, ob_uid);
 
@@ -1468,10 +1424,7 @@ static int getMaterial(lua_State* state)
 	const UID ob_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 	const double value = LuaUtils::getDoubleArg(state, /*index=*/2);
 
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
 	WorldObject* ob = getWorldObjectForUID(sub_lua_script, ob_uid);
 
@@ -1491,7 +1444,7 @@ static int getMaterial(lua_State* state)
 	LuaUtils::setLightUserDataAsTableField(state, "idx", (void*)index);
 
 	// Set metatable to worldMaterialClassMetaTable_ref
-	lua_getref(state, sub_lua_vm->worldMaterialClassMetaTable_ref.ref); // Pushes worldObjectClassMetaTable_ref onto the stack.
+	lua_getref(state, sub_lua_script->substrata_lua_vm->worldMaterialClassMetaTable_ref.ref); // Pushes worldObjectClassMetaTable_ref onto the stack.
 	lua_setmetatable(state, -2); // "Pops a table from the stack and sets it as the new metatable for the value at the given acceptable index."
 
 	return 1; // Count of returned values
@@ -1509,15 +1462,12 @@ static int playAudio(lua_State* state)
 	// Get object UID
 	const UID ob_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
 	WorldObject* ob = getWorldObjectForUID(sub_lua_script, ob_uid);
 
 	if(ob->audio_source)
-		sub_lua_vm->gui_client->audio_engine.seekToStartAndUnpauseAudio(*ob->audio_source);
+		sub_lua_script->gui_client->audio_engine.seekToStartAndUnpauseAudio(*ob->audio_source);
 #endif
 
 	return 0; // Count of returned values
@@ -1536,8 +1486,7 @@ static int isPlayingAudio(lua_State* state)
 	// Get object UID
 	const UID ob_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
 	WorldObject* ob = getWorldObjectForUID(sub_lua_script, ob_uid);
 
@@ -1566,10 +1515,7 @@ static int playSound(lua_State* state)
 
 	const string_view resource_URL = LuaUtils::getStringArgAsStringView(state, /*index=*/2);
 
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
 	if(!sub_lua_script->isResourceURLDeclared(resource_URL))
 	{
@@ -1580,13 +1526,13 @@ static int playSound(lua_State* state)
 	WorldObject* ob = getWorldObjectForUID(sub_lua_script, ob_uid);
 
 #if GUI_CLIENT
-	if(sub_lua_script->calling_avatar_uid.valid() && (sub_lua_script->calling_avatar_uid == sub_lua_vm->gui_client->client_avatar_uid))
-		sub_lua_vm->gui_client->playScriptSound(*ob, URLString(resource_URL));
+	if(sub_lua_script->calling_avatar_uid.valid() && (sub_lua_script->calling_avatar_uid == sub_lua_script->gui_client->client_avatar_uid))
+		sub_lua_script->gui_client->playScriptSound(*ob, URLString(resource_URL));
 
 	// We don't need to send a ScriptPlaySound message to the server, instead we rely on e.g. UserUsedObjectMessages being sent to the server, and the same script calling playSound on the server.
 
 #elif SERVER
-	if(!sub_lua_script->play_sound_rate_limiter->checkAddEvent(sub_lua_vm->server->getCurrentGlobalTime()))
+	if(!sub_lua_script->play_sound_rate_limiter->checkAddEvent(sub_lua_script->server->getCurrentGlobalTime()))
 		return 0; // Over the rate limit, don't broadcast.
 
 	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
@@ -1596,7 +1542,7 @@ static int playSound(lua_State* state)
 	writeToStream(sub_lua_script->calling_avatar_uid, packet);
 	MessageUtils::updatePacketLengthField(packet);
 
-	sub_lua_vm->server->enqueuePacketToBroadcastForWorld(packet, sub_lua_script->world_state);
+	sub_lua_script->server->enqueuePacketToBroadcastForWorld(packet, sub_lua_script->world_state);
 #endif
 
 	return 0; // Count of returned values
@@ -1617,8 +1563,7 @@ static int startPlayingAnimation(lua_State* state)
 
 	const int animation_index = (int)LuaUtils::getDoubleArg(state, /*index=*/2);
 
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
 	WorldObject* ob = getWorldObjectForUID(sub_lua_script, ob_uid);
 	
@@ -1659,8 +1604,7 @@ static int getAnimationIndex(lua_State* state)
 
 	const std::string animation_name = LuaUtils::getStringArg(state, /*index=*/2);
 
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
 	WorldObject* ob = getWorldObjectForUID(sub_lua_script, ob_uid);
 	
@@ -1681,8 +1625,7 @@ static WorldObject* getObjectForScriptedMove(lua_State* state, int table_index)
 {
 	const UID uid((uint64)LuaUtils::getTableNumberField(state, table_index, "uid"));
 
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
 	if(sub_lua_script->cur_world_state_lock == nullptr)
 	{
@@ -1724,10 +1667,10 @@ static void parseMoveOptionalArgs(LuaScript* script, lua_State* state, int easin
 // Schedule a one-shot Lua callback to fire 'delay' seconds from now, reusing the script timer machinery.  callback_ref must
 // already have been obtained via lua_ref.  When the timer fires the callback is invoked (with the script's object as its
 // argument, as for timer callbacks) and its slot + reference are freed automatically (see the timer loop in Server.cpp).
-static void scheduleOneShotServerCallback(SubstrataLuaVM* sub_lua_vm, SubstrataLuaScript* sub_lua_script, LuaVM::LuaValueRef callback_ref, double delay)
+static void scheduleOneShotServerCallback(SubstrataLuaScript* sub_lua_script, LuaVM::LuaValueRef callback_ref, double delay)
 {
-	const double cur_time = sub_lua_vm->server->total_timer.elapsed();
-	ScriptTimerQueue& timer_queue = sub_lua_vm->server->timer_queue;
+	const double cur_time = sub_lua_script->server->total_timer.elapsed();
+	ScriptTimerQueue& timer_queue = sub_lua_script->server->timer_queue;
 
 	for(int i=0; i<SubstrataLuaScript::MAX_NUM_TIMERS; ++i)
 	{
@@ -1752,7 +1695,7 @@ static void scheduleOneShotServerCallback(SubstrataLuaVM* sub_lua_vm, SubstrataL
 	}
 
 	// No free timer slot.  Free the callback reference so we don't leak it, then report the error.
-	sub_lua_script->lua_script->freeRefToFunction(callback_ref);
+	sub_lua_script->freeRefToFunction(callback_ref);
 	throw glare::Exception("Could not register onCompleted callback: too many active timers/callbacks (max " + toString(SubstrataLuaScript::MAX_NUM_TIMERS) + ").");
 }
 #endif // SERVER
@@ -1779,19 +1722,17 @@ static int luaMoveTo(lua_State* state)
 	if(!(duration > 0.f) || !isFinite(duration))
 		throw glare::Exception("moveTo() duration must be > 0" + errorContextString(state));
 
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
 	WorldObject* ob = getObjectForScriptedMove(state, /*table index=*/1); // Looks up the object and checks modify permission.
 
 	// Optional args: easing (index 4), onCompleted callback (index 5).
 	uint32 easing = Protocol::MoveTo_EasingSmoothstep;
 	LuaVM::LuaValueRef callback_ref;
-	parseMoveOptionalArgs(script, state, /*easing_index=*/4, /*callback_index=*/5, easing, callback_ref);
+	parseMoveOptionalArgs(sub_lua_script, state, /*easing_index=*/4, /*callback_index=*/5, easing, callback_ref);
 
 	const Vec3d start_pos = ob->pos;
-	const double start_time = sub_lua_vm->server->getCurrentGlobalTime();
+	const double start_time = sub_lua_script->server->getCurrentGlobalTime();
 
 	// Build and broadcast the ObjectMoveTo message.
 	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
@@ -1804,17 +1745,17 @@ static int luaMoveTo(lua_State* state)
 	writeToStream(target_pos, packet);
 	MessageUtils::updatePacketLengthField(packet);
 
-	sub_lua_vm->server->enqueuePacketToBroadcastForWorld(packet, sub_lua_script->world_state);
+	sub_lua_script->server->enqueuePacketToBroadcastForWorld(packet, sub_lua_script->world_state);
 
 	// Update the object's canonical position to the target, so it persists and late-joining clients see the final position.
 	// Note: we deliberately do not set from_remote_transform_dirty, as that would broadcast an ObjectTransformUpdate that snaps clients to the target.
 	ob->pos = target_pos;
 	sub_lua_script->world_state->addWorldObjectAsDBDirty(ob, *sub_lua_script->cur_world_state_lock);
-	sub_lua_vm->server->world_state->markAsChanged();
+	sub_lua_script->server->world_state->markAsChanged();
 
 	// If an onCompleted callback was provided, schedule it to fire when the move finishes.
 	if(callback_ref.ref != LUA_NOREF)
-		scheduleOneShotServerCallback(sub_lua_vm, sub_lua_script, callback_ref, duration);
+		scheduleOneShotServerCallback(sub_lua_script, callback_ref, duration);
 #endif // SERVER
 
 	return 0; // Count of returned values
@@ -1843,20 +1784,18 @@ static int luaRotateTo(lua_State* state)
 	if(!(duration > 0.f) || !isFinite(duration))
 		throw glare::Exception("rotateTo() duration must be > 0" + errorContextString(state));
 
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
 	WorldObject* ob = getObjectForScriptedMove(state, /*table index=*/1); // Looks up the object and checks modify permission.
 
 	// Optional args: easing (index 5), onCompleted callback (index 6).
 	uint32 easing = Protocol::MoveTo_EasingSmoothstep;
 	LuaVM::LuaValueRef callback_ref;
-	parseMoveOptionalArgs(script, state, /*easing_index=*/5, /*callback_index=*/6, easing, callback_ref);
+	parseMoveOptionalArgs(sub_lua_script, state, /*easing_index=*/5, /*callback_index=*/6, easing, callback_ref);
 
 	const Vec3f start_axis = ob->axis;
 	const float start_angle = ob->angle;
-	const double start_time = sub_lua_vm->server->getCurrentGlobalTime();
+	const double start_time = sub_lua_script->server->getCurrentGlobalTime();
 
 	// Build and broadcast the ObjectRotateTo message.
 	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
@@ -1871,17 +1810,17 @@ static int luaRotateTo(lua_State* state)
 	packet.writeFloat(target_angle);
 	MessageUtils::updatePacketLengthField(packet);
 
-	sub_lua_vm->server->enqueuePacketToBroadcastForWorld(packet, sub_lua_script->world_state);
+	sub_lua_script->server->enqueuePacketToBroadcastForWorld(packet, sub_lua_script->world_state);
 
 	// Update the object's canonical orientation to the target (see note in luaMoveTo).
 	ob->axis = target_axis;
 	ob->angle = target_angle;
 	sub_lua_script->world_state->addWorldObjectAsDBDirty(ob, *sub_lua_script->cur_world_state_lock);
-	sub_lua_vm->server->world_state->markAsChanged();
+	sub_lua_script->server->world_state->markAsChanged();
 
 	// If an onCompleted callback was provided, schedule it to fire when the rotation finishes.
 	if(callback_ref.ref != LUA_NOREF)
-		scheduleOneShotServerCallback(sub_lua_vm, sub_lua_script, callback_ref, duration);
+		scheduleOneShotServerCallback(sub_lua_script, callback_ref, duration);
 #endif // SERVER
 
 	return 0; // Count of returned values
@@ -1900,8 +1839,7 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 	// Get object UID
 	const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
 	WorldObject* ob = getWorldObjectForUID(sub_lua_script, uid);
 
@@ -2072,9 +2010,7 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 	// Get object UID
 	const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
 	if(sub_lua_script->cur_world_state_lock == nullptr)
 	{
@@ -2238,7 +2174,7 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 
 		// Update in the database
 		sub_lua_script->world_state->addWorldObjectAsDBDirty(ob, *sub_lua_script->cur_world_state_lock);
-		sub_lua_vm->server->world_state->markAsChanged();
+		sub_lua_script->server->world_state->markAsChanged();
 	}
 
 	return 0; // Count of returned values
@@ -2264,8 +2200,7 @@ static int worldMaterialClassIndexMetaMethod(lua_State* state)
 	//const size_t mat_index = (size_t)LuaUtils::getTableNumberField(state, /*table index=*/1, "idx");
 	const size_t mat_index = (size_t)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "idx");
 
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
 	WorldObject* ob = getWorldObjectForUID(sub_lua_script, uid);
 
@@ -2359,9 +2294,7 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 	// Get material index from the world material table
 	const size_t mat_index = (size_t)LuaUtils::getTableLightUserDataField(state, /*table index=*/1, "idx");
 
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state); // NOTE: this double pointer-chasing sucks
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
 	WorldObject* ob = getWorldObjectForUID(sub_lua_script, uid);
 
@@ -2441,7 +2374,7 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 	sub_lua_script->world_state->getDirtyFromRemoteObjects(*sub_lua_script->cur_world_state_lock).insert(ob);
 
 	sub_lua_script->world_state->addWorldObjectAsDBDirty(ob, *sub_lua_script->cur_world_state_lock);
-	sub_lua_vm->server->world_state->markAsChanged();
+	sub_lua_script->server->world_state->markAsChanged();
 
 	return 0; // Count of returned values
 #endif
@@ -2452,7 +2385,7 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 static int userClassIndexMetaMethod(lua_State* state)
 {
 	throw glare::Exception("Disabled");
-
+#if 0
 	// arg 1 is table
 	// arg 2 is the key (field name)
 
@@ -2461,14 +2394,11 @@ static int userClassIndexMetaMethod(lua_State* state)
 
 	const UID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
+
 #if GUI_CLIENT
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-
-	//LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	//SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
-
-	auto res = sub_lua_vm->gui_client->world_state->avatars.find(uid);
-	if(res == sub_lua_vm->gui_client->world_state->avatars.end())
+	auto res = sub_lua_script->gui_client->world_state->avatars.find(uid);
+	if(res == sub_lua_script->gui_client->world_state->avatars.end())
 		throw glare::Exception("No such avatar with given UID" + errorContextString(state));
 
 	Avatar* avatar = res->second.ptr();
@@ -2477,20 +2407,12 @@ static int userClassIndexMetaMethod(lua_State* state)
 	// Get user UID from the user table
 	//const UserID uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "id"));
 
-	//SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-
 	//auto res = sub_lua_vm->server->world_state->user_id_to_users.find(uid);
 	//if(res == sub_lua_vm->server->world_state->user_id_to_users.end())
 	//	throw glare::Exception("No such user with given UID");
 
 	//User* user = res->second.ptr();
 
-
-
-//	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
 
 	if(sub_lua_script->cur_world_state_lock == nullptr)
 		throw glare::Exception("Internal error: cur_world_state_lock was null");
@@ -2527,6 +2449,7 @@ static int userClassIndexMetaMethod(lua_State* state)
 	}
 
 	return 1; // Count of returned values
+#endif
 }
 
 
@@ -2567,12 +2490,10 @@ static int avatarClassIndexMetaMethod(lua_State* state)
 
 	const UID avatar_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
 #if GUI_CLIENT
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-	WorldState* world_state = sub_lua_vm->gui_client->world_state.ptr();
+	WorldState* world_state = sub_lua_script->gui_client->world_state.ptr();
 	checkHoldWorldStateMutex(sub_lua_script, world_state);
 
 	auto res = world_state->avatars.find(avatar_uid);
@@ -2609,7 +2530,7 @@ static int avatarClassIndexMetaMethod(lua_State* state)
 	case Atom_linear_velocity:
 		assert(stringEqual(key_str, "linear_velocity"));
 #if GUI_CLIENT
-		LuaUtils::pushVec3f(state, Vec3f(sub_lua_vm->gui_client->player_physics.getLinearVel()));
+		LuaUtils::pushVec3f(state, Vec3f(sub_lua_script->gui_client->player_physics.getLinearVel()));
 		return 1;
 #else // else server:
 		LuaUtils::pushVec3f(state, Vec3f(0.f));
@@ -2620,8 +2541,8 @@ static int avatarClassIndexMetaMethod(lua_State* state)
 		assert(stringEqual(key_str, "vehicle_inside"));
 #if GUI_CLIENT
 		const WorldObject* vehicle_inside;
-		if(avatar_uid == sub_lua_vm->gui_client->client_avatar_uid) // If this is our avatar:
-			vehicle_inside = sub_lua_vm->gui_client->vehicle_controller_inside ? sub_lua_vm->gui_client->vehicle_controller_inside->getControlledObject() : nullptr;
+		if(avatar_uid == sub_lua_script->gui_client->client_avatar_uid) // If this is our avatar:
+			vehicle_inside = sub_lua_script->gui_client->vehicle_controller_inside ? sub_lua_script->gui_client->vehicle_controller_inside->getControlledObject() : nullptr;
 		else
 			vehicle_inside = avatar->entered_vehicle.ptr();
 
@@ -2651,10 +2572,8 @@ static int avatarClassNewIndexMetaMethod(lua_State* state)
 	// Arg 3: value
 
 #if GUI_CLIENT
-	LuaScript* script = (LuaScript*)lua_getthreaddata(state);
-	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
-	SubstrataLuaVM* sub_lua_vm = (SubstrataLuaVM*)lua_callbacks(state)->userdata;
-	WorldState* world_state = sub_lua_vm->gui_client->world_state.ptr();
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
+	WorldState* world_state = sub_lua_script->gui_client->world_state.ptr();
 	checkHoldWorldStateMutex(sub_lua_script, world_state);
 #endif
 
@@ -2669,10 +2588,10 @@ static int avatarClassNewIndexMetaMethod(lua_State* state)
 		{
 			assert(stringEqual(key_str, "pos"));
 #if GUI_CLIENT
-			if(avatar_uid == sub_lua_vm->gui_client->client_avatar_uid)
+			if(avatar_uid == sub_lua_script->gui_client->client_avatar_uid)
 			{
 				const Vec3d pos = LuaUtils::getVec3d(state, /*index=*/3);
-				sub_lua_vm->gui_client->player_physics.setEyePosition(pos);
+				sub_lua_script->gui_client->player_physics.setEyePosition(pos);
 			}
 #endif
 			break;
@@ -2687,10 +2606,10 @@ static int avatarClassNewIndexMetaMethod(lua_State* state)
 		{
 			assert(stringEqual(key_str, "linear_velocity"));
 #if GUI_CLIENT
-			if(avatar_uid == sub_lua_vm->gui_client->client_avatar_uid)
+			if(avatar_uid == sub_lua_script->gui_client->client_avatar_uid)
 			{
 				const Vec3f new_linear_vel = LuaUtils::getVec3f(state, /*index=*/3);
-				sub_lua_vm->gui_client->player_physics.setLinearVel(new_linear_vel.toVec4fVector());
+				sub_lua_script->gui_client->player_physics.setLinearVel(new_linear_vel.toVec4fVector());
 			}
 #endif
 			break;
@@ -2749,18 +2668,18 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 		vm_options.max_total_mem_allowed = 1024 * 1024 * 1024; // one-shot build scripts (see LuaBuildScript) can use more RAM.
 #endif
 
-	lua_vm.set(new LuaVM(vm_options));
+	lua_vm = new LuaVM(vm_options);
 
 
-	lua_callbacks(lua_vm->state)->userdata = this;
 	lua_callbacks(lua_vm->state)->useratom = glareLuaUserAtom;
 
 
 	metatable_uid_to_ref_map.insert(std::make_pair(Vec3d_metatable_UID, lua_vm->Vec3dMetaTable_ref));
 	metatable_uid_to_ref_map.insert(std::make_pair(Vec2_metatable_UID,  lua_vm->Vec2MetaTable_ref));
 
-	// Functions that reach the SubstrataLuaScript in LuaScript::userdata are only valid for per-object scripts.  A build-script VM
-	// stores a BuildScriptContext there instead, so those functions are left unregistered on it.  See LuaBuildScript.
+	// Functions that call getSubstrataLuaScript() are only valid for per-object scripts.  A build-script thread's data is a plain
+	// LuaScript (with a BuildScriptContext in LuaScript::userdata), so those functions are left unregistered on a build VM.  See LuaBuildScript.
+	// Functions registered on both kinds of VM must not call getSubstrataLuaScript().
 #if GUI_CLIENT
 	const bool register_object_script_funcs = !args.is_build_vm;
 #else
@@ -2790,17 +2709,17 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 		}
 	}
 	
-	lua_pushcfunction(lua_vm->state, getCurrentTime, /*debugname=*/"getCurrentTime");
-	lua_setglobal(lua_vm->state, "getCurrentTime");
-	
-	lua_pushcfunction(lua_vm->state, showMessageToUser, /*debugname=*/"showMessageToUser");
-	lua_setglobal(lua_vm->state, "showMessageToUser");
-
-	lua_pushcfunction(lua_vm->state, showMessage, /*debugname=*/"showMessage");
-	lua_setglobal(lua_vm->state, "showMessage");
-
 	if(register_object_script_funcs)
 	{
+		lua_pushcfunction(lua_vm->state, getCurrentTime, /*debugname=*/"getCurrentTime");
+		lua_setglobal(lua_vm->state, "getCurrentTime");
+
+		lua_pushcfunction(lua_vm->state, showMessageToUser, /*debugname=*/"showMessageToUser");
+		lua_setglobal(lua_vm->state, "showMessageToUser");
+
+		lua_pushcfunction(lua_vm->state, showMessage, /*debugname=*/"showMessage");
+		lua_setglobal(lua_vm->state, "showMessage");
+
 		lua_pushcfunction(lua_vm->state, createTimer, /*debugname=*/"createTimer");
 		lua_setglobal(lua_vm->state, "createTimer");
 	
@@ -2920,7 +2839,7 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 
 SubstrataLuaVM::~SubstrataLuaVM()
 {
-	if(lua_vm.ptr())
+	if(lua_vm)
 	{
 		lua_vm->destroyReferenceToLuaValue(lua_vm->state, worldObjectClassMetaTable_ref);
 		lua_vm->destroyReferenceToLuaValue(lua_vm->state, worldMaterialClassMetaTable_ref);

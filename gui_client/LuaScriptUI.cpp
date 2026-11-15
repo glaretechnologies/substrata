@@ -259,7 +259,7 @@ void LuaScriptUI::removeWidgetFromUI(LuaScriptUIWidget& widget)
 
 	if(widget.callback_ref.ref != LUA_NOREF)
 	{
-		widget.sub_lua_script->lua_script->freeRefToFunction(widget.callback_ref);
+		widget.sub_lua_script->freeRefToFunction(widget.callback_ref);
 		widget.callback_ref = LuaVM::LuaValueRef();
 	}
 }

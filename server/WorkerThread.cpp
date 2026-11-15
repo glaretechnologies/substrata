@@ -2213,7 +2213,7 @@ void WorkerThread::doRun()
 
 													runtimeCheck(lua_vm);
 
-													ob->sub_lua_script = new SubstrataLuaScript(lua_vm, /*script output handler=*/server, ob->script, ob, cur_world_state.ptr(), lock);
+													ob->sub_lua_script = new SubstrataLuaScript(lua_vm, /*script output handler=*/server, ob->script, ob, server, cur_world_state.ptr(), lock);
 													ob->sub_lua_script->exec(lock);
 												}
 												catch(LuaScriptExcepWithLocation& e)

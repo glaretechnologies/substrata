@@ -89,23 +89,37 @@ void ServerLuaScriptTests::test()
 		
 		//-------------------------------- Create a SubstrataLuaScript, don't execute though --------------------------------
 		{
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "print('hello')", world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "print('hello')", world_ob.ptr(), &server, main_world_state.ptr(), lock);
 		}
 		testEqual(vm.getNumLuaValueReferences(), initial_num_lua_value_refs);
 
 		//-------------------------------- Create a SubstrataLuaScript, execute --------------------------------
 		{
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "print('hello')", world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "print('hello')", world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 		}
 		testEqual(vm.getNumLuaValueReferences(), initial_num_lua_value_refs);
+
+		//-------------------------------- Test destroying a script that holds the only reference to its VM --------------------------------
+		// ~LuaScript frees the script's Lua references using the LuaVM, so the VM must still be alive when ~LuaScript runs.
+		// Run under ASan or a debug heap to detect the VM being used after it has been freed.
+		{
+			Reference<SubstrataLuaVM> heap_vm = new SubstrataLuaVM(SubstrataLuaVM::SubstrataLuaVMArgs(&server));
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(heap_vm, &output_handler, "print('hello')", world_ob.ptr(), &server, main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
+
+			heap_vm = nullptr;
+			testAssert(sub_lua_script->substrata_lua_vm->getRefCount() == 1); // The script now holds the only reference to the VM.
+
+			sub_lua_script = nullptr; // Destroys the script, and with it the VM.
+		}
 
 		//-------------------------------- Test this_object --------------------------------
 		{
 			const std::string script_src = "print('this_object.uid: ' .. tostring(this_object.uid))  assert(this_object.uid == 123.0)\n";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(!sub_lua_script->hit_error);
 			testAssert(output_handler.buf == "this_object.uid: 123");
@@ -117,7 +131,7 @@ void ServerLuaScriptTests::test()
 			const std::string script_src = "print('IS_SERVER: ' .. tostring(IS_SERVER))  assert(IS_SERVER == true)\n";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(!sub_lua_script->hit_error);
 			testAssert(output_handler.buf == "IS_SERVER: true");
@@ -128,7 +142,7 @@ void ServerLuaScriptTests::test()
 			const std::string script_src = "print('IS_CLIENT: ' .. tostring(IS_CLIENT))  assert(IS_CLIENT == false)\n";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(!sub_lua_script->hit_error);
 			testAssert(output_handler.buf == "IS_CLIENT: false");
@@ -143,7 +157,7 @@ void ServerLuaScriptTests::test()
 				"end";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserTouchedObject_handlers.handler_funcs.size() == 1);
 			sub_lua_script->doOnUserTouchedObject(world_ob->getOrCreateEventHandlers()->onUserTouchedObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
@@ -162,7 +176,7 @@ void ServerLuaScriptTests::test()
 				"end";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserUsedObject_handlers.handler_funcs.size() == 1);
 			sub_lua_script->doOnUserUsedObject(world_ob->getOrCreateEventHandlers()->onUserUsedObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
@@ -180,7 +194,7 @@ void ServerLuaScriptTests::test()
 				"end";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserMovedNearToObject_handlers.handler_funcs.size() == 1);
 			sub_lua_script->doOnUserMovedNearToObject(world_ob->getOrCreateEventHandlers()->onUserMovedNearToObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
@@ -198,7 +212,7 @@ void ServerLuaScriptTests::test()
 				"end";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserMovedAwayFromObject_handlers.handler_funcs.size() == 1);
 			sub_lua_script->doOnUserMovedAwayFromObject(world_ob->getOrCreateEventHandlers()->onUserMovedAwayFromObject_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
@@ -216,7 +230,7 @@ void ServerLuaScriptTests::test()
 				"end";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserEnteredParcel_handlers.handler_funcs.size() == 1);
 			sub_lua_script->doOnUserEnteredParcel(world_ob->getOrCreateEventHandlers()->onUserEnteredParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
@@ -234,7 +248,7 @@ void ServerLuaScriptTests::test()
 				"end";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs.size() == 1);
 			sub_lua_script->doOnUserExitedParcel(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
@@ -256,7 +270,7 @@ void ServerLuaScriptTests::test()
 				"addEventListener('onUserEnteredVehicle', 123, onUserEnteredVehicle)   \n";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserEnteredVehicle_handlers.handler_funcs.size() == 1);
 			const UID previous_vehicle_uid = avatar->vehicle_inside_uid;
@@ -278,7 +292,7 @@ void ServerLuaScriptTests::test()
 				"addEventListener('onUserExitedVehicle', 123, onUserExitedVehicle)   \n";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserExitedVehicle_handlers.handler_funcs.size() == 1);
 			sub_lua_script->doOnUserExitedVehicle(world_ob->getOrCreateEventHandlers()->onUserExitedVehicle_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, lock);
@@ -299,7 +313,7 @@ void ServerLuaScriptTests::test()
 				"createTimer(onTimerEvent, 0.1, false)	";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 
 			testAssert(sub_lua_script->timers[0].id == sub_lua_script->next_timer_id - 1);
@@ -320,7 +334,7 @@ void ServerLuaScriptTests::test()
 				"destroyTimer(timer_handle)";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 
 			testAssert(sub_lua_script->timers[0].id == -1);
@@ -342,7 +356,7 @@ void ServerLuaScriptTests::test()
 				"destroyTimer(123)"; // Test destroying an invalid timer, should have no effect.
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 
 			for(int i=0; i<4; ++i)
@@ -355,7 +369,7 @@ void ServerLuaScriptTests::test()
 		// -1 identifies a free slot internally. It must never be accepted as a Lua handle.
 		{
 			testThrowsExcepContainingString([&]() {
-				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "destroyTimer(-1)", world_ob.ptr(), main_world_state.ptr(), lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "destroyTimer(-1)", world_ob.ptr(), &server, main_world_state.ptr(), lock);
 				sub_lua_script->exec(lock);
 			}, "Invalid timer ID");
 		}
@@ -375,7 +389,7 @@ void ServerLuaScriptTests::test()
 				"    end\n"
 				"    for i = 4, 1, -1 do destroyTimer(handles[i]) end\n"
 				"end";
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			for(int i=0; i<SubstrataLuaScript::MAX_NUM_TIMERS; ++i)
 			{
@@ -396,7 +410,7 @@ void ServerLuaScriptTests::test()
 
 			server.timer_queue.clear();
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 
 			std::vector<ScriptTimerQueueTimer> triggered;
@@ -425,7 +439,7 @@ void ServerLuaScriptTests::test()
 				"local timer_handle = createTimer(nil, 0.1, false)	";
 			// Should get: createTimer(): arg 1 must be a function
 			testThrowsExcepContainingString([&]() { 
-					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 					sub_lua_script->exec(lock);
 				},
 				"arg 1 must be a function"
@@ -442,7 +456,7 @@ void ServerLuaScriptTests::test()
 				"for i=1, 10 do  createTimer(onTimerEvent, 0.1, false)	end";
 			// Should get: createTimer(): arg 1 must be a function
 			testThrowsExcepContainingString([&]() { 
-					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 					sub_lua_script->exec(lock);
 				},
 				"Could not create timer"
@@ -465,7 +479,7 @@ void ServerLuaScriptTests::test()
 			output_handler.buf.clear();
 			server.timer_queue.clear();
 
-			temp_world_ob->sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, temp_world_ob.ptr(), main_world_state.ptr(), lock);
+			temp_world_ob->sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, temp_world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			temp_world_ob->sub_lua_script->exec(lock);
 
 			testAssert(temp_world_ob->sub_lua_script->timers[0].id == temp_world_ob->sub_lua_script->next_timer_id - 1);
@@ -496,7 +510,7 @@ void ServerLuaScriptTests::test()
 				"createTimer(onTimerEvent, 0.1, false)							\n";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 
 			testAssert(sub_lua_script->timers[0].id == sub_lua_script->next_timer_id - 1);
@@ -518,7 +532,7 @@ void ServerLuaScriptTests::test()
 				"timer_handle = createTimer(onTimerEvent, 0.1, false)			\n";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 
 			testAssert(sub_lua_script->timers[0].id == sub_lua_script->next_timer_id - 1);
@@ -534,7 +548,7 @@ void ServerLuaScriptTests::test()
 		//-------------------------------- Test getObjectForUID --------------------------------
 		{ // Test successful getObjectForUID call
 			const std::string script_src = "local ob = getObjectForUID(123)";
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 		}
 		{ // Look up a different object from a coroutine and use the returned handle on the root thread.
@@ -542,13 +556,13 @@ void ServerLuaScriptTests::test()
 				"local ob = coroutine.wrap(function() return getObjectForUID(124) end)()\n"
 				"assert(type(ob) == 'table' and ob.uid == 124)\n"
 				"assert(getmetatable(ob) == getmetatable(this_object))";
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 		}
 		{ // Test unsuccessful getObjectForUID call
 			const std::string script_src = "local ob = getObjectForUID(6544234)";
 			testThrowsExcepContainingString([&]() { 
-					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 					sub_lua_script->exec(lock); 
 				}, 
 				"No object with UID 6544234"
@@ -556,33 +570,124 @@ void ServerLuaScriptTests::test()
 		}
 		testEqual(vm.getNumLuaValueReferences(), initial_num_lua_value_refs);
 
+		//-------------------------------- Test getMaterial --------------------------------
+		{
+			WorldMaterialRef mat0 = new WorldMaterial();
+			WorldMaterialRef mat1 = new WorldMaterial();
+			mat1->roughness.val = 0.25f;
+			mat1->opacity.val = 0.5f;
+			world_ob->materials = { mat0, mat1 };
+
+			{ // Read fields of the second material
+				const std::string script_src =
+					"local mat = this_object:getMaterial(1)\n"
+					"assert(mat.roughness_val == 0.25)\n"
+					"assert(mat.opacity_val == 0.5)";
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
+			}
+			{ // Index == number of materials
+				testThrowsExcepContainingString([&]() {
+					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "this_object:getMaterial(2)", world_ob.ptr(), &server, main_world_state.ptr(), lock);
+					sub_lua_script->exec(lock);
+				}, "Invalid material index");
+			}
+			{ // Negative index
+				testThrowsExcepContainingString([&]() {
+					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "this_object:getMaterial(-1)", world_ob.ptr(), &server, main_world_state.ptr(), lock);
+					sub_lua_script->exec(lock);
+				}, "Invalid material index");
+			}
+			{ // NaN index
+				testThrowsExcepContainingString([&]() {
+					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "this_object:getMaterial(0/0)", world_ob.ptr(), &server, main_world_state.ptr(), lock);
+					sub_lua_script->exec(lock);
+				}, "Invalid material index");
+			}
+
+			world_ob->materials.clear(); // Clean up from test
+		}
+		testEqual(vm.getNumLuaValueReferences(), initial_num_lua_value_refs);
+
 		//-------------------------------- Test getCurrentTime --------------------------------
 		{
 			const std::string script_src = "getCurrentTime()";
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 		}
 
 		//-------------------------------- Test showMessageToUser --------------------------------
 		{
 			const std::string script_src = "local avatar = {uid=456}   showMessageToUser('hello thar', avatar)";
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 		}
 		{ // Test invalid showMessageToUser call (avatar has no uid field)
 			const std::string script_src = "local avatar = {}   showMessageToUser('hello thar', avatar)";
 			testExceptionExpected([&]() { 
-				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 				sub_lua_script->exec(lock); 
 			});
 
 		}
 		{ // Test invalid showMessageToUser call (avatar not a table)
 			const std::string script_src = "local avatar = 123.0   showMessageToUser('hello thar', avatar)";
-			testExceptionExpected([&]() { 
-				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
-				sub_lua_script->exec(lock); 
+			testExceptionExpected([&]() {
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
 			});
+		}
+
+		//-------------------------------- Test showMessage --------------------------------
+		{ // Does nothing on the server, but shouldn't throw.
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "showMessage('hello thar')", world_ob.ptr(), &server, main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
+		}
+		{ // No args
+			testThrowsExcepContainingString([&]() {
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "showMessage()", world_ob.ptr(), &server, main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
+			}, "Expected 1 arg(s)");
+		}
+		{ // Message not a string
+			testThrowsExcepContainingString([&]() {
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "showMessage({})", world_ob.ptr(), &server, main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
+			}, "Value was not a string");
+		}
+
+		//-------------------------------- Test getSecret --------------------------------
+		{
+			const UserID prev_creator_id = world_ob->creator_id;
+			world_ob->creator_id = UserID(10);
+
+			UserSecretRef secret = new UserSecret();
+			secret->key = UserSecretKey(UserID(10), "api_key");
+			secret->value = "abc";
+			server.world_state->user_secrets[secret->key] = secret;
+
+			UserSecretRef other_user_secret = new UserSecret(); // Secret belonging to a different user
+			other_user_secret->key = UserSecretKey(UserID(11), "other_key");
+			other_user_secret->value = "def";
+			server.world_state->user_secrets[other_user_secret->key] = other_user_secret;
+
+			{
+				const std::string script_src =
+					"assert(getSecret('api_key') == 'abc')\n"
+					"assert(getSecret('missing_key') == nil)\n"
+					"assert(getSecret('other_key') == nil)"; // Can't read secrets of a user other than the object creator.
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
+			}
+			{ // Secret name not a string
+				testExceptionExpected([&]() {
+					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "getSecret({})", world_ob.ptr(), &server, main_world_state.ptr(), lock);
+					sub_lua_script->exec(lock);
+				});
+			}
+
+			server.world_state->user_secrets.clear(); // Clean up from test
+			world_ob->creator_id = prev_creator_id;
 		}
 
 		//-------------------------------- Test addEventListener --------------------------------
@@ -595,7 +700,7 @@ void ServerLuaScriptTests::test()
 				"addEventListener('onUserTouchedObject', 124, onUserTouchedObject)			";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 
 			testAssert(world_ob2->event_handlers && world_ob2->event_handlers->onUserTouchedObject_handlers.nonEmpty());
@@ -620,7 +725,7 @@ void ServerLuaScriptTests::test()
 				"addEventListener('onUserTouchedObject', 124, onUserTouchedObject)			\n";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 
 			testAssert(world_ob2->event_handlers && world_ob2->event_handlers->onUserTouchedObject_handlers.handler_funcs.size() == 1);
@@ -646,7 +751,7 @@ void ServerLuaScriptTests::test()
 				"addEventListener('onUserTouchedObject', 123, onUserTouchedObject)			\n"; // Try and add the same listener to the same object
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 
 			testAssert(world_ob->event_handlers && world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs.size() == 1);
@@ -672,7 +777,7 @@ void ServerLuaScriptTests::test()
 				")																								\n";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 
 			testAssert(world_ob->event_handlers && world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs.size() == 1);
@@ -699,7 +804,7 @@ void ServerLuaScriptTests::test()
 				"end																							\n";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 
 			testAssert(world_ob->event_handlers && world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs.size() == 1);
@@ -729,7 +834,7 @@ void ServerLuaScriptTests::test()
 				"end																								\n";
 
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 
 			testAssert(world_ob->event_handlers && world_ob->event_handlers->onUserTouchedObject_handlers.handler_funcs.size() == 1);
@@ -752,7 +857,7 @@ void ServerLuaScriptTests::test()
 				"addEventListener('notAnEvent', 124, onUserTouchedObject)			\n";
 
 			testThrowsExcepContainingString([&]() { 
-					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 					sub_lua_script->exec(lock); 
 				}, 
 				"Unknown event"
@@ -768,7 +873,7 @@ void ServerLuaScriptTests::test()
 				"addEventListener('notAnEvent', 124111111, onUserTouchedObject)			\n";
 
 			testThrowsExcepContainingString([&]() { 
-					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 					sub_lua_script->exec(lock); 
 				}, 
 				"No object"
@@ -784,7 +889,7 @@ void ServerLuaScriptTests::test()
 				"end				\n"
 				"for i=1, 10000 do addEventListener('onUserTouchedObject', 124, onUserTouchedObject)		end	\n";
 
-			testThrowsExcepContainingString([&]() { new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock); }, "too many event listeners");
+			testThrowsExcepContainingString([&]() { new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock); }, "too many event listeners");
 		}*/
 
 		// Test addEventListener called from a script that is then destroyed.
@@ -803,7 +908,7 @@ void ServerLuaScriptTests::test()
 			temp_world_ob->uid = UID(200);
 			main_world_state->getObjects(lock)[temp_world_ob->uid] = temp_world_ob;
 
-			temp_world_ob->sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, temp_world_ob.ptr(), main_world_state.ptr(), lock);
+			temp_world_ob->sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, temp_world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			temp_world_ob->sub_lua_script->exec(lock);
 
 			testAssert(world_ob2->event_handlers && world_ob2->event_handlers->onUserTouchedObject_handlers.handler_funcs.size() == 1);
@@ -833,7 +938,7 @@ void ServerLuaScriptTests::test()
 
 			server.world_state->object_storage_items.clear();
 
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 
 			testAssert(server.world_state->object_storage_items.size() == 1);
@@ -849,7 +954,7 @@ void ServerLuaScriptTests::test()
 
 			server.world_state->object_storage_items.clear();
 
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 
 			testAssert(server.world_state->object_storage_items.size() == 1);
@@ -863,7 +968,7 @@ void ServerLuaScriptTests::test()
 		{
 			testThrowsExcepContainingString([&]() { 
 				const std::string script_src = "for i=1,2000 do objectstorage.setItem(tostring(i), i) end";
-				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 				sub_lua_script->exec(lock);
 			},
 			"Too many object storage items for object");
@@ -879,7 +984,7 @@ void ServerLuaScriptTests::test()
 				"		i += 1																	\n"
 				"end";
 
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs.size() == 1);
 
@@ -894,7 +999,7 @@ void ServerLuaScriptTests::test()
 		{
 			testThrowsExcepContainingString([&]() { 
 				const std::string script_src = "objectstorage.setItem({a=1.0}, 1000.0)";
-				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 				sub_lua_script->exec(lock);
 			},
 			"Argument 1 was not a string");
@@ -904,7 +1009,7 @@ void ServerLuaScriptTests::test()
 		{
 			testThrowsExcepContainingString([&]() { 
 				const std::string script_src = "objectstorage.setItem('" + std::string(1000, 'a') + "', 1000.0)";
-				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 				sub_lua_script->exec(lock);
 			},
 			"Key is too long");
@@ -919,7 +1024,7 @@ void ServerLuaScriptTests::test()
 					"	t[i] = i		\n"
 					"end				\n"
 					"objectstorage.setItem('a', t)";
-				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 				sub_lua_script->exec(lock);
 			},
 			"Serialised data exceeded max_serialised_size_B");
@@ -934,7 +1039,7 @@ void ServerLuaScriptTests::test()
 
 			server.world_state->clearObjectStorageItems();
 
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 
 			testAssert(server.world_state->object_storage_items.size() == 1);
@@ -953,7 +1058,7 @@ void ServerLuaScriptTests::test()
 
 			server.world_state->clearObjectStorageItems();
 
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 		}
 
@@ -968,7 +1073,7 @@ void ServerLuaScriptTests::test()
 
 			server.world_state->clearObjectStorageItems();
 
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 
 			testAssert(server.world_state->object_storage_items.size() == 1);
@@ -989,7 +1094,7 @@ void ServerLuaScriptTests::test()
 
 			world_ob->event_handlers = NULL;
 			server.world_state->clearObjectStorageItems();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs.size() == 1);
 			sub_lua_script->doOnUserExitedParcel(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
@@ -1010,7 +1115,7 @@ void ServerLuaScriptTests::test()
 
 			world_ob->event_handlers = NULL;
 			server.world_state->clearObjectStorageItems();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs.size() == 1);
 			sub_lua_script->doOnUserExitedParcel(world_ob->getOrCreateEventHandlers()->onUserExitedParcel_handlers.handler_funcs[0].handler_func_ref, avatar->uid, world_ob->uid, parcel->id, lock);
@@ -1027,7 +1132,7 @@ void ServerLuaScriptTests::test()
 
 			server.world_state->clearObjectStorageItems();
 
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 
 			testAssert(server.world_state->object_storage_items.size() == 0); // Check didn't add item
@@ -1037,10 +1142,53 @@ void ServerLuaScriptTests::test()
 		{
 			testThrowsExcepContainingString([&]() { 
 				const std::string script_src = "objectstorage.getItem({a=1.0})";
-				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 				sub_lua_script->exec(lock);
 			},
 			"Argument 1 was not a string");
+		}
+
+		// Test items persist across script instances, overwriting returns the latest value, and items are per-object.
+		{
+			server.world_state->clearObjectStorageItems();
+			{
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "objectstorage.setItem('s', 'first')  objectstorage.setItem('s', 'second')", world_ob.ptr(), &server, main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
+			}
+			testAssert(server.world_state->object_storage_items.size() == 1);
+			{ // A new script on the same object reads the stored value.
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "assert(objectstorage.getItem('s') == 'second')", world_ob.ptr(), &server, main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
+			}
+			{ // A script on a different object can't see it.
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "assert(objectstorage.getItem('s') == nil)", world_ob2.ptr(), &server, main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
+			}
+			server.world_state->clearObjectStorageItems();
+		}
+
+		// Test key length limit: 256 chars is OK, 257 is too long.
+		{
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "objectstorage.setItem('" + std::string(256, 'a') + "', 1.0)", world_ob.ptr(), &server, main_world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
+
+			testThrowsExcepContainingString([&]() {
+				Reference<SubstrataLuaScript> sub_lua_script2 = new SubstrataLuaScript(&vm, &output_handler, "objectstorage.setItem('" + std::string(257, 'a') + "', 1.0)", world_ob.ptr(), &server, main_world_state.ptr(), lock);
+				sub_lua_script2->exec(lock);
+			}, "Key is too long");
+			server.world_state->clearObjectStorageItems();
+		}
+
+		// Test missing args
+		{
+			testThrowsExcepContainingString([&]() {
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "objectstorage.setItem('a')", world_ob.ptr(), &server, main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
+			}, "Expected 2 arg(s)");
+			testThrowsExcepContainingString([&]() {
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "objectstorage.getItem()", world_ob.ptr(), &server, main_world_state.ptr(), lock);
+				sub_lua_script->exec(lock);
+			}, "Expected 1 arg(s)");
 		}
 
 		//-------------------------------- Test parseJSON  --------------------------------
@@ -1049,7 +1197,7 @@ void ServerLuaScriptTests::test()
 				"local x = parseJSON('123.456')						\n"
 				"assert(x == 123.456)								\n";
 
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(!sub_lua_script->hit_error);
 		}
@@ -1065,7 +1213,7 @@ void ServerLuaScriptTests::test()
 				"assert(x[3] == 'abc')											\n"
 				"assert(x[4] == nil)											\n";
 
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(!sub_lua_script->hit_error);
 		}
@@ -1081,7 +1229,7 @@ void ServerLuaScriptTests::test()
 				"assert(x['c'] == 'abc')										\n"
 				"assert(x['d'] == nil)											\n";
 
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(!sub_lua_script->hit_error);
 		}
@@ -1097,7 +1245,7 @@ void ServerLuaScriptTests::test()
 				"print(x[1])													\n"
 				"assert(c == 100.0)												\n";
 
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(!sub_lua_script->hit_error);
 		}
@@ -1109,7 +1257,7 @@ void ServerLuaScriptTests::test()
 				"print(x)														\n"
 				"assert(#x == 0)												\n";
 
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(!sub_lua_script->hit_error);
 		}
@@ -1121,7 +1269,7 @@ void ServerLuaScriptTests::test()
 				"print(x)														\n"
 				"assert(#x == 0)												\n";
 
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(!sub_lua_script->hit_error);
 		}
@@ -1132,7 +1280,7 @@ void ServerLuaScriptTests::test()
 				"local x = parseJSON('null')									\n"
 				"assert(x == nil)												\n";
 
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(!sub_lua_script->hit_error);
 		}
@@ -1145,7 +1293,7 @@ void ServerLuaScriptTests::test()
 			script_src += "{}" + std::string(100, '}') + "')						\n"
 				"												\n";
 			//conPrint(script_src);
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(!sub_lua_script->hit_error);
 		}
@@ -1154,7 +1302,7 @@ void ServerLuaScriptTests::test()
 			std::string script_src = "local x = parseJSON('" + 
 				std::string(100, '[') + "[]" + std::string(100, ']') + "')						\n";
 			//conPrint(script_src);
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testAssert(!sub_lua_script->hit_error);
 		}
@@ -1163,7 +1311,7 @@ void ServerLuaScriptTests::test()
 		testThrowsExcepContainingString([&]()
 			{
 				std::string script_src = "local x = parseJSON(' ')    ";
-				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 				sub_lua_script->exec(lock);
 			},
 			"Error while parsing JSON:"
@@ -1171,7 +1319,7 @@ void ServerLuaScriptTests::test()
 		testThrowsExcepContainingString([&]()
 			{
 				std::string script_src = "local x = parseJSON('[[[')    ";
-				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 				sub_lua_script->exec(lock);
 			},
 			"Error while parsing JSON:"
@@ -1179,7 +1327,7 @@ void ServerLuaScriptTests::test()
 		testThrowsExcepContainingString([&]()
 			{
 				std::string script_src = "local x = parseJSON('truAAA')    ";
-				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 				sub_lua_script->exec(lock);
 			},
 			"Error while parsing JSON:"
@@ -1187,7 +1335,7 @@ void ServerLuaScriptTests::test()
 		testThrowsExcepContainingString([&]()
 			{
 				std::string script_src = "local x = parseJSON(true)    ";
-				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 				sub_lua_script->exec(lock);
 			},
 			"was not a string"
@@ -1223,13 +1371,13 @@ void ServerLuaScriptTests::test()
 					std::string(test_case == ErrorCallbackThrows ? "    error('HTTP callback failed')\n" : "") +
 					"end\n";
 				output_handler.buf.clear();
-				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 				sub_lua_script->exec(lock);
 				const int refs_with_script = vm.getNumLuaValueReferences();
 				Reference<LuaHTTPRequest> request = new LuaHTTPRequest();
 				request->sub_lua_script = sub_lua_script;
-				request->onDone_ref = sub_lua_script->lua_script->getRefToFunction("httpDone").ref;
-				request->onError_ref = sub_lua_script->lua_script->getRefToFunction("httpError").ref;
+				request->onDone_ref = sub_lua_script->getRefToFunction("httpDone").ref;
+				request->onError_ref = sub_lua_script->getRefToFunction("httpError").ref;
 				testEqual(vm.getNumLuaValueReferences(), refs_with_script + 2);
 
 				Reference<LuaHTTPRequestResult> result = new LuaHTTPRequestResult();
@@ -1299,7 +1447,7 @@ void ServerLuaScriptTests::test()
 					bool caught_disabled_exception = false;
 					try
 					{
-						Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+						Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 						sub_lua_script->exec(lock);
 					}
 					catch(const glare::Exception& e)
@@ -1337,7 +1485,7 @@ void ServerLuaScriptTests::test()
 				"end\n"
 				"doHTTPGetRequestAsync('https://forwardscattering.org/post/3', {}, done, failed)\n";
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testEqual(vm.getNumLuaValueReferences(), refs_before_script + 3); // Thread and two pending callbacks.
 
@@ -1403,7 +1551,7 @@ void ServerLuaScriptTests::test()
 				"end\n";
 			output_handler.buf.clear();
 			Timer request_timer;
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testEqual(vm.getNumLuaValueReferences(), refs_before_script + 23); // Thread plus two references per request.
 
@@ -1444,7 +1592,7 @@ void ServerLuaScriptTests::test()
 				"end\n";
 			const std::string call = "doHTTPGetRequestAsync('https://forwardscattering.org/post/3', {}, done, failed)\n";
 			output_handler.buf.clear();
-			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, callbacks + call + call, world_ob.ptr(), main_world_state.ptr(), lock);
+			Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, callbacks + call + call, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			const int refs_with_pending_requests = vm.getNumLuaValueReferences();
 			testEqual(refs_with_pending_requests, refs_before_script + 5); // Thread, one accepted request, and one delayed result.
@@ -1455,8 +1603,8 @@ void ServerLuaScriptTests::test()
 			rejected_request->sub_lua_script = sub_lua_script;
 			rejected_request->request_type = "GET";
 			rejected_request->URL = "https://forwardscattering.org/post/3";
-			rejected_request->onDone_ref = sub_lua_script->lua_script->getRefToFunction("done").ref;
-			rejected_request->onError_ref = sub_lua_script->lua_script->getRefToFunction("failed").ref;
+			rejected_request->onDone_ref = sub_lua_script->getRefToFunction("done").ref;
+			rejected_request->onError_ref = sub_lua_script->getRefToFunction("failed").ref;
 			testEqual(vm.getNumLuaValueReferences(), refs_with_pending_requests + 2);
 			bool caught_queue_cap = false;
 			try
@@ -1475,7 +1623,7 @@ void ServerLuaScriptTests::test()
 			caught_queue_cap = false;
 			try
 			{
-				Reference<SubstrataLuaScript> rejected_evaluator = new SubstrataLuaScript(&vm, &output_handler, callbacks + call, world_ob.ptr(), main_world_state.ptr(), lock);
+				Reference<SubstrataLuaScript> rejected_evaluator = new SubstrataLuaScript(&vm, &output_handler, callbacks + call, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 				rejected_evaluator->exec(lock);
 			}
 			catch(const glare::Exception& e)
@@ -1500,7 +1648,7 @@ void ServerLuaScriptTests::test()
 
 			// Draining the delayed result frees the queue slot, even though this user's rate allowance is still exhausted.
 			output_handler.buf.clear();
-			sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, callbacks + call, world_ob.ptr(), main_world_state.ptr(), lock);
+			sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, callbacks + call, world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			sub_lua_script->exec(lock);
 			testEqual(vm.getNumLuaValueReferences(), refs_before_script + 3);
 			request_timer.reset();
@@ -1528,6 +1676,217 @@ void ServerLuaScriptTests::test()
 	}
 #endif
 }
+
+
+//========================== Fuzzing ==========================
+#if 0
+// Fuzzing of the server-side Substrata Lua API (the functions and metamethods registered by SubstrataLuaVM).
+// The input is Lua source, which is run as the script of object 123, optionally followed by a zero byte and an HTTP response body.
+// After running the script, the event handlers and timers it registered are called, and its HTTP requests are given results: a response
+// with the body from the input, or an error if the input has no zero byte.  Then object 124 is deleted and the timers are called again,
+// and finally the script is destroyed and its outstanding HTTP requests are given results.
+// After each input, checks that all Lua value references the script made have been freed.
+//
+// Requires a FUZZING build, so that LuaHTTPRequestManager doesn't start worker threads that make real requests.
+//
+// Command line:
+// C:\fuzz_corpus\server_lua_script C:\code\substrata\testfiles\fuzz_seeds\server_lua_script -dict="C:\code\substrata\testfiles\fuzz_seeds\server_lua_script_dictionary.txt"
+
+#include <utils/Clock.h>
+#include <cstring>
+
+
+class FuzzLuaScriptOutputHandler : public LuaScriptOutputHandler
+{
+public:
+	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override {}
+	virtual void errorOccurredFromLuaScript(LuaScript* script, const std::string& msg) override {}
+};
+
+static Server* fuzz_server = NULL;
+static Reference<SubstrataLuaVM> fuzz_vm;
+static FuzzLuaScriptOutputHandler fuzz_output_handler;
+static int fuzz_initial_num_lua_value_refs = 0;
+
+
+extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv)
+{
+	Clock::init();
+	LuaVM::staticInit();
+
+	fuzz_server = new Server();
+	{
+		WorldStateLock lock(fuzz_server->world_state->mutex);
+		fuzz_server->world_state->feature_flag_info.feature_flags |= ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG;
+	}
+	fuzz_vm = new SubstrataLuaVM(SubstrataLuaVM::SubstrataLuaVMArgs(fuzz_server));
+	fuzz_initial_num_lua_value_refs = fuzz_vm->getNumLuaValueReferences();
+	return 0;
+}
+
+
+// Takes the requests made by scripts off the request queue and gives them results: a response with http_body if has_http_body is true, an error otherwise.
+// Then calls think(), which calls the onDone or onError functions.  think() takes the world state lock itself, so it must not be held when calling this.
+static void fuzzCompleteHTTPRequests(bool has_http_body, const std::string& http_body)
+{
+	js::Vector<Reference<LuaHTTPRequest>, 16> requests;
+	fuzz_server->lua_http_manager->request_queue.dequeueAnyQueuedItems(requests);
+
+	for(size_t i=0; i<requests.size(); ++i)
+	{
+		Reference<LuaHTTPRequestResult> result = new LuaHTTPRequestResult();
+		result->request = requests[i];
+		if(has_http_body)
+		{
+			result->response.response_code = 200;
+			result->response.response_message = "OK";
+			result->response.mime_type = "application/json";
+			result->data.assign(http_body.begin(), http_body.end());
+		}
+		else
+		{
+			result->exception_msg = "Fuzz error";
+			result->error_code = LuaHTTPRequestResult::ErrorCode_Other;
+		}
+		fuzz_server->lua_http_manager->enqueueResult(result);
+	}
+
+	fuzz_server->lua_http_manager->think();
+}
+
+
+// Calls the triggered timers like the Server main loop does.
+static void fuzzRunTimers(double cur_time, WorldStateLock& lock)
+{
+	std::vector<ScriptTimerQueueTimer> triggered;
+	fuzz_server->timer_queue.update(cur_time, triggered);
+
+	for(size_t i=0; i<triggered.size(); ++i)
+	{
+		ScriptTimerQueueTimer& timer = triggered[i];
+		SubstrataLuaScript* sub_lua_script = timer.sub_lua_script.getPtrIfAlive();
+		if(sub_lua_script && (timer.timer_id == sub_lua_script->timers[timer.timer_index].id))
+		{
+			sub_lua_script->doOnTimerEvent(timer.onTimerEvent_ref, lock);
+
+			if(timer.repeating)
+			{
+				timer.tigger_time = cur_time + timer.period;
+				fuzz_server->timer_queue.addTimer(cur_time, timer);
+			}
+			else
+				sub_lua_script->destroyTimer(timer.timer_index, timer.timer_id);
+		}
+	}
+}
+
+
+static void fuzzRunEventHandlers(WorldObject* ob, UID avatar_uid, ParcelID parcel_id, WorldStateLock& lock)
+{
+	if(!ob->event_handlers)
+		return;
+	ob->event_handlers->executeOnUserTouchedObjectHandlers(avatar_uid, ob->uid, lock);
+	ob->event_handlers->executeOnUserUsedObjectHandlers(avatar_uid, ob->uid, lock);
+	ob->event_handlers->executeOnUserMovedNearToObjectHandlers(avatar_uid, ob->uid, lock);
+	ob->event_handlers->executeOnUserMovedAwayFromObjectHandlers(avatar_uid, ob->uid, lock);
+	ob->event_handlers->executeOnUserEnteredParcelHandlers(avatar_uid, ob->uid, parcel_id, lock);
+	ob->event_handlers->executeOnUserExitedParcelHandlers(avatar_uid, ob->uid, parcel_id, lock);
+	ob->event_handlers->executeOnUserEnteredVehicleHandlers(avatar_uid, ob->uid, lock);
+	ob->event_handlers->executeOnUserExitedVehicleHandlers(avatar_uid, ob->uid, lock);
+	ob->event_handlers->executeOnChatMessageHandlers(avatar_uid, "hello", lock);
+}
+
+
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
+{
+	// Split the input into the script source and the HTTP response body, at the first zero byte.
+	const uint8_t* zero_byte = (size > 0) ? (const uint8_t*)std::memchr(data, 0, size) : NULL;
+	const std::string src((const char*)data, zero_byte ? (size_t)(zero_byte - data) : size);
+	const bool has_http_body = zero_byte != NULL;
+	const std::string http_body = zero_byte ? std::string((const char*)zero_byte + 1, (size_t)((data + size) - (zero_byte + 1))) : std::string();
+
+	// New manager for each input, so that rate limits and delayed results don't carry over to the next input.
+	fuzz_server->lua_http_manager = new LuaHTTPRequestManager(fuzz_server);
+
+	// Make fresh world state and objects for each input, so that changes a script makes don't carry over to the next input.
+	Reference<ServerWorldState> world_state = new ServerWorldState();
+
+	WorldObjectRef ob = new WorldObject();
+	ob->uid = UID(123);
+	ob->materials = { new WorldMaterial(), new WorldMaterial() };
+
+	WorldObjectRef ob2 = new WorldObject();
+	ob2->uid = UID(124);
+
+	AvatarRef avatar = new Avatar();
+	avatar->uid = UID(456);
+
+	const ParcelID parcel_id(789);
+
+	Reference<SubstrataLuaScript> sub_lua_script;
+	double t = 0;
+	{
+		WorldStateLock lock(fuzz_server->world_state->mutex);
+
+		fuzz_server->world_state->world_states[""] = world_state;
+		fuzz_server->world_state->clearObjectStorageItems();
+		fuzz_server->timer_queue.clear();
+
+		world_state->getObjects(lock)[ob->uid] = ob;
+		world_state->getObjects(lock)[ob2->uid] = ob2;
+		world_state->getAvatars(lock)[avatar->uid] = avatar;
+
+		try
+		{
+			sub_lua_script = new SubstrataLuaScript(fuzz_vm, &fuzz_output_handler, src, ob.ptr(), fuzz_server, world_state.ptr(), lock);
+			sub_lua_script->exec(lock);
+		}
+		catch(glare::Exception&)
+		{}
+
+		if(sub_lua_script) // Handlers and timers only exist if the script was created.  The do* functions catch exceptions themselves.
+		{
+			t = fuzz_server->total_timer.elapsed();
+
+			fuzzRunEventHandlers(ob.ptr(),  avatar->uid, parcel_id, lock);
+			fuzzRunEventHandlers(ob2.ptr(), avatar->uid, parcel_id, lock);
+			fuzzRunTimers(t + 1000.0, lock);
+		}
+	}
+
+	if(sub_lua_script)
+	{
+		for(int i=0; i<3; ++i) // onDone and onError functions can make more requests, so do a few rounds.
+			fuzzCompleteHTTPRequests(has_http_body, http_body);
+
+		// Delete object 124, then call the timers again, so that handles to it are used after it has gone.
+		WorldStateLock lock(fuzz_server->world_state->mutex);
+		world_state->getObjects(lock).erase(ob2->uid);
+		ob2->event_handlers = nullptr;
+		fuzzRunTimers(t + 2000.0, lock);
+	}
+
+	{
+		WorldStateLock lock(fuzz_server->world_state->mutex);
+		sub_lua_script = nullptr;
+	}
+
+	// Give results to requests made by the script that has now been destroyed.
+	fuzzCompleteHTTPRequests(has_http_body, http_body);
+
+	// Free everything that holds Lua value references, then check that none were leaked.
+	{
+		WorldStateLock lock(fuzz_server->world_state->mutex);
+		ob->event_handlers = nullptr;
+		ob2->event_handlers = nullptr;
+		fuzz_server->timer_queue.clear();
+		testEqual(fuzz_vm->getNumLuaValueReferences(), fuzz_initial_num_lua_value_refs);
+	}
+
+	return 0; // Non-zero return values are reserved for future use.
+}
+#endif
+//========================== End fuzzing ==========================
 
 
 #endif // BUILD_TESTS

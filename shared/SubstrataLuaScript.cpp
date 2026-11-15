@@ -47,18 +47,36 @@ private:
 };
 
 
+static LuaScriptOptions makeLuaScriptOptions(LuaScriptOutputHandler* script_output_handler_, SubstrataLuaScript* lua_script)
+{
+	LuaScriptOptions options;
+	options.max_num_interrupts = 10000;
+	options.script_output_handler = script_output_handler_;
+	options.userdata = lua_script;
+	return options;
+}
+
+
 SubstrataLuaScript::SubstrataLuaScript(const Reference<SubstrataLuaVM>& substrata_lua_vm_, LuaScriptOutputHandler* script_output_handler_, 
 	const std::string& script_src, WorldObject* world_object_,
+#if GUI_CLIENT
+	GUIClient* gui_client_,
+#endif
 #if SERVER
-		ServerWorldState* world_state_, // The world that the object belongs to.
+	Server* server_,
+	ServerWorldState* world_state_, // The world that the object belongs to.
 #endif
 	WorldStateLock& world_state_lock
 )
-:	substrata_lua_vm(substrata_lua_vm_),
-	script_output_handler(script_output_handler_),
+:	LuaScript(substrata_lua_vm_->lua_vm.ptr(), makeLuaScriptOptions(script_output_handler_, this), script_src),
+	substrata_lua_vm(substrata_lua_vm_),
 	hit_error(false),
 	world_object(world_object_),
+#if GUI_CLIENT
+	gui_client(gui_client_),
+#endif
 #if SERVER
+	server(server_),
 	world_state(world_state_),
 #endif
 	next_timer_id(0),
@@ -73,37 +91,30 @@ SubstrataLuaScript::SubstrataLuaScript(const Reference<SubstrataLuaVM>& substrat
 	play_sound_rate_limiter = new RateLimiter(/*period (s)=*/1.0, /*max num in period=*/10);
 #endif
 
-
 	for(int i=0; i<MAX_NUM_TIMERS; ++i)
 		timers[i].id = -1;
-
-	LuaScriptOptions options;
-	options.max_num_interrupts = 10000;
-	options.script_output_handler = script_output_handler_;
-	options.userdata = this;
-	lua_script.set(new LuaScript(substrata_lua_vm->lua_vm.ptr(), options, script_src));
 
 	try
 	{
 		// Set 'this_object' global variable
-		pushWorldObjectTableOntoStack(lua_script->thread_state, world_object->uid);
-		lua_setglobal(lua_script->thread_state, "this_object");
+		pushWorldObjectTableOntoStack(thread_state, world_object->uid);
+		lua_setglobal(thread_state, "this_object");
 
 		// Set 'IS_SERVER' global variable.
 #if SERVER
-		lua_pushboolean(lua_script->thread_state, 1);
+		lua_pushboolean(thread_state, 1);
 #else
-		lua_pushboolean(lua_script->thread_state, 0);
+		lua_pushboolean(thread_state, 0);
 #endif
-		lua_setglobal(lua_script->thread_state, "IS_SERVER");
+		lua_setglobal(thread_state, "IS_SERVER");
 
 		// Set 'IS_CLIENT' global variable.
 #if SERVER
-		lua_pushboolean(lua_script->thread_state, 0);
+		lua_pushboolean(thread_state, 0);
 #else
-		lua_pushboolean(lua_script->thread_state, 1);
+		lua_pushboolean(thread_state, 1);
 #endif
-		lua_setglobal(lua_script->thread_state, "IS_CLIENT");
+		lua_setglobal(thread_state, "IS_CLIENT");
 	}
 	catch(std::exception& e) // Lua memory alloc failures throw lua_exception which derives from std::exception.  Handle them.
 	{
@@ -129,88 +140,88 @@ void SubstrataLuaScript::exec(WorldStateLock& world_state_lock)
 	
 	try
 	{
-		lua_script->exec();
+		LuaScript::exec();
 
 		// Add any event handling functions defined in the script to the object event-handler list.
 		// Event handling functions defined in this way basically do implicit addEventListener() calls.
 		{
-			const LuaScript::LuaFuncRefAndPtr func_info =  lua_script->getRefToFunction("onUserTouchedObject");
+			const LuaScript::LuaFuncRefAndPtr func_info =  getRefToFunction("onUserTouchedObject");
 			if(func_info.ref.ref != LUA_NOREF)
 			{
 				HandlerFunc handler_func({WeakReference<SubstrataLuaScript>(this), func_info.ref, func_info.func_ptr});
 				if(!world_object->getOrCreateEventHandlers()->onUserTouchedObject_handlers.addHandler(handler_func))
-					lua_script->freeRefToFunction(handler_func.handler_func_ref); // if we failed to add the handler to onUserTouchedObject_handlers, remove the reference to the Lua func here.
+					freeRefToFunction(handler_func.handler_func_ref); // if we failed to add the handler to onUserTouchedObject_handlers, remove the reference to the Lua func here.
 			}
 		}
 		{
-			const LuaScript::LuaFuncRefAndPtr func_info = lua_script->getRefToFunction("onUserUsedObject");
+			const LuaScript::LuaFuncRefAndPtr func_info = getRefToFunction("onUserUsedObject");
 			if(func_info.ref.ref != LUA_NOREF)
 			{
 				HandlerFunc handler_func({WeakReference<SubstrataLuaScript>(this), func_info.ref, func_info.func_ptr});
 				if(!world_object->getOrCreateEventHandlers()->onUserUsedObject_handlers.addHandler(handler_func))
-					lua_script->freeRefToFunction(handler_func.handler_func_ref);
+					freeRefToFunction(handler_func.handler_func_ref);
 			}
 		}
 		{
-			const LuaScript::LuaFuncRefAndPtr func_info = lua_script->getRefToFunction("onUserMovedNearToObject");
+			const LuaScript::LuaFuncRefAndPtr func_info = getRefToFunction("onUserMovedNearToObject");
 			if(func_info.ref.ref != LUA_NOREF)
 			{
 				HandlerFunc handler_func({WeakReference<SubstrataLuaScript>(this), func_info.ref, func_info.func_ptr});
 				if(!world_object->getOrCreateEventHandlers()->onUserMovedNearToObject_handlers.addHandler(handler_func))
-					lua_script->freeRefToFunction(handler_func.handler_func_ref);
+					freeRefToFunction(handler_func.handler_func_ref);
 			}
 		}
 		{
-			const LuaScript::LuaFuncRefAndPtr func_info = lua_script->getRefToFunction("onUserMovedAwayFromObject");
+			const LuaScript::LuaFuncRefAndPtr func_info = getRefToFunction("onUserMovedAwayFromObject");
 			if(func_info.ref.ref != LUA_NOREF)
 			{
 				HandlerFunc handler_func({WeakReference<SubstrataLuaScript>(this), func_info.ref, func_info.func_ptr});
 				if(!world_object->getOrCreateEventHandlers()->onUserMovedAwayFromObject_handlers.addHandler(handler_func))
-					lua_script->freeRefToFunction(handler_func.handler_func_ref);
+					freeRefToFunction(handler_func.handler_func_ref);
 			}
 		}
 		{
-			const LuaScript::LuaFuncRefAndPtr func_info = lua_script->getRefToFunction("onUserEnteredParcel");
+			const LuaScript::LuaFuncRefAndPtr func_info = getRefToFunction("onUserEnteredParcel");
 			if(func_info.ref.ref != LUA_NOREF)
 			{
 				HandlerFunc handler_func({WeakReference<SubstrataLuaScript>(this), func_info.ref, func_info.func_ptr});
 				if(!world_object->getOrCreateEventHandlers()->onUserEnteredParcel_handlers.addHandler(handler_func))
-					lua_script->freeRefToFunction(handler_func.handler_func_ref);
+					freeRefToFunction(handler_func.handler_func_ref);
 			}
 		}
 		{
-			const LuaScript::LuaFuncRefAndPtr func_info = lua_script->getRefToFunction("onUserExitedParcel");
+			const LuaScript::LuaFuncRefAndPtr func_info = getRefToFunction("onUserExitedParcel");
 			if(func_info.ref.ref != LUA_NOREF)
 			{
 				HandlerFunc handler_func({WeakReference<SubstrataLuaScript>(this), func_info.ref, func_info.func_ptr});
 				if(!world_object->getOrCreateEventHandlers()->onUserExitedParcel_handlers.addHandler(handler_func))
-					lua_script->freeRefToFunction(handler_func.handler_func_ref);
+					freeRefToFunction(handler_func.handler_func_ref);
 			}
 		}
 		{
-			const LuaScript::LuaFuncRefAndPtr func_info = lua_script->getRefToFunction("onChatMessage");
+			const LuaScript::LuaFuncRefAndPtr func_info = getRefToFunction("onChatMessage");
 			if(func_info.ref.ref != LUA_NOREF)
 			{
 				HandlerFunc handler_func({WeakReference<SubstrataLuaScript>(this), func_info.ref, func_info.func_ptr});
 				if(!world_object->getOrCreateEventHandlers()->onChatMessage_handlers.addHandler(handler_func))
-					lua_script->freeRefToFunction(handler_func.handler_func_ref);
+					freeRefToFunction(handler_func.handler_func_ref);
 			}
 		}
 	}
 	catch(glare::Exception&)
 	{
 		hit_error = true;
-		lua_script->addExecutionTimeToVMAndResetCounter();
+		addExecutionTimeToVMAndResetCounter();
 		throw;
 	}
 	catch(std::exception& e) // Lua memory alloc failures throw lua_exception which derives from std::exception.  Handle them.
 	{
 		hit_error = true;
-		lua_script->addExecutionTimeToVMAndResetCounter();
+		addExecutionTimeToVMAndResetCounter();
 		throw glare::Exception(std::string(e.what()));
 	}
 
-	lua_script->addExecutionTimeToVMAndResetCounter();
+	addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -234,33 +245,33 @@ void SubstrataLuaScript::doOnUserTouchedObject(LuaVM::LuaValueRef func_ref, UID 
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
 
-		assert(lua_script->num_interrupts == 0);
+		assert(num_interrupts == 0);
 
-		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes function onto the stack.
+		lua_getref(thread_state, func_ref.ref); // Pushes function onto the stack.
 
-		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
+		pushAvatarTableOntoStack(thread_state, avatar_uid);
 
-		pushWorldObjectTableOntoStack(lua_script->thread_state, ob_uid);
+		pushWorldObjectTableOntoStack(thread_state, ob_uid);
 
 		// Call function
-		lua_call(lua_script->thread_state, /*nargs=*/2, /*nresults=*/0);
+		lua_call(thread_state, /*nargs=*/2, /*nresults=*/0);
 	}
 	catch(std::exception& e)
 	{
 		//conPrint("Error while executing onUserTouchedObject: " + std::string(e.what()));
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		//conPrint("Error while executing onUserTouchedObject: " + e.what());
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), e.what());
+			script_output_handler->errorOccurredFromLuaScript(this, e.what());
 		hit_error = true;
 	}
 
-	lua_script->addExecutionTimeToVMAndResetCounter();
+	addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -275,33 +286,33 @@ void SubstrataLuaScript::doOnUserUsedObject(LuaVM::LuaValueRef func_ref, UID ava
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
 
-		assert(lua_script->num_interrupts == 0);
+		assert(num_interrupts == 0);
 
-		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes onUserUsedObject onto the stack.
+		lua_getref(thread_state, func_ref.ref); // Pushes onUserUsedObject onto the stack.
 		
-		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
+		pushAvatarTableOntoStack(thread_state, avatar_uid);
 
-		pushWorldObjectTableOntoStack(lua_script->thread_state, ob_uid);
+		pushWorldObjectTableOntoStack(thread_state, ob_uid);
 
 		// Call function
-		lua_call(lua_script->thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
+		lua_call(thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
 	}
 	catch(std::exception& e)
 	{
 		//conPrint("Error while executing onUserUsedObject: " + std::string(e.what()));
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		//conPrint("Error while executing onUserUsedObject: " + e.what());
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 
-	lua_script->addExecutionTimeToVMAndResetCounter();
+	addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -316,33 +327,33 @@ void SubstrataLuaScript::doOnUserMovedNearToObject(LuaVM::LuaValueRef func_ref, 
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
 
-		assert(lua_script->num_interrupts == 0);
+		assert(num_interrupts == 0);
 
-		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
+		lua_getref(thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
-		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
+		pushAvatarTableOntoStack(thread_state, avatar_uid);
 
-		pushWorldObjectTableOntoStack(lua_script->thread_state, ob_uid);
+		pushWorldObjectTableOntoStack(thread_state, ob_uid);
 
 		// Call function
-		lua_call(lua_script->thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
+		lua_call(thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
 	}
 	catch(std::exception& e)
 	{
 		//conPrint("Error while executing onUserMovedNearToObject: " + std::string(e.what()));
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		//conPrint("Error while executing onUserMovedNearToObject: " + e.what());
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 
-	lua_script->addExecutionTimeToVMAndResetCounter();
+	addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -357,33 +368,33 @@ void SubstrataLuaScript::doOnUserMovedAwayFromObject(LuaVM::LuaValueRef func_ref
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
 
-		assert(lua_script->num_interrupts == 0);
+		assert(num_interrupts == 0);
 
-		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
+		lua_getref(thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
-		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
+		pushAvatarTableOntoStack(thread_state, avatar_uid);
 
-		pushWorldObjectTableOntoStack(lua_script->thread_state, ob_uid);
+		pushWorldObjectTableOntoStack(thread_state, ob_uid);
 
 		// Call function
-		lua_call(lua_script->thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
+		lua_call(thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
 	}
 	catch(std::exception& e)
 	{
 		//conPrint("Error while executing onUserMovedAwayFromObject: " + std::string(e.what()));
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		//conPrint("Error while executing onUserMovedAwayFromObject: " + e.what());
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 
-	lua_script->addExecutionTimeToVMAndResetCounter();
+	addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -398,33 +409,33 @@ void SubstrataLuaScript::doOnUserEnteredParcel(LuaVM::LuaValueRef func_ref, UID 
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
 
-		assert(lua_script->num_interrupts == 0);
+		assert(num_interrupts == 0);
 
-		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
+		lua_getref(thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
-		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
-		pushWorldObjectTableOntoStack(lua_script->thread_state, ob_uid);
-		pushParcelTableOntoStack(lua_script->thread_state, parcel_id);
+		pushAvatarTableOntoStack(thread_state, avatar_uid);
+		pushWorldObjectTableOntoStack(thread_state, ob_uid);
+		pushParcelTableOntoStack(thread_state, parcel_id);
 
 		// Call function
-		lua_call(lua_script->thread_state, /*nargs=*/3, /*nresults=*/0); // Pops all arguments and function value
+		lua_call(thread_state, /*nargs=*/3, /*nresults=*/0); // Pops all arguments and function value
 	}
 	catch(std::exception& e)
 	{
 		//conPrint("Error while executing doOnUserEnteredParcel: " + std::string(e.what()));
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		//conPrint("Error while executing doOnUserEnteredParcel: " + e.what());
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 
-	lua_script->addExecutionTimeToVMAndResetCounter();
+	addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -439,33 +450,33 @@ void SubstrataLuaScript::doOnUserExitedParcel(LuaVM::LuaValueRef func_ref, UID a
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
 
-		assert(lua_script->num_interrupts == 0);
+		assert(num_interrupts == 0);
 
-		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
+		lua_getref(thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
-		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
-		pushWorldObjectTableOntoStack(lua_script->thread_state, ob_uid);
-		pushParcelTableOntoStack(lua_script->thread_state, parcel_id);
+		pushAvatarTableOntoStack(thread_state, avatar_uid);
+		pushWorldObjectTableOntoStack(thread_state, ob_uid);
+		pushParcelTableOntoStack(thread_state, parcel_id);
 
 		// Call function
-		lua_call(lua_script->thread_state, /*nargs=*/3, /*nresults=*/0); // Pops all arguments and function value
+		lua_call(thread_state, /*nargs=*/3, /*nresults=*/0); // Pops all arguments and function value
 	}
 	catch(std::exception& e)
 	{
 		//conPrint("Error while executing onUserExitedParcel: " + std::string(e.what()));
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		//conPrint("Error while executing onUserExitedParcel: " + e.what());
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 
-	lua_script->addExecutionTimeToVMAndResetCounter();
+	addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -480,30 +491,30 @@ void SubstrataLuaScript::doOnUserEnteredVehicle(LuaVM::LuaValueRef func_ref, UID
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
 
-		assert(lua_script->num_interrupts == 0);
+		assert(num_interrupts == 0);
 
-		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
+		lua_getref(thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
-		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
-		pushWorldObjectTableOntoStack(lua_script->thread_state, vehicle_ob_uid);
+		pushAvatarTableOntoStack(thread_state, avatar_uid);
+		pushWorldObjectTableOntoStack(thread_state, vehicle_ob_uid);
 
 		// Call function
-		lua_call(lua_script->thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
+		lua_call(thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
 	}
 	catch(std::exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 
-	lua_script->addExecutionTimeToVMAndResetCounter();
+	addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -518,30 +529,30 @@ void SubstrataLuaScript::doOnUserExitedVehicle(LuaVM::LuaValueRef func_ref, UID 
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
 
-		assert(lua_script->num_interrupts == 0);
+		assert(num_interrupts == 0);
 
-		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
+		lua_getref(thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
-		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
-		pushWorldObjectTableOntoStack(lua_script->thread_state, vehicle_ob_uid);
+		pushAvatarTableOntoStack(thread_state, avatar_uid);
+		pushWorldObjectTableOntoStack(thread_state, vehicle_ob_uid);
 
 		// Call function
-		lua_call(lua_script->thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
+		lua_call(thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
 	}
 	catch(std::exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 
-	lua_script->addExecutionTimeToVMAndResetCounter();
+	addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -556,31 +567,31 @@ void SubstrataLuaScript::doOnChatMessage(LuaVM::LuaValueRef func_ref, UID avatar
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
 
-		assert(lua_script->num_interrupts == 0);
+		assert(num_interrupts == 0);
 
-		lua_getref(lua_script->thread_state, func_ref.ref); // Pushes func_ref onto the stack.
+		lua_getref(thread_state, func_ref.ref); // Pushes func_ref onto the stack.
 
-		pushAvatarTableOntoStack(lua_script->thread_state, avatar_uid);
+		pushAvatarTableOntoStack(thread_state, avatar_uid);
 
-		LuaUtils::pushString(lua_script->thread_state, message);
+		LuaUtils::pushString(thread_state, message);
 
 		// Call function
-		lua_call(lua_script->thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
+		lua_call(thread_state, /*nargs=*/2, /*nresults=*/0); // Pops all arguments and function value
 	}
 	catch(std::exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 
-	lua_script->addExecutionTimeToVMAndResetCounter();
+	addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -594,31 +605,31 @@ void SubstrataLuaScript::doOnTimerEvent(LuaVM::LuaValueRef onTimerEvent_ref, Wor
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = UID::invalidUID();
 
-		assert(lua_script->num_interrupts == 0);
+		assert(num_interrupts == 0);
 
-		lua_getref(lua_script->thread_state, onTimerEvent_ref.ref);  // Push function to be called onto stack
+		lua_getref(thread_state, onTimerEvent_ref.ref);  // Push function to be called onto stack
 
-		pushWorldObjectTableOntoStack(lua_script->thread_state, this->world_object->uid);
+		pushWorldObjectTableOntoStack(thread_state, this->world_object->uid);
 
 		// Call function
-		lua_call(lua_script->thread_state, /*nargs=*/1, /*nresults=*/0);
+		lua_call(thread_state, /*nargs=*/1, /*nresults=*/0);
 	}
 	catch(std::exception& e)
 	{
 		//conPrint("Error while executing doOnTimerEvent: " + std::string(e.what()));
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		//conPrint("Error while executing doOnTimerEvent: " + e.what());
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 
-	lua_script->addExecutionTimeToVMAndResetCounter();
+	addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -632,27 +643,27 @@ void SubstrataLuaScript::doOnUIEvent(LuaVM::LuaValueRef func_ref, UID avatar_uid
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid; // So that e.g. playSound() in the callback plays the sound locally.
 
-		assert(lua_script->num_interrupts == 0);
+		assert(num_interrupts == 0);
 
-		lua_getref(lua_script->thread_state, func_ref.ref); // Push function to be called onto stack
+		lua_getref(thread_state, func_ref.ref); // Push function to be called onto stack
 
 		// Call function
-		lua_call(lua_script->thread_state, /*nargs=*/0, /*nresults=*/0);
+		lua_call(thread_state, /*nargs=*/0, /*nresults=*/0);
 	}
 	catch(std::exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 
-	lua_script->addExecutionTimeToVMAndResetCounter();
+	addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -666,29 +677,29 @@ void SubstrataLuaScript::doOnUIValueChangedEvent(LuaVM::LuaValueRef func_ref, do
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid; // So that e.g. playSound() in the callback plays the sound locally.
 
-		assert(lua_script->num_interrupts == 0);
+		assert(num_interrupts == 0);
 
-		lua_getref(lua_script->thread_state, func_ref.ref); // Push function to be called onto stack
+		lua_getref(thread_state, func_ref.ref); // Push function to be called onto stack
 
-		lua_pushnumber(lua_script->thread_state, value);
+		lua_pushnumber(thread_state, value);
 
 		// Call function
-		lua_call(lua_script->thread_state, /*nargs=*/1, /*nresults=*/0);
+		lua_call(thread_state, /*nargs=*/1, /*nresults=*/0);
 	}
 	catch(std::exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 
-	lua_script->addExecutionTimeToVMAndResetCounter();
+	addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -702,7 +713,7 @@ void SubstrataLuaScript::destroyTimer(int timer_index, int timer_id)
 		// Free reference to Lua onTimerEvent function, if valid
 		if(timers[timer_index].onTimerEvent_ref.ref != LUA_NOREF)
 		{
-			lua_script->freeRefToFunction(timers[timer_index].onTimerEvent_ref);
+			freeRefToFunction(timers[timer_index].onTimerEvent_ref);
 			timers[timer_index].onTimerEvent_ref = LuaVM::LuaValueRef();
 		}
 	}
@@ -720,38 +731,38 @@ void SubstrataLuaScript::doOnError(LuaVM::LuaValueRef onError_ref, int error_cod
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = UID::invalidUID();
 
-		assert(lua_script->num_interrupts == 0);
+		assert(num_interrupts == 0);
 
-		lua_getref(lua_script->thread_state, onError_ref.ref);  // Push function to be called onto stack
+		lua_getref(thread_state, onError_ref.ref);  // Push function to be called onto stack
 
 		// onError gets passed
 		// {
 		//	  error_code : number
 		//	  error_description : string
 		// }
-		lua_newtable(lua_script->thread_state);
-		LuaUtils::setNumberAsTableField(lua_script->thread_state, "error_code", error_code);
-		LuaUtils::setStringAsTableField(lua_script->thread_state, "error_description", error_description);
+		lua_newtable(thread_state);
+		LuaUtils::setNumberAsTableField(thread_state, "error_code", error_code);
+		LuaUtils::setStringAsTableField(thread_state, "error_description", error_description);
 
 		// Call function
-		lua_call(lua_script->thread_state, /*nargs=*/1, /*nresults=*/0);
+		lua_call(thread_state, /*nargs=*/1, /*nresults=*/0);
 	}
 	catch(std::exception& e)
 	{
 		//conPrint("Error while executing doOnError: " + std::string(e.what()));
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		//conPrint("Error while executing doOnError: " + e.what());
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 
-	lua_script->addExecutionTimeToVMAndResetCounter();
+	addExecutionTimeToVMAndResetCounter();
 }
 
 
@@ -767,9 +778,9 @@ void SubstrataLuaScript::doOnDone(LuaVM::LuaValueRef onDone_ref, Reference<LuaHT
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = UID::invalidUID();
 
-		assert(lua_script->num_interrupts == 0);
+		assert(num_interrupts == 0);
 
-		lua_getref(lua_script->thread_state, onDone_ref.ref);  // Push function to be called onto stack
+		lua_getref(thread_state, onDone_ref.ref);  // Push function to be called onto stack
 
 		// onDone gets passed:
 		// 
@@ -779,38 +790,38 @@ void SubstrataLuaScript::doOnDone(LuaVM::LuaValueRef onDone_ref, Reference<LuaHT
 		//   mime_type : string
 		//   body_data : buffer
 		// }
-		lua_newtable(lua_script->thread_state);
-		LuaUtils::setNumberAsTableField(lua_script->thread_state, "response_code", result->response.response_code);
-		LuaUtils::setStringAsTableField(lua_script->thread_state, "response_message", result->response.response_message);
-		LuaUtils::setStringAsTableField(lua_script->thread_state, "mime_type", result->response.mime_type);
+		lua_newtable(thread_state);
+		LuaUtils::setNumberAsTableField(thread_state, "response_code", result->response.response_code);
+		LuaUtils::setStringAsTableField(thread_state, "response_message", result->response.response_message);
+		LuaUtils::setStringAsTableField(thread_state, "mime_type", result->response.mime_type);
 
 		// Create lua buffer, set as body_data table field.
-		void* lua_buf = lua_newbuffer(lua_script->thread_state, /*size=*/result->data.size());
+		void* lua_buf = lua_newbuffer(thread_state, /*size=*/result->data.size());
 		if(result->data.size() > 0)
 			std::memcpy(lua_buf, result->data.data(), result->data.size());
 
-		lua_rawsetfield(lua_script->thread_state, /*table index=*/-2, "body_data");
+		lua_rawsetfield(thread_state, /*table index=*/-2, "body_data");
 
 
 		// Call function
-		lua_call(lua_script->thread_state, /*nargs=*/1, /*nresults=*/0);
+		lua_call(thread_state, /*nargs=*/1, /*nresults=*/0);
 	}
 	catch(std::exception& e)
 	{
 		//conPrint("Error while executing doOnDone: " + std::string(e.what()));
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		//conPrint("Error while executing doOnDone: " + e.what());
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(lua_script.ptr(), std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
 		hit_error = true;
 	}
 
-	lua_script->addExecutionTimeToVMAndResetCounter();
+	addExecutionTimeToVMAndResetCounter();
 #else
 	assert(0);
 #endif
@@ -926,7 +937,7 @@ void SubstrataLuaScript::warnAboutUndeclaredResourceURL(const string_view func_n
 	if(inserted && script_output_handler)
 	{
 		const std::string msg = "Warning: " + std::string(func_name) + "(): '" + std::string(URL) + "' is not declared in the script header.  Declare it with a line like:\n-- @resource " + std::string(URL);
-		script_output_handler->printFromLuaScript(lua_script.ptr(), msg.data(), msg.size());
+		script_output_handler->printFromLuaScript(this, msg.data(), msg.size());
 	}
 }
 
