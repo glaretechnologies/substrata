@@ -1,0 +1,8 @@
+local co = coroutine.create(function()
+	local ob = getObjectForUID(124)
+	coroutine.yield(ob.uid)
+	objectstorage.setItem('k', ob.uid)
+	createTimer(function() print('from coroutine') end, 0.1, false)
+end)
+print(tostring(coroutine.resume(co)))
+print(tostring(coroutine.resume(co)))

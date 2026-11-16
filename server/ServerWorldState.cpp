@@ -2125,6 +2125,7 @@ void ServerAllWorldsState::clearObjectStorageItems()
 {
 	object_storage_items.clear();
 	object_num_storage_items.clear();
+	db_dirty_object_storage_items.clear();
 }
 
 

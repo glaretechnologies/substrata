@@ -1977,14 +1977,13 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 template <class StringType>
 static bool assignStringWithSizeCheck(lua_State* state, int index, StringType& field, const char* field_name, size_t max_size)
 {
-	size_t new_len;
-	const char* new_string = LuaUtils::getStringPointerAndLen(state, index, new_len);
-	if(new_len > max_size)
-		throw glare::Exception("New " + std::string(field_name) + " length too long. (string had length " + toString(new_len) + ", max len is " + toString(max_size) + ")" + errorContextString(state));
+	const string_view new_string = LuaUtils::getStringAsStringView(state, index);
+	if(new_string.size() > max_size)
+		throw glare::Exception("New " + std::string(field_name) + " length too long. (string had length " + toString(new_string.size()) + ", max len is " + toString(max_size) + ")" + errorContextString(state));
 	
-	if(field != string_view(new_string, new_len))
+	if(field != new_string)
 	{
-		field.assign(new_string, new_len);
+		field = new_string;
 		return true;
 	}
 	else

@@ -1,0 +1,5 @@
+local ob = getObjectForUID(124)
+assert(ob.uid == 124)
+local ob2 = coroutine.wrap(function() return getObjectForUID(124) end)()
+assert(getmetatable(ob2) == getmetatable(this_object))
+getObjectForUID(6544234)

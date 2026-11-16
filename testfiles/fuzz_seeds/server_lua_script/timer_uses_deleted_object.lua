@@ -1,0 +1,5 @@
+local other = getObjectForUID(124)
+createTimer(function()
+	print(tostring(other.pos))
+	other.pos = Vec3d(0, 0, 1)
+end, 0.1, true)

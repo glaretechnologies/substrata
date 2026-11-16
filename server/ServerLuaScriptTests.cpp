@@ -609,6 +609,27 @@ void ServerLuaScriptTests::test()
 		}
 		testEqual(vm.getNumLuaValueReferences(), initial_num_lua_value_refs);
 
+		//-------------------------------- Test setting string fields (assignStringWithSizeCheck) --------------------------------
+		{
+			const URLString prev_model_url = world_ob->model_url;
+			const std::string prev_content = world_ob->content;
+			world_ob->materials = { new WorldMaterial() };
+			auto run =[&](const std::string& src) { Reference<SubstrataLuaScript> s = new SubstrataLuaScript(&vm, &output_handler, src, world_ob.ptr(), &server, main_world_state.ptr(), lock); s->exec(lock); };
+
+			run("this_object.model_url = 'model.glb'   this_object.content = 42   this_object:getMaterial(0).colour_texture_url = 'tex.png'");
+			testAssert(world_ob->model_url == "model.glb");
+			testAssert(world_ob->content == "42"); // Number is converted to a string
+			testAssert(world_ob->materials[0]->colour_texture_url == "tex.png");
+
+			testThrowsExcepContainingString([&]() { run("this_object.model_url = string.rep('a', 1001)"); }, "length too long");
+			testThrowsExcepContainingString([&]() { run("this_object.content = {}"); }, "Value was not a string");
+
+			world_ob->materials.clear(); // Clean up from test
+			world_ob->model_url = prev_model_url;
+			world_ob->content = prev_content;
+		}
+		testEqual(vm.getNumLuaValueReferences(), initial_num_lua_value_refs);
+
 		//-------------------------------- Test getCurrentTime --------------------------------
 		{
 			const std::string script_src = "getCurrentTime()";
@@ -654,6 +675,22 @@ void ServerLuaScriptTests::test()
 				Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, "showMessage({})", world_ob.ptr(), &server, main_world_state.ptr(), lock);
 				sub_lua_script->exec(lock);
 			}, "Value was not a string");
+		}
+
+		//-------------------------------- Test number used where a string key or event name is expected --------------------------------
+		{
+			const char* scripts[] = {
+				"local x = this_object[1]",
+				"this_object[1] = 2",
+				"addEventListener(1, 123, function() end)"
+			};
+			for(const char* script_src : scripts)
+			{
+				testThrowsExcepContainingString([&]() {
+					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
+					sub_lua_script->exec(lock);
+				}, "Value was not a string");
+			}
 		}
 
 		//-------------------------------- Test getSecret --------------------------------
@@ -1690,7 +1727,7 @@ void ServerLuaScriptTests::test()
 // Requires a FUZZING build, so that LuaHTTPRequestManager doesn't start worker threads that make real requests.
 //
 // Command line:
-// C:\fuzz_corpus\server_lua_script C:\code\substrata\testfiles\fuzz_seeds\server_lua_script -dict="C:\code\substrata\testfiles\fuzz_seeds\server_lua_script_dictionary.txt"
+// C:\fuzz_corpus\server_lua_script C:\code\substrata\testfiles\fuzz_seeds\server_lua_script -dict="C:\code\substrata\testfiles\fuzz_seeds\server_lua_script_dictionary.txt" -max_len=20000 -jobs=16
 
 #include <utils/Clock.h>
 #include <cstring>

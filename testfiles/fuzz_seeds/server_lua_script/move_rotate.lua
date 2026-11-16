@@ -1,0 +1,5 @@
+this_object:moveTo(this_object.pos + Vec3d(0, 0, 5), 2.0)
+this_object:moveTo(Vec3d(1, 2, 3), 0.5, nil, function() print('move done') end)
+this_object:rotateTo(Vec3d(0, 0, 1), 3.14159, 1.0, nil, function() print('rotate done') end)
+local other = getObjectForUID(124)
+other:moveTo(Vec3d(0, 0, 0), 1.0)
