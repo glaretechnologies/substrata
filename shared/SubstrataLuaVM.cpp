@@ -953,6 +953,10 @@ static int scriptUIWidgetNewIndexMetaMethod(lua_State* state)
 }
 
 
+#if SERVER
+static constexpr size_t MAX_OBJECT_STORAGE_ITEM_SIZE_B = 1 << 16;
+#endif
+
 static int objectStorageGetItem(lua_State* state)
 {
 	// Expected args:
@@ -984,7 +988,9 @@ static int objectStorageGetItem(lua_State* state)
 		try
 		{
 			BufferViewInStream stream(ArrayRef<uint8>(res->second->data.data(), res->second->data.size()));
-			LuaSerialisation::deserialise(state, sub_lua_script->substrata_lua_vm->metatable_uid_to_ref_map, stream); // Pushes deserialised Lua value onto Lua stack.
+			LuaSerialisation::DeserialisationOptions options;
+			options.max_table_entries = MAX_OBJECT_STORAGE_ITEM_SIZE_B / 2;
+			LuaSerialisation::deserialise(state, sub_lua_script->substrata_lua_vm->metatable_uid_to_ref_map, stream, options); // Pushes deserialised Lua value onto Lua stack.
 		}
 		catch(glare::Exception& /*e*/)
 		{
@@ -1020,7 +1026,7 @@ static int objectStorageSetItem(lua_State* state)
 		BufferOutStream buf_stream;
 		LuaSerialisation::SerialisationOptions options;
 		options.max_depth = 16;
-		options.max_serialised_size_B = 1 << 16;
+		options.max_serialised_size_B = MAX_OBJECT_STORAGE_ITEM_SIZE_B;
 		LuaSerialisation::serialise(state, /*stack index=*/2, options, buf_stream);
 
 		// Look up ObjectStorage item, create if not present already.
