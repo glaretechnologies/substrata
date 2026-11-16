@@ -731,6 +731,12 @@ ${luaudir}/Common/src/StringUtils.cpp
 ${luaudir}/Common/src/TimeTrace.cpp
 )
 
+# Build Luau with precise floating point.  Luau's NaN checks (e.g. rejecting NaN table keys) use float comparisons like (a != a),
+# which /fp:fast can optimise away, allowing scripts to insert NaN keys and corrupt tables.
+if(WIN32)
+	set_source_files_properties(${luau_vm} ${luau_compiler} PROPERTIES COMPILE_OPTIONS "/fp:precise")
+endif()
+
 
 
 set(lua
