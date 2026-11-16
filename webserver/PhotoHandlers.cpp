@@ -40,7 +40,7 @@ const std::string& get_local_midsize_filename(const Photo& p)   { return p.local
 // Inner HTML of the reaction summary: each emoji that has at least one reaction, with its count.
 // The tooltip lists the names of the users who gave the reaction, e.g. "Fire: alice, bob".
 // Requires world_state.mutex to be held.
-static std::string reactionSummaryHTML(ServerAllWorldsState& world_state, const Photo& photo)
+static std::string reactionSummaryHTML(ServerAllWorldsState& world_state, const Photo& photo, WorldStateLock& /*lock*/) REQUIRES(world_state.mutex)
 {
 	const size_t max_names_to_list = 20;
 
@@ -371,7 +371,7 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 				// Caption on the left, summary of reactions received on the right.
 				page += "<div class=\"photo-caption-row\">\n";
 				page += "<figcaption><i>" + web::Escaping::HTMLEscape(photo->caption) + "</i></figcaption>\n";
-				page += "<div class=\"photo-reaction-summary\">" + reactionSummaryHTML(world_state, *photo) + "</div>\n";
+				page += "<div class=\"photo-reaction-summary\">" + reactionSummaryHTML(world_state, *photo, lock) + "</div>\n";
 				page += "</div>\n";
 
 				User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
@@ -749,7 +749,7 @@ void handlePhotoReactionPost(ServerAllWorldsState& world_state, const web::Reque
 		bool reacted = false;
 		std::string summary_html;
 		{ // Lock scope
-			Lock lock(world_state.mutex);
+			WorldStateLock lock(world_state.mutex);
 
 			const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
 			if(!logged_in_user)
@@ -764,7 +764,7 @@ void handlePhotoReactionPost(ServerAllWorldsState& world_state, const web::Reque
 				throw glare::Exception("Photo was deleted.");
 
 			reacted = photo->toggleReaction((PhotoReaction::EmojiType)emoji_type, logged_in_user->id);
-			summary_html = reactionSummaryHTML(world_state, *photo);
+			summary_html = reactionSummaryHTML(world_state, *photo, lock);
 
 			world_state.addPhotoAsDBDirty(photo);
 		} // End lock scope

@@ -1085,7 +1085,10 @@ static int doHTTPGetRequestAsync(lua_State* state)
 #if SERVER
 	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
-	if(!BitUtils::isBitSet(sub_lua_script->server->world_state->feature_flag_info.feature_flags, ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG))
+	ServerAllWorldsState* world_state = sub_lua_script->server->world_state.ptr();
+	checkHoldWorldStateMutex(sub_lua_script, world_state);
+
+	if(!BitUtils::isBitSet(world_state->feature_flag_info.feature_flags, ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG))
 		throw glare::Exception("Lua HTTP requests feature-flag disabled, not doing request");
 
 	Reference<LuaHTTPRequest> request = new LuaHTTPRequest();
@@ -1155,7 +1158,10 @@ static int doHTTPPostRequestAsync(lua_State* state)
 #if SERVER
 	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
-	if(!BitUtils::isBitSet(sub_lua_script->server->world_state->feature_flag_info.feature_flags, ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG))
+	ServerAllWorldsState* world_state = sub_lua_script->server->world_state.ptr();
+	checkHoldWorldStateMutex(sub_lua_script, world_state);
+
+	if(!BitUtils::isBitSet(world_state->feature_flag_info.feature_flags, ServerAllWorldsState::LUA_HTTP_REQUESTS_FEATURE_FLAG))
 		throw glare::Exception("Lua HTTP requests feature-flag disabled, not doing request");
 
 	Reference<LuaHTTPRequest> request = new LuaHTTPRequest();
