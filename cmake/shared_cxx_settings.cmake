@@ -233,8 +233,8 @@ elseif(APPLE)
 	add_definitions(-DOSX -DINDIGO_NO_OPENMP)
 	add_definitions(-D__NO_AVX__)
 
-	# Jolt uses shared_mutex which was introduced in macOS 10.12.
-	SET(CMAKE_OSX_DEPLOYMENT_TARGET "10.12")
+	# Luau uses std::optional::value(), which needs macOS 10.13 (std::bad_optional_access is in the 10.13 libc++ dylib).
+	SET(CMAKE_OSX_DEPLOYMENT_TARGET "10.13")
 	SET(CMAKE_OSX_SYSROOT "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk")
 
 	add_definitions(-DOSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET}")
