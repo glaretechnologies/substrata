@@ -67,8 +67,11 @@ private slots:;
 	void on_openServerScriptLogLabel_linkActivated(const QString& link);
 
 private:
+	static bool parseLuaErrorLineNum(const std::string& msg, int& line_num_out);
+
 	std::string base_dir_path;
 	bool text_has_changed;
+	bool text_edited_since_apply; // If true, the editor text may differ from the running script, so runtime error line numbers may not match it.
 
 	struct SrcPosition
 	{

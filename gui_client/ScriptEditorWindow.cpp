@@ -51,7 +51,8 @@ ScriptEditorWindow::ScriptEditorWindow(QWidget* parent, std::string base_dir_pat
 :	QMainWindow(parent),
 	resource_manager(NULL),
 	base_dir_path(base_dir_path_),
-	text_has_changed(false)
+	text_has_changed(false),
+	text_edited_since_apply(false)
 {
 	setupUi(this);
 
@@ -97,6 +98,7 @@ void ScriptEditorWindow::initialise(const std::string& shader)
 	shaderEdit->blockSignals(true);
 	shaderEdit->setPlainText(QtUtils::toQString(shader));
 	shaderEdit->blockSignals(false);
+	text_edited_since_apply = false;
 
 	buildOutputTextEdit->clear();
 	executionOutputTextEdit->clear();
@@ -113,6 +115,7 @@ void ScriptEditorWindow::update(const std::string& shader)
 	shaderEdit->blockSignals(true);
 	shaderEdit->setPlainText(QtUtils::toQString(shader));
 	shaderEdit->blockSignals(false);
+	text_edited_since_apply = false;
 	this->blockSignals(false);
 }
 
@@ -153,40 +156,49 @@ void ScriptEditorWindow::mouseDoubleClickedInOutput(ScriptEditorOutputTextEdit* 
 
 		const std::string line = QtUtils::toStdString(output_cursor.block().text());
 
-		// Example runtime error messages:
-		// Error while creating Lua script: [string "script"]:10: attempt to call a nil value
-		// Lua, func: [top level code], line: 67
-		// Lua, func: someFunc, line: 67
-
-		
-		std::string location_marker = "[string \"script\"]:";
-		size_t offset = line.find(location_marker);
-		if(offset == std::string::npos)
+		int line_num;
+		if(parseLuaErrorLineNum(line, line_num))
 		{
-			location_marker = ", line: ";
-			offset = line.find(location_marker);
-		}
+			// Move cursor to line where error occurred.
+			QTextCursor cursor = shaderEdit->textCursor();
 
+			cursor.movePosition(QTextCursor::Start);
+			cursor.movePosition(QTextCursor::Down,  QTextCursor::MoveAnchor, line_num - 1);
 
-		if(offset != std::string::npos)
-		{
-			const std::string trimmed_line = line.substr(offset + location_marker.size());
-			Parser parser(trimmed_line);
-			int line_num = 0;
-			if(parser.parseInt(line_num))
-			{
-				// Move cursor to line where error occurred.
-				QTextCursor cursor = shaderEdit->textCursor();
+			shaderEdit->setTextCursor(cursor);
 
-				cursor.movePosition(QTextCursor::Start);
-				cursor.movePosition(QTextCursor::Down,  QTextCursor::MoveAnchor, line_num - 1);
-
-				shaderEdit->setTextCursor(cursor);
-
-				shaderEdit->setFocus();
-			}
+			shaderEdit->setFocus();
 		}
 	}
+}
+
+
+// Gets the 1-based script line number from a Lua runtime error message.  Returns false if the message doesn't contain one.
+bool ScriptEditorWindow::parseLuaErrorLineNum(const std::string& msg, int& line_num_out)
+{
+	// Example runtime error messages:
+	// Error while creating Lua script: [string "script"]:10: attempt to call a nil value
+	// Lua, func: [top level code], line: 67
+	// Lua, func: someFunc, line: 67
+
+	std::string location_marker = "[string \"script\"]:";
+	size_t offset = msg.find(location_marker);
+	if(offset == std::string::npos)
+	{
+		location_marker = ", line: ";
+		offset = msg.find(location_marker);
+	}
+	if(offset == std::string::npos)
+		return false;
+
+	const size_t num_start = offset + location_marker.size();
+	Parser parser(msg.data() + num_start, msg.size() - num_start);
+	int line_num = 0;
+	if(!parser.parseInt(line_num) || (line_num < 1))
+		return false;
+
+	line_num_out = line_num;
+	return true;
 }
 
 
@@ -243,6 +255,7 @@ void ScriptEditorWindow::mouseDoubleClickEvent(QMouseEvent* e)
 void ScriptEditorWindow::on_shaderEdit_textChanged()
 {
 	text_has_changed = true;
+	text_edited_since_apply = true;
 	emit_shader_changed_timer->start(SHADER_EDIT_TIMEOUT);
 	syntax_highlight_timer->start(SYNTAX_HIGHLIGHT_TIMEOUT);
 }
@@ -250,7 +263,10 @@ void ScriptEditorWindow::on_shaderEdit_textChanged()
 
 void ScriptEditorWindow::on_applyChangesPushButton_clicked()
 {
+	syntax_highlight_timer->stop(); // We build now, and a pending build would clear any runtime error underline from the applied script.
 	buildCodeAndShowResults();
+
+	text_edited_since_apply = false;
 
 	this->executionOutputTextEdit->clear();
 
@@ -638,5 +654,28 @@ void ScriptEditorWindow::luaErrorOccurred(const std::string& msg)
 		this->executionOutputTextEdit->setCurrentCharFormat(format);
 
 		this->executionOutputTextEdit->insertPlainText(QtUtils::toQString(msg + "\n"));
+
+		// Underline the line the error occurred on.  The cursor isn't moved, as errors can arrive at any time, e.g. from event handlers, while the user is typing.
+		// If the text has been edited since it was applied, the running script is an older version, so its line numbers may not match the editor text.
+		int line_num;
+		if(!text_edited_since_apply && parseLuaErrorLineNum(msg, line_num))
+		{
+			const QTextBlock block = shaderEdit->document()->findBlockByNumber(line_num - 1);
+			if(block.isValid())
+			{
+				const QString line_text = block.text();
+				int first_non_space = 0;
+				while(first_non_space < line_text.size() && line_text[first_non_space].isSpace())
+					first_non_space++;
+
+				if(first_non_space < line_text.size())
+				{
+					shaderEdit->blockSignals(true); // Block signals so a text edited signal is not emitted when highlighting text.
+					this->highlighter->addErrorAtCharIndex(block.position() + first_non_space, line_text.size() - first_non_space);
+					this->highlighter->doRehighlight();
+					shaderEdit->blockSignals(false);
+				}
+			}
+		}
 	}
 }
