@@ -86,6 +86,8 @@ SET(shared_files
 ../shared/WorldMaterial.h
 ../shared/SubstrataLuaVM.cpp
 ../shared/SubstrataLuaVM.h
+../shared/LuaScriptUIFunctions.cpp
+../shared/LuaScriptUIFunctions.h
 ../shared/SubstrataLuaScript.cpp
 ../shared/SubstrataLuaScript.h
 ../shared/ScriptTimerQueue.cpp

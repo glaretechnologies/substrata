@@ -10,9 +10,11 @@ Copyright Glare Technologies Limited 2026 -
 #include <lua/LuaVM.h>
 #include <opengl/ui/GLUI.h>
 #include <opengl/ui/GLUICallbackHandler.h>
+#include <opengl/ui/GLUIGridContainer.h>
 #include <opengl/ui/GLUIImage.h>
 #include <opengl/ui/GLUISlider.h>
 #include <opengl/ui/GLUITextButton.h>
+#include <opengl/ui/GLUITextView.h>
 #include <utils/RefCounted.h>
 #include <utils/Reference.h>
 #include <map>
@@ -26,7 +28,7 @@ class SubstrataLuaScript;
 /*=====================================================================
 LuaScriptUIWidget
 -----------------
-A GLUI widget created by a Lua script, with createUIImage(), createUIButton() or createUISlider().
+A GLUI widget created by a Lua script, with createUIImage(), createUIButton(), createUISlider(), createUILabel() or createUIGrid().
 =====================================================================*/
 class LuaScriptUIWidget : public RefCounted
 {
@@ -52,8 +54,12 @@ public:
 	GLUIImageRef image;
 	GLUITextButtonRef button;
 	GLUISliderRef slider;
+	GLUITextViewRef label;
+	GLUIGridContainerRef grid;
 
-	Anchor anchor;
+	int parent_grid_id; // Id of the grid widget this widget is in, or 0 if the widget is not in a grid.
+
+	Anchor anchor; // anchor and offset_px are only used when the widget is not in a grid.
 	Vec2f offset_px; // Offset of the widget from its anchor point, in device-independent pixels.  +x is right, +y is up.
 	Vec2f size_px; // For images and sliders.
 
@@ -65,6 +71,8 @@ public:
 	LuaVM::LuaValueRef callback_ref; // Reference to the Lua onClick function for buttons, or onChange function for sliders.  LUA_NOREF if none.
 
 	bool slider_change_queued; // True if the slider value has changed since the last onChange call, and the widget id is in LuaScriptUI::changed_slider_ids.
+
+	GLUIWidgetRef getGLUIWidget() const;
 };
 typedef Reference<LuaScriptUIWidget> LuaScriptUIWidgetRef;
 
@@ -77,6 +85,11 @@ Holds the widgets created by Lua scripts on the client.
 Widgets are positioned relative to an anchor point on the viewport (a corner, edge centre or the centre),
 plus an offset in pixels, and are repositioned when the viewport is resized.
 
+A widget can be placed in a cell of a grid widget, in which case the grid lays it out and its own anchor and offset are unused.
+Grids can be nested.  A widget is drawn only if it and all the grids containing it are visible.
+A widget removed from a grid (by clearing or replacing its cell) goes back to being positioned by its own anchor and offset.
+Destroying a grid destroys the widgets in it.
+
 Button clicks and slider value changes are queued and the Lua onClick and onChange callbacks are run from think(), not from inside GLUI event dispatch,
 so that a callback can safely create or destroy widgets.  A slider's onChange is called at most once per think() call, with the latest value,
 so dragging a slider doesn't run the callback for every mouse move event.
@@ -88,12 +101,17 @@ public:
 	~LuaScriptUI();
 
 	static const size_t MAX_NUM_WIDGETS_PER_SCRIPT = 32;
+	static const size_t MAX_GRID_SIZE = 32; // Max number of rows and of columns in a grid.
 
 	// Return the new widget id.  Throws glare::Exception if the script has too many widgets.
 	int createImage(SubstrataLuaScript* sub_lua_script, const URLString& image_URL, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Vec2f& size_px, bool visible);
 	int createButton(SubstrataLuaScript* sub_lua_script, const std::string& text, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, LuaVM::LuaValueRef onClick_ref, bool visible);
 	int createSlider(SubstrataLuaScript* sub_lua_script, double min_value, double max_value, double initial_value, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Vec2f& size_px,
 		LuaVM::LuaValueRef onChange_ref, bool visible);
+	int createLabel(SubstrataLuaScript* sub_lua_script, const std::string& text, const Colour3f& text_colour_linear, const Colour3f& background_colour_linear, float background_alpha, int font_size_px,
+		LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, bool visible);
+	int createGrid(SubstrataLuaScript* sub_lua_script, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Colour3f& background_colour_linear, float background_alpha,
+		float interior_padding_px, float edge_padding_px, bool visible);
 
 	// Returns NULL if there is no widget with the given id belonging to the script.
 	LuaScriptUIWidget* getWidget(SubstrataLuaScript* sub_lua_script, int id);
@@ -101,8 +119,14 @@ public:
 	void destroyWidget(SubstrataLuaScript* sub_lua_script, int id);
 
 	void setWidgetVisible(LuaScriptUIWidget& widget, bool visible);
-	void setButtonText(LuaScriptUIWidget& widget, const std::string& text);
+	void setWidgetText(LuaScriptUIWidget& widget, const std::string& text); // For buttons and labels.
 	void setSliderValue(LuaScriptUIWidget& widget, double value); // Doesn't call onChange.
+
+	// Puts child in the given cell of the grid (0-based, (0, 0) is the top-left cell), removing it from any grid it was in first.
+	// If child is NULL, clears the cell.  A widget already in the cell is removed from the grid.
+	// Throws glare::Exception if grid is not a grid, or if inserting child would put a grid inside itself.
+	void setGridCell(LuaScriptUIWidget& grid, int cell_x, int cell_y, LuaScriptUIWidget* child);
+	void addGridRow(LuaScriptUIWidget& grid, LuaScriptUIWidget& child); // Puts child in the first column of a new row at the bottom of the grid.
 
 	void removeWidgetsForScript(SubstrataLuaScript* sub_lua_script);
 	void removeAllWidgets();
@@ -120,9 +144,14 @@ public:
 
 private:
 	size_t numWidgetsForScript(SubstrataLuaScript* sub_lua_script) const;
-	void updateWidgetTransform(LuaScriptUIWidget& widget);
-	void updateWidgetDrawn(LuaScriptUIWidget& widget);
+	LuaScriptUIWidget* getParentGrid(const LuaScriptUIWidget& widget);
+	LuaScriptUIWidget& getRootWidget(LuaScriptUIWidget& widget); // Returns the outermost grid containing the widget, or the widget itself if it is not in a grid.
+	bool isEffectivelyVisible(const LuaScriptUIWidget& widget); // True if the UI is visible, and the widget and all grids containing it are visible.
+	void removeFromParentGrid(LuaScriptUIWidget& widget); // Doesn't reposition the widget.
+	void updateWidgetTransform(LuaScriptUIWidget& widget); // Updates the transform of the outermost grid containing the widget, or of the widget itself.
+	void updateWidgetDrawn(LuaScriptUIWidget& widget); // Also updates widgets in the widget, if it is a grid.
 	void checkAssignImageTexture(LuaScriptUIWidget& widget);
+	void destroyWidgetAndContents(int id);
 	void removeWidgetFromUI(LuaScriptUIWidget& widget);
 
 	GUIClient* gui_client;

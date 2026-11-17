@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2026 -
 #include <utils/StringUtils.h>
 #include <utils/UTF8Utils.h>
 #include <lua.h>
+#include <cmath>
 
 
 bool LuaScriptUIWidget::parseAnchor(const std::string& s, Anchor& anchor_out)
@@ -29,6 +30,17 @@ bool LuaScriptUIWidget::parseAnchor(const std::string& s, Anchor& anchor_out)
 	if(s == "bottom")			{ anchor_out = Anchor_Bottom;		return true; }
 	if(s == "bottom-right")		{ anchor_out = Anchor_BottomRight;	return true; }
 	return false;
+}
+
+
+GLUIWidgetRef LuaScriptUIWidget::getGLUIWidget() const
+{
+	if(image)	return image;
+	if(button)	return button;
+	if(slider)	return slider;
+	if(label)	return label;
+	if(grid)	return grid;
+	return GLUIWidgetRef();
 }
 
 
@@ -84,6 +96,7 @@ int LuaScriptUI::createImage(SubstrataLuaScript* sub_lua_script, const URLString
 	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
 	widget->id = next_widget_id++;
 	widget->sub_lua_script = sub_lua_script;
+	widget->parent_grid_id = 0;
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = size_px;
@@ -94,6 +107,7 @@ int LuaScriptUI::createImage(SubstrataLuaScript* sub_lua_script, const URLString
 
 	widget->image = new GLUIImage(*gl_ui, /*tex_path=*/"", /*tooltip=*/"");
 	widget->image->setMouseOverColour(Colour3f(1.f)); // No mouse-over highlight
+	widget->image->setFixedDimsPx(size_px); // So that a grid containing the image knows its size.
 	gl_ui->addWidget(widget->image);
 
 	updateWidgetTransform(*widget);
@@ -127,6 +141,7 @@ int LuaScriptUI::createButton(SubstrataLuaScript* sub_lua_script, const std::str
 	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
 	widget->id = next_widget_id++;
 	widget->sub_lua_script = sub_lua_script;
+	widget->parent_grid_id = 0;
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = Vec2f(0.f);
@@ -157,6 +172,7 @@ int LuaScriptUI::createSlider(SubstrataLuaScript* sub_lua_script, double min_val
 	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
 	widget->id = next_widget_id++;
 	widget->sub_lua_script = sub_lua_script;
+	widget->parent_grid_id = 0;
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = size_px;
@@ -182,6 +198,78 @@ int LuaScriptUI::createSlider(SubstrataLuaScript* sub_lua_script, double min_val
 }
 
 
+int LuaScriptUI::createLabel(SubstrataLuaScript* sub_lua_script, const std::string& text, const Colour3f& text_colour_linear, const Colour3f& background_colour_linear, float background_alpha, int font_size_px,
+	LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, bool visible)
+{
+	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
+		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
+
+	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
+	widget->id = next_widget_id++;
+	widget->sub_lua_script = sub_lua_script;
+	widget->parent_grid_id = 0;
+	widget->anchor = anchor;
+	widget->offset_px = offset_px;
+	widget->size_px = Vec2f(0.f);
+	widget->image_texture_assigned = false;
+	widget->visible = visible;
+	widget->slider_change_queued = false;
+
+	GLUITextView::CreateArgs args;
+	args.text_colour = text_colour_linear;
+	args.background_colour = background_colour_linear;
+	args.background_alpha = background_alpha;
+	args.font_size_px = font_size_px;
+	args.padding_px = (int)std::ceil(font_size_px * 0.6f); // Same ratio as the GLUITextView default.
+	args.fixed_size = Vec2f(0.f); // Size the label to fit the text.
+	args.text_selectable = false; // So that clicking on a label doesn't take keyboard focus.
+	widget->label = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(text), args);
+	gl_ui->addWidget(widget->label);
+
+	updateWidgetTransform(*widget);
+	updateWidgetDrawn(*widget);
+
+	widgets[widget->id] = widget;
+	return widget->id;
+}
+
+
+int LuaScriptUI::createGrid(SubstrataLuaScript* sub_lua_script, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Colour3f& background_colour_linear, float background_alpha,
+	float interior_padding_px, float edge_padding_px, bool visible)
+{
+	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
+		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
+
+	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
+	widget->id = next_widget_id++;
+	widget->sub_lua_script = sub_lua_script;
+	widget->parent_grid_id = 0;
+	widget->anchor = anchor;
+	widget->offset_px = offset_px;
+	widget->size_px = Vec2f(0.f);
+	widget->image_texture_assigned = false;
+	widget->visible = visible;
+	widget->slider_change_queued = false;
+
+	GLUIGridContainer::CreateArgs args;
+	args.background_colour = background_colour_linear;
+	args.background_alpha = background_alpha;
+	args.interior_cell_x_padding_px = interior_padding_px;
+	args.interior_cell_y_padding_px = interior_padding_px;
+	args.exterior_cell_x_padding_px = edge_padding_px;
+	args.exterior_cell_y_padding_px = edge_padding_px;
+	args.background_consumes_events = background_alpha > 0; // Clicks on a visible background shouldn't go through to the world.
+	widget->grid = new GLUIGridContainer(*gl_ui, args);
+	gl_ui->addWidget(widget->grid);
+
+	updateWidgetTransform(*widget);
+	updateWidgetDrawn(*widget);
+
+	widgets[widget->id] = widget;
+	return widget->id;
+}
+
+
 LuaScriptUIWidget* LuaScriptUI::getWidget(SubstrataLuaScript* sub_lua_script, int id)
 {
 	auto res = widgets.find(id);
@@ -197,8 +285,27 @@ void LuaScriptUI::destroyWidget(SubstrataLuaScript* sub_lua_script, int id)
 	if(res == widgets.end() || (res->second->sub_lua_script != sub_lua_script))
 		return;
 
-	removeWidgetFromUI(*res->second);
-	widgets.erase(res);
+	removeFromParentGrid(*res->second);
+	destroyWidgetAndContents(id);
+}
+
+
+void LuaScriptUI::destroyWidgetAndContents(int id)
+{
+	std::vector<int> child_ids;
+	for(auto it = widgets.begin(); it != widgets.end(); ++it)
+		if(it->second->parent_grid_id == id)
+			child_ids.push_back(it->first);
+
+	for(size_t i=0; i<child_ids.size(); ++i)
+		destroyWidgetAndContents(child_ids[i]);
+
+	auto res = widgets.find(id);
+	if(res != widgets.end())
+	{
+		removeWidgetFromUI(*res->second);
+		widgets.erase(res);
+	}
 }
 
 
@@ -209,12 +316,17 @@ void LuaScriptUI::setWidgetVisible(LuaScriptUIWidget& widget, bool visible)
 }
 
 
-void LuaScriptUI::setButtonText(LuaScriptUIWidget& widget, const std::string& text)
+void LuaScriptUI::setWidgetText(LuaScriptUIWidget& widget, const std::string& text)
 {
 	if(widget.button)
 	{
 		widget.button->setText(UTF8Utils::sanitiseUTF8String(text));
 		updateWidgetTransform(widget); // The button size may have changed.
+	}
+	if(widget.label)
+	{
+		widget.label->setText(UTF8Utils::sanitiseUTF8String(text));
+		updateWidgetTransform(widget); // The label size may have changed.
 	}
 }
 
@@ -223,6 +335,103 @@ void LuaScriptUI::setSliderValue(LuaScriptUIWidget& widget, double value)
 {
 	if(widget.slider)
 		widget.slider->setValueNoEvent(value); // Clamps to the slider range.
+}
+
+
+void LuaScriptUI::setGridCell(LuaScriptUIWidget& grid, int cell_x, int cell_y, LuaScriptUIWidget* child)
+{
+	if(!grid.grid)
+		throw glare::Exception("UI widget: only grids have cells");
+	if(cell_x < 0 || cell_y < 0 || cell_x >= (int)MAX_GRID_SIZE || cell_y >= (int)MAX_GRID_SIZE)
+		throw glare::Exception("UI grid: too many rows or columns (max " + toString(MAX_GRID_SIZE) + ")");
+
+	if(child)
+	{
+		for(LuaScriptUIWidget* w = &grid; w; w = getParentGrid(*w))
+			if(w == child)
+				throw glare::Exception("UI grid: can't put a grid inside itself");
+
+		removeFromParentGrid(*child);
+	}
+
+	// Remove any widget already in the cell from the grid.  It goes back to being positioned by its own anchor and offset.
+	if(((size_t)cell_x < grid.grid->cell_widgets.getWidth()) && ((size_t)cell_y < grid.grid->cell_widgets.getHeight()))
+	{
+		const GLUIWidgetRef occupant = grid.grid->cell_widgets.elem(cell_x, cell_y);
+		if(occupant)
+		{
+			for(auto it = widgets.begin(); it != widgets.end(); ++it)
+			{
+				LuaScriptUIWidget* w = it->second.ptr();
+				if(w->getGLUIWidget() == occupant)
+				{
+					removeFromParentGrid(*w);
+					updateWidgetTransform(*w);
+					updateWidgetDrawn(*w);
+					break;
+				}
+			}
+		}
+	}
+
+	if(child)
+	{
+		grid.grid->setCellWidget(cell_x, cell_y, child->getGLUIWidget());
+		child->parent_grid_id = grid.id;
+		updateWidgetDrawn(*child);
+	}
+
+	updateWidgetTransform(grid);
+}
+
+
+void LuaScriptUI::addGridRow(LuaScriptUIWidget& grid, LuaScriptUIWidget& child)
+{
+	if(!grid.grid)
+		throw glare::Exception("UI widget: only grids have cells");
+
+	setGridCell(grid, /*cell_x=*/0, /*cell_y=*/(int)grid.grid->cell_widgets.getHeight(), &child);
+}
+
+
+LuaScriptUIWidget* LuaScriptUI::getParentGrid(const LuaScriptUIWidget& widget)
+{
+	if(widget.parent_grid_id == 0)
+		return NULL;
+	auto res = widgets.find(widget.parent_grid_id);
+	return (res != widgets.end()) ? res->second.ptr() : NULL;
+}
+
+
+LuaScriptUIWidget& LuaScriptUI::getRootWidget(LuaScriptUIWidget& widget)
+{
+	LuaScriptUIWidget* w = &widget;
+	while(LuaScriptUIWidget* parent = getParentGrid(*w))
+		w = parent;
+	return *w;
+}
+
+
+bool LuaScriptUI::isEffectivelyVisible(const LuaScriptUIWidget& widget)
+{
+	if(!ui_visible)
+		return false;
+	for(const LuaScriptUIWidget* w = &widget; w; w = getParentGrid(*w))
+		if(!w->visible)
+			return false;
+	return true;
+}
+
+
+void LuaScriptUI::removeFromParentGrid(LuaScriptUIWidget& widget)
+{
+	LuaScriptUIWidget* parent = getParentGrid(widget);
+	widget.parent_grid_id = 0;
+	if(parent)
+	{
+		parent->grid->removeWidget(widget.getGLUIWidget());
+		updateWidgetTransform(*parent); // The grid size may have changed.
+	}
 }
 
 
@@ -256,6 +465,8 @@ void LuaScriptUI::removeWidgetFromUI(LuaScriptUIWidget& widget)
 	checkRemoveAndDeleteWidget(gl_ui, widget.image);
 	checkRemoveAndDeleteWidget(gl_ui, widget.button);
 	checkRemoveAndDeleteWidget(gl_ui, widget.slider);
+	checkRemoveAndDeleteWidget(gl_ui, widget.label);
+	checkRemoveAndDeleteWidget(gl_ui, widget.grid);
 
 	if(widget.callback_ref.ref != LUA_NOREF)
 	{
@@ -311,7 +522,8 @@ void LuaScriptUI::think()
 void LuaScriptUI::viewportResized()
 {
 	for(auto it = widgets.begin(); it != widgets.end(); ++it)
-		updateWidgetTransform(*it->second);
+		if(it->second->parent_grid_id == 0) // Widgets in grids are positioned by updateWidgetTransform() on the outermost grid.
+			updateWidgetTransform(*it->second);
 }
 
 
@@ -356,8 +568,10 @@ void LuaScriptUI::sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& e
 }
 
 
-void LuaScriptUI::updateWidgetTransform(LuaScriptUIWidget& widget)
+void LuaScriptUI::updateWidgetTransform(LuaScriptUIWidget& widget_in_tree)
 {
+	LuaScriptUIWidget& widget = getRootWidget(widget_in_tree); // Widgets in a grid are positioned by the grid, so lay out and position the outermost grid.
+
 	const float max_y = gl_ui->getViewportMinMaxY();
 	const Vec2f fractions = anchorFractions(widget.anchor);
 	const Vec2f anchor_pos(-1.f + 2.f * fractions.x, -max_y + 2.f * max_y * fractions.y);
@@ -382,17 +596,40 @@ void LuaScriptUI::updateWidgetTransform(LuaScriptUIWidget& widget)
 		const Vec2f dims = widget.slider->getDims(); // GLUISlider::viewportResized() updates the dims from the fixed pixel size.
 		widget.slider->setPos(anchor_pos + offset - Vec2f(fractions.x * dims.x, fractions.y * dims.y));
 	}
+	if(widget.label)
+	{
+		const Vec2f dims = widget.label->getDims();
+		widget.label->setPos(anchor_pos + offset - Vec2f(fractions.x * dims.x, fractions.y * dims.y));
+	}
+	if(widget.grid)
+	{
+		widget.grid->recomputeLayout(); // Lays out nested grids as well, and sets the grid dims from the contents.
+		const Vec2f dims = widget.grid->getDims();
+		widget.grid->setPos(anchor_pos + offset - Vec2f(fractions.x * dims.x, fractions.y * dims.y)); // Moves the contained widgets as well.
+	}
 }
 
 
 void LuaScriptUI::updateWidgetDrawn(LuaScriptUIWidget& widget)
 {
+	const bool drawn = isEffectivelyVisible(widget);
+
 	if(widget.image)
-		widget.image->setVisible(ui_visible && widget.visible && widget.image_texture_assigned);
+		widget.image->setVisible(drawn && widget.image_texture_assigned);
 	if(widget.button)
-		widget.button->setVisible(ui_visible && widget.visible);
+		widget.button->setVisible(drawn);
 	if(widget.slider)
-		widget.slider->setVisible(ui_visible && widget.visible);
+		widget.slider->setVisible(drawn);
+	if(widget.label)
+		widget.label->setVisible(drawn);
+	if(widget.grid)
+	{
+		widget.grid->setVisible(drawn); // Sets the visibility of all contained widgets as well, so set it for each contained widget afterwards.
+
+		for(auto it = widgets.begin(); it != widgets.end(); ++it)
+			if(it->second->parent_grid_id == widget.id)
+				updateWidgetDrawn(*it->second);
+	}
 }
 
 

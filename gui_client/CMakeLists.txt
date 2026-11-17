@@ -569,6 +569,8 @@ SET(shared_files
 ../shared/SubstrataLuaScript.h
 ../shared/SubstrataLuaVM.cpp
 ../shared/SubstrataLuaVM.h
+../shared/LuaScriptUIFunctions.cpp
+../shared/LuaScriptUIFunctions.h
 ../shared/ScriptTimerQueue.cpp
 ../shared/ScriptTimerQueue.h
 ../shared/ObjectEventHandlers.cpp

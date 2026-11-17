@@ -47,12 +47,20 @@ private:
 };
 
 
-static LuaScriptOptions makeLuaScriptOptions(LuaScriptOutputHandler* script_output_handler_, SubstrataLuaScript* lua_script)
+static LuaScriptOptions makeLuaScriptOptions(LuaScriptOutputHandler* script_output_handler_, SubstrataLuaScript* lua_script, [[maybe_unused]] const WorldObject* world_object
+#if GUI_CLIENT
+	, const GUIClient* gui_client
+#endif
+)
 {
 	LuaScriptOptions options;
 	options.max_num_interrupts = 10000;
 	options.script_output_handler = script_output_handler_;
 	options.userdata = lua_script;
+#if GUI_CLIENT
+	// The client only shows script output for the logged-in user's own scripts, so only check those for calls to undefined functions, to save main-thread time.
+	options.find_calls_to_undefined_globals = gui_client->logged_in_user_id.valid() && (world_object->creator_id == gui_client->logged_in_user_id);
+#endif
 	return options;
 }
 
@@ -68,7 +76,11 @@ SubstrataLuaScript::SubstrataLuaScript(const Reference<SubstrataLuaVM>& substrat
 #endif
 	WorldStateLock& world_state_lock
 )
-:	LuaScript(substrata_lua_vm_->lua_vm.ptr(), makeLuaScriptOptions(script_output_handler_, this), script_src),
+:	LuaScript(substrata_lua_vm_->lua_vm.ptr(), makeLuaScriptOptions(script_output_handler_, this, world_object_
+#if GUI_CLIENT
+		, gui_client_
+#endif
+		), script_src),
 	substrata_lua_vm(substrata_lua_vm_),
 	hit_error(false),
 	world_object(world_object_),
@@ -260,14 +272,14 @@ void SubstrataLuaScript::doOnUserTouchedObject(LuaVM::LuaValueRef func_ref, UID 
 	{
 		//conPrint("Error while executing onUserTouchedObject: " + std::string(e.what()));
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		//conPrint("Error while executing onUserTouchedObject: " + e.what());
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, e.what());
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 
@@ -301,14 +313,14 @@ void SubstrataLuaScript::doOnUserUsedObject(LuaVM::LuaValueRef func_ref, UID ava
 	{
 		//conPrint("Error while executing onUserUsedObject: " + std::string(e.what()));
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		//conPrint("Error while executing onUserUsedObject: " + e.what());
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 
@@ -342,14 +354,14 @@ void SubstrataLuaScript::doOnUserMovedNearToObject(LuaVM::LuaValueRef func_ref, 
 	{
 		//conPrint("Error while executing onUserMovedNearToObject: " + std::string(e.what()));
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		//conPrint("Error while executing onUserMovedNearToObject: " + e.what());
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 
@@ -383,14 +395,14 @@ void SubstrataLuaScript::doOnUserMovedAwayFromObject(LuaVM::LuaValueRef func_ref
 	{
 		//conPrint("Error while executing onUserMovedAwayFromObject: " + std::string(e.what()));
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		//conPrint("Error while executing onUserMovedAwayFromObject: " + e.what());
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 
@@ -424,14 +436,14 @@ void SubstrataLuaScript::doOnUserEnteredParcel(LuaVM::LuaValueRef func_ref, UID 
 	{
 		//conPrint("Error while executing doOnUserEnteredParcel: " + std::string(e.what()));
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		//conPrint("Error while executing doOnUserEnteredParcel: " + e.what());
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 
@@ -465,14 +477,14 @@ void SubstrataLuaScript::doOnUserExitedParcel(LuaVM::LuaValueRef func_ref, UID a
 	{
 		//conPrint("Error while executing onUserExitedParcel: " + std::string(e.what()));
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		//conPrint("Error while executing onUserExitedParcel: " + e.what());
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 
@@ -504,13 +516,13 @@ void SubstrataLuaScript::doOnUserEnteredVehicle(LuaVM::LuaValueRef func_ref, UID
 	catch(std::exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 
@@ -542,13 +554,13 @@ void SubstrataLuaScript::doOnUserExitedVehicle(LuaVM::LuaValueRef func_ref, UID 
 	catch(std::exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 
@@ -581,13 +593,13 @@ void SubstrataLuaScript::doOnChatMessage(LuaVM::LuaValueRef func_ref, UID avatar
 	catch(std::exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 
@@ -618,14 +630,14 @@ void SubstrataLuaScript::doOnTimerEvent(LuaVM::LuaValueRef onTimerEvent_ref, Wor
 	{
 		//conPrint("Error while executing doOnTimerEvent: " + std::string(e.what()));
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		//conPrint("Error while executing doOnTimerEvent: " + e.what());
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 
@@ -653,13 +665,13 @@ void SubstrataLuaScript::doOnUIEvent(LuaVM::LuaValueRef func_ref, UID avatar_uid
 	catch(std::exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 
@@ -689,13 +701,13 @@ void SubstrataLuaScript::doOnUIValueChangedEvent(LuaVM::LuaValueRef func_ref, do
 	catch(std::exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 
@@ -751,14 +763,14 @@ void SubstrataLuaScript::doOnError(LuaVM::LuaValueRef onError_ref, int error_cod
 	{
 		//conPrint("Error while executing doOnError: " + std::string(e.what()));
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		//conPrint("Error while executing doOnError: " + e.what());
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 
@@ -810,14 +822,14 @@ void SubstrataLuaScript::doOnDone(LuaVM::LuaValueRef onDone_ref, Reference<LuaHT
 	{
 		//conPrint("Error while executing doOnDone: " + std::string(e.what()));
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 	catch(glare::Exception& e)
 	{
 		//conPrint("Error while executing doOnDone: " + e.what());
 		if(script_output_handler)
-			script_output_handler->errorOccurredFromLuaScript(this, std::string(e.what()));
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
 		hit_error = true;
 	}
 
@@ -938,6 +950,21 @@ void SubstrataLuaScript::warnAboutUndeclaredResourceURL(const string_view func_n
 	{
 		const std::string msg = "Warning: " + std::string(func_name) + "(): '" + std::string(URL) + "' is not declared in the script header.  Declare it with a line like:\n-- @resource " + std::string(URL);
 		script_output_handler->printFromLuaScript(this, msg.data(), msg.size());
+	}
+}
+
+
+void SubstrataLuaScript::printWarningOnce(const std::string& msg)
+{
+	const size_t max_num_warnings = 16; // Bound the memory used.
+	if(printed_warnings.size() >= max_num_warnings)
+		return;
+
+	const bool inserted = printed_warnings.insert(msg).second;
+	if(inserted && script_output_handler)
+	{
+		const std::string output = "Warning: " + msg;
+		script_output_handler->printFromLuaScript(this, output.data(), output.size());
 	}
 }
 

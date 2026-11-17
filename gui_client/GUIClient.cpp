@@ -2230,7 +2230,7 @@ void GUIClient::createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix,
 
 void GUIClient::printFromLuaScript(LuaScript* script, const char* s, size_t len)
 {
-	// If this is our script, print message to console and log
+	// If this is our script, print message to log window and script editor
 
 	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
 	if(sub_lua_script->world_object->creator_id == this->logged_in_user_id)
@@ -2238,7 +2238,6 @@ void GUIClient::printFromLuaScript(LuaScript* script, const char* s, size_t len)
 		const std::string msg(s, len);
 
 		const std::string augmented_msg = "Lua (ob " + sub_lua_script->world_object->uid.toString() + "): " + std::string(s, len);
-		conPrint(augmented_msg);
 		logMessage(augmented_msg);
 
 		// Pass to UIInterface to show on script editor window if applicable
@@ -2249,13 +2248,12 @@ void GUIClient::printFromLuaScript(LuaScript* script, const char* s, size_t len)
 
 void GUIClient::errorOccurredFromLuaScript(LuaScript* script, const std::string& msg)
 {
-	// If this is our script, print message to console and log
+	// If this is our script, print message to log window and script editor
 
 	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
 	if(sub_lua_script->world_object->creator_id == this->logged_in_user_id)
 	{
 		const std::string full_msg = "Lua error (ob " + sub_lua_script->world_object->uid.toString() + "): " + msg + "\nScript will be disabled.";
-		conPrint(full_msg);
 		logMessage(full_msg);
 
 		// Pass to UIInterface to show on script editor window if applicable

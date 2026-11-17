@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "../shared/ObjectEventHandlers.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/RateLimiter.h"
+#include "LuaScriptUIFunctions.h"
 #include "WorldObject.h"
 #include "MessageUtils.h"
 #include "Protocol.h"
@@ -17,7 +18,6 @@ Copyright Glare Technologies Limited 2024 -
 #include "../gui_client/PlayerPhysics.h"
 #include "../gui_client/GUIClient.h"
 #include "../gui_client/VehiclePhysics.h"
-#include "../gui_client/LuaScriptUI.h"
 #include "../gui_client/ScriptMessageUI.h"
 #elif SERVER
 #include "../server/Server.h"
@@ -31,6 +31,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/RuntimeCheck.h>
 #include <utils/JSONParser.h>
 #include <maths/mathstypes.h>
+#include <limits>
 #include <lualib.h>
 #include <Luau/Common.h>
 #include <BufferViewInStream.h>
@@ -616,343 +617,6 @@ static int showMessage(lua_State* state)
 }
 
 
-//--------------------------- Script UI ---------------------------
-// If false, createUIImage(), createUIButton() and createUISlider() are not registered, so scripts can't create UI widgets.
-static const bool ENABLE_SCRIPT_UI = false;
-
-// createUIImage(), createUIButton() and createUISlider() return a handle table { id = widget id } with the script UI widget metatable.
-// Widgets only exist on the client.  On the server the functions return a handle with id 0, and operations on it do nothing,
-// so that a script shared between client and server doesn't need to check IS_CLIENT around UI code.
-
-
-static const size_t MAX_UI_TEXT_SIZE = 1000;
-
-
-// Reads a field like {x=1, y=2} from the table, and checks the values are finite with magnitude at most max_abs_val.
-static Vec2f getUIVec2fTableField(lua_State* state, int table_index, const char* key, const Vec2f& default_val, float max_abs_val)
-{
-	const Vec2f v = LuaUtils::getTableVec2fFieldWithDefault(state, table_index, key, default_val);
-
-	if(!isFinite(v.x) || !isFinite(v.y) || (std::fabs(v.x) > max_abs_val) || (std::fabs(v.y) > max_abs_val))
-		throw glare::Exception("Field '" + std::string(key) + "' values must be finite and have magnitude at most " + toString(max_abs_val) + errorContextString(state));
-
-	return v;
-}
-
-
-static std::string getUITextTableField(lua_State* state, int table_index, const char* key)
-{
-	const std::string text = LuaUtils::getTableStringField(state, table_index, key);
-	if(text.size() > MAX_UI_TEXT_SIZE)
-		throw glare::Exception("Field '" + std::string(key) + "' is too long (max " + toString(MAX_UI_TEXT_SIZE) + " bytes)" + errorContextString(state));
-	return text;
-}
-
-
-static void pushUIWidgetHandle(SubstrataLuaScript* sub_lua_script, lua_State* state, int widget_id)
-{
-	lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/1);
-	LuaUtils::setNumberAsTableField(state, "id", widget_id);
-
-	lua_getref(state, sub_lua_script->substrata_lua_vm->scriptUIWidgetMetaTable_ref.ref); // Push metatable
-	lua_setmetatable(state, -2); // Pops the metatable and sets it as the metatable of the handle table.
-}
-
-
-#if GUI_CLIENT
-static LuaScriptUIWidget::Anchor getAnchorTableField(lua_State* state, int table_index)
-{
-	std::string anchor_str = LuaUtils::getTableStringFieldWithEmptyDefault(state, table_index, "anchor");
-	if(anchor_str.empty())
-		anchor_str = "centre";
-
-	LuaScriptUIWidget::Anchor anchor;
-	if(!LuaScriptUIWidget::parseAnchor(anchor_str, anchor))
-		throw glare::Exception("Invalid anchor (valid anchors are top-left, top, top-right, left, centre, right, bottom-left, bottom, bottom-right)" + errorContextString(state));
-	return anchor;
-}
-
-
-// Returns NULL if the handle is a dummy handle, or the widget has been destroyed.
-static LuaScriptUIWidget* getUIWidgetForHandle(lua_State* state, int handle_index)
-{
-	const int id = (int)LuaUtils::getTableNumberField(state, handle_index, "id");
-
-	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
-
-	if(!sub_lua_script->gui_client->lua_script_ui)
-		return NULL;
-	return sub_lua_script->gui_client->lua_script_ui->getWidget(sub_lua_script, id);
-}
-#endif
-
-
-static int createUIImage(lua_State* state)
-{
-	// Arg 1: params : Table, with fields
-	//   image_url : string    Must be declared in the script header with @resource.
-	//   size : {x=w, y=h}     Size in pixels.  Default {x=128, y=128}.
-	//   anchor : string       Viewport anchor point.  Default "centre".
-	//   offset : {x=, y=}     Offset from the anchor point in pixels, +x is right, +y is up.  Default {x=0, y=0}.
-	//   visible : bool        Default true.
-	// Returns a widget handle.
-
-	checkNumArgs(state, /*num_args_required*/1);
-	LuaUtils::checkValueIsTable(state, /*index=*/1);
-
-	const std::string image_URL = LuaUtils::getTableStringField(state, /*table index=*/1, "image_url");
-	const Vec2f size_px   = getUIVec2fTableField(state, /*table index=*/1, "size", /*default=*/Vec2f(128.f), /*max abs val=*/4096.f);
-	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f), /*max abs val=*/10000.f);
-	[[maybe_unused]] const bool visible = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "visible", /*default=*/true);
-
-	if(!(size_px.x >= 1.f && size_px.y >= 1.f))
-		throw glare::Exception("createUIImage(): size must be at least 1 pixel" + errorContextString(state));
-
-	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
-
-	if(!sub_lua_script->isResourceURLDeclared(image_URL))
-		throw glare::Exception("createUIImage(): image_url '" + image_URL.substr(0, 256) + "' is not declared in the script header.  Declare it with a line like:\n-- @resource " + image_URL.substr(0, 256) + errorContextString(state));
-
-	int widget_id = 0;
-#if GUI_CLIENT
-	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
-
-	if(sub_lua_script->gui_client->lua_script_ui)
-		widget_id = sub_lua_script->gui_client->lua_script_ui->createImage(sub_lua_script, toURLString(image_URL), anchor, offset_px, size_px, visible);
-#endif
-
-	pushUIWidgetHandle(sub_lua_script, state, widget_id);
-	return 1; // Count of returned values
-}
-
-
-static int createUIButton(lua_State* state)
-{
-	// Arg 1: params : Table, with fields
-	//   text : string
-	//   onClick : function    Called with no arguments when the button is clicked.  Optional.
-	//   anchor : string       Viewport anchor point.  Default "centre".
-	//   offset : {x=, y=}     Offset from the anchor point in pixels, +x is right, +y is up.  Default {x=0, y=0}.
-	//   visible : bool        Default true.
-	// Returns a widget handle.
-
-	checkNumArgs(state, /*num_args_required*/1);
-	LuaUtils::checkValueIsTable(state, /*index=*/1);
-
-	[[maybe_unused]] const std::string text = getUITextTableField(state, /*table index=*/1, "text");
-	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f), /*max abs val=*/10000.f);
-	[[maybe_unused]] const bool visible = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "visible", /*default=*/true);
-
-	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
-
-	int widget_id = 0;
-#if GUI_CLIENT
-	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
-
-	if(sub_lua_script->gui_client->lua_script_ui)
-	{
-		const LuaVM::LuaValueRef onClick_ref = sub_lua_script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onClick");
-		try
-		{
-			widget_id = sub_lua_script->gui_client->lua_script_ui->createButton(sub_lua_script, text, anchor, offset_px, onClick_ref, visible); // Takes ownership of onClick_ref
-		}
-		catch(glare::Exception&)
-		{
-			sub_lua_script->freeRefToFunction(onClick_ref); // Does nothing for LUA_NOREF.
-			throw;
-		}
-	}
-#endif
-
-	pushUIWidgetHandle(sub_lua_script, state, widget_id);
-	return 1; // Count of returned values
-}
-
-
-static int createUISlider(lua_State* state)
-{
-	// Arg 1: params : Table, with fields
-	//   min : number          Default 0.
-	//   max : number          Default 1.
-	//   value : number        Initial value, clamped to [min, max].  Default min.
-	//   onChange : function   Called with the new value when the user changes the value.  Optional.
-	//   width : number        Width in pixels.  Default 200.
-	//   anchor : string       Viewport anchor point.  Default "centre".
-	//   offset : {x=, y=}     Offset from the anchor point in pixels, +x is right, +y is up.  Default {x=0, y=0}.
-	//   visible : bool        Default true.
-	// Returns a widget handle.
-
-	checkNumArgs(state, /*num_args_required*/1);
-	LuaUtils::checkValueIsTable(state, /*index=*/1);
-
-	const double min_value = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "min", /*default=*/0.0);
-	const double max_value = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "max", /*default=*/1.0);
-	[[maybe_unused]] const double value = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "value", /*default=*/min_value);
-	const double width = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "width", /*default=*/200.0);
-	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f), /*max abs val=*/10000.f);
-	[[maybe_unused]] const bool visible = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "visible", /*default=*/true);
-
-	if(!isFinite(min_value) || !isFinite(max_value) || !isFinite(value) || (std::fabs(min_value) > 1.0e15) || (std::fabs(max_value) > 1.0e15))
-		throw glare::Exception("createUISlider(): min, max and value must be finite, and min and max must have magnitude at most 1e15" + errorContextString(state));
-	if(!(min_value < max_value))
-		throw glare::Exception("createUISlider(): min must be less than max" + errorContextString(state));
-	if(!(width >= 20.0 && width <= 4096.0))
-		throw glare::Exception("createUISlider(): width must be between 20 and 4096 pixels" + errorContextString(state));
-
-	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
-
-	int widget_id = 0;
-#if GUI_CLIENT
-	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
-
-	if(sub_lua_script->gui_client->lua_script_ui)
-	{
-		const LuaVM::LuaValueRef onChange_ref = sub_lua_script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onChange");
-		try
-		{
-			widget_id = sub_lua_script->gui_client->lua_script_ui->createSlider(sub_lua_script, min_value, max_value, value, anchor, offset_px, /*size_px=*/Vec2f((float)width, 21.f), onChange_ref, visible); // Takes ownership of onChange_ref
-		}
-		catch(glare::Exception&)
-		{
-			sub_lua_script->freeRefToFunction(onChange_ref); // Does nothing for LUA_NOREF.
-			throw;
-		}
-	}
-#endif
-
-	pushUIWidgetHandle(sub_lua_script, state, widget_id);
-	return 1; // Count of returned values
-}
-
-
-static int destroyUIWidget(lua_State* state)
-{
-	// Arg 1: widget handle
-
-	checkNumArgs(state, /*num_args_required*/1);
-	LuaUtils::checkValueIsTable(state, /*index=*/1);
-
-#if GUI_CLIENT
-	const int id = (int)LuaUtils::getTableNumberField(state, /*table index=*/1, "id");
-
-	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
-
-	if(sub_lua_script->gui_client->lua_script_ui)
-		sub_lua_script->gui_client->lua_script_ui->destroyWidget(sub_lua_script, id);
-#endif
-	return 0;
-}
-
-
-// __index metamethod for widget handles.  Called when a field that isn't in the handle table is read.
-static int scriptUIWidgetIndexMetaMethod(lua_State* state)
-{
-	// Arg 1: handle table
-	// Arg 2: key
-	checkNumArgs(state, 2);
-
-	const char* key_str = lua_tolstring(state, /*index=*/2, /*stringlen=*/NULL); // May return NULL if not a string
-	if(!key_str)
-		throw glare::Exception("UI widget: key must be a string" + errorContextString(state));
-
-	if(stringEqual(key_str, "destroy"))
-	{
-		lua_pushcfunction(state, destroyUIWidget, /*debugname=*/"destroy");
-		return 1;
-	}
-	else if(stringEqual(key_str, "visible"))
-	{
-		bool visible = false;
-#if GUI_CLIENT
-		LuaScriptUIWidget* widget = getUIWidgetForHandle(state, /*handle index=*/1);
-		visible = widget && widget->visible;
-#endif
-		lua_pushboolean(state, visible ? 1 : 0);
-		return 1;
-	}
-	else if(stringEqual(key_str, "value"))
-	{
-		double value = 0;
-#if GUI_CLIENT
-		LuaScriptUIWidget* widget = getUIWidgetForHandle(state, /*handle index=*/1);
-		if(widget)
-		{
-			if(!widget->slider)
-				throw glare::Exception("UI widget: only sliders have a value field" + errorContextString(state));
-			value = widget->slider->getValue();
-		}
-#endif
-		lua_pushnumber(state, value);
-		return 1;
-	}
-	else
-		throw glare::Exception("UI widget: Unknown field '" + std::string(key_str) + "'" + errorContextString(state));
-}
-
-
-// __newindex metamethod for widget handles.  Called when a field that isn't in the handle table is assigned to.
-static int scriptUIWidgetNewIndexMetaMethod(lua_State* state)
-{
-	// Arg 1: handle table
-	// Arg 2: key
-	// Arg 3: value
-	checkNumArgs(state, 3);
-
-	const char* key_str = lua_tolstring(state, /*index=*/2, /*stringlen=*/NULL); // May return NULL if not a string
-	if(!key_str)
-		throw glare::Exception("UI widget: key must be a string" + errorContextString(state));
-
-	[[maybe_unused]] SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
-
-	if(stringEqual(key_str, "visible"))
-	{
-		[[maybe_unused]] const bool visible = LuaUtils::getBool(state, /*index=*/3);
-#if GUI_CLIENT
-		LuaScriptUIWidget* widget = getUIWidgetForHandle(state, /*handle index=*/1);
-		if(widget)
-		{
-			sub_lua_script->gui_client->lua_script_ui->setWidgetVisible(*widget, visible);
-		}
-#endif
-	}
-	else if(stringEqual(key_str, "text"))
-	{
-		const std::string text = LuaUtils::getString(state, /*index=*/3);
-		if(text.size() > MAX_UI_TEXT_SIZE)
-			throw glare::Exception("UI widget: text is too long (max " + toString(MAX_UI_TEXT_SIZE) + " bytes)" + errorContextString(state));
-#if GUI_CLIENT
-		LuaScriptUIWidget* widget = getUIWidgetForHandle(state, /*handle index=*/1);
-		if(widget)
-		{
-			if(!widget->button)
-				throw glare::Exception("UI widget: only buttons have a text field" + errorContextString(state));
-
-			sub_lua_script->gui_client->lua_script_ui->setButtonText(*widget, text);
-		}
-#endif
-	}
-	else if(stringEqual(key_str, "value"))
-	{
-		[[maybe_unused]] const double value = LuaUtils::getDoubleArg(state, /*index=*/3);
-		if(!isFinite(value))
-			throw glare::Exception("UI widget: value must be finite" + errorContextString(state));
-#if GUI_CLIENT
-		LuaScriptUIWidget* widget = getUIWidgetForHandle(state, /*handle index=*/1);
-		if(widget)
-		{
-			if(!widget->slider)
-				throw glare::Exception("UI widget: only sliders have a value field" + errorContextString(state));
-
-			sub_lua_script->gui_client->lua_script_ui->setSliderValue(*widget, value);
-		}
-#endif
-	}
-	else
-		throw glare::Exception("UI widget: Unknown or read-only field '" + std::string(key_str) + "'" + errorContextString(state));
-	return 0;
-}
-
-
 #if SERVER
 static constexpr size_t MAX_OBJECT_STORAGE_ITEM_SIZE_B = 1 << 16;
 #endif
@@ -1390,9 +1054,11 @@ static int destroyTimer(lua_State* state)
 
 	checkNumArgs(state, /*num_args_required*/1);
 
-	const int timer_id = (int)LuaUtils::getDoubleArg(state, /*index=*/1);
-	if(timer_id < 0) // Avoid timer_id of -1 which is what destroyed timers have as IDs.
+	// Check the value is finite and in int range before converting it.  Also reject negative values, to avoid timer_id of -1 which is what destroyed timers have as IDs.
+	const double timer_id_double = LuaUtils::getDoubleArg(state, /*index=*/1);
+	if(!isFinite(timer_id_double) || !(timer_id_double >= 0.0 && timer_id_double <= (double)std::numeric_limits<int>::max()))
 		throw glare::Exception("destroyTimer(): Invalid timer ID." + errorContextString(state));
+	const int timer_id = (int)timer_id_double;
 
 	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
@@ -2707,17 +2373,7 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 		lua_pushcfunction(lua_vm->state, luaGetWorldObjectForUID, /*debugname=*/"getObjectForUID");
 		lua_setglobal(lua_vm->state, "getObjectForUID");
 
-		if(ENABLE_SCRIPT_UI)
-		{
-			lua_pushcfunction(lua_vm->state, createUIImage, /*debugname=*/"createUIImage");
-			lua_setglobal(lua_vm->state, "createUIImage");
-
-			lua_pushcfunction(lua_vm->state, createUIButton, /*debugname=*/"createUIButton");
-			lua_setglobal(lua_vm->state, "createUIButton");
-
-			lua_pushcfunction(lua_vm->state, createUISlider, /*debugname=*/"createUISlider");
-			lua_setglobal(lua_vm->state, "createUISlider");
-		}
+		LuaScriptUIFunctions::registerGlobalFunctions(lua_vm->state);
 	}
 	
 	if(register_object_script_funcs)
@@ -2825,18 +2481,7 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 	//--------------------------- End create Avatar Metatable ---------------------------
 
 
-	//--------------------------- Create script UI widget Metatable ---------------------------
-	// No "uid" field and no entry in metatable_uid_to_ref_map: widget handles can't be serialised (e.g. into object storage).
-	lua_createtable(lua_vm->state, /*num array elems=*/0, /*num non-array elems=*/2);
-
-	lua_vm->setCFunctionAsTableField(scriptUIWidgetIndexMetaMethod,    /*debugname=*/"scriptUIWidgetIndexMetaMethod",    /*key=*/"__index");
-	lua_vm->setCFunctionAsTableField(scriptUIWidgetNewIndexMetaMethod, /*debugname=*/"scriptUIWidgetNewIndexMetaMethod", /*key=*/"__newindex");
-
-	lua_setreadonly(lua_vm->state, /*index=*/-1, /*enabled=*/1); // Set metatable as read-only.
-
-	scriptUIWidgetMetaTable_ref = lua_vm->createReferenceToLuaValue(lua_vm->state, /*index=*/-1); // Does not pop.
-	lua_pop(lua_vm->state, 1); // Pop metatable from stack
-	//--------------------------- End create script UI widget Metatable ---------------------------
+	scriptUIWidgetMetaTable_ref = LuaScriptUIFunctions::createWidgetMetaTable(*lua_vm);
 
 	lua_vm->finishInitAndSandbox();
 
