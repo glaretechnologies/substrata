@@ -1504,6 +1504,33 @@ void ServerLuaScriptTests::test()
 			server.world_state->feature_flag_info.feature_flags = previous_flags;
 		}
 
+		//-------------------------------- Test Lua HTTP calls with a number key in the headers table --------------------------------
+		// {'boo'} has the number key 1.  Header table keys must be strings, so check this gives a script error, without leaking references.
+		{
+			server.lua_http_manager = new LuaHTTPRequestManager(&server);
+			for(int use_post = 0; use_post < 2; ++use_post)
+			{
+				const int refs_before_script = vm.getNumLuaValueReferences();
+				const std::string script_src = std::string("local function done(response) end\nlocal function failed(response) end\n") + (use_post ?
+					"doHTTPPostRequestAsync('http://example.invalid/test', 'payload', 'text/plain', {'boo'}, done, failed)\n" :
+					"doHTTPGetRequestAsync('http://example.invalid/test', {'boo'}, done, failed)\n");
+				bool caught_exception = false;
+				try
+				{
+					Reference<SubstrataLuaScript> sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, world_ob.ptr(), &server, main_world_state.ptr(), lock);
+					sub_lua_script->exec(lock);
+				}
+				catch(const glare::Exception& e)
+				{
+					testAssert(std::string(e.what()).find("additional header table keys must be strings") != std::string::npos);
+					caught_exception = true;
+				}
+				testAssert(caught_exception);
+				testEqual(vm.getNumLuaValueReferences(), refs_before_script);
+			}
+			server.lua_http_manager = nullptr;
+		}
+
 		//-------------------------------- Test a real Lua HTTP GET request --------------------------------
 		{
 			server.lua_http_manager = new LuaHTTPRequestManager(&server);

@@ -769,6 +769,10 @@ static int doHTTPGetRequestAsync(lua_State* state)
 		if(notdone == 0)
 			break;
 
+		// Check the key type, as getString() would convert a number key to a string in place, which would break lua_next.
+		if(lua_type(state, -2) != LUA_TSTRING)
+			throw glare::Exception("doHTTPGetRequestAsync(): additional header table keys must be strings (header names)" + errorContextString(state));
+
 		request->additional_headers.push_back(LuaUtils::getString(state, -2));
 		request->additional_headers.back() += ": ";
 		request->additional_headers.back() += LuaUtils::getString(state, -1);
@@ -843,6 +847,10 @@ static int doHTTPPostRequestAsync(lua_State* state)
 		int notdone = lua_next(state, /*table_index=*/4); // pops a key from the stack, and pushes a key-value pair from the table at the given index
 		if(notdone == 0)
 			break;
+
+		// Check the key type, as getString() would convert a number key to a string in place, which would break lua_next.
+		if(lua_type(state, -2) != LUA_TSTRING)
+			throw glare::Exception("doHTTPPostRequestAsync(): additional header table keys must be strings (header names)" + errorContextString(state));
 
 		request->additional_headers.push_back(LuaUtils::getString(state, -2));
 		request->additional_headers.back() += ": ";
