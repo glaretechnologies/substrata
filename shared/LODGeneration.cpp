@@ -1709,6 +1709,7 @@ void LODGeneration::test()
 		}
 		
 		// Test generateBasisTexture on a larger animated gif.
+#ifdef NDEBUG // Takes too long in debug mode
 		{
 			generateBasisTexture(TestUtils::getTestReposDir() + "/testfiles/gifs/https_58_47_47media.giphy.com_47media_47X93e1eC2J2hjy_47giphy.gif", // src tex path
 				0, // base lod level
@@ -1716,6 +1717,7 @@ void LODGeneration::test()
 				"d:/files/cow_gif.basis", // basis_tex_path
 				task_manager);
 		}
+#endif
 
 		/*
 		MeshLODGenThread: (ktx 606 / 34604): Generating KTX texture with URL QueenPalmTree_BaseColor_png_9712663273203237448.basis
