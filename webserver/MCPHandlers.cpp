@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2026 -
 #include "ResponseUtils.h"
 #include "Escaping.h"
 #include "../server/ServerWorldState.h"
+#include "../server/Server.h"
 #include "../server/ObjectPermissions.h"
 #include "../shared/WorldObject.h"
 #include "../shared/WorldMaterial.h"
@@ -364,8 +365,9 @@ static void checkObjectCountLimits(const WorldObject& ob, const string_view worl
 
 // Insert a fully-constructed object (object_type, model_url, content, pos, axis, angle, scale, materials all set)
 // into the given world as the acting user, after checking creation permissions.  Returns the new object's UID as JSON.
+// If server is non-null, creates the server-side evaluator for the object's script, if it has a Lua script.
 static const std::string createObjectInWorld(ServerAllWorldsState& all_worlds, const string_view world_name, WorldObjectRef ob,
-	const UserID acting_user_id, const std::string& acting_user_name)
+	const UserID acting_user_id, const std::string& acting_user_name, Server* server = nullptr)
 {
 	checkTransformOK(ob.ptr()); // Check transform is valid (e.g. not inf or NaN). Throw glare::Exception on invalid transform.
 
@@ -396,11 +398,14 @@ static const std::string createObjectInWorld(ServerAllWorldsState& all_worlds, c
 	markLODChunkNeedsRebuild(world, ob.ptr(), lock);
 	all_worlds.markAsChanged();
 
+	if(server && hasPrefix(ob->script, "--lua"))
+		server->recreateLuaScriptForObject(ob.ptr(), world, lock);
+
 	return "{\"uid\":" + toString(ob->uid.value()) + "}";
 }
 
 
-static const std::string tool_createObject(ServerAllWorldsState& all_worlds, const JSONNode& args,
+static const std::string tool_createObject(ServerAllWorldsState& all_worlds, Server* server, const JSONNode& args,
 	const UserID acting_user_id, const std::string& acting_user_name)
 {
 	const URLString model_URL = toURLString(args.getChildStringValueWithDefaultVal("model_url", /*default=*/""));
@@ -495,7 +500,7 @@ static const std::string tool_createObject(ServerAllWorldsState& all_worlds, con
 		ob->type_data.spotlight_data.cone_end_angle   = 0.451026811796262f; // = std::acos(0.9f);  (old fixed value)
 	}
 
-	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal("world_name", /*default=*/""), ob, acting_user_id, acting_user_name);
+	return createObjectInWorld(all_worlds, args.getChildStringValueWithDefaultVal("world_name", /*default=*/""), ob, acting_user_id, acting_user_name, server);
 }
 
 
@@ -725,7 +730,7 @@ static const std::string tool_createVoxelObject(ServerAllWorldsState& all_worlds
 }
 
 
-static const std::string tool_editObject(ServerAllWorldsState& all_worlds, const JSONNode& args,
+static const std::string tool_editObject(ServerAllWorldsState& all_worlds, Server* server, const JSONNode& args,
 	const UserID acting_user_id, const std::string& acting_user_name)
 {
 	if(all_worlds.isInReadOnlyMode())
@@ -764,6 +769,20 @@ static const std::string tool_editObject(ServerAllWorldsState& all_worlds, const
 
 	checkTransformOK(pos, axis, angle, scale);
 
+	// Script
+	const bool has_script = args.hasChild("script");
+	const std::string script = has_script ? toString(args.getChildStringValue("script")) : ob->script;
+	const bool script_changed = script != ob->script;
+	if(script_changed)
+	{
+		if(script.size() > WorldObject::MAX_SCRIPT_SIZE)
+			throw glare::Exception("script too long.");
+
+		// Scripts execute with the creator's permissions, so object edit permissions alone are not sufficient.  Same check as for ObjectFullUpdate in WorkerThread.
+		if(acting_user_id != ob->creator_id)
+			throw glare::Exception("Permission denied: you must be the creator of object " + toString(uid.value()) + " to change its script.");
+	}
+
 	// If the transform is being changed, check the user has permission to place objects with the resulting world-space
 	// AABB.  Otherwise an object could be moved, scaled or rotated so that it extends into other parcels or public
 	// space, by first creating it in a parcel the user can build in.
@@ -786,6 +805,14 @@ static const std::string tool_editObject(ServerAllWorldsState& all_worlds, const
 	ob->angle = angle;
 	ob->scale = scale;
 
+	if(script_changed)
+	{
+		ob->script = script;
+		ob->from_remote_other_dirty = true; // Sends an ObjectFullUpdate to clients, so they reload the script.
+
+		if(server)
+			server->recreateLuaScriptForObject(ob, world, lock);
+	}
 
 	ob->last_modified_time = TimeStamp::currentTime();
 	ob->from_remote_transform_dirty = true;
@@ -1148,7 +1175,7 @@ static const ToolDef TOOL_DEFS[] =
 },
 {
 	"edit_object",
-	"Edit the transform of an existing object. Only the provided fields are changed. Position requires x, y and z together; scale requires scale_x/y/z together; rotation requires axis_x/y/z and angle together.",
+	"Edit the transform or script of an existing object. Only the provided fields are changed. Position requires x, y and z together; scale requires scale_x/y/z together; rotation requires axis_x/y/z and angle together.",
 	R"SCHEMA({
 		"type": "object",
 		"properties": {
@@ -1163,7 +1190,8 @@ static const ToolDef TOOL_DEFS[] =
 			"axis_x": { "type": "number" },
 			"axis_y": { "type": "number" },
 			"axis_z": { "type": "number" },
-			"angle": { "type": "number", "description": "Rotation angle in radians about the axis." }
+			"angle": { "type": "number", "description": "Rotation angle in radians about the axis." },
+			"script": { "type": "string", "description": "New script content, replacing the object's script. Only the object's creator can change its script. Lua scripts start with '--lua'." }
 		},
 		"required": ["uid"]
 	})SCHEMA"
@@ -1418,7 +1446,7 @@ static const std::string makeToolsListJSON(bool include_admin_tools)
 // Dispatch a tool call to the tool implementation.  Returns the result text.
 // Throws glare::Exception if the tool is unknown or fails.
 // 'args' should be the (possibly empty) object of arguments for the tool.
-static const std::string dispatchTool(ServerAllWorldsState& all_worlds, const JSONNode& args, const std::string& tool_name,
+static const std::string dispatchTool(ServerAllWorldsState& all_worlds, Server* server, const JSONNode& args, const std::string& tool_name,
 	const UserID acting_user_id, const std::string& acting_user_name)
 {
 	if(tool_name == "list_worlds")
@@ -1432,9 +1460,9 @@ static const std::string dispatchTool(ServerAllWorldsState& all_worlds, const JS
 	else if(tool_name == "get_object")
 		return tool_getObject(all_worlds, args);
 	else if(tool_name == "create_object")
-		return tool_createObject(all_worlds, args, acting_user_id, acting_user_name);
+		return tool_createObject(all_worlds, server, args, acting_user_id, acting_user_name);
 	else if(tool_name == "edit_object")
-		return tool_editObject(all_worlds, args, acting_user_id, acting_user_name);
+		return tool_editObject(all_worlds, server, args, acting_user_id, acting_user_name);
 	else if(tool_name == "delete_object")
 		return tool_deleteObject(all_worlds, args, acting_user_id);
 	else if(tool_name == "create_cube")
@@ -1475,7 +1503,7 @@ static const std::string dispatchAdminTool(ServerAllWorldsState& all_worlds, con
 
 
 // Dispatch a tools/call request.  Returns the CallToolResult JSON.  Tool-level errors are returned as an error result (isError=true), not thrown.
-static const std::string handleToolCall(ServerAllWorldsState& all_worlds, const JSONNode& params, const UserID acting_user_id, const std::string& acting_user_name)
+static const std::string handleToolCall(ServerAllWorldsState& all_worlds, Server* server, const JSONNode& params, const UserID acting_user_id, const std::string& acting_user_name)
 {
 	if(!params.hasChild("name"))
 		throw glare::Exception("tools/call is missing 'name'");
@@ -1495,7 +1523,7 @@ static const std::string handleToolCall(ServerAllWorldsState& all_worlds, const 
 		// Admin tools are only available to the god user.  For other users they are unknown tools.
 		const std::string result = (isAdminTool(tool_name) && isGodUser(acting_user_id)) ?
 			dispatchAdminTool(all_worlds, args, tool_name, acting_user_id) :
-			dispatchTool(all_worlds, args, tool_name, acting_user_id, acting_user_name);
+			dispatchTool(all_worlds, server, args, tool_name, acting_user_id, acting_user_name);
 		return makeToolResult(result, /*is_error=*/false);
 	}
 	catch(glare::Exception& e)
@@ -1509,7 +1537,7 @@ static const std::string handleToolCall(ServerAllWorldsState& all_worlds, const 
 // The in-process entry point used by the in-world Builder AI (see server/BuilderAISession).
 // Unlike handleMCPRequest, this does no HTTP, no JSON-RPC and no API key auth: the caller has already authenticated
 // the user, and passes the acting user in directly, so the tools are subject to that user's permissions as usual.
-ToolResult callTool(ServerAllWorldsState& world_state, const std::string& tool_name, const std::string& args_json, const UserID acting_user_id, const std::string& acting_user_name)
+ToolResult callTool(ServerAllWorldsState& world_state, Server* server, const std::string& tool_name, const std::string& args_json, const UserID acting_user_id, const std::string& acting_user_name)
 {
 	ToolResult result;
 	try
@@ -1521,7 +1549,7 @@ ToolResult callTool(ServerAllWorldsState& world_state, const std::string& tool_n
 
 		checkNodeType(parser.rootNode(), JSONNodeType::Type_Object);
 
-		result.text = dispatchTool(world_state, parser.rootNode(), tool_name, acting_user_id, acting_user_name);
+		result.text = dispatchTool(world_state, server, parser.rootNode(), tool_name, acting_user_id, acting_user_name);
 		result.is_error = false;
 	}
 	catch(glare::Exception& e)
@@ -1546,7 +1574,7 @@ void getToolSpecs(std::vector<ToolSpec>& specs_out)
 }
 
 
-void handleMCPRequest(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+void handleMCPRequest(ServerAllWorldsState& world_state, Server* server, const web::RequestInfo& request, web::ReplyInfo& reply_info)
 {
 	if(!world_state.server_config.enable_mcp_server)
 	{
@@ -1771,7 +1799,7 @@ void handleMCPRequest(ServerAllWorldsState& world_state, const web::RequestInfo&
 				writeError(reply_info, id, JSONRPC_INVALID_PARAMS, "Missing 'params'.");
 				return;
 			}
-			const std::string result = handleToolCall(world_state, root.getChildObject("params"), user_id, user_name);
+			const std::string result = handleToolCall(world_state, server, root.getChildObject("params"), user_id, user_name);
 			writeResult(reply_info, id, result);
 		}
 		else

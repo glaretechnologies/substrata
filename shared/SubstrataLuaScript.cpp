@@ -715,6 +715,78 @@ void SubstrataLuaScript::doOnUIValueChangedEvent(LuaVM::LuaValueRef func_ref, do
 }
 
 
+void SubstrataLuaScript::doOnUIBoolValueChangedEvent(LuaVM::LuaValueRef func_ref, bool value, UID avatar_uid, WorldStateLock& world_state_lock) noexcept
+{
+	if(hit_error || (func_ref.ref == LUA_NOREF))
+		return;
+
+	try
+	{
+		SetCurWorldStateLockClass setter(this, world_state_lock);
+		this->calling_avatar_uid = avatar_uid; // So that e.g. playSound() in the callback plays the sound locally.
+
+		assert(num_interrupts == 0);
+
+		lua_getref(thread_state, func_ref.ref); // Push function to be called onto stack
+
+		lua_pushboolean(thread_state, value ? 1 : 0); // Push value
+
+		// Call function
+		lua_call(thread_state, /*nargs=*/1, /*nresults=*/0); // Pops function and value
+	}
+	catch(std::exception& e)
+	{
+		if(script_output_handler)
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
+		hit_error = true;
+	}
+	catch(glare::Exception& e)
+	{
+		if(script_output_handler)
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
+		hit_error = true;
+	}
+
+	addExecutionTimeToVMAndResetCounter();
+}
+
+
+void SubstrataLuaScript::doOnUIStringValueChangedEvent(LuaVM::LuaValueRef func_ref, const std::string& value, UID avatar_uid, WorldStateLock& world_state_lock) noexcept
+{
+	if(hit_error || (func_ref.ref == LUA_NOREF))
+		return;
+
+	try
+	{
+		SetCurWorldStateLockClass setter(this, world_state_lock);
+		this->calling_avatar_uid = avatar_uid; // So that e.g. playSound() in the callback plays the sound locally.
+
+		assert(num_interrupts == 0);
+
+		lua_getref(thread_state, func_ref.ref); // Push function to be called onto stack
+
+		lua_pushlstring(thread_state, value.data(), value.size()); // Push value
+
+		// Call function
+		lua_call(thread_state, /*nargs=*/1, /*nresults=*/0); // Pops function and value
+	}
+	catch(std::exception& e)
+	{
+		if(script_output_handler)
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
+		hit_error = true;
+	}
+	catch(glare::Exception& e)
+	{
+		if(script_output_handler)
+			script_output_handler->errorOccurredFromLuaScript(this, improveErrorMessage(e.what()));
+		hit_error = true;
+	}
+
+	addExecutionTimeToVMAndResetCounter();
+}
+
+
 void SubstrataLuaScript::destroyTimer(int timer_index, int timer_id)
 {
 	if(timers[timer_index].id == timer_id)

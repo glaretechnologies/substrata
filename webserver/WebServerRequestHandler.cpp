@@ -436,7 +436,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		}
 		else if(request.path == "/mcp")
 		{
-			MCPHandlers::handleMCPRequest(*this->world_state, request, reply_info);
+			MCPHandlers::handleMCPRequest(*this->world_state, this->server, request, reply_info);
 		}
 		else
 		{

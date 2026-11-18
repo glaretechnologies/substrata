@@ -229,7 +229,7 @@ void BuilderAISession::processLLMMessages()
 					sendStringMessageToClient(Protocol::BuilderAIToolActivity, call->function_name);
 
 					// NOTE: callTool takes the world state lock itself, for the duration of the individual tool call.
-					result = MCPHandlers::callTool(*server->world_state, call->function_name, call->args_json, user_id, user_name);
+					result = MCPHandlers::callTool(*server->world_state, server, call->function_name, call->args_json, user_id, user_name);
 					num_tool_calls_made++;
 				}
 

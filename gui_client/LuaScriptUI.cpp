@@ -11,11 +11,28 @@ Copyright Glare Technologies Limited 2026 -
 #include "../shared/ResourceManager.h"
 #include "../shared/WorldStateLock.h"
 #include <lua/LuaScript.h>
+#include <opengl/ui/GLUI.h>
+#include <opengl/ui/GLUIButton.h>
+#include <opengl/ui/GLUICheckBox.h>
+#include <opengl/ui/GLUIDropDownList.h>
+#include <opengl/ui/GLUIGridContainer.h>
+#include <opengl/ui/GLUIImage.h>
+#include <opengl/ui/GLUILineEdit.h>
+#include <opengl/ui/GLUISlider.h>
+#include <opengl/ui/GLUISpinBox.h>
+#include <opengl/ui/GLUITextButton.h>
+#include <opengl/ui/GLUITextView.h>
+#include <opengl/ui/GLUIWindow.h>
 #include <utils/Exception.h>
 #include <utils/StringUtils.h>
 #include <utils/UTF8Utils.h>
 #include <lua.h>
+#include <algorithm>
 #include <cmath>
+
+
+LuaScriptUIWidget::~LuaScriptUIWidget()
+{}
 
 
 bool LuaScriptUIWidget::parseAnchor(const std::string& s, Anchor& anchor_out)
@@ -37,9 +54,15 @@ GLUIWidgetRef LuaScriptUIWidget::getGLUIWidget() const
 {
 	if(image)	return image;
 	if(button)	return button;
+	if(image_button)	return image_button;
 	if(slider)	return slider;
+	if(spinbox)		return spinbox;
+	if(checkbox)	return checkbox;
+	if(dropdown)	return dropdown;
+	if(line_edit)	return line_edit;
 	if(label)	return label;
 	if(grid)	return grid;
+	if(window)	return window;
 	return GLUIWidgetRef();
 }
 
@@ -96,14 +119,14 @@ int LuaScriptUI::createImage(SubstrataLuaScript* sub_lua_script, const URLString
 	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
 	widget->id = next_widget_id++;
 	widget->sub_lua_script = sub_lua_script;
-	widget->parent_grid_id = 0;
+	widget->parent_id = 0;
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = size_px;
 	widget->image_URL = image_URL;
 	widget->image_texture_assigned = false;
 	widget->visible = visible;
-	widget->slider_change_queued = false;
+	widget->value_change_queued = false;
 
 	widget->image = new GLUIImage(*gl_ui, /*tex_path=*/"", /*tooltip=*/"");
 	widget->image->setMouseOverColour(Colour3f(1.f)); // No mouse-over highlight
@@ -113,7 +136,17 @@ int LuaScriptUI::createImage(SubstrataLuaScript* sub_lua_script, const URLString
 	updateWidgetTransform(*widget);
 	updateWidgetDrawn(*widget); // Not drawn until the texture is assigned.
 
-	// Start downloading the image if it isn't present already.  Images declared with @resource will usually have been downloaded along with the object already.
+	startDownloadingImageIfNotPresent(image_URL);
+	checkAssignImageTexture(*widget);
+
+	widgets[widget->id] = widget;
+	return widget->id;
+}
+
+
+// Start downloading the image if it isn't present already.  Images declared with @resource will usually have been downloaded along with the object already.
+void LuaScriptUI::startDownloadingImageIfNotPresent(const URLString& image_URL)
+{
 	ResourceRef resource = gui_client->resource_manager->getOrCreateResourceForURL(image_URL);
 	if(resource->getState() == Resource::State_NotPresent)
 	{
@@ -125,11 +158,6 @@ int LuaScriptUI::createImage(SubstrataLuaScript* sub_lua_script, const URLString
 		info.used_by_other = true;
 		gui_client->startDownloadingResource(image_URL, gui_client->cam_controller.getFirstPersonPosition().toVec4fPoint(), /*aabb_ws_longest_len=*/1.f, info);
 	}
-
-	checkAssignImageTexture(*widget);
-
-	widgets[widget->id] = widget;
-	return widget->id;
 }
 
 
@@ -141,14 +169,14 @@ int LuaScriptUI::createButton(SubstrataLuaScript* sub_lua_script, const std::str
 	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
 	widget->id = next_widget_id++;
 	widget->sub_lua_script = sub_lua_script;
-	widget->parent_grid_id = 0;
+	widget->parent_id = 0;
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = Vec2f(0.f);
 	widget->image_texture_assigned = false;
 	widget->visible = visible;
 	widget->callback_ref = onClick_ref;
-	widget->slider_change_queued = false;
+	widget->value_change_queued = false;
 
 	GLUITextButton::CreateArgs args;
 	widget->button = new GLUITextButton(*gl_ui, UTF8Utils::sanitiseUTF8String(text), args);
@@ -157,6 +185,44 @@ int LuaScriptUI::createButton(SubstrataLuaScript* sub_lua_script, const std::str
 
 	updateWidgetTransform(*widget);
 	updateWidgetDrawn(*widget);
+
+	widgets[widget->id] = widget;
+	return widget->id;
+}
+
+
+int LuaScriptUI::createImageButton(SubstrataLuaScript* sub_lua_script, const URLString& image_URL, const Vec2f& size_px, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px,
+	LuaVM::LuaValueRef onClick_ref, bool visible)
+{
+	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
+		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
+
+	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
+	widget->id = next_widget_id++;
+	widget->sub_lua_script = sub_lua_script;
+	widget->parent_id = 0;
+	widget->anchor = anchor;
+	widget->offset_px = offset_px;
+	widget->size_px = size_px;
+	widget->image_URL = image_URL;
+	widget->image_texture_assigned = false;
+	widget->visible = visible;
+	widget->callback_ref = onClick_ref;
+	widget->value_change_queued = false;
+
+	GLUIButton::CreateArgs args;
+	args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
+	args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
+	args.fixed_size = size_px;
+	widget->image_button = new GLUIButton(*gl_ui, /*tex_path=*/"", args);
+	widget->image_button->handler = this;
+	gl_ui->addWidget(widget->image_button);
+
+	updateWidgetTransform(*widget);
+	updateWidgetDrawn(*widget); // Not drawn until the texture is assigned.
+
+	startDownloadingImageIfNotPresent(image_URL);
+	checkAssignImageTexture(*widget);
 
 	widgets[widget->id] = widget;
 	return widget->id;
@@ -172,14 +238,14 @@ int LuaScriptUI::createSlider(SubstrataLuaScript* sub_lua_script, double min_val
 	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
 	widget->id = next_widget_id++;
 	widget->sub_lua_script = sub_lua_script;
-	widget->parent_grid_id = 0;
+	widget->parent_id = 0;
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = size_px;
 	widget->image_texture_assigned = false;
 	widget->visible = visible;
 	widget->callback_ref = onChange_ref;
-	widget->slider_change_queued = false;
+	widget->value_change_queued = false;
 
 	GLUISlider::CreateArgs args;
 	args.fixed_size = size_px;
@@ -198,8 +264,8 @@ int LuaScriptUI::createSlider(SubstrataLuaScript* sub_lua_script, double min_val
 }
 
 
-int LuaScriptUI::createLabel(SubstrataLuaScript* sub_lua_script, const std::string& text, const Colour3f& text_colour_linear, const Colour3f& background_colour_linear, float background_alpha, int font_size_px,
-	LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, bool visible)
+int LuaScriptUI::createSpinBox(SubstrataLuaScript* sub_lua_script, double min_value, double max_value, double initial_value, double step, int num_decimal_places, float width_px,
+	LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, LuaVM::LuaValueRef onChange_ref, bool visible)
 {
 	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
 		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
@@ -207,21 +273,165 @@ int LuaScriptUI::createLabel(SubstrataLuaScript* sub_lua_script, const std::stri
 	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
 	widget->id = next_widget_id++;
 	widget->sub_lua_script = sub_lua_script;
-	widget->parent_grid_id = 0;
+	widget->parent_id = 0;
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = Vec2f(0.f);
 	widget->image_texture_assigned = false;
 	widget->visible = visible;
-	widget->slider_change_queued = false;
+	widget->callback_ref = onChange_ref;
+	widget->value_change_queued = false;
+
+	GLUISpinBox::CreateArgs args;
+	args.min_value = min_value;
+	args.max_value = max_value;
+	args.initial_value = initial_value; // Clamped by GLUISpinBox.
+	args.step = step;
+	args.num_decimal_places = num_decimal_places;
+	args.fixed_size.x = width_px;
+	widget->spinbox = new GLUISpinBox(*gl_ui, args);
+	const int widget_id = widget->id;
+	widget->spinbox->handler_func = [this, widget_id](GLUISpinBoxValueChangedEvent& /*event*/) { queueValueChanged(widget_id); };
+	gl_ui->addWidget(widget->spinbox);
+
+	updateWidgetTransform(*widget);
+	updateWidgetDrawn(*widget);
+
+	widgets[widget->id] = widget;
+	return widget->id;
+}
+
+
+int LuaScriptUI::createCheckBox(SubstrataLuaScript* sub_lua_script, bool checked, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, LuaVM::LuaValueRef onChange_ref, bool visible)
+{
+	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
+		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
+
+	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
+	widget->id = next_widget_id++;
+	widget->sub_lua_script = sub_lua_script;
+	widget->parent_id = 0;
+	widget->anchor = anchor;
+	widget->offset_px = offset_px;
+	widget->size_px = Vec2f(0.f);
+	widget->image_texture_assigned = false;
+	widget->visible = visible;
+	widget->callback_ref = onChange_ref;
+	widget->value_change_queued = false;
+
+	GLUICheckBox::CreateArgs args;
+	args.checked = checked;
+	widget->checkbox = new GLUICheckBox(*gl_ui, gui_client->base_dir_path + "/data/gl_data/ui/tick.png", args);
+	widget->checkbox->handler = this;
+	gl_ui->addWidget(widget->checkbox);
+
+	updateWidgetTransform(*widget);
+	updateWidgetDrawn(*widget);
+
+	widgets[widget->id] = widget;
+	return widget->id;
+}
+
+
+int LuaScriptUI::createDropDown(SubstrataLuaScript* sub_lua_script, const std::vector<std::string>& options, const std::string& initial_value, float width_px, LuaScriptUIWidget::Anchor anchor,
+	const Vec2f& offset_px, LuaVM::LuaValueRef onChange_ref, bool visible)
+{
+	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
+		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
+
+	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
+	widget->id = next_widget_id++;
+	widget->sub_lua_script = sub_lua_script;
+	widget->parent_id = 0;
+	widget->anchor = anchor;
+	widget->offset_px = offset_px;
+	widget->size_px = Vec2f(0.f);
+	widget->image_texture_assigned = false;
+	widget->visible = visible;
+	widget->callback_ref = onChange_ref;
+	widget->value_change_queued = false;
+
+	GLUIDropDownList::CreateArgs args;
+	args.options.resize(options.size());
+	for(size_t i=0; i<options.size(); ++i)
+		args.options[i] = UTF8Utils::sanitiseUTF8String(options[i]);
+	args.initial_value = UTF8Utils::sanitiseUTF8String(initial_value);
+	args.fixed_size.x = width_px;
+	widget->dropdown = new GLUIDropDownList(*gl_ui, args);
+	const int widget_id = widget->id;
+	widget->dropdown->handler_func = [this, widget_id](GLUIDropDownListValueChangedEvent& /*event*/) { queueValueChanged(widget_id); };
+	gl_ui->addWidget(widget->dropdown);
+
+	updateWidgetTransform(*widget);
+	updateWidgetDrawn(*widget);
+
+	widgets[widget->id] = widget;
+	return widget->id;
+}
+
+
+int LuaScriptUI::createLineEdit(SubstrataLuaScript* sub_lua_script, const std::string& text, float width_px, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px,
+	LuaVM::LuaValueRef onChange_ref, LuaVM::LuaValueRef onEnter_ref, bool visible)
+{
+	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
+		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
+
+	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
+	widget->id = next_widget_id++;
+	widget->sub_lua_script = sub_lua_script;
+	widget->parent_id = 0;
+	widget->anchor = anchor;
+	widget->offset_px = offset_px;
+	widget->size_px = Vec2f(0.f);
+	widget->image_texture_assigned = false;
+	widget->visible = visible;
+	widget->callback_ref = onChange_ref;
+	widget->enter_callback_ref = onEnter_ref;
+	widget->value_change_queued = false;
+	widget->last_reported_text = UTF8Utils::sanitiseUTF8String(text);
+
+	GLUILineEdit::CreateArgs args;
+	args.fixed_size.x = width_px;
+	widget->line_edit = new GLUILineEdit(*gl_ui, args);
+	widget->line_edit->setText(widget->last_reported_text);
+	const int widget_id = widget->id;
+	widget->line_edit->on_text_changed = [this, widget_id]() { lineEditTextChanged(widget_id); };
+	widget->line_edit->on_enter_pressed = [this, widget_id]() { entered_line_edit_ids.push_back(widget_id); };
+	gl_ui->addWidget(widget->line_edit);
+
+	updateWidgetTransform(*widget);
+	updateWidgetDrawn(*widget);
+
+	widgets[widget->id] = widget;
+	return widget->id;
+}
+
+
+int LuaScriptUI::createLabel(SubstrataLuaScript* sub_lua_script, const std::string& text, const Colour3f& text_colour_linear, const Colour3f& background_colour_linear, float background_alpha, int font_size_px,
+	const Vec2f& size_px, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, bool visible)
+{
+	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
+		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
+
+	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
+	widget->id = next_widget_id++;
+	widget->sub_lua_script = sub_lua_script;
+	widget->parent_id = 0;
+	widget->anchor = anchor;
+	widget->offset_px = offset_px;
+	widget->size_px = Vec2f(0.f);
+	widget->image_texture_assigned = false;
+	widget->visible = visible;
+	widget->value_change_queued = false;
 
 	GLUITextView::CreateArgs args;
 	args.text_colour = text_colour_linear;
 	args.background_colour = background_colour_linear;
 	args.background_alpha = background_alpha;
 	args.font_size_px = font_size_px;
-	args.padding_px = (int)std::ceil(font_size_px * 0.6f); // Same ratio as the GLUITextView default.
-	args.fixed_size = Vec2f(0.f); // Size the label to fit the text.
+	// An empty label with a size is a plain rectangle of exactly that size, so has no padding.  Otherwise use the same padding to font size ratio as the GLUITextView default.
+	args.padding_px = (text.empty() && (size_px.x > 0 || size_px.y > 0)) ? 0 : (int)std::ceil(font_size_px * 0.6f);
+	args.fixed_size = size_px; // The label is at least this size, and big enough to fit the text.  Zero means size the label to fit the text.
 	args.text_selectable = false; // So that clicking on a label doesn't take keyboard focus.
 	widget->label = new GLUITextView(*gl_ui, UTF8Utils::sanitiseUTF8String(text), args);
 	gl_ui->addWidget(widget->label);
@@ -243,13 +453,13 @@ int LuaScriptUI::createGrid(SubstrataLuaScript* sub_lua_script, LuaScriptUIWidge
 	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
 	widget->id = next_widget_id++;
 	widget->sub_lua_script = sub_lua_script;
-	widget->parent_grid_id = 0;
+	widget->parent_id = 0;
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = Vec2f(0.f);
 	widget->image_texture_assigned = false;
 	widget->visible = visible;
-	widget->slider_change_queued = false;
+	widget->value_change_queued = false;
 
 	GLUIGridContainer::CreateArgs args;
 	args.background_colour = background_colour_linear;
@@ -261,6 +471,42 @@ int LuaScriptUI::createGrid(SubstrataLuaScript* sub_lua_script, LuaScriptUIWidge
 	args.background_consumes_events = background_alpha > 0; // Clicks on a visible background shouldn't go through to the world.
 	widget->grid = new GLUIGridContainer(*gl_ui, args);
 	gl_ui->addWidget(widget->grid);
+
+	updateWidgetTransform(*widget);
+	updateWidgetDrawn(*widget);
+
+	widgets[widget->id] = widget;
+	return widget->id;
+}
+
+
+int LuaScriptUI::createWindow(SubstrataLuaScript* sub_lua_script, const std::string& title, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Colour3f& background_colour_linear,
+	float background_alpha, float padding_px, LuaVM::LuaValueRef onClose_ref, bool visible)
+{
+	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
+		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
+
+	LuaScriptUIWidgetRef widget = new LuaScriptUIWidget();
+	widget->id = next_widget_id++;
+	widget->sub_lua_script = sub_lua_script;
+	widget->parent_id = 0;
+	widget->anchor = anchor;
+	widget->offset_px = offset_px;
+	widget->size_px = Vec2f(0.f);
+	widget->image_texture_assigned = false;
+	widget->visible = visible;
+	widget->callback_ref = onClose_ref;
+	widget->value_change_queued = false;
+
+	GLUIWindow::CreateArgs args;
+	args.title = UTF8Utils::sanitiseUTF8String(title);
+	args.background_colour = background_colour_linear;
+	args.background_alpha = background_alpha;
+	args.padding_px = padding_px;
+	widget->window = new GLUIWindow(*gl_ui, args);
+	const int widget_id = widget->id;
+	widget->window->on_close_window = [this, widget_id]() { closed_window_ids.push_back(widget_id); };
+	gl_ui->addWidget(widget->window);
 
 	updateWidgetTransform(*widget);
 	updateWidgetDrawn(*widget);
@@ -285,7 +531,7 @@ void LuaScriptUI::destroyWidget(SubstrataLuaScript* sub_lua_script, int id)
 	if(res == widgets.end() || (res->second->sub_lua_script != sub_lua_script))
 		return;
 
-	removeFromParentGrid(*res->second);
+	removeFromParent(*res->second);
 	destroyWidgetAndContents(id);
 }
 
@@ -294,7 +540,7 @@ void LuaScriptUI::destroyWidgetAndContents(int id)
 {
 	std::vector<int> child_ids;
 	for(auto it = widgets.begin(); it != widgets.end(); ++it)
-		if(it->second->parent_grid_id == id)
+		if(it->second->parent_id == id)
 			child_ids.push_back(it->first);
 
 	for(size_t i=0; i<child_ids.size(); ++i)
@@ -316,6 +562,14 @@ void LuaScriptUI::setWidgetVisible(LuaScriptUIWidget& widget, bool visible)
 }
 
 
+void LuaScriptUI::setWidgetOffset(LuaScriptUIWidget& widget, const Vec2f& offset_px)
+{
+	widget.offset_px = offset_px;
+	if(widget.parent_id == 0) // Widgets in a grid or window are positioned by it.
+		updateWidgetTransform(widget);
+}
+
+
 void LuaScriptUI::setWidgetText(LuaScriptUIWidget& widget, const std::string& text)
 {
 	if(widget.button)
@@ -328,13 +582,41 @@ void LuaScriptUI::setWidgetText(LuaScriptUIWidget& widget, const std::string& te
 		widget.label->setText(UTF8Utils::sanitiseUTF8String(text));
 		updateWidgetTransform(widget); // The label size may have changed.
 	}
+	if(widget.line_edit)
+	{
+		widget.last_reported_text = UTF8Utils::sanitiseUTF8String(text); // So that onChange isn't called for this change.
+		widget.line_edit->setText(widget.last_reported_text);
+	}
 }
 
 
-void LuaScriptUI::setSliderValue(LuaScriptUIWidget& widget, double value)
+void LuaScriptUI::setNumberValue(LuaScriptUIWidget& widget, double value)
 {
 	if(widget.slider)
 		widget.slider->setValueNoEvent(value); // Clamps to the slider range.
+	if(widget.spinbox)
+		widget.spinbox->setValueNoEvent(value); // Clamps to the spin box range.
+}
+
+
+void LuaScriptUI::setCheckBoxChecked(LuaScriptUIWidget& widget, bool checked)
+{
+	if(widget.checkbox)
+		widget.checkbox->setChecked(checked); // Doesn't send an event.
+}
+
+
+void LuaScriptUI::setDropDownValue(LuaScriptUIWidget& widget, const std::string& value)
+{
+	if(widget.dropdown)
+	{
+		const std::string sanitised_value = UTF8Utils::sanitiseUTF8String(value); // The options were sanitised when the drop-down list was created.
+		const std::vector<std::string>& options = widget.dropdown->getOptions();
+		if(std::find(options.begin(), options.end(), sanitised_value) == options.end())
+			throw glare::Exception("UI drop-down list: value '" + value.substr(0, 100) + "' is not one of the options");
+
+		widget.dropdown->setValueNoEvent(sanitised_value);
+	}
 }
 
 
@@ -347,11 +629,14 @@ void LuaScriptUI::setGridCell(LuaScriptUIWidget& grid, int cell_x, int cell_y, L
 
 	if(child)
 	{
-		for(LuaScriptUIWidget* w = &grid; w; w = getParentGrid(*w))
+		if(child->window)
+			throw glare::Exception("UI grid: can't put a window in a grid");
+
+		for(LuaScriptUIWidget* w = &grid; w; w = getParent(*w))
 			if(w == child)
 				throw glare::Exception("UI grid: can't put a grid inside itself");
 
-		removeFromParentGrid(*child);
+		removeFromParent(*child);
 	}
 
 	// Remove any widget already in the cell from the grid.  It goes back to being positioned by its own anchor and offset.
@@ -365,7 +650,7 @@ void LuaScriptUI::setGridCell(LuaScriptUIWidget& grid, int cell_x, int cell_y, L
 				LuaScriptUIWidget* w = it->second.ptr();
 				if(w->getGLUIWidget() == occupant)
 				{
-					removeFromParentGrid(*w);
+					removeFromParent(*w);
 					updateWidgetTransform(*w);
 					updateWidgetDrawn(*w);
 					break;
@@ -377,7 +662,7 @@ void LuaScriptUI::setGridCell(LuaScriptUIWidget& grid, int cell_x, int cell_y, L
 	if(child)
 	{
 		grid.grid->setCellWidget(cell_x, cell_y, child->getGLUIWidget());
-		child->parent_grid_id = grid.id;
+		child->parent_id = grid.id;
 		updateWidgetDrawn(*child);
 	}
 
@@ -394,11 +679,48 @@ void LuaScriptUI::addGridRow(LuaScriptUIWidget& grid, LuaScriptUIWidget& child)
 }
 
 
-LuaScriptUIWidget* LuaScriptUI::getParentGrid(const LuaScriptUIWidget& widget)
+void LuaScriptUI::setWindowBody(LuaScriptUIWidget& window, LuaScriptUIWidget* body)
 {
-	if(widget.parent_grid_id == 0)
+	if(!window.window)
+		throw glare::Exception("UI widget: only windows have a body");
+
+	if(body)
+	{
+		if(body->window)
+			throw glare::Exception("UI window: can't put a window in a window");
+
+		removeFromParent(*body);
+	}
+
+	// Remove the current body widget, if any.  It goes back to being positioned by its own anchor and offset.
+	for(auto it = widgets.begin(); it != widgets.end(); ++it)
+	{
+		LuaScriptUIWidget* w = it->second.ptr();
+		if((w->parent_id == window.id) && (w != body))
+		{
+			removeFromParent(*w);
+			updateWidgetTransform(*w);
+			updateWidgetDrawn(*w);
+			break;
+		}
+	}
+
+	if(body)
+	{
+		window.window->setBodyWidget(body->getGLUIWidget());
+		body->parent_id = window.id;
+		updateWidgetDrawn(*body);
+	}
+
+	updateWidgetTransform(window);
+}
+
+
+LuaScriptUIWidget* LuaScriptUI::getParent(const LuaScriptUIWidget& widget)
+{
+	if(widget.parent_id == 0)
 		return NULL;
-	auto res = widgets.find(widget.parent_grid_id);
+	auto res = widgets.find(widget.parent_id);
 	return (res != widgets.end()) ? res->second.ptr() : NULL;
 }
 
@@ -406,7 +728,7 @@ LuaScriptUIWidget* LuaScriptUI::getParentGrid(const LuaScriptUIWidget& widget)
 LuaScriptUIWidget& LuaScriptUI::getRootWidget(LuaScriptUIWidget& widget)
 {
 	LuaScriptUIWidget* w = &widget;
-	while(LuaScriptUIWidget* parent = getParentGrid(*w))
+	while(LuaScriptUIWidget* parent = getParent(*w))
 		w = parent;
 	return *w;
 }
@@ -416,21 +738,24 @@ bool LuaScriptUI::isEffectivelyVisible(const LuaScriptUIWidget& widget)
 {
 	if(!ui_visible)
 		return false;
-	for(const LuaScriptUIWidget* w = &widget; w; w = getParentGrid(*w))
+	for(const LuaScriptUIWidget* w = &widget; w; w = getParent(*w))
 		if(!w->visible)
 			return false;
 	return true;
 }
 
 
-void LuaScriptUI::removeFromParentGrid(LuaScriptUIWidget& widget)
+void LuaScriptUI::removeFromParent(LuaScriptUIWidget& widget)
 {
-	LuaScriptUIWidget* parent = getParentGrid(widget);
-	widget.parent_grid_id = 0;
+	LuaScriptUIWidget* parent = getParent(widget);
+	widget.parent_id = 0;
 	if(parent)
 	{
-		parent->grid->removeWidget(widget.getGLUIWidget());
-		updateWidgetTransform(*parent); // The grid size may have changed.
+		if(parent->grid)
+			parent->grid->removeWidget(widget.getGLUIWidget());
+		else if(parent->window)
+			parent->window->setBodyWidget(NULL);
+		updateWidgetTransform(*parent); // The grid or window size may have changed.
 	}
 }
 
@@ -456,7 +781,9 @@ void LuaScriptUI::removeAllWidgets()
 		removeWidgetFromUI(*it->second);
 	widgets.clear();
 	clicked_widget_ids.clear();
-	changed_slider_ids.clear();
+	changed_value_ids.clear();
+	entered_line_edit_ids.clear();
+	closed_window_ids.clear();
 }
 
 
@@ -464,31 +791,56 @@ void LuaScriptUI::removeWidgetFromUI(LuaScriptUIWidget& widget)
 {
 	checkRemoveAndDeleteWidget(gl_ui, widget.image);
 	checkRemoveAndDeleteWidget(gl_ui, widget.button);
+	checkRemoveAndDeleteWidget(gl_ui, widget.image_button);
 	checkRemoveAndDeleteWidget(gl_ui, widget.slider);
+	checkRemoveAndDeleteWidget(gl_ui, widget.spinbox);
+	checkRemoveAndDeleteWidget(gl_ui, widget.checkbox);
+	checkRemoveAndDeleteWidget(gl_ui, widget.dropdown);
+	checkRemoveAndDeleteWidget(gl_ui, widget.line_edit);
 	checkRemoveAndDeleteWidget(gl_ui, widget.label);
 	checkRemoveAndDeleteWidget(gl_ui, widget.grid);
+	checkRemoveAndDeleteWidget(gl_ui, widget.window);
 
 	if(widget.callback_ref.ref != LUA_NOREF)
 	{
 		widget.sub_lua_script->freeRefToFunction(widget.callback_ref);
 		widget.callback_ref = LuaVM::LuaValueRef();
 	}
+	if(widget.enter_callback_ref.ref != LUA_NOREF)
+	{
+		widget.sub_lua_script->freeRefToFunction(widget.enter_callback_ref);
+		widget.enter_callback_ref = LuaVM::LuaValueRef();
+	}
+}
+
+
+void LuaScriptUI::clearKeyboardFocusIfHeldBy(const LuaScriptUIWidget& widget)
+{
+	const GLUIWidgetRef glui_widget = widget.getGLUIWidget();
+	if(glui_widget && (gl_ui->getKeyboardFocusWidget().ptr() == glui_widget.ptr()))
+		gl_ui->setKeyboardFocusWidget(NULL);
 }
 
 
 void LuaScriptUI::think()
 {
 	for(auto it = widgets.begin(); it != widgets.end(); ++it)
-		if(it->second->image && !it->second->image_texture_assigned)
+		if((it->second->image || it->second->image_button) && !it->second->image_texture_assigned)
 			checkAssignImageTexture(*it->second);
 
-	if((!clicked_widget_ids.empty() || !changed_slider_ids.empty()) && gui_client->world_state)
+	if((!clicked_widget_ids.empty() || !changed_value_ids.empty() || !entered_line_edit_ids.empty() || !closed_window_ids.empty()) && gui_client->world_state)
 	{
+		std::vector<int> closed_ids;
+		closed_ids.swap(closed_window_ids);
+
 		std::vector<int> clicked_ids;
 		clicked_ids.swap(clicked_widget_ids);
 
 		std::vector<int> changed_ids;
-		changed_ids.swap(changed_slider_ids);
+		changed_ids.swap(changed_value_ids);
+
+		std::vector<int> entered_ids;
+		entered_ids.swap(entered_line_edit_ids);
 
 		WorldStateLock lock(gui_client->world_state->mutex);
 
@@ -510,9 +862,48 @@ void LuaScriptUI::think()
 			if(res != widgets.end())
 			{
 				LuaScriptUIWidgetRef widget = res->second;
-				widget->slider_change_queued = false;
+				widget->value_change_queued = false;
 				if(widget->callback_ref.ref != LUA_NOREF)
-					widget->sub_lua_script->doOnUIValueChangedEvent(widget->callback_ref, widget->slider->getValue(), gui_client->client_avatar_uid, lock);
+				{
+					if(widget->slider)
+						widget->sub_lua_script->doOnUIValueChangedEvent(widget->callback_ref, widget->slider->getValue(), gui_client->client_avatar_uid, lock);
+					else if(widget->spinbox)
+						widget->sub_lua_script->doOnUIValueChangedEvent(widget->callback_ref, widget->spinbox->getValue(), gui_client->client_avatar_uid, lock);
+					else if(widget->checkbox)
+						widget->sub_lua_script->doOnUIBoolValueChangedEvent(widget->callback_ref, widget->checkbox->isChecked(), gui_client->client_avatar_uid, lock);
+					else if(widget->dropdown)
+						widget->sub_lua_script->doOnUIStringValueChangedEvent(widget->callback_ref, widget->dropdown->getCurrentValue(), gui_client->client_avatar_uid, lock);
+					else if(widget->line_edit)
+						widget->sub_lua_script->doOnUIStringValueChangedEvent(widget->callback_ref, widget->line_edit->getText(), gui_client->client_avatar_uid, lock);
+				}
+			}
+		}
+
+		// Run onEnter callbacks after onChange callbacks, so onChange has seen the final text.
+		for(size_t i=0; i<entered_ids.size(); ++i)
+		{
+			auto res = widgets.find(entered_ids[i]);
+			if(res != widgets.end())
+			{
+				LuaScriptUIWidgetRef widget = res->second;
+				if(widget->line_edit && (widget->enter_callback_ref.ref != LUA_NOREF))
+					widget->sub_lua_script->doOnUIStringValueChangedEvent(widget->enter_callback_ref, widget->line_edit->getText(), gui_client->client_avatar_uid, lock);
+			}
+		}
+
+		// Hide closed windows, then call their onClose functions.  A callback can show the window again.
+		for(size_t i=0; i<closed_ids.size(); ++i)
+		{
+			auto res = widgets.find(closed_ids[i]);
+			if(res != widgets.end())
+			{
+				LuaScriptUIWidgetRef widget = res->second;
+				if(widget->window && widget->visible)
+				{
+					setWidgetVisible(*widget, false);
+					if(widget->callback_ref.ref != LUA_NOREF)
+						widget->sub_lua_script->doOnUIEvent(widget->callback_ref, gui_client->client_avatar_uid, lock);
+				}
 			}
 		}
 	}
@@ -522,7 +913,7 @@ void LuaScriptUI::think()
 void LuaScriptUI::viewportResized()
 {
 	for(auto it = widgets.begin(); it != widgets.end(); ++it)
-		if(it->second->parent_grid_id == 0) // Widgets in grids are positioned by updateWidgetTransform() on the outermost grid.
+		if(it->second->parent_id == 0) // Widgets in grids are positioned by updateWidgetTransform() on the outermost grid.
 			updateWidgetTransform(*it->second);
 }
 
@@ -539,9 +930,16 @@ void LuaScriptUI::eventOccurred(GLUICallbackEvent& event)
 {
 	for(auto it = widgets.begin(); it != widgets.end(); ++it)
 	{
-		if(it->second->button.ptr() == event.widget)
+		LuaScriptUIWidget* widget = it->second.ptr();
+		if((widget->button.ptr() == event.widget) || (widget->image_button.ptr() == event.widget))
 		{
 			clicked_widget_ids.push_back(it->first);
+			event.accepted = true;
+			return;
+		}
+		if(widget->checkbox.ptr() == event.widget) // Checkbox was toggled
+		{
+			queueValueChanged(it->first);
 			event.accepted = true;
 			return;
 		}
@@ -556,14 +954,33 @@ void LuaScriptUI::sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& e
 		LuaScriptUIWidget* widget = it->second.ptr();
 		if(widget->slider.ptr() == event.widget)
 		{
-			if(!widget->slider_change_queued)
-			{
-				widget->slider_change_queued = true;
-				changed_slider_ids.push_back(it->first);
-			}
+			queueValueChanged(it->first);
 			event.accepted = true;
 			return;
 		}
+	}
+}
+
+
+// GLUILineEdit calls on_text_changed for every key press, including ones that don't change the text, such as arrow keys.  So check the text has changed before queuing onChange.
+void LuaScriptUI::lineEditTextChanged(int widget_id)
+{
+	auto res = widgets.find(widget_id);
+	if(res != widgets.end() && res->second->line_edit && (res->second->line_edit->getText() != res->second->last_reported_text))
+	{
+		res->second->last_reported_text = res->second->line_edit->getText();
+		queueValueChanged(widget_id);
+	}
+}
+
+
+void LuaScriptUI::queueValueChanged(int widget_id)
+{
+	auto res = widgets.find(widget_id);
+	if(res != widgets.end() && !res->second->value_change_queued)
+	{
+		res->second->value_change_queued = true;
+		changed_value_ids.push_back(widget_id);
 	}
 }
 
@@ -591,10 +1008,35 @@ void LuaScriptUI::updateWidgetTransform(LuaScriptUIWidget& widget_in_tree)
 		const Vec2f dims = widget.button->getDims();
 		widget.button->setPos(anchor_pos + offset - Vec2f(fractions.x * dims.x, fractions.y * dims.y));
 	}
+	if(widget.image_button)
+	{
+		const Vec2f dims = widget.image_button->getDims(); // GLUIButton::viewportResized() updates the dims from the fixed pixel size.
+		widget.image_button->setPos(anchor_pos + offset - Vec2f(fractions.x * dims.x, fractions.y * dims.y));
+	}
 	if(widget.slider)
 	{
 		const Vec2f dims = widget.slider->getDims(); // GLUISlider::viewportResized() updates the dims from the fixed pixel size.
 		widget.slider->setPos(anchor_pos + offset - Vec2f(fractions.x * dims.x, fractions.y * dims.y));
+	}
+	if(widget.spinbox)
+	{
+		const Vec2f dims = widget.spinbox->getDims(); // GLUISpinBox::viewportResized() updates the dims from the fixed pixel size.
+		widget.spinbox->setPos(anchor_pos + offset - Vec2f(fractions.x * dims.x, fractions.y * dims.y));
+	}
+	if(widget.checkbox)
+	{
+		const Vec2f dims = widget.checkbox->getDims(); // GLUICheckBox::viewportResized() updates the dims from the fixed pixel size.
+		widget.checkbox->setPos(anchor_pos + offset - Vec2f(fractions.x * dims.x, fractions.y * dims.y));
+	}
+	if(widget.dropdown)
+	{
+		const Vec2f dims = widget.dropdown->getDims(); // GLUIDropDownList::viewportResized() updates the dims from the fixed pixel size.
+		widget.dropdown->setPos(anchor_pos + offset - Vec2f(fractions.x * dims.x, fractions.y * dims.y));
+	}
+	if(widget.line_edit)
+	{
+		const Vec2f dims = widget.line_edit->getDims();
+		widget.line_edit->setPos(anchor_pos + offset - Vec2f(fractions.x * dims.x, fractions.y * dims.y));
 	}
 	if(widget.label)
 	{
@@ -607,6 +1049,12 @@ void LuaScriptUI::updateWidgetTransform(LuaScriptUIWidget& widget_in_tree)
 		const Vec2f dims = widget.grid->getDims();
 		widget.grid->setPos(anchor_pos + offset - Vec2f(fractions.x * dims.x, fractions.y * dims.y)); // Moves the contained widgets as well.
 	}
+	if(widget.window)
+	{
+		widget.window->recomputeLayout(); // Lays out the body widget as well, and sets the window dims from the body and title.
+		const Vec2f dims = widget.window->getDims();
+		widget.window->setPos(anchor_pos + offset - Vec2f(fractions.x * dims.x, fractions.y * dims.y)); // Moves the body widget as well.
+	}
 }
 
 
@@ -618,16 +1066,33 @@ void LuaScriptUI::updateWidgetDrawn(LuaScriptUIWidget& widget)
 		widget.image->setVisible(drawn && widget.image_texture_assigned);
 	if(widget.button)
 		widget.button->setVisible(drawn);
+	if(widget.image_button)
+		widget.image_button->setVisible(drawn && widget.image_texture_assigned);
 	if(widget.slider)
 		widget.slider->setVisible(drawn);
+	if(widget.spinbox)
+		widget.spinbox->setVisible(drawn); // Also removes keyboard focus from its text field if hiding.
+	if(widget.checkbox)
+		widget.checkbox->setVisible(drawn);
+	if(widget.dropdown)
+		widget.dropdown->setVisible(drawn); // Also closes the options list if hiding.
+	if(widget.line_edit)
+		widget.line_edit->setVisible(drawn);
+
+	if(!drawn)
+		clearKeyboardFocusIfHeldBy(widget);
 	if(widget.label)
 		widget.label->setVisible(drawn);
-	if(widget.grid)
+	if(widget.grid || widget.window)
 	{
-		widget.grid->setVisible(drawn); // Sets the visibility of all contained widgets as well, so set it for each contained widget afterwards.
+		// Setting the visibility of a grid or window sets the visibility of all contained widgets as well, so set it for each contained widget afterwards.
+		if(widget.grid)
+			widget.grid->setVisible(drawn);
+		if(widget.window)
+			widget.window->setVisible(drawn);
 
 		for(auto it = widgets.begin(); it != widgets.end(); ++it)
-			if(it->second->parent_grid_id == widget.id)
+			if(it->second->parent_id == widget.id)
 				updateWidgetDrawn(*it->second);
 	}
 }
@@ -645,7 +1110,10 @@ void LuaScriptUI::checkAssignImageTexture(LuaScriptUIWidget& widget)
 	OpenGLTextureRef tex = gui_client->opengl_engine->getTextureIfLoaded(local_path);
 	if(tex)
 	{
-		widget.image->setTexture(tex);
+		if(widget.image)
+			widget.image->setTexture(tex);
+		if(widget.image_button)
+			widget.image_button->setTexture(tex);
 		widget.image_texture_assigned = true;
 		updateWidgetDrawn(widget);
 	}

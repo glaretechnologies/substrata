@@ -176,7 +176,7 @@ public:
 	// loading for that position (see GUIClient::isSceneFullyLoaded), since objects stream in based on camera position.
 	// horizontal_fov is the horizontal field of view in radians, or 0 to use the camera's current lens.
 	// NOTE: MUST be called on the GUI (GL) thread, as it makes the GL context current and issues draw calls.
-	ImageMapUInt8Ref renderCurrentViewToImageMap(int viewport_w, int viewport_h, float horizontal_fov);
+	ImageMapUInt8Ref renderCurrentViewToImageMap(int viewport_w, int viewport_h, float horizontal_fov, bool show_ui); // If show_ui is true, draws the UI overlays and renders at the window's size, ignoring viewport_w and viewport_h.
 
 	// Enqueue a render request from another thread (e.g. an MCP handler thread).  Thread-safe.  The request is processed on
 	// the GUI thread by processMCPRenderRequests(); the caller waits on req->condition for req->done.

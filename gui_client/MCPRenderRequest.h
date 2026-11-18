@@ -30,13 +30,14 @@ See MainWindow::processMCPRenderRequests().
 class MCPRenderRequest : public ThreadSafeRefCounted
 {
 public:
-	MCPRenderRequest() : width(1024), height(768), horizontal_fov(0), started(false), became_loaded(false), done(false), success(false) {}
+	MCPRenderRequest() : width(1024), height(768), horizontal_fov(0), show_ui(false), started(false), became_loaded(false), done(false), success(false) {}
 
 	// Inputs (set by the requesting thread before enqueuing):
 	Vec3d cam_pos;
 	Vec3d cam_angles; // (heading, pitch, roll), radians.  See CameraController.
 	int width, height;
 	float horizontal_fov; // Horizontal field of view in radians, or 0 to use the camera's current lens.
+	bool show_ui; // If true, the UI overlays (including script UI widgets) are drawn, and the image is rendered at the window's size, ignoring width and height, so the UI is laid out as on screen.
 
 	// GUI-thread-only driver state:
 	bool started;        // Has the streaming camera been positioned yet?

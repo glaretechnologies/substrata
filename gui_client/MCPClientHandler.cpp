@@ -43,7 +43,10 @@ static const char* RENDER_VIEW_TOOL_JSON =
 			"\"fov\":{\"type\":\"number\",\"description\":\"Horizontal field of view in radians, from 0.05 to 3.0. Defaults to the client camera's "
 				"current lens, normally about 1.22 (70 degrees). Use a wide view for establishing shots and a narrow one for detail.\"},"
 			"\"width\":{\"type\":\"number\",\"description\":\"Image width in pixels (default 1024).\"},"
-			"\"height\":{\"type\":\"number\",\"description\":\"Image height in pixels (default 768).\"}"
+			"\"height\":{\"type\":\"number\",\"description\":\"Image height in pixels (default 768).\"},"
+			"\"show_ui\":{\"type\":\"boolean\",\"description\":\"If true, draw the client's UI on top of the view, including UI widgets created by object scripts "
+				"(createUIButton etc.), e.g. to check a script's UI. The image is then the size of the client window, and width and height are ignored. "
+				"Script UI is only shown for scripts that are running in the client, i.e. for objects near cam_pos. Default false.\"}"
 		"},\"required\":[\"cam_pos\",\"cam_angles\"]}"
 	"}";
 
@@ -252,6 +255,9 @@ std::string MCPClientRequestHandler::forwardToServer(const std::string& request_
 		throw glare::Exception("Not connected to a server.");
 	const std::string server_mcp_url = "https://" + hostname + "/mcp";
 
+	// A local test server usually has a self-signed certificate, so don't verify it, as for the main connection (see GUIClient.cpp).
+	http_client->do_cert_verification = (hostname != "localhost");
+
 	// sendPost() connects on first use, reuses the connection on subsequent calls (keep-alive), and reconnects if the
 	// hostname has changed since the last call (e.g. the user teleported to a different server).
 	for(int attempt = 0; attempt < 2; ++attempt)
@@ -311,7 +317,10 @@ void MCPClientRequestHandler::handleRenderView(const JSONNode& root, web::ReplyI
 		if(args.hasChild("fov") && !(fov >= 0.05 && fov <= 3.0))
 			throw glare::Exception("fov out of range [0.05, 3.0] radians.");
 
-		main_window->gui_client.msg_queue.enqueue(new InfoMessage("Doing MCP render..."));
+		const bool show_ui = args.getChildBoolValueWithDefaultVal("show_ui", /*default=*/false);
+
+		if(!show_ui) // The info message would appear in the image if the UI is shown.
+			main_window->gui_client.msg_queue.enqueue(new InfoMessage("Doing MCP render..."));
 
 		// Hand the render off to the GUI thread and wait for it.
 		MCPRenderRequestRef req = new MCPRenderRequest();
@@ -320,6 +329,7 @@ void MCPClientRequestHandler::handleRenderView(const JSONNode& root, web::ReplyI
 		req->width = width;
 		req->height = height;
 		req->horizontal_fov = (float)fov;
+		req->show_ui = show_ui;
 
 		main_window->enqueueMCPRenderRequest(req);
 

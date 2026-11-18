@@ -6190,6 +6190,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 	// Do Lua timer callbacks
 	if(false) // TEMP 
 	{
+		//Timer timer;
 		WorldStateLock lock(this->world_state->mutex);
 
 		const double cur_time = total_timer.elapsed();
@@ -6203,7 +6204,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			if(sub_lua_script)
 			{
 				// Check timer is still valid (has not been destroyed by destroyTimer), by checking the timer id with the same index is still equal to our timer id.
-				assert(timer.timer_index >= 0 && timer.timer_index <= SubstrataLuaScript::MAX_NUM_TIMERS);
+				assert(timer.timer_index >= 0 && timer.timer_index < SubstrataLuaScript::MAX_NUM_TIMERS);
 				if(timer.timer_id == sub_lua_script->timers[timer.timer_index].id)
 				{
 					sub_lua_script->doOnTimerEvent(timer.onTimerEvent_ref, lock); // Execute the Lua timer event callback function
@@ -6221,6 +6222,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				}
 			}
 		}
+		//conPrint("Lua timer callbacks took " + timer.elapsedStringMSWIthNSigFigs() + " (num: " + toString(temp_triggered_timers.size()));
 	}
 
 
@@ -7537,6 +7539,20 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 							}
 
 							loadAudioForObject(ob, /*loaded buffer=*/nullptr); // Check for re-loading audio if audio URL changed.
+
+							// Reload the script if it changed, e.g. when another user or an MCP tool edited it.  The script is otherwise only loaded along with the model,
+							// so if the model isn't loaded yet, leave it to be loaded then.
+							if(BitUtils::isBitSet(ob->changed_flags, WorldObject::SCRIPT_CHANGED) && ob->opengl_engine_ob)
+							{
+								try
+								{
+									loadScriptForObject(ob, lock);
+								}
+								catch(glare::Exception& e)
+								{
+									conPrint("Error loading changed script for object " + ob->uid.toString() + ": " + e.what());
+								}
+							}
 
 							// Update audio volume if the audio_source has been created
 							if(ob->audio_source && (ob->audio_source->volume != ob->audio_volume))

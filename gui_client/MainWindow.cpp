@@ -3401,7 +3401,7 @@ void MainWindow::on_actionTake_Screenshot_triggered()
 }
 
 
-ImageMapUInt8Ref MainWindow::renderCurrentViewToImageMap(int viewport_w, int viewport_h, float horizontal_fov)
+ImageMapUInt8Ref MainWindow::renderCurrentViewToImageMap(int viewport_w, int viewport_h, float horizontal_fov, bool show_ui)
 {
 	ui->glWidget->makeCurrent();
 
@@ -3411,6 +3411,13 @@ ImageMapUInt8Ref MainWindow::renderCurrentViewToImageMap(int viewport_w, int vie
 	const int   saved_viewport_w    = scene->viewport_w;
 	const int   saved_viewport_h    = scene->viewport_h;
 	const bool  saved_draw_overlays = scene->draw_overlay_objects;
+
+	// The UI is laid out for the window's viewport size, so when drawing it, render at that size.
+	if(show_ui)
+	{
+		viewport_w = saved_viewport_w;
+		viewport_h = saved_viewport_h;
+	}
 
 	ImageMapUInt8Ref map;
 	try
@@ -3424,7 +3431,7 @@ ImageMapUInt8Ref MainWindow::renderCurrentViewToImageMap(int viewport_w, int vie
 		const float lens_sensor_dist = (horizontal_fov > 0) ? (sensor_width * 0.5f / std::tan(horizontal_fov * 0.5f)) : (float)gui_client.cam_controller.getEffectiveLensSensorDist();
 		const float render_aspect    = (float)viewport_w / (float)viewport_h;
 
-		scene->draw_overlay_objects = false; // Don't draw the player's UI overlays into the render.
+		scene->draw_overlay_objects = show_ui; // Draw the player's UI overlays into the render only if requested.
 
 		opengl_engine->setViewportDims(viewport_w, viewport_h);
 		opengl_engine->setPerspectiveCameraTransform(world_to_camera, sensor_width, lens_sensor_dist, render_aspect, /*lens_shift_up=*/0.f, /*lens_shift_right=*/0.f);
@@ -3521,7 +3528,7 @@ void MainWindow::processMCPRenderRequests()
 	std::string error_msg;
 	try
 	{
-		image = renderCurrentViewToImageMap(req->width, req->height, req->horizontal_fov);
+		image = renderCurrentViewToImageMap(req->width, req->height, req->horizontal_fov, req->show_ui);
 	}
 	catch(glare::Exception& e)
 	{

@@ -702,43 +702,8 @@ int main(int argc, char *argv[])
 				for(auto i = objects.begin(); i != objects.end(); ++i)
 				{
 					WorldObject* ob = i->second.ptr();
-					if(hasPrefix(ob->script, "--lua") && ob->creator_id.valid())
-					{
-						try
-						{
-							runtimeCheck(ob->creator_id.valid()); // Invalid UserID is the empty key so make sure is valid.
-
-							// Get the SubstrataLuaVM for the user who created the object, or create it if it does not yet exist.
-							SubstrataLuaVM* lua_vm;
-							auto res = server.world_state->lua_vms.find(ob->creator_id);
-							if(res == server.world_state->lua_vms.end())
-							{
-								conPrint("Creating new SubstrataLuaVM for user " + ob->creator_id.toString() + "...");
-								Timer timer;
-								lua_vm = new SubstrataLuaVM(SubstrataLuaVM::SubstrataLuaVMArgs(&server));
-								conPrint("\tCreating SubstrataLuaVM took " + timer.elapsedStringMSWIthNSigFigs(4));
-								server.world_state->lua_vms[ob->creator_id] = lua_vm;
-							}
-							else
-								lua_vm = res->second.ptr();
-
-							runtimeCheck(lua_vm);
-							ob->sub_lua_script = new SubstrataLuaScript(lua_vm, /*script output handler=*/&server, ob->script, ob, &server, world_state.ptr(), lock);
-							ob->sub_lua_script->exec(lock);
-						}
-						catch(LuaScriptExcepWithLocation& e)
-						{
-							ob->sub_lua_script = nullptr;
-							conPrint("Error creating SubstrataLuaScript for ob " + ob->uid.toString() + ": " + e.messageWithLocations());
-							server.logLuaError("Error: " + e.messageWithLocations(), ob->uid, ob->creator_id);
-						}
-						catch(glare::Exception& e)
-						{
-							ob->sub_lua_script = nullptr;
-							conPrint("Error creating SubstrataLuaScript for ob " + ob->uid.toString() + ": " + e.what());
-							server.logLuaError("Error: " + e.what(), ob->uid, ob->creator_id);
-						}
-					}
+					if(hasPrefix(ob->script, "--lua"))
+						server.recreateLuaScriptForObject(ob, world_state.ptr(), lock);
 				}
 			}
 		}
@@ -1558,6 +1523,51 @@ void Server::logLuaMessage(const std::string& msg, UserScriptLogMessage::Message
 
 		if(user_script_log->messages.size() > MAX_NUM_PER_USER_LUA_MESSAGES)
 			user_script_log->messages.pop_front();
+	}
+}
+
+
+void Server::recreateLuaScriptForObject(WorldObject* ob, ServerWorldState* world, WorldStateLock& lock)
+{
+	ob->sub_lua_script = NULL;
+
+	if(hasPrefix(ob->script, "--lua") &&
+		BitUtils::isBitSet(world_state->feature_flag_info.feature_flags, ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG) &&
+		ob->creator_id.valid())
+	{
+		try
+		{
+			// Get the SubstrataLuaVM for the user who created the object, or create it if it does not yet exist.  (Invalid UserID is the empty key, so creator_id must be valid, as checked above.)
+			SubstrataLuaVM* lua_vm;
+			auto res = world_state->lua_vms.find(ob->creator_id);
+			if(res == world_state->lua_vms.end())
+			{
+				conPrint("Creating new SubstrataLuaVM for user " + ob->creator_id.toString() + "...");
+				Timer timer;
+				lua_vm = new SubstrataLuaVM(SubstrataLuaVM::SubstrataLuaVMArgs(this));
+				conPrint("\tCreating SubstrataLuaVM took " + timer.elapsedStringMSWIthNSigFigs(4));
+				world_state->lua_vms[ob->creator_id] = lua_vm;
+			}
+			else
+				lua_vm = res->second.ptr();
+
+			runtimeCheck(lua_vm);
+
+			ob->sub_lua_script = new SubstrataLuaScript(lua_vm, /*script output handler=*/this, ob->script, ob, this, world, lock);
+			ob->sub_lua_script->exec(lock);
+		}
+		catch(LuaScriptExcepWithLocation& e)
+		{
+			ob->sub_lua_script = nullptr;
+			conPrint("Error creating SubstrataLuaScript for ob " + ob->uid.toString() + ": " + e.messageWithLocations());
+			logLuaError("Error: " + e.messageWithLocations(), ob->uid, ob->creator_id);
+		}
+		catch(glare::Exception& e)
+		{
+			ob->sub_lua_script = nullptr;
+			conPrint("Error creating SubstrataLuaScript for ob " + ob->uid.toString() + ": " + e.what());
+			logLuaError("Error: " + e.what(), ob->uid, ob->creator_id);
+		}
 	}
 }
 

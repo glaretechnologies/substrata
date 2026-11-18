@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2026 -
 
 
 class ServerAllWorldsState;
+class Server;
 namespace web
 {
 class RequestInfo;
@@ -55,8 +56,8 @@ curl.exe -k -X POST https://localhost/mcp -H "Authorization: Bearer YOUR_API_KEY
 =====================================================================*/
 namespace MCPHandlers
 {
-	// Handles a POST request to /mcp.
-	void handleMCPRequest(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
+	// Handles a POST request to /mcp.  server is used to create server-side script evaluators for objects whose scripts are set by tools.
+	void handleMCPRequest(ServerAllWorldsState& world_state, Server* server, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 
 
 	struct ToolResult
@@ -71,7 +72,7 @@ namespace MCPHandlers
 	// args_json is the raw JSON object of tool arguments, e.g. {"pos":{"x":0,"y":0,"z":1}}.  May be empty for a tool taking no arguments.
 	// Does not throw: tool failures are returned with is_error set.
 	// NOTE: the caller must NOT hold the world state lock, as the tools take it themselves.
-	ToolResult callTool(ServerAllWorldsState& world_state, const std::string& tool_name, const std::string& args_json, const UserID acting_user_id, const std::string& acting_user_name);
+	ToolResult callTool(ServerAllWorldsState& world_state, Server* server, const std::string& tool_name, const std::string& args_json, const UserID acting_user_id, const std::string& acting_user_name);
 
 	struct ToolSpec
 	{

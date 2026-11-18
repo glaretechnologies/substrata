@@ -106,6 +106,11 @@ public:
 	void logLuaMessage(const std::string& msg, UserScriptLogMessage::MessageType message_type, UID world_ob_uid, UserID script_creator_user_id); // Thread-safe
 	void logLuaError(const std::string& msg, UID world_ob_uid, UserID script_creator_user_id); // Thread-safe
 
+	// Replaces the server-side script evaluator (ob->sub_lua_script) for the object, for when the object is loaded or its script changes.
+	// Creates one if the script is a Lua script, server-side script execution is enabled and the object has a valid creator; otherwise just removes any existing one.
+	// Errors creating or running the script are logged to the script creator's log.
+	void recreateLuaScriptForObject(WorldObject* ob, ServerWorldState* world, WorldStateLock& lock) REQUIRES(world_state->mutex);
+
 	double getCurrentGlobalTime() const;
 
 	void enqueueMsg(ThreadMessageRef msg);
