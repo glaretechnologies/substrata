@@ -1675,6 +1675,30 @@ static bool assignStringWithSizeCheck(lua_State* state, int index, StringType& f
 	else
 		return false;
 }
+
+
+// Returns true if the value changed, false otherwise.
+template <class T>
+static bool assignIfChanged(T& field, const T& new_val)
+{
+	if(field == new_val)
+		return false;
+
+	field = new_val;
+	return true;
+}
+
+
+// Sets or zeroes the bit.  Returns true if the bit changed, false otherwise.
+template <class T>
+static bool setOrZeroBitIfChanged(T& flags, T bitflag, bool should_set)
+{
+	if(BitUtils::isBitSet(flags, bitflag) == should_set)
+		return false;
+
+	BitUtils::setOrZeroBit(flags, bitflag, should_set);
+	return true;
+}
 #endif
 
 
@@ -1732,42 +1756,52 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 	case Atom_pos:
 		{
 		assert(stringEqual(key_str, "pos"));
-		const Vec3d new_pos = LuaUtils::getVec3d(state, /*index=*/3);
-		if(ob->pos != new_pos)
-		{
-			ob->pos = new_pos;
-			transform_changed = true;
-		}
+		transform_changed = assignIfChanged(ob->pos, LuaUtils::getVec3d(state, /*index=*/3));
 		break;
 		}
 	case Atom_axis:
 		assert(stringEqual(key_str, "axis"));
-		ob->axis = LuaUtils::getVec3f(state, /*index=*/3); // TODO: check value actually changed, likewise for other fields below.
-		transform_changed = true;
+		transform_changed = assignIfChanged(ob->axis, LuaUtils::getVec3f(state, /*index=*/3));
 		break;
 	case Atom_angle:
 		assert(stringEqual(key_str, "angle"));
-		ob->angle = LuaUtils::getFloat(state, /*index=*/3);
-		transform_changed = true;
+		transform_changed = assignIfChanged(ob->angle, LuaUtils::getFloat(state, /*index=*/3));
 		break;
 	case Atom_scale:
 		assert(stringEqual(key_str, "scale"));
-		ob->scale = LuaUtils::getVec3f(state, /*index=*/3);
-		transform_changed = true;
+		transform_changed = assignIfChanged(ob->scale, LuaUtils::getVec3f(state, /*index=*/3));
 		break;
 	case Atom_collidable:
+		{
 		assert(stringEqual(key_str, "collidable"));
-		ob->setCollidable(LuaUtils::getBool(state, /*index=*/3));
-		other_changed = true;
+		const bool collidable = LuaUtils::getBool(state, /*index=*/3);
+		if(collidable != ob->isCollidable())
+		{
+			ob->setCollidable(collidable);
+			other_changed = true;
+		}
 		break;
+		}
 	case Atom_dynamic:
-		ob->setDynamic(LuaUtils::getBool(state, /*index=*/3));
-		other_changed = true;
+		{
+		const bool dynamic = LuaUtils::getBool(state, /*index=*/3);
+		if(dynamic != ob->isDynamic())
+		{
+			ob->setDynamic(dynamic);
+			other_changed = true;
+		}
 		break;
+		}
 	case Atom_sensor:
-		ob->setIsSensor(LuaUtils::getBool(state, /*index=*/3));
-		other_changed = true;
+		{
+		const bool sensor = LuaUtils::getBool(state, /*index=*/3);
+		if(sensor != ob->isSensor())
+		{
+			ob->setIsSensor(sensor);
+			other_changed = true;
+		}
 		break;
+		}
 	case Atom_content:
 		{
 		assert(stringEqual(key_str, "content"));
@@ -1789,38 +1823,31 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		}
 	case Atom_video_autoplay:
 		assert(stringEqual(key_str, "video_autoplay"));
-		BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_AUTOPLAY, LuaUtils::getBool(state, /*index=*/3));
-		other_changed = true;
+		other_changed = setOrZeroBitIfChanged(ob->flags, WorldObject::VIDEO_AUTOPLAY, LuaUtils::getBool(state, /*index=*/3));
 		break;
 	case Atom_video_loop:
 		assert(stringEqual(key_str, "video_loop"));
-		BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_LOOP, LuaUtils::getBool(state, /*index=*/3));
-		other_changed = true;
+		other_changed = setOrZeroBitIfChanged(ob->flags, WorldObject::VIDEO_LOOP, LuaUtils::getBool(state, /*index=*/3));
 		break;
 	case Atom_video_muted:
 		assert(stringEqual(key_str, "video_muted"));
-		BitUtils::setOrZeroBit(ob->flags, WorldObject::VIDEO_MUTED, LuaUtils::getBool(state, /*index=*/3));
-		other_changed = true;
+		other_changed = setOrZeroBitIfChanged(ob->flags, WorldObject::VIDEO_MUTED, LuaUtils::getBool(state, /*index=*/3));
 		break;
 	case Atom_mass:
 		assert(stringEqual(key_str, "mass"));
-		ob->mass = LuaUtils::getFloat(state, /*index=*/3);
-		other_changed = true;
+		other_changed = assignIfChanged(ob->mass, LuaUtils::getFloat(state, /*index=*/3));
 		break;
 	case Atom_friction:
 		assert(stringEqual(key_str, "friction"));
-		ob->friction = LuaUtils::getFloat(state, /*index=*/3);
-		other_changed = true;
-		break;	
+		other_changed = assignIfChanged(ob->friction, LuaUtils::getFloat(state, /*index=*/3));
+		break;
 	case Atom_restitution:
 		assert(stringEqual(key_str, "restitution"));
-		ob->restitution = LuaUtils::getFloat(state, /*index=*/3);
-		other_changed = true;
+		other_changed = assignIfChanged(ob->restitution, LuaUtils::getFloat(state, /*index=*/3));
 		break;
 	case Atom_centre_of_mass_offset_os:
 		assert(stringEqual(key_str, "centre_of_mass_offset_os"));
-		ob->centre_of_mass_offset_os = LuaUtils::getVec3f(state, /*index=*/3);
-		other_changed = true;
+		other_changed = assignIfChanged(ob->centre_of_mass_offset_os, LuaUtils::getVec3f(state, /*index=*/3));
 		break;
 	case Atom_audio_source_url:
 		assert(stringEqual(key_str, "audio_source_url"));
@@ -1830,13 +1857,11 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		break;
 	case Atom_audio_volume:
 		assert(stringEqual(key_str, "audio_volume"));
-		ob->audio_volume = LuaUtils::getFloat(state, /*index=*/3);
-		other_changed = true;
+		other_changed = assignIfChanged(ob->audio_volume, LuaUtils::getFloat(state, /*index=*/3));
 		break;
 	case Atom_audio_loop:
 		assert(stringEqual(key_str, "audio_loop"));
-		BitUtils::setOrZeroBit(ob->flags, WorldObject::AUDIO_LOOP, LuaUtils::getBool(state, /*index=*/3));
-		other_changed = true;
+		other_changed = setOrZeroBitIfChanged(ob->flags, WorldObject::AUDIO_LOOP, LuaUtils::getBool(state, /*index=*/3));
 		break;
 	default:
 		throw glare::Exception("Unknown field '" + std::string(key_str) + "'");
@@ -1993,6 +2018,8 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 
 	WorldMaterial* mat = ob->materials[mat_index].ptr();
 
+	bool changed = false;
+
 	// Read key
 	int atom = -1;
 	const char* key_str = LuaUtils::getStringAndAtom(state, /*index=*/2, atom);
@@ -2000,66 +2027,69 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 	{
 	case Atom_colour:
 		assert(stringEqual(key_str, "colour"));
-		mat->colour_rgb = Colour3f(LuaUtils::getVec3f(state, /*index=*/3));
+		changed = assignIfChanged(mat->colour_rgb, Colour3f(LuaUtils::getVec3f(state, /*index=*/3)));
 		break;
 	case Atom_colour_texture_url:
 		assert(stringEqual(key_str, "colour_texture_url"));
-		assignStringWithSizeCheck(state, /*index=*/3, mat->colour_texture_url, "colour_texture_url", WorldObject::MAX_URL_SIZE);
+		changed = assignStringWithSizeCheck(state, /*index=*/3, mat->colour_texture_url, "colour_texture_url", WorldObject::MAX_URL_SIZE);
 		break;
 	case Atom_emission_rgb:
 		assert(stringEqual(key_str, "emission_rgb"));
-		mat->emission_rgb = Colour3f(LuaUtils::getVec3f(state, /*index=*/3));
+		changed = assignIfChanged(mat->emission_rgb, Colour3f(LuaUtils::getVec3f(state, /*index=*/3)));
 		break;
 	case Atom_emission_texture_url:
 		assert(stringEqual(key_str, "emission_texture_url"));
-		assignStringWithSizeCheck(state, /*index=*/3, mat->emission_texture_url, "emission_texture_url", WorldObject::MAX_URL_SIZE);
+		changed = assignStringWithSizeCheck(state, /*index=*/3, mat->emission_texture_url, "emission_texture_url", WorldObject::MAX_URL_SIZE);
 		break;
 	case Atom_normal_map_url:
 		assert(stringEqual(key_str, "normal_map_url"));
-		assignStringWithSizeCheck(state, /*index=*/3, mat->normal_map_url, "normal_map_url", WorldObject::MAX_URL_SIZE);
+		changed = assignStringWithSizeCheck(state, /*index=*/3, mat->normal_map_url, "normal_map_url", WorldObject::MAX_URL_SIZE);
 		break;
 	case Atom_roughness_val:
 		assert(stringEqual(key_str, "roughness_val"));
-		mat->roughness.val = LuaUtils::getFloat(state, /*index=*/3);
+		changed = assignIfChanged(mat->roughness.val, LuaUtils::getFloat(state, /*index=*/3));
 		break;
 	case Atom_roughness_texture_url:
 		assert(stringEqual(key_str, "roughness_texture_url"));
-		assignStringWithSizeCheck(state, /*index=*/3, mat->roughness.texture_url, "roughness_texture_url", WorldObject::MAX_URL_SIZE);
+		changed = assignStringWithSizeCheck(state, /*index=*/3, mat->roughness.texture_url, "roughness_texture_url", WorldObject::MAX_URL_SIZE);
 		break;
 	case Atom_metallic_fraction_val:
 		assert(stringEqual(key_str, "metallic_fraction_val"));
-		mat->metallic_fraction.val = LuaUtils::getFloat(state, /*index=*/3);
+		changed = assignIfChanged(mat->metallic_fraction.val, LuaUtils::getFloat(state, /*index=*/3));
 		break;
 	case Atom_opacity_val:
 		assert(stringEqual(key_str, "opacity_val"));
-		mat->opacity.val = LuaUtils::getFloat(state, /*index=*/3);
+		changed = assignIfChanged(mat->opacity.val, LuaUtils::getFloat(state, /*index=*/3));
 		break;
 	case Atom_tex_matrix:
 		assert(stringEqual(key_str, "tex_matrix"));
-		mat->tex_matrix = LuaUtils::getMatrix2f(state, /*index=*/3);
+		changed = assignIfChanged(mat->tex_matrix, LuaUtils::getMatrix2f(state, /*index=*/3));
 		break;
 	case Atom_emission_lum_flux_or_lum:
 		assert(stringEqual(key_str, "emission_lum_flux_or_lum"));
-		mat->emission_lum_flux_or_lum = LuaUtils::getFloat(state, /*index=*/3);
+		changed = assignIfChanged(mat->emission_lum_flux_or_lum, LuaUtils::getFloat(state, /*index=*/3));
 		break;
 	case Atom_hologram:
 		assert(stringEqual(key_str, "hologram"));
-		BitUtils::setOrZeroBit(mat->flags, WorldMaterial::HOLOGRAM_FLAG, LuaUtils::getBool(state, /*index=*/3));
+		changed = setOrZeroBitIfChanged(mat->flags, WorldMaterial::HOLOGRAM_FLAG, LuaUtils::getBool(state, /*index=*/3));
 		break;
 	case Atom_double_sided:
 		assert(stringEqual(key_str, "double_sided"));
-		BitUtils::setOrZeroBit(mat->flags, WorldMaterial::DOUBLE_SIDED_FLAG, LuaUtils::getBool(state, /*index=*/3));
+		changed = setOrZeroBitIfChanged(mat->flags, WorldMaterial::DOUBLE_SIDED_FLAG, LuaUtils::getBool(state, /*index=*/3));
 		break;
 	default:
 		throw glare::Exception("Unknown field '" + std::string(key_str) + "'" + errorContextString(state));
 	}
 
-	// Mark the object as dirty, sending the updated object will send the updated material as well.
-	ob->from_remote_other_dirty = true; // TODO: rename
-	sub_lua_script->world_state->getDirtyFromRemoteObjects(*sub_lua_script->cur_world_state_lock).insert(ob);
+	if(changed)
+	{
+		// Mark the object as dirty, sending the updated object will send the updated material as well.
+		ob->from_remote_other_dirty = true; // TODO: rename
+		sub_lua_script->world_state->getDirtyFromRemoteObjects(*sub_lua_script->cur_world_state_lock).insert(ob);
 
-	sub_lua_script->world_state->addWorldObjectAsDBDirty(ob, *sub_lua_script->cur_world_state_lock);
-	sub_lua_script->server->world_state->markAsChanged();
+		sub_lua_script->world_state->addWorldObjectAsDBDirty(ob, *sub_lua_script->cur_world_state_lock);
+		sub_lua_script->server->world_state->markAsChanged();
+	}
 
 	return 0; // Count of returned values
 #endif
