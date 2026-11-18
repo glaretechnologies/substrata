@@ -6188,9 +6188,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 
 	// Do Lua timer callbacks
-	if(false) // TEMP 
 	{
-		//Timer timer;
+		//Timer callbacks_timer;
 		WorldStateLock lock(this->world_state->mutex);
 
 		const double cur_time = total_timer.elapsed();
@@ -6210,11 +6209,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					sub_lua_script->doOnTimerEvent(timer.onTimerEvent_ref, lock); // Execute the Lua timer event callback function
 
 					if(timer.repeating)
-					{
-						// Re-insert timer with updated trigger time
-						timer.tigger_time = cur_time + timer.period;
-						script_timer_queue.addTimer(cur_time, timer);
-					}
+						script_timer_queue.reAddRepeatingTimer(cur_time, timer);
 					else // Else if timer was a one-shot timer, 'destroy' it.
 					{
 						sub_lua_script->destroyTimer(timer.timer_index, timer.timer_id);
@@ -6222,7 +6217,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				}
 			}
 		}
-		//conPrint("Lua timer callbacks took " + timer.elapsedStringMSWIthNSigFigs() + " (num: " + toString(temp_triggered_timers.size()));
+		//conPrint("Lua timer callbacks took " + callbacks_timer.elapsedStringMSWIthNSigFigs() + " (num: " + toString(temp_triggered_timers.size()));
 	}
 
 

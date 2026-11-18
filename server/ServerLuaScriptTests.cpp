@@ -1834,10 +1834,7 @@ static void fuzzRunTimers(double cur_time, WorldStateLock& lock)
 			sub_lua_script->doOnTimerEvent(timer.onTimerEvent_ref, lock);
 
 			if(timer.repeating)
-			{
-				timer.tigger_time = cur_time + timer.period;
-				fuzz_server->timer_queue.addTimer(cur_time, timer);
-			}
+				fuzz_server->timer_queue.reAddRepeatingTimer(cur_time, timer);
 			else
 				sub_lua_script->destroyTimer(timer.timer_index, timer.timer_id);
 		}

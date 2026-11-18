@@ -773,11 +773,7 @@ int main(int argc, char *argv[])
 								sub_lua_script->doOnTimerEvent(timer.onTimerEvent_ref, lock); // Execute the Lua timer event callback function
 
 								if(timer.repeating)
-								{
-									// Re-insert timer with updated trigger time
-									timer.tigger_time = cur_time + timer.period;
-									server.timer_queue.addTimer(cur_time, timer);
-								}
+									server.timer_queue.reAddRepeatingTimer(cur_time, timer);
 								else // Else if timer was a one-shot timer, 'destroy' it.
 								{
 									sub_lua_script->destroyTimer(timer.timer_index, timer.timer_id);

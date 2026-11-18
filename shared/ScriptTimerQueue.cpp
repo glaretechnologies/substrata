@@ -6,6 +6,9 @@ Copyright Glare Technologies Limited 2024 -
 #include "ScriptTimerQueue.h"
 
 
+#include <maths/mathstypes.h>
+
+
 ScriptTimerQueueTimer::ScriptTimerQueueTimer()
 {}
 
@@ -65,6 +68,25 @@ void ScriptTimerQueue::addTimer(double cur_time, const ScriptTimerQueueTimer& ti
 	// addTimerToBucket(timer, new_bucket_i);
 
 	queue.push(timer);
+}
+
+
+double ScriptTimerQueue::getFirstTriggerTime(double cur_time, double period, bool repeating)
+{
+	if(repeating)
+		return cur_time + period + rng.unitRandom() * myMin(period, 1.0); // Randomise start time to avoid bunching.
+	else
+		return cur_time + period;
+}
+
+
+void ScriptTimerQueue::reAddRepeatingTimer(double cur_time, ScriptTimerQueueTimer& timer)
+{
+	timer.tigger_time += timer.period;
+	if(timer.tigger_time < cur_time) // If the timer is more than a period behind (e.g. after a long frame), skip the missed triggers, keeping the phase.
+		timer.tigger_time += Maths::roundUpToMultipleFloating(cur_time - timer.tigger_time, timer.period);
+
+	addTimer(cur_time, timer);
 }
 
 
@@ -131,6 +153,8 @@ void ScriptTimerQueue::clear()
 {
 	while(!queue.empty())
 		queue.pop();
+
+	rng = PCG32(); // Reset the RNG so that fuzzing runs are reproducible.
 }
 
 #if 0
@@ -265,6 +289,40 @@ void ScriptTimerQueue::test()
 
 		timer_queue.update(/*cur_time=*/2.5, triggered_timers);
 		testAssert(triggered_timers.size() == 1 && triggered_timers[0].timer_id == 1);
+	}
+
+	// Test reAddRepeatingTimer
+	{
+		ScriptTimerQueue timer_queue;
+
+		ScriptTimerQueueTimer timer(1.0);
+		timer.period = 1.0;
+		timer.timer_id = 0;
+		timer_queue.addTimer(/*cur time=*/0.0, timer);
+
+		// Triggering late doesn't delay the next trigger.
+		std::vector<ScriptTimerQueueTimer> triggered_timers;
+		timer_queue.update(/*cur_time=*/1.3, triggered_timers);
+		testAssert(triggered_timers.size() == 1);
+		timer_queue.reAddRepeatingTimer(/*cur_time=*/1.3, triggered_timers[0]);
+		testAssert(triggered_timers[0].tigger_time == 2.0);
+
+		// Missed triggers are skipped after a long stall, keeping the phase.
+		timer_queue.update(/*cur_time=*/5.5, triggered_timers);
+		testAssert(triggered_timers.size() == 1);
+		timer_queue.reAddRepeatingTimer(/*cur_time=*/5.5, triggered_timers[0]);
+		testAssert(triggered_timers[0].tigger_time == 6.0);
+
+		// The first trigger of a repeating timer is delayed by up to the period or 1 second, whichever is smaller.
+		for(int i=0; i<100; ++i)
+		{
+			const double t = timer_queue.getFirstTriggerTime(/*cur_time=*/10.0, /*period=*/0.1, /*repeating=*/true);
+			testAssert(t >= 10.1 - 1.0e-9 && t <= 10.2 + 1.0e-9);
+
+			const double t2 = timer_queue.getFirstTriggerTime(/*cur_time=*/10.0, /*period=*/2.0, /*repeating=*/true);
+			testAssert(t2 >= 12.0 && t2 <= 13.0);
+		}
+		testAssert(timer_queue.getFirstTriggerTime(/*cur_time=*/10.0, /*period=*/2.0, /*repeating=*/false) == 12.0);
 	}
 
 	{

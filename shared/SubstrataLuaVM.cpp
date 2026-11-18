@@ -1033,7 +1033,7 @@ static int createTimer(lua_State* state)
 
 			ScriptTimerQueueTimer timer;
 			timer.onTimerEvent_ref = onTimerEvent_ref;
-			timer.tigger_time = cur_time + interval_time;
+			timer.tigger_time = timer_queue.getFirstTriggerTime(cur_time, interval_time, repeating);
 			timer.repeating = repeating;
 			timer.period = interval_time;
 			timer.timer_index = i;
