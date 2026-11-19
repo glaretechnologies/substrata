@@ -7,6 +7,8 @@ Copyright Glare Technologies Limited 2026 -
 
 
 #include "../shared/URLString.h"
+#include "../shared/UID.h"
+#include "../shared/UserID.h"
 #include <lua/LuaVM.h>
 #include <opengl/ui/GLUICallbackHandler.h>
 #include <maths/vec2.h>
@@ -14,10 +16,13 @@ Copyright Glare Technologies Limited 2026 -
 #include <utils/RefCounted.h>
 #include <utils/Reference.h>
 #include <map>
+#include <set>
 #include <vector>
 
 
 class GUIClient;
+class MouseEvent;
+class ScriptUIContextMenu;
 class SubstrataLuaScript;
 class GLUI;
 class GLUIButton;
@@ -179,10 +184,22 @@ public:
 	// Shows or hides all script widgets, e.g. for the Hide UI action.  Each widget's script-requested visibility is kept, and applies again when shown.
 	void setVisible(bool visible);
 
+	// True if the user has hidden UI from the script's object, or from all objects created by the script's object creator.
+	// Widget creation functions return dummy widgets for such scripts.
+	bool isUIHiddenForScript(const SubstrataLuaScript* sub_lua_script) const;
+
+	// Hide UI from the object, or from all objects created by the user.  Removes existing widgets from the affected scripts.
+	void hideUIForObject(const UID& ob_uid);
+	void hideUIForCreator(const UserID& creator_id);
+
 	virtual void eventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
 	virtual void sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& event) override; // From GLUICallbackHandler
 
+	// Opens the context menu for the right-clicked widget, which shows which object and user the widget is from, and lets the user hide UI from the object or the user.
+	virtual void contextMenuRequestedEventOccurred(GLUICallbackContextMenuEvent& event) override; // From GLUICallbackHandler
+
 private:
+	void addWidget(const LuaScriptUIWidgetRef& widget); // Sets the widget's tooltip and handler, and adds it to the widgets map.
 	size_t numWidgetsForScript(SubstrataLuaScript* sub_lua_script) const;
 	LuaScriptUIWidget* getParent(const LuaScriptUIWidget& widget); // Returns the grid or window containing the widget, or NULL.
 	LuaScriptUIWidget& getRootWidget(LuaScriptUIWidget& widget); // Returns the outermost grid or window containing the widget, or the widget itself if it is not in one.
@@ -197,6 +214,7 @@ private:
 	void queueValueChanged(int widget_id); // Queues an onChange call for the widget, if one isn't queued already.
 	void lineEditTextChanged(int widget_id);
 	void clearKeyboardFocusIfHeldBy(const LuaScriptUIWidget& widget); // So that a hidden or destroyed widget doesn't keep receiving key presses.
+	void removeWidgetsForHiddenScripts();
 
 	GUIClient* gui_client;
 	Reference<GLUI> gl_ui;
@@ -209,5 +227,11 @@ private:
 	std::vector<int> changed_value_ids; // Widgets whose value changed since the last think() call.
 	std::vector<int> entered_line_edit_ids; // Line edits where enter was pressed since the last think() call.
 	std::vector<int> closed_window_ids; // Windows whose close button was clicked since the last think() call.
+
+	Reference<ScriptUIContextMenu> context_menu;
+
+	// Objects and creators the user has hidden UI from.  Currently only kept for the session.
+	std::set<UID> hidden_object_uids;
+	std::set<UserID> hidden_creator_ids;
 };
 typedef Reference<LuaScriptUI> LuaScriptUIRef;

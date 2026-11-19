@@ -175,6 +175,13 @@ static int getUIWidgetIDFromHandle(lua_State* state, int handle_index)
 }
 
 
+// Returns false if there is no script UI, or the user has hidden UI from the script's object or its creator, in which case widget creation functions return dummy widgets.
+static bool shouldCreateUIWidgets(SubstrataLuaScript* sub_lua_script)
+{
+	return sub_lua_script->gui_client->lua_script_ui && !sub_lua_script->gui_client->lua_script_ui->isUIHiddenForScript(sub_lua_script);
+}
+
+
 // Returns NULL if the handle is a dummy handle, or the widget has been destroyed.
 static LuaScriptUIWidget* getUIWidgetForHandle(lua_State* state, int handle_index)
 {
@@ -220,7 +227,7 @@ static int createUIImage(lua_State* state)
 #if GUI_CLIENT
 	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
 
-	if(sub_lua_script->gui_client->lua_script_ui)
+	if(shouldCreateUIWidgets(sub_lua_script))
 		widget_id = sub_lua_script->gui_client->lua_script_ui->createImage(sub_lua_script, toURLString(image_URL), anchor, offset_px, size_px, visible);
 #endif
 
@@ -275,7 +282,7 @@ static int createUIButton(lua_State* state)
 #if GUI_CLIENT
 	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
 
-	if(sub_lua_script->gui_client->lua_script_ui)
+	if(shouldCreateUIWidgets(sub_lua_script))
 	{
 		const LuaVM::LuaValueRef onClick_ref = sub_lua_script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onClick");
 		try
@@ -335,7 +342,7 @@ static int createUISlider(lua_State* state)
 #if GUI_CLIENT
 	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
 
-	if(sub_lua_script->gui_client->lua_script_ui)
+	if(shouldCreateUIWidgets(sub_lua_script))
 	{
 		const LuaVM::LuaValueRef onChange_ref = sub_lua_script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onChange");
 		try
@@ -400,7 +407,7 @@ static int createUISpinBox(lua_State* state)
 #if GUI_CLIENT
 	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
 
-	if(sub_lua_script->gui_client->lua_script_ui)
+	if(shouldCreateUIWidgets(sub_lua_script))
 	{
 		const LuaVM::LuaValueRef onChange_ref = sub_lua_script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onChange");
 		try
@@ -444,7 +451,7 @@ static int createUICheckBox(lua_State* state)
 #if GUI_CLIENT
 	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
 
-	if(sub_lua_script->gui_client->lua_script_ui)
+	if(shouldCreateUIWidgets(sub_lua_script))
 	{
 		const LuaVM::LuaValueRef onChange_ref = sub_lua_script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onChange");
 		try
@@ -523,7 +530,7 @@ static int createUIDropDown(lua_State* state)
 #if GUI_CLIENT
 	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
 
-	if(sub_lua_script->gui_client->lua_script_ui)
+	if(shouldCreateUIWidgets(sub_lua_script))
 	{
 		const LuaVM::LuaValueRef onChange_ref = sub_lua_script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onChange");
 		try
@@ -575,7 +582,7 @@ static int createUILineEdit(lua_State* state)
 #if GUI_CLIENT
 	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
 
-	if(sub_lua_script->gui_client->lua_script_ui)
+	if(shouldCreateUIWidgets(sub_lua_script))
 	{
 		const LuaVM::LuaValueRef onChange_ref = sub_lua_script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onChange");
 		LuaVM::LuaValueRef onEnter_ref;
@@ -638,7 +645,7 @@ static int createUILabel(lua_State* state)
 	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
 	const int font_size_px = (font_size == -1.0) ? GLUI::getDefaultFontSizePx() : (int)font_size;
 
-	if(sub_lua_script->gui_client->lua_script_ui)
+	if(shouldCreateUIWidgets(sub_lua_script))
 		widget_id = sub_lua_script->gui_client->lua_script_ui->createLabel(sub_lua_script, text, toLinearSRGB(text_colour), toLinearSRGB(background_colour), background_alpha, font_size_px,
 			size_px, anchor, offset_px, visible);
 #endif
@@ -680,7 +687,7 @@ static int createUIGrid(lua_State* state)
 #if GUI_CLIENT
 	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
 
-	if(sub_lua_script->gui_client->lua_script_ui)
+	if(shouldCreateUIWidgets(sub_lua_script))
 		widget_id = sub_lua_script->gui_client->lua_script_ui->createGrid(sub_lua_script, anchor, offset_px, toLinearSRGB(background_colour), background_alpha,
 			(float)interior_padding, (float)edge_padding, visible);
 #endif
@@ -725,7 +732,7 @@ static int createUIWindow(lua_State* state)
 #if GUI_CLIENT
 	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
 
-	if(sub_lua_script->gui_client->lua_script_ui)
+	if(shouldCreateUIWidgets(sub_lua_script))
 	{
 		const LuaVM::LuaValueRef onClose_ref = sub_lua_script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onClose");
 		try

@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2026 -
 
 
 #include "GUIClient.h"
+#include "ScriptUIContextMenu.h"
 #include "../shared/SubstrataLuaScript.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/WorldStateLock.h"
@@ -92,12 +93,35 @@ LuaScriptUI::LuaScriptUI(GUIClient* gui_client_, const GLUIRef& gl_ui_)
 	next_widget_id(1),
 	ui_visible(true)
 {
+	context_menu = new ScriptUIContextMenu(gui_client_, this, gl_ui_);
 }
 
 
 LuaScriptUI::~LuaScriptUI()
 {
 	removeAllWidgets();
+	context_menu = nullptr; // Removes the menu widgets, if open.
+}
+
+
+// Sets the tooltip on the widget, saying which object and user it is from, makes right-clicking on the widget open the script UI context menu, and adds the widget to the widgets map.
+void LuaScriptUI::addWidget(const LuaScriptUIWidgetRef& widget)
+{
+	std::string tooltip = "Script UI";
+	const WorldObject* ob = widget->sub_lua_script->world_object;
+	if(ob)
+	{
+		tooltip += " from object " + ob->uid.toString();
+		if(!ob->creator_name.empty())
+			tooltip += " by " + ob->creator_name;
+		tooltip += " - right-click for options";
+	}
+
+	widget->getGLUIWidget()->setTooltip(UTF8Utils::sanitiseUTF8String(tooltip));
+
+	widget->getGLUIWidget()->handler = this; // So that contextMenuRequestedEventOccurred() is called on right-clicks.
+
+	widgets[widget->id] = widget;
 }
 
 
@@ -139,7 +163,7 @@ int LuaScriptUI::createImage(SubstrataLuaScript* sub_lua_script, const URLString
 	startDownloadingImageIfNotPresent(image_URL);
 	checkAssignImageTexture(*widget);
 
-	widgets[widget->id] = widget;
+	addWidget(widget);
 	return widget->id;
 }
 
@@ -186,7 +210,7 @@ int LuaScriptUI::createButton(SubstrataLuaScript* sub_lua_script, const std::str
 	updateWidgetTransform(*widget);
 	updateWidgetDrawn(*widget);
 
-	widgets[widget->id] = widget;
+	addWidget(widget);
 	return widget->id;
 }
 
@@ -224,7 +248,7 @@ int LuaScriptUI::createImageButton(SubstrataLuaScript* sub_lua_script, const URL
 	startDownloadingImageIfNotPresent(image_URL);
 	checkAssignImageTexture(*widget);
 
-	widgets[widget->id] = widget;
+	addWidget(widget);
 	return widget->id;
 }
 
@@ -259,7 +283,7 @@ int LuaScriptUI::createSlider(SubstrataLuaScript* sub_lua_script, double min_val
 	updateWidgetTransform(*widget);
 	updateWidgetDrawn(*widget);
 
-	widgets[widget->id] = widget;
+	addWidget(widget);
 	return widget->id;
 }
 
@@ -297,7 +321,7 @@ int LuaScriptUI::createSpinBox(SubstrataLuaScript* sub_lua_script, double min_va
 	updateWidgetTransform(*widget);
 	updateWidgetDrawn(*widget);
 
-	widgets[widget->id] = widget;
+	addWidget(widget);
 	return widget->id;
 }
 
@@ -328,7 +352,7 @@ int LuaScriptUI::createCheckBox(SubstrataLuaScript* sub_lua_script, bool checked
 	updateWidgetTransform(*widget);
 	updateWidgetDrawn(*widget);
 
-	widgets[widget->id] = widget;
+	addWidget(widget);
 	return widget->id;
 }
 
@@ -365,7 +389,7 @@ int LuaScriptUI::createDropDown(SubstrataLuaScript* sub_lua_script, const std::v
 	updateWidgetTransform(*widget);
 	updateWidgetDrawn(*widget);
 
-	widgets[widget->id] = widget;
+	addWidget(widget);
 	return widget->id;
 }
 
@@ -402,7 +426,7 @@ int LuaScriptUI::createLineEdit(SubstrataLuaScript* sub_lua_script, const std::s
 	updateWidgetTransform(*widget);
 	updateWidgetDrawn(*widget);
 
-	widgets[widget->id] = widget;
+	addWidget(widget);
 	return widget->id;
 }
 
@@ -439,7 +463,7 @@ int LuaScriptUI::createLabel(SubstrataLuaScript* sub_lua_script, const std::stri
 	updateWidgetTransform(*widget);
 	updateWidgetDrawn(*widget);
 
-	widgets[widget->id] = widget;
+	addWidget(widget);
 	return widget->id;
 }
 
@@ -475,7 +499,7 @@ int LuaScriptUI::createGrid(SubstrataLuaScript* sub_lua_script, LuaScriptUIWidge
 	updateWidgetTransform(*widget);
 	updateWidgetDrawn(*widget);
 
-	widgets[widget->id] = widget;
+	addWidget(widget);
 	return widget->id;
 }
 
@@ -511,7 +535,7 @@ int LuaScriptUI::createWindow(SubstrataLuaScript* sub_lua_script, const std::str
 	updateWidgetTransform(*widget);
 	updateWidgetDrawn(*widget);
 
-	widgets[widget->id] = widget;
+	addWidget(widget);
 	return widget->id;
 }
 
@@ -777,6 +801,8 @@ void LuaScriptUI::removeWidgetsForScript(SubstrataLuaScript* sub_lua_script)
 
 void LuaScriptUI::removeAllWidgets()
 {
+	context_menu->close();
+
 	for(auto it = widgets.begin(); it != widgets.end(); ++it)
 		removeWidgetFromUI(*it->second);
 	widgets.clear();
@@ -912,6 +938,8 @@ void LuaScriptUI::think()
 
 void LuaScriptUI::viewportResized()
 {
+	context_menu->close();
+
 	for(auto it = widgets.begin(); it != widgets.end(); ++it)
 		if(it->second->parent_id == 0) // Widgets in grids are positioned by updateWidgetTransform() on the outermost grid.
 			updateWidgetTransform(*it->second);
@@ -920,9 +948,69 @@ void LuaScriptUI::viewportResized()
 
 void LuaScriptUI::setVisible(bool visible)
 {
+	if(!visible)
+		context_menu->close();
+
 	ui_visible = visible;
 	for(auto it = widgets.begin(); it != widgets.end(); ++it)
 		updateWidgetDrawn(*it->second);
+}
+
+
+// Right-clicking on a script widget opens the script UI context menu for the widget's object, at the mouse position.
+void LuaScriptUI::contextMenuRequestedEventOccurred(GLUICallbackContextMenuEvent& event)
+{
+	for(auto it = widgets.begin(); it != widgets.end(); ++it)
+	{
+		LuaScriptUIWidget* widget = it->second.ptr();
+		if(widget->getGLUIWidget().ptr() == event.widget)
+		{
+			const WorldObject* ob = widget->sub_lua_script->world_object;
+			if(ob)
+			{
+				context_menu->open(ob->uid, ob->creator_id, ob->creator_name, event.ui_coords);
+				event.accepted = true;
+			}
+			return;
+		}
+	}
+}
+
+
+bool LuaScriptUI::isUIHiddenForScript(const SubstrataLuaScript* sub_lua_script) const
+{
+	const WorldObject* ob = sub_lua_script->world_object;
+	return ob && ((hidden_object_uids.count(ob->uid) > 0) || (hidden_creator_ids.count(ob->creator_id) > 0));
+}
+
+
+void LuaScriptUI::hideUIForObject(const UID& ob_uid)
+{
+	hidden_object_uids.insert(ob_uid);
+	removeWidgetsForHiddenScripts();
+}
+
+
+void LuaScriptUI::hideUIForCreator(const UserID& creator_id)
+{
+	hidden_creator_ids.insert(creator_id);
+	removeWidgetsForHiddenScripts();
+}
+
+
+// Removes the widgets of scripts that UI is hidden for.  The scripts' widget handles then act as dummy widgets, as for widgets that have been destroyed.
+void LuaScriptUI::removeWidgetsForHiddenScripts()
+{
+	for(auto it = widgets.begin(); it != widgets.end();)
+	{
+		if(isUIHiddenForScript(it->second->sub_lua_script))
+		{
+			removeWidgetFromUI(*it->second);
+			it = widgets.erase(it);
+		}
+		else
+			++it;
+	}
 }
 
 
