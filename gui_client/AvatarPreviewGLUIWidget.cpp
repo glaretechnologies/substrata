@@ -94,10 +94,9 @@ bool AvatarPreviewGLUIWidget::isVisible()
 }
 
 
-void AvatarPreviewGLUIWidget::handleMousePress(MouseEvent& e)
+void AvatarPreviewGLUIWidget::handleMousePress(GLUIMouseEvent& e)
 {
-	const Vec2f ui_coords = glui->UICoordsForOpenGLCoords(e.gl_coords);
-	if(rect.inClosedRectangle(ui_coords))
+	if(rect.inClosedRectangle(e.ui_coords))
 	{
 		if(press_interceptor && press_interceptor(e))
 		{
@@ -108,7 +107,7 @@ void AvatarPreviewGLUIWidget::handleMousePress(MouseEvent& e)
 		if(e.button == MouseButton::Left)
 		{
 			drag_active    = true;
-			drag_start_x   = ui_coords.x;
+			drag_start_x   = e.ui_coords.x;
 			drag_start_phi = cam_phi;
 			e.accepted     = true;
 		}
@@ -122,7 +121,7 @@ void AvatarPreviewGLUIWidget::handleMousePress(MouseEvent& e)
 }
 
 
-void AvatarPreviewGLUIWidget::handleMouseRelease(MouseEvent& e)
+void AvatarPreviewGLUIWidget::handleMouseRelease(GLUIMouseEvent& e)
 {
 	if(release_interceptor) release_interceptor(e);
 	if(e.button == MouseButton::Left)   drag_active        = false;
@@ -130,16 +129,15 @@ void AvatarPreviewGLUIWidget::handleMouseRelease(MouseEvent& e)
 }
 
 
-void AvatarPreviewGLUIWidget::doHandleMouseMoved(MouseEvent& e)
+void AvatarPreviewGLUIWidget::doHandleMouseMoved(GLUIMouseEvent& e)
 {
 	if(move_interceptor && move_interceptor(e))
 		return;
 
 	if(drag_active)
 	{
-		const Vec2f ui_coords = glui->UICoordsForOpenGLCoords(e.gl_coords);
 		// One full revolution (2pi) per 1.0 UI-coord of horizontal drag.
-		cam_phi = drag_start_phi + (ui_coords.x - drag_start_x) * Maths::get2Pi<float>();
+		cam_phi = drag_start_phi + (e.ui_coords.x - drag_start_x) * Maths::get2Pi<float>();
 	}
 
 	if(middle_drag_active)
@@ -156,10 +154,9 @@ void AvatarPreviewGLUIWidget::doHandleMouseMoved(MouseEvent& e)
 }
 
 
-void AvatarPreviewGLUIWidget::doHandleMouseWheelEvent(MouseWheelEvent& e)
+void AvatarPreviewGLUIWidget::doHandleMouseWheelEvent(GLUIMouseWheelEvent& e)
 {
-	const Vec2f ui_coords = glui->UICoordsForOpenGLCoords(e.gl_coords);
-	if(rect.inClosedRectangle(ui_coords))
+	if(rect.inClosedRectangle(e.ui_coords))
 	{
 		// angle_delta.y is in degrees (Qt angleDelta / 8); scale matches AvatarPreviewWidget::wheelEvent.
 		cam_dist = myClamp(cam_dist - cam_dist * e.angle_delta.y * 0.016f, 0.01f, 20.f);

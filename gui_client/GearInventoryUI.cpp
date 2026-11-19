@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2026 -
 #include "GUIClient.h"
 #include "../shared/ResourceManager.h"
 #include <opengl/ui/GLUIInertWidget.h>
+#include <opengl/ui/GLUIContextMenu.h>
 #include <opengl/OpenGLEngine.h>
 #include <opengl/FrameBuffer.h>
 #include <opengl/RenderBuffer.h>
@@ -177,6 +178,8 @@ GearInventoryUI::GearInventoryUI(GUIClient* gui_client_, GLUIRef gl_ui_)
 
 GearInventoryUI::~GearInventoryUI()
 {
+	checkRemoveAndDeleteWidget(gl_ui, context_menu);
+
 	gear_editor_ui = nullptr;
 
 	// Clean up the avatar preview scene and its objects
@@ -262,7 +265,7 @@ void GearInventoryUI::rebuildEquippedGrid()
 		const GearItemRef& item = equipped_gear.items[i];
 
 		GLUIButton::CreateArgs args;
-		args.tooltip = "Click to unequip " + item->name + ". Press [E] to edit item, [D] to drop into world, [C] to clone.";
+		args.tooltip = "Click to unequip " + item->name + ", right-click for more options.";
 		args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
 		args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
 		args.fixed_size = Vec2f(THUMBNAIL_SIZE_PX);
@@ -306,7 +309,7 @@ void GearInventoryUI::rebuildAllGearGrid()
 		const GearItemRef& item = all_gear.items[i];
 
 		GLUIButton::CreateArgs args;
-		args.tooltip = "Click to equip " + item->name + ". Press [E] to edit item, [D] to drop into world, [C] to clone.";
+		args.tooltip = "Click to equip " + item->name + ", right-click for more options.";
 		args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
 		args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
 		args.fixed_size = Vec2f(THUMBNAIL_SIZE_PX);
@@ -547,88 +550,6 @@ void GearInventoryUI::keyPressed(KeyEvent& e)
 		e.accepted = true;
 		return;
 	}
-
-	if(e.key == Key::Key_E)
-	{
-		const Vec2f mouse_pos = gl_ui->getLastMouseUICoords();
-
-		for(size_t i=0; i<equipped_gear_ui.size(); ++i)
-		{
-			if(equipped_gear_ui[i].thumbnail->getRect().inOpenRectangle(mouse_pos))
-			{
-				gear_editor_ui = new GearEditorUI(gui_client, gl_ui, equipped_gear_ui[i].gear_item);
-				gear_editor_ui->setAvatarGLObject(avatar_preview_gl_ob, avatar_pre_ob_to_world_matrix, equipped_gear_graphics);
-				e.accepted = true;
-				return;
-			}
-		}
-
-		for(size_t i=0; i<all_gear_ui.size(); ++i)
-		{
-			if(all_gear_ui[i].thumbnail->getRect().inOpenRectangle(mouse_pos))
-			{
-				gear_editor_ui = new GearEditorUI(gui_client, gl_ui, all_gear_ui[i].gear_item);
-				gear_editor_ui->setAvatarGLObject(avatar_preview_gl_ob, avatar_pre_ob_to_world_matrix, equipped_gear_graphics);
-				e.accepted = true;
-				return;
-			}
-		}
-
-		// If the mouse is over the inventory window (but not a thumbnail), still consume the key
-		// so the 'E' world-use action doesn't fire while the inventory is open.
-		if(window->getRect().inOpenRectangle(mouse_pos))
-			e.accepted = true;
-	}
-
-	if(e.key == Key::Key_D)
-	{
-		const Vec2f mouse_pos = gl_ui->getLastMouseUICoords();
-
-		for(size_t i=0; i<equipped_gear_ui.size(); ++i)
-		{
-			if(equipped_gear_ui[i].thumbnail->getRect().inOpenRectangle(mouse_pos))
-			{
-				gui_client->dropGearItem(equipped_gear_ui[i].gear_item);
-				e.accepted = true;
-				return;
-			}
-		}
-
-		for(size_t i=0; i<all_gear_ui.size(); ++i)
-		{
-			if(all_gear_ui[i].thumbnail->getRect().inOpenRectangle(mouse_pos))
-			{
-				gui_client->dropGearItem(all_gear_ui[i].gear_item);
-				e.accepted = true;
-				return;
-			}
-		}
-	}
-
-	if(e.key == Key::Key_C)
-	{
-		const Vec2f mouse_pos = gl_ui->getLastMouseUICoords();
-
-		for(size_t i=0; i<equipped_gear_ui.size(); ++i)
-		{
-			if(equipped_gear_ui[i].thumbnail->getRect().inOpenRectangle(mouse_pos))
-			{
-				gui_client->tryCloneGearItem(equipped_gear_ui[i].gear_item);
-				e.accepted = true;
-				return;
-			}
-		}
-
-		for(size_t i=0; i<all_gear_ui.size(); ++i)
-		{
-			if(all_gear_ui[i].thumbnail->getRect().inOpenRectangle(mouse_pos))
-			{
-				gui_client->tryCloneGearItem(all_gear_ui[i].gear_item);
-				e.accepted = true;
-				return;
-			}
-		}
-	}
 }
 
 
@@ -660,6 +581,95 @@ void GearInventoryUI::eventOccurred(GLUICallbackEvent& event)
 			}
 		}
 	}
+}
+
+
+bool GearInventoryUI::handleRightMousePress(const MouseEvent& event)
+{
+	if(event.button != MouseButton::Right)
+		return false;
+
+	const Vec2f coords = gl_ui->UICoordsForOpenGLCoords(event.gl_coords);
+
+	for(size_t i=0; i<equipped_gear_ui.size(); ++i)
+		if(equipped_gear_ui[i].thumbnail->getRect().inOpenRectangle(coords))
+		{
+			openContextMenu(equipped_gear_ui[i].gear_item, /*item_is_in_equipped_grid=*/true, coords);
+			return true;
+		}
+
+	for(size_t i=0; i<all_gear_ui.size(); ++i)
+		if(all_gear_ui[i].thumbnail->getRect().inOpenRectangle(coords))
+		{
+			openContextMenu(all_gear_ui[i].gear_item, /*item_is_in_equipped_grid=*/false, coords);
+			return true;
+		}
+
+	return false;
+}
+
+
+// Opens the context menu for the item, with its top-left corner at ui_coords.  Closes any menu that is already open.
+void GearInventoryUI::openContextMenu(const GearItemRef& item, bool item_is_in_equipped_grid, const Vec2f& ui_coords)
+{
+	checkRemoveAndDeleteWidget(gl_ui, context_menu);
+
+	enum Action
+	{
+		Action_Equip,
+		Action_Unequip,
+		Action_Edit,
+		Action_Drop,
+		Action_Clone
+	};
+
+	GLUIContextMenu::CreateArgs args;
+	std::vector<Action> actions; // Action for each menu item.
+
+	if(item_is_in_equipped_grid)
+	{
+		args.items.push_back("Unequip");
+		actions.push_back(Action_Unequip);
+	}
+	else
+	{
+		args.items.push_back("Equip");
+		actions.push_back(Action_Equip);
+	}
+
+	args.items.push_back("Edit");
+	actions.push_back(Action_Edit);
+
+	args.items.push_back("Drop into world");
+	actions.push_back(Action_Drop);
+
+	args.items.push_back("Clone");
+	actions.push_back(Action_Clone);
+
+	context_menu = new GLUIContextMenu(*gl_ui, args, ui_coords);
+	context_menu->item_selected_func = [this, item, actions](size_t item_index)
+	{
+		if(item_index >= actions.size())
+			return;
+
+		switch(actions[item_index])
+		{
+		case Action_Equip:   gui_client->equipGearItem(item); break;
+		case Action_Unequip: gui_client->unequipGearItem(item); break;
+		case Action_Edit:    editGearItem(item); break;
+		case Action_Drop:    gui_client->dropGearItem(item); break;
+		case Action_Clone:   gui_client->tryCloneGearItem(item); break;
+		}
+	};
+	gl_ui->addWidget(context_menu);
+	gl_ui->setKeyboardFocusWidget(context_menu);
+}
+
+
+void GearInventoryUI::editGearItem(const GearItemRef& item)
+{
+	gear_editor_ui = new GearEditorUI(gui_client, gl_ui, item);
+	gear_editor_ui->setAvatarGLObject(avatar_preview_gl_ob, avatar_pre_ob_to_world_matrix, equipped_gear_graphics);
 }
 
 

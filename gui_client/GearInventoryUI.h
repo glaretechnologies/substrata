@@ -19,6 +19,7 @@ Copyright Glare Technologies Limited 2026 -
 
 
 class GUIClient;
+class GLUIContextMenu;
 struct GLObject;
 class AvatarPreviewGLUIWidget;
 class FrameBuffer;
@@ -33,9 +34,9 @@ Shows the gear inventory:
 - Middle panel: equipped gear item thumbnails
 - Right panel:  all gear item thumbnails owned by the user
 
-Each thumbnail is a GLUIImage loaded from the gear item's preview_image_URL.
-Clicking a thumbnail in 'All Gear' calls gearItemClicked() on the GUIClient.
-Clicking a thumbnail in 'Equipped' calls equippedGearItemClicked() on the GUIClient.
+Each thumbnail is a GLUIButton showing the gear item's preview_image_URL.
+Clicking a thumbnail in 'All Gear' equips the item, clicking a thumbnail in 'Equipped' unequips it.
+Right-clicking a thumbnail opens a context menu for the item, with equip or unequip, edit, drop into world, and clone items.
 =====================================================================*/
 class GearInventoryUI : public GLUICallbackHandler, public ThreadSafeRefCounted
 {
@@ -48,6 +49,9 @@ public:
 	void viewportResized(int w, int h);
 
 	void keyPressed(KeyEvent& e);
+
+	// For a right mouse button press over a gear thumbnail, opens the context menu for the item.  Returns true if the menu was opened, in which case the press should not be processed further.
+	bool handleRightMousePress(const MouseEvent& event);
 
 	void setEquippedGear(const GearItems& equipped_gear_);
 	void setAllGear(const GearItems& all_gear_);
@@ -66,6 +70,8 @@ public:
 private:
 	void rebuildEquippedGrid();
 	void rebuildAllGearGrid();
+	void openContextMenu(const GearItemRef& item, bool item_is_in_equipped_grid, const Vec2f& ui_coords);
+	void editGearItem(const GearItemRef& item);
 	void renderAvatarPreview(); // Renders avatar_preview_scene to avatar_preview_fbo. Requires active GL context.
 
 	// (Re-)creates avatar_preview_tex, avatar_preview_depth_rb, and avatar_preview_fbo sized for the
@@ -101,6 +107,8 @@ private:
 	std::vector<EquippedGearGraphics> equipped_gear_graphics;
 
 	Reference<GearEditorUI> gear_editor_ui;
+
+	Reference<GLUIContextMenu> context_menu;
 
 public:
 	GLUIWindowRef window;

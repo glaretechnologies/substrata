@@ -14947,6 +14947,28 @@ void GUIClient::mousePressed(MouseEvent& e)
 {
 	// conPrint("GUIClient::mousePressed");
 
+	if(lua_script_ui)
+	{
+		// Right-clicking on a script widget opens the script UI context menu.
+		if(lua_script_ui->handleRightMousePress(e))
+		{
+			e.accepted = true;
+			ui_interface->setCamRotationOnMouseDragEnabled(false);
+			return;
+		}
+	}
+
+	if(gear_inventory_ui)
+	{
+		// Right-clicking on a gear thumbnail opens the gear item context menu.
+		if(gear_inventory_ui->handleRightMousePress(e))
+		{
+			e.accepted = true;
+			ui_interface->setCamRotationOnMouseDragEnabled(false);
+			return;
+		}
+	}
+
 	if(gl_ui.nonNull())
 	{
 		gl_ui->handleMousePress(e);

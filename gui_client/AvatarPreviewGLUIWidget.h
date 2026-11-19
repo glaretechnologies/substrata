@@ -39,11 +39,11 @@ public:
 	virtual void setVisible(bool visible) override;
 
 	virtual bool isVisible() override;
-	virtual void handleMousePress(MouseEvent& e) override;
+	virtual void handleMousePress(GLUIMouseEvent& e) override;
 
-	virtual void handleMouseRelease(MouseEvent& e) override;
-	virtual void doHandleMouseMoved(MouseEvent& e) override;
-	virtual void doHandleMouseWheelEvent(MouseWheelEvent& e) override;
+	virtual void handleMouseRelease(GLUIMouseEvent& e) override;
+	virtual void doHandleMouseMoved(GLUIMouseEvent& e) override;
+	virtual void doHandleMouseWheelEvent(GLUIMouseWheelEvent& e) override;
 
 
 	void recreateFBO(int avatar_preview_w, int avatar_preview_h);
@@ -58,9 +58,9 @@ public:
 	// Optional hooks called at the start of each mouse handler.
 	// Return true from press_interceptor / move_interceptor to consume the event
 	// (prevents the widget's own drag/rotate handling).
-	std::function<bool(MouseEvent&)> press_interceptor;
-	std::function<bool(MouseEvent&)> move_interceptor;
-	std::function<void(MouseEvent&)> release_interceptor;
+	std::function<bool(GLUIMouseEvent&)> press_interceptor;
+	std::function<bool(GLUIMouseEvent&)> move_interceptor;
+	std::function<void(GLUIMouseEvent&)> release_interceptor;
 
 private:
 	void updateOverlayTransform();

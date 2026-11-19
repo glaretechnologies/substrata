@@ -266,7 +266,7 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 				transform_gizmo->update(equipped_gear_graphics.gear_gl_ob->ob_to_world_matrix.getColumn(3));
 		};
 
-		avatar_preview_widget->press_interceptor = [this](MouseEvent& e) -> bool
+		avatar_preview_widget->press_interceptor = [this](GLUIMouseEvent& e) -> bool
 		{
 			if(!transform_gizmo)
 				return false;
@@ -283,7 +283,7 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 			return consumed;
 		};
 
-		avatar_preview_widget->move_interceptor = [this](MouseEvent& e) -> bool
+		avatar_preview_widget->move_interceptor = [this](GLUIMouseEvent& e) -> bool
 		{
 			if(!transform_gizmo)
 				return false;
@@ -302,7 +302,7 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 			return consumed;
 		};
 
-		avatar_preview_widget->release_interceptor = [this](MouseEvent& e)
+		avatar_preview_widget->release_interceptor = [this](GLUIMouseEvent& e)
 		{
 			if(!transform_gizmo)
 				return;
