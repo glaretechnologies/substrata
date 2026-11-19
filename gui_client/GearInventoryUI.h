@@ -50,9 +50,6 @@ public:
 
 	void keyPressed(KeyEvent& e);
 
-	// For a right mouse button press over a gear thumbnail, opens the context menu for the item.  Returns true if the menu was opened, in which case the press should not be processed further.
-	bool handleRightMousePress(const MouseEvent& event);
-
 	void setEquippedGear(const GearItems& equipped_gear_);
 	void setAllGear(const GearItems& all_gear_);
 
@@ -63,6 +60,7 @@ public:
 
 	virtual void eventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
 	virtual void closeWindowEventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
+	virtual void contextMenuRequestedEventOccurred(GLUICallbackContextMenuEvent& event) override; // From GLUICallbackHandler
 
 	void updateWidgetPositions();
 

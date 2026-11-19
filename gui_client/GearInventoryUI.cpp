@@ -584,28 +584,28 @@ void GearInventoryUI::eventOccurred(GLUICallbackEvent& event)
 }
 
 
-bool GearInventoryUI::handleRightMousePress(const MouseEvent& event)
+// Right-clicking on a gear thumbnail opens the context menu for the item.
+void GearInventoryUI::contextMenuRequestedEventOccurred(GLUICallbackContextMenuEvent& event)
 {
-	if(event.button != MouseButton::Right)
-		return false;
-
-	const Vec2f coords = gl_ui->UICoordsForOpenGLCoords(event.gl_coords);
-
 	for(size_t i=0; i<equipped_gear_ui.size(); ++i)
-		if(equipped_gear_ui[i].thumbnail->getRect().inOpenRectangle(coords))
+	{
+		if(equipped_gear_ui[i].thumbnail.ptr() == event.widget)
 		{
-			openContextMenu(equipped_gear_ui[i].gear_item, /*item_is_in_equipped_grid=*/true, coords);
-			return true;
+			openContextMenu(equipped_gear_ui[i].gear_item, /*item_is_in_equipped_grid=*/true, event.ui_coords);
+			event.accepted = true;
+			return;
 		}
+	}
 
 	for(size_t i=0; i<all_gear_ui.size(); ++i)
-		if(all_gear_ui[i].thumbnail->getRect().inOpenRectangle(coords))
+	{
+		if(all_gear_ui[i].thumbnail.ptr() == event.widget)
 		{
-			openContextMenu(all_gear_ui[i].gear_item, /*item_is_in_equipped_grid=*/false, coords);
-			return true;
+			openContextMenu(all_gear_ui[i].gear_item, /*item_is_in_equipped_grid=*/false, event.ui_coords);
+			event.accepted = true;
+			return;
 		}
-
-	return false;
+	}
 }
 
 
