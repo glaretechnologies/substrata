@@ -300,6 +300,14 @@ MESSAGE("libressldir: ${libressldir}")
 MESSAGE("openssldir: ${openssldir}")
 
 
+# Visual Studio activates git repos based on the locations of the solution's project files.  The CMake-generated projects are all
+# in the build dir, so add an empty project from each repo root to the solution, so the substrata and glare-core repos are activated.
+if(CMAKE_GENERATOR MATCHES "Visual Studio")
+	include_external_msproject(substrata_git_repo "${CMAKE_SOURCE_DIR}/substrata_vs_git_marker.vcxproj")
+	include_external_msproject(glare_core_git_repo "${GLARE_CORE_TRUNK_DIR_ENV}/glare_core_vs_git_marker.vcxproj")
+endif()
+
+
 ADD_SUBDIRECTORY(libs)
 
 # GUI client
