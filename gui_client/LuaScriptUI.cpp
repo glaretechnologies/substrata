@@ -119,7 +119,7 @@ void LuaScriptUI::addWidget(const LuaScriptUIWidgetRef& widget)
 
 	widget->getGLUIWidget()->setTooltip(UTF8Utils::sanitiseUTF8String(tooltip));
 
-	widget->getGLUIWidget()->handler = this; // So that contextMenuRequestedEventOccurred() is called on right-clicks.
+	widget->getGLUIWidget()->handler = this; // For click and value changed events, and contextMenuRequestedEventOccurred() on right-clicks.
 
 	widgets[widget->id] = widget;
 }
@@ -204,7 +204,6 @@ int LuaScriptUI::createButton(SubstrataLuaScript* sub_lua_script, const std::str
 
 	GLUITextButton::CreateArgs args;
 	widget->button = new GLUITextButton(*gl_ui, UTF8Utils::sanitiseUTF8String(text), args);
-	widget->button->handler = this;
 	gl_ui->addWidget(widget->button);
 
 	updateWidgetTransform(*widget);
@@ -239,7 +238,6 @@ int LuaScriptUI::createImageButton(SubstrataLuaScript* sub_lua_script, const URL
 	args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
 	args.fixed_size = size_px;
 	widget->image_button = new GLUIButton(*gl_ui, /*tex_path=*/"", args);
-	widget->image_button->handler = this;
 	gl_ui->addWidget(widget->image_button);
 
 	updateWidgetTransform(*widget);
@@ -277,7 +275,6 @@ int LuaScriptUI::createSlider(SubstrataLuaScript* sub_lua_script, double min_val
 	args.max_value = max_value;
 	args.initial_value = myClamp(initial_value, min_value, max_value);
 	widget->slider = new GLUISlider(*gl_ui, args);
-	widget->slider->handler = this;
 	gl_ui->addWidget(widget->slider);
 
 	updateWidgetTransform(*widget);
@@ -346,7 +343,6 @@ int LuaScriptUI::createCheckBox(SubstrataLuaScript* sub_lua_script, bool checked
 	GLUICheckBox::CreateArgs args;
 	args.checked = checked;
 	widget->checkbox = new GLUICheckBox(*gl_ui, gui_client->base_dir_path + "/data/gl_data/ui/tick.png", args);
-	widget->checkbox->handler = this;
 	gl_ui->addWidget(widget->checkbox);
 
 	updateWidgetTransform(*widget);
