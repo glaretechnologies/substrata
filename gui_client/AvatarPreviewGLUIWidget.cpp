@@ -121,6 +121,13 @@ void AvatarPreviewGLUIWidget::handleMousePress(GLUIMouseEvent& e)
 }
 
 
+void AvatarPreviewGLUIWidget::handleMousePressCancelled()
+{
+	drag_active = false;
+	middle_drag_active = false;
+}
+
+
 void AvatarPreviewGLUIWidget::handleMouseRelease(GLUIMouseEvent& e)
 {
 	if(release_interceptor) release_interceptor(e);
