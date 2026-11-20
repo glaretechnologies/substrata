@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2026 -
 
 #include "GUIClient.h"
 #include "ScriptUIContextMenu.h"
+#include "HiddenScriptUI.h"
 #include "../shared/SubstrataLuaScript.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/WorldStateLock.h"
@@ -24,6 +25,10 @@ Copyright Glare Technologies Limited 2026 -
 #include <opengl/ui/GLUITextButton.h>
 #include <opengl/ui/GLUITextView.h>
 #include <opengl/ui/GLUIWindow.h>
+#include <graphics/SRGBUtils.h>
+#include <maths/mathstypes.h>
+#include <settings/SettingsStore.h>
+#include <utils/ConPrint.h>
 #include <utils/Exception.h>
 #include <utils/StringUtils.h>
 #include <utils/UTF8Utils.h>
@@ -87,18 +92,37 @@ static Vec2f anchorFractions(LuaScriptUIWidget::Anchor anchor)
 }
 
 
+static const double HIDDEN_UI_BUTTON_FLASH_DURATION_S = 1.5;
+static const double HIDDEN_UI_BUTTON_FLASH_NUM_PULSES = 3;
+static const float  HIDDEN_UI_BUTTON_FLASH_MAX_EXTRA_SCALE = 0.4f; // The button grows by up to this fraction of its size while pulsing.
+static const Colour3f HIDDEN_UI_BUTTON_FLASH_COLOUR = toLinearSRGB(Colour3f(1.f, 0.6f, 0.1f)); // Orange.  The button is this colour at the peak of each pulse.
+
+
 LuaScriptUI::LuaScriptUI(GUIClient* gui_client_, const GLUIRef& gl_ui_)
 :	gui_client(gui_client_),
 	gl_ui(gl_ui_),
 	next_widget_id(1),
-	ui_visible(true)
+	ui_visible(true),
+	hidden_ui_button_flashing(false)
 {
 	context_menu = new ScriptUIContextMenu(gui_client_, this, gl_ui_);
+
+	// Button for opening the hidden script UI list.
+	{
+		GLUIButton::CreateArgs args;
+		args.tooltip = "Blocked on-screen items";
+		hidden_ui_button = new GLUIButton(*gl_ui, gui_client->resources_dir_path + "/buttons/hidden_ui.png", args);
+		hidden_ui_button->handler = this;
+		gl_ui->addWidget(hidden_ui_button);
+	}
+	updateHiddenUIButton();
 }
 
 
 LuaScriptUI::~LuaScriptUI()
 {
+	hidden_script_ui = nullptr;
+	checkRemoveAndDeleteWidget(gl_ui, hidden_ui_button);
 	removeAllWidgets();
 	context_menu = nullptr; // Removes the menu widgets, if open.
 }
@@ -107,7 +131,7 @@ LuaScriptUI::~LuaScriptUI()
 // Sets the tooltip on the widget, saying which object and user it is from, makes right-clicking on the widget open the script UI context menu, and adds the widget to the widgets map.
 void LuaScriptUI::addWidget(const LuaScriptUIWidgetRef& widget)
 {
-	std::string tooltip = "Script UI";
+	std::string tooltip = "Script";
 	const WorldObject* ob = widget->sub_lua_script->world_object;
 	if(ob)
 	{
@@ -846,9 +870,19 @@ void LuaScriptUI::clearKeyboardFocusIfHeldBy(const LuaScriptUIWidget& widget)
 
 void LuaScriptUI::think()
 {
-	for(auto it = widgets.begin(); it != widgets.end(); ++it)
-		if((it->second->image || it->second->image_button) && !it->second->image_texture_assigned)
-			checkAssignImageTexture(*it->second);
+	if(hidden_script_ui)
+	{
+		hidden_script_ui->think(); // Does any unhides from the window, which re-run scripts.
+		if(hidden_script_ui->close_soon)
+			hidden_script_ui = nullptr;
+	}
+
+	if(hidden_ui_button_flashing)
+	{
+		if(hidden_ui_button_flash_timer.elapsed() >= HIDDEN_UI_BUTTON_FLASH_DURATION_S)
+			hidden_ui_button_flashing = false;
+		updateHiddenUIButton(); // Sets the button size for the current point in the flash, or back to normal when finished.
+	}
 
 	if((!clicked_widget_ids.empty() || !changed_value_ids.empty() || !entered_line_edit_ids.empty() || !closed_window_ids.empty()) && gui_client->world_state)
 	{
@@ -936,6 +970,11 @@ void LuaScriptUI::viewportResized()
 {
 	context_menu->close();
 
+	if(hidden_script_ui)
+		hidden_script_ui->viewportResized();
+
+	updateHiddenUIButton();
+
 	for(auto it = widgets.begin(); it != widgets.end(); ++it)
 		if(it->second->parent_id == 0) // Widgets in grids are positioned by updateWidgetTransform() on the outermost grid.
 			updateWidgetTransform(*it->second);
@@ -950,6 +989,49 @@ void LuaScriptUI::setVisible(bool visible)
 	ui_visible = visible;
 	for(auto it = widgets.begin(); it != widgets.end(); ++it)
 		updateWidgetDrawn(*it->second);
+
+	updateHiddenUIButton();
+}
+
+
+// Called when the hidden objects or creators change.
+void LuaScriptUI::hiddenListsChanged()
+{
+	if(hidden_script_ui)
+		hidden_script_ui->listChanged();
+}
+
+
+// The button and the Builder AI expand button are placed symmetrically about the middle of the right edge of the viewport, with this one below.
+// While flashing, the button pulses in size about its centre.
+void LuaScriptUI::updateHiddenUIButton()
+{
+	const float button_w = gl_ui->getUIWidthForDevIndepPixelWidth(40); // Same size and margin as the Builder AI button.
+	const float margin   = gl_ui->getUIWidthForDevIndepPixelWidth(10);
+
+	float pulse = 0.f; // In [0, 1].  0 when not flashing.
+	if(hidden_ui_button_flashing)
+	{
+		const double t = hidden_ui_button_flash_timer.elapsed();
+		pulse = (float)std::fabs(std::sin(t * Maths::pi<double>() * HIDDEN_UI_BUTTON_FLASH_NUM_PULSES / HIDDEN_UI_BUTTON_FLASH_DURATION_S));
+	}
+
+	const Vec2f centre(1.f - margin - button_w / 2, -margin / 2 - button_w / 2);
+	const float w = button_w * (1.f + HIDDEN_UI_BUTTON_FLASH_MAX_EXTRA_SCALE * pulse);
+	hidden_ui_button->setPosAndDims(centre - Vec2f(w / 2), Vec2f(w));
+
+	// The button colour multiplies the icon texture, so the white parts of the icon take on the flash colour.
+	hidden_ui_button->setButtonColour(Colour3f(1.f) * (1.f - pulse) + HIDDEN_UI_BUTTON_FLASH_COLOUR * pulse);
+
+	hidden_ui_button->setVisible(ui_visible);
+}
+
+
+// Flashes the hidden UI button, to show the user where blocked items can be found.
+void LuaScriptUI::flashHiddenUIButton()
+{
+	hidden_ui_button_flashing = true;
+	hidden_ui_button_flash_timer.reset();
 }
 
 
@@ -976,21 +1058,188 @@ void LuaScriptUI::contextMenuRequestedEventOccurred(GLUICallbackContextMenuEvent
 bool LuaScriptUI::isUIHiddenForScript(const SubstrataLuaScript* sub_lua_script) const
 {
 	const WorldObject* ob = sub_lua_script->world_object;
-	return ob && ((hidden_object_uids.count(ob->uid) > 0) || (hidden_creator_ids.count(ob->creator_id) > 0));
+	return ob && ((hidden_objects.count(ob->uid) > 0) || (hidden_creators.count(ob->creator_id) > 0));
 }
 
 
-void LuaScriptUI::hideUIForObject(const UID& ob_uid)
+void LuaScriptUI::hideUIForObject(const UID& ob_uid, const std::string& creator_name)
 {
-	hidden_object_uids.insert(ob_uid);
+	HiddenScriptUIEntry entry;
+	entry.hidden_time = TimeStamp::currentTime();
+	entry.creator_name = creator_name;
+
+	hidden_objects[ob_uid] = entry;
+	saveHiddenEntry(hiddenObjectsMapPath(), ob_uid.toString(), entry);
+
 	removeWidgetsForHiddenScripts();
+
+	flashHiddenUIButton(); // Show the user where the blocked object went.
+
+	hiddenListsChanged();
 }
 
 
-void LuaScriptUI::hideUIForCreator(const UserID& creator_id)
+void LuaScriptUI::hideUIForCreator(const UserID& creator_id, const std::string& creator_name)
 {
-	hidden_creator_ids.insert(creator_id);
+	HiddenScriptUIEntry entry;
+	entry.hidden_time = TimeStamp::currentTime();
+	entry.creator_name = creator_name;
+
+	hidden_creators[creator_id] = entry;
+	saveHiddenEntry(hiddenCreatorsMapPath(), creator_id.toString(), entry);
+
 	removeWidgetsForHiddenScripts();
+
+	flashHiddenUIButton(); // Show the user where the blocked user went.
+
+	hiddenListsChanged();
+}
+
+
+void LuaScriptUI::unhideUIForObject(const UID& ob_uid)
+{
+	const std::vector<WorldObjectRef> obs_with_hidden_UI = getObjectsWithHiddenUI();
+
+	hidden_objects.erase(ob_uid);
+	gui_client->settings->removeMapEntry(hiddenObjectsMapPath(), ob_uid.toString());
+
+	rerunScriptsWithUnhiddenUI(obs_with_hidden_UI);
+
+	hiddenListsChanged();
+}
+
+
+void LuaScriptUI::unhideUIForCreator(const UserID& creator_id)
+{
+	const std::vector<WorldObjectRef> obs_with_hidden_UI = getObjectsWithHiddenUI();
+
+	hidden_creators.erase(creator_id);
+	gui_client->settings->removeMapEntry(hiddenCreatorsMapPath(), creator_id.toString());
+
+	rerunScriptsWithUnhiddenUI(obs_with_hidden_UI);
+
+	hiddenListsChanged();
+}
+
+
+void LuaScriptUI::openHiddenScriptUI()
+{
+	if(!hidden_script_ui)
+		hidden_script_ui = new HiddenScriptUI(this, gl_ui);
+}
+
+
+// Returns the loaded objects with Lua scripts that UI is hidden for.
+std::vector<WorldObjectRef> LuaScriptUI::getObjectsWithHiddenUI()
+{
+	std::vector<WorldObjectRef> obs;
+	if(gui_client->world_state)
+	{
+		WorldStateLock lock(gui_client->world_state->mutex);
+		for(auto it = gui_client->world_state->objects.valuesBegin(); it != gui_client->world_state->objects.valuesEnd(); ++it)
+		{
+			WorldObject* ob = it.getValue().ptr();
+			if(ob->sub_lua_script && isUIHiddenForScript(ob->sub_lua_script.ptr()))
+				obs.push_back(ob);
+		}
+	}
+	return obs;
+}
+
+
+// Re-runs the scripts of the objects that UI is no longer hidden for, so that the scripts create their widgets again.
+// An object can still be hidden, e.g. if its creator is hidden as well as the object.
+void LuaScriptUI::rerunScriptsWithUnhiddenUI(const std::vector<WorldObjectRef>& obs)
+{
+	for(size_t i=0; i<obs.size(); ++i)
+	{
+		WorldObject* ob = obs[i].ptr();
+		if(ob->sub_lua_script && !isUIHiddenForScript(ob->sub_lua_script.ptr()))
+		{
+			BitUtils::setBit(ob->changed_flags, WorldObject::SCRIPT_CHANGED); // So that reloadChangedScriptForObject() runs the script again.
+			gui_client->reloadChangedScriptForObject(ob);
+		}
+	}
+}
+
+
+// Writes the entry fields to map_path/key/ in the settings store.
+void LuaScriptUI::saveHiddenEntry(const std::vector<std::string>& map_path, const std::string& key, const HiddenScriptUIEntry& entry)
+{
+	const std::string entry_path = StringUtils::join(map_path, "/") + "/" + key;
+	gui_client->settings->setDoubleValue(entry_path + "/hidden_time", (double)entry.hidden_time.time); // Stored as a double, as int settings are 32-bit.
+	gui_client->settings->setStringValue(entry_path + "/creator_name", entry.creator_name);
+}
+
+
+// Reads the entry fields from map_path/key/ in the settings store.
+HiddenScriptUIEntry LuaScriptUI::loadHiddenEntry(const std::vector<std::string>& map_path, const std::string& key)
+{
+	const std::string entry_path = StringUtils::join(map_path, "/") + "/" + key;
+
+	HiddenScriptUIEntry entry;
+	entry.hidden_time  = TimeStamp((uint64)gui_client->settings->getDoubleValue(entry_path + "/hidden_time", /*default value=*/0.0));
+	entry.creator_name = gui_client->settings->getStringValue(entry_path + "/creator_name", /*default value=*/"");
+	return entry;
+}
+
+
+std::vector<std::string> LuaScriptUI::hiddenObjectsMapPath() const
+{
+	return std::vector<std::string>({"hidden_list", "worlds", server_hostname, "hidden_objects"});
+}
+
+
+std::vector<std::string> LuaScriptUI::hiddenCreatorsMapPath() const
+{
+	return std::vector<std::string>({"hidden_list", "worlds", server_hostname, "hidden_creators"});
+}
+
+
+void LuaScriptUI::loadHiddenLists(const std::string& server_hostname_)
+{
+	server_hostname = server_hostname_;
+	hidden_objects.clear();
+	hidden_creators.clear();
+
+	if(!server_hostname.empty()) // server_hostname is empty if not connected to a server yet.
+	{
+		// Load hidden objects
+		const std::vector<std::string> objects_map_path = hiddenObjectsMapPath();
+		const std::vector<std::string> object_keys = gui_client->settings->getMapKeys(objects_map_path);
+		for(size_t i=0; i<object_keys.size(); ++i)
+		{
+			try
+			{
+				const UID ob_uid(stringToUInt64(object_keys[i]));
+				hidden_objects[ob_uid] = loadHiddenEntry(objects_map_path, object_keys[i]);
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("Warning: invalid hidden object UID '" + object_keys[i] + "' in settings: " + e.what());
+			}
+		}
+
+		// Load hidden creators
+		const std::vector<std::string> creators_map_path = hiddenCreatorsMapPath();
+		const std::vector<std::string> creator_keys = gui_client->settings->getMapKeys(creators_map_path);
+		for(size_t i=0; i<creator_keys.size(); ++i)
+		{
+			try
+			{
+				const uint64 user_id = stringToUInt64(creator_keys[i]);
+				if(user_id > std::numeric_limits<uint32>::max())
+					throw glare::Exception("user ID out of range");
+				hidden_creators[UserID((uint32)user_id)] = loadHiddenEntry(creators_map_path, creator_keys[i]);
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("Warning: invalid hidden creator user ID '" + creator_keys[i] + "' in settings: " + e.what());
+			}
+		}
+	}
+
+	hiddenListsChanged();
 }
 
 
@@ -1012,6 +1261,17 @@ void LuaScriptUI::removeWidgetsForHiddenScripts()
 
 void LuaScriptUI::eventOccurred(GLUICallbackEvent& event)
 {
+	if(event.widget == hidden_ui_button.ptr())
+	{
+		// Toggle the hidden script UI list
+		if(hidden_script_ui)
+			hidden_script_ui = nullptr;
+		else
+			openHiddenScriptUI();
+		event.accepted = true;
+		return;
+	}
+
 	for(auto it = widgets.begin(); it != widgets.end(); ++it)
 	{
 		LuaScriptUIWidget* widget = it->second.ptr();
@@ -1182,7 +1442,31 @@ void LuaScriptUI::updateWidgetDrawn(LuaScriptUIWidget& widget)
 }
 
 
+void LuaScriptUI::assignImageTexture(LuaScriptUIWidget& widget, const OpenGLTextureRef& tex)
+{
+	if(widget.image)
+		widget.image->setTexture(tex);
+	if(widget.image_button)
+		widget.image_button->setTexture(tex);
+	widget.image_texture_assigned = true;
+	updateWidgetDrawn(widget);
+}
+
+
+// Assigns the texture to any images and image buttons that are waiting for it.
+void LuaScriptUI::handleUploadedTexture(const URLString& URL, const OpenGLTextureRef& tex)
+{
+	for(auto it = widgets.begin(); it != widgets.end(); ++it)
+	{
+		LuaScriptUIWidget& widget = *it->second;
+		if((widget.image || widget.image_button) && !widget.image_texture_assigned && (widget.image_URL == URL))
+			assignImageTexture(widget, tex);
+	}
+}
+
+
 // If the image texture is loaded, assign it to the image widget.  Otherwise start loading it, if the image file is present.
+// If the image is still downloading or loading, the texture is assigned in handleUploadedTexture() when it has loaded.
 void LuaScriptUI::checkAssignImageTexture(LuaScriptUIWidget& widget)
 {
 	ResourceRef resource = gui_client->resource_manager->getExistingResourceForURL(widget.image_URL);
@@ -1194,12 +1478,7 @@ void LuaScriptUI::checkAssignImageTexture(LuaScriptUIWidget& widget)
 	OpenGLTextureRef tex = gui_client->opengl_engine->getTextureIfLoaded(local_path);
 	if(tex)
 	{
-		if(widget.image)
-			widget.image->setTexture(tex);
-		if(widget.image_button)
-			widget.image_button->setTexture(tex);
-		widget.image_texture_assigned = true;
-		updateWidgetDrawn(widget);
+		assignImageTexture(widget, tex);
 	}
 	else if(resource->getState() == Resource::State_Present)
 	{

@@ -307,6 +307,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/LuaScriptUI.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/LuaScriptUI.h
 ${CMAKE_SOURCE_DIR}/gui_client/ScriptUIContextMenu.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/ScriptUIContextMenu.h
+${CMAKE_SOURCE_DIR}/gui_client/HiddenScriptUI.cpp
+${CMAKE_SOURCE_DIR}/gui_client/HiddenScriptUI.h
 ${CMAKE_SOURCE_DIR}/gui_client/ScriptMessageUI.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/ScriptMessageUI.h
 ${CMAKE_SOURCE_DIR}/gui_client/GearEditorUI.cpp

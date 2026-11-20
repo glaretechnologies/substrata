@@ -15,15 +15,19 @@ Copyright Glare Technologies Limited 2026 -
 #include <graphics/colour3.h>
 #include <utils/RefCounted.h>
 #include <utils/Reference.h>
+#include <utils/TimeStamp.h>
+#include <utils/Timer.h>
 #include <map>
-#include <set>
 #include <vector>
 
 
 class GUIClient;
 class MouseEvent;
 class ScriptUIContextMenu;
+class HiddenScriptUI;
 class SubstrataLuaScript;
+class WorldObject;
+class OpenGLTexture;
 class GLUI;
 class GLUIButton;
 class GLUICheckBox;
@@ -102,6 +106,14 @@ public:
 typedef Reference<LuaScriptUIWidget> LuaScriptUIWidgetRef;
 
 
+// An object or creator the user has hidden script UI from.
+struct HiddenScriptUIEntry
+{
+	TimeStamp hidden_time;
+	std::string creator_name; // Name of the object's creator, or of the hidden creator, at the time of hiding.  May be empty if not known.
+};
+
+
 /*=====================================================================
 LuaScriptUI
 -----------
@@ -176,8 +188,11 @@ public:
 	void removeWidgetsForScript(SubstrataLuaScript* sub_lua_script);
 	void removeAllWidgets();
 
-	// Assigns any newly loaded image textures, and runs queued onClick and onChange callbacks.
+	// Runs queued onClick and onChange callbacks.
 	void think();
+
+	// Called by GUIClient when a texture has been loaded and uploaded to the GPU.  Assigns it to any images and image buttons that are waiting for it.
+	void handleUploadedTexture(const URLString& URL, const Reference<OpenGLTexture>& tex);
 
 	void viewportResized();
 
@@ -189,8 +204,24 @@ public:
 	bool isUIHiddenForScript(const SubstrataLuaScript* sub_lua_script) const;
 
 	// Hide UI from the object, or from all objects created by the user.  Removes existing widgets from the affected scripts.
-	void hideUIForObject(const UID& ob_uid);
-	void hideUIForCreator(const UserID& creator_id);
+	// Saves the entry to the settings store, for the current server.
+	// creator_name is the name of the object creator, or of the hidden creator, for showing in the list of hidden UI.  May be empty if not known.
+	void hideUIForObject(const UID& ob_uid, const std::string& creator_name);
+	void hideUIForCreator(const UserID& creator_id, const std::string& creator_name);
+
+	// Unhide UI from the object, or from the user's objects.  Removes the entry from the settings store,
+	// and re-runs the scripts of the loaded objects that UI is no longer hidden for, so that they create their widgets again.
+	void unhideUIForObject(const UID& ob_uid);
+	void unhideUIForCreator(const UserID& creator_id);
+
+	const std::map<UID, HiddenScriptUIEntry>& getHiddenObjects() const { return hidden_objects; }
+	const std::map<UserID, HiddenScriptUIEntry>& getHiddenCreators() const { return hidden_creators; }
+
+	// Opens the window listing hidden script UI, if not already open.
+	void openHiddenScriptUI();
+
+	// Loads the hidden objects and creators for the server from the settings store, replacing any loaded for a previous server.  Called when connecting to a server.
+	void loadHiddenLists(const std::string& server_hostname);
 
 	virtual void eventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
 	virtual void sliderValueChangedEventOccurred(GLUISliderValueChangedEvent& event) override; // From GLUICallbackHandler
@@ -208,6 +239,7 @@ private:
 	void updateWidgetTransform(LuaScriptUIWidget& widget); // Updates the transform of the outermost grid or window containing the widget, or of the widget itself.
 	void updateWidgetDrawn(LuaScriptUIWidget& widget); // Also updates widgets in the widget, if it is a grid or window.
 	void checkAssignImageTexture(LuaScriptUIWidget& widget); // For images and image buttons.
+	void assignImageTexture(LuaScriptUIWidget& widget, const Reference<OpenGLTexture>& tex);
 	void startDownloadingImageIfNotPresent(const URLString& image_URL);
 	void destroyWidgetAndContents(int id);
 	void removeWidgetFromUI(LuaScriptUIWidget& widget);
@@ -215,6 +247,15 @@ private:
 	void lineEditTextChanged(int widget_id);
 	void clearKeyboardFocusIfHeldBy(const LuaScriptUIWidget& widget); // So that a hidden or destroyed widget doesn't keep receiving key presses.
 	void removeWidgetsForHiddenScripts();
+	std::vector<Reference<WorldObject>> getObjectsWithHiddenUI(); // Returns the loaded objects with Lua scripts that UI is hidden for.
+	void hiddenListsChanged(); // Updates the hidden script UI list, if open.
+	void updateHiddenUIButton(); // Updates the hidden UI button position, size and visibility.
+	void flashHiddenUIButton();
+	void rerunScriptsWithUnhiddenUI(const std::vector<Reference<WorldObject>>& obs);
+	std::vector<std::string> hiddenObjectsMapPath() const; // Settings store map paths for the current server.
+	std::vector<std::string> hiddenCreatorsMapPath() const;
+	void saveHiddenEntry(const std::vector<std::string>& map_path, const std::string& key, const HiddenScriptUIEntry& entry);
+	HiddenScriptUIEntry loadHiddenEntry(const std::vector<std::string>& map_path, const std::string& key);
 
 	GUIClient* gui_client;
 	Reference<GLUI> gl_ui;
@@ -230,8 +271,17 @@ private:
 
 	Reference<ScriptUIContextMenu> context_menu;
 
-	// Objects and creators the user has hidden UI from.  Currently only kept for the session.
-	std::set<UID> hidden_object_uids;
-	std::set<UserID> hidden_creator_ids;
+	// Objects and creators the user has hidden UI from.
+	// Stored in the settings store per server, as object UIDs and user IDs are only unique within a server:
+	//   hidden_list/worlds/<server_hostname>/hidden_objects/<uid>/hidden_time, creator_name
+	//   hidden_list/worlds/<server_hostname>/hidden_creators/<user_id>/hidden_time, creator_name
+	std::string server_hostname;
+	std::map<UID, HiddenScriptUIEntry> hidden_objects;
+	std::map<UserID, HiddenScriptUIEntry> hidden_creators;
+
+	Reference<HiddenScriptUI> hidden_script_ui; // Window listing hidden script UI.  Null if not open.
+	Reference<GLUIButton> hidden_ui_button; // Opens and closes the hidden script UI list.
+	bool hidden_ui_button_flashing; // True while the button is flashing after the user blocks something, see flashHiddenUIButton().
+	Timer hidden_ui_button_flash_timer; // Time since the flash started.
 };
 typedef Reference<LuaScriptUI> LuaScriptUIRef;

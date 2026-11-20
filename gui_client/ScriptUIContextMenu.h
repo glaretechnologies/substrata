@@ -26,7 +26,7 @@ ScriptUIContextMenu
 -------------------
 The menu shown when the user right-clicks on a widget created by a Lua script.
 Shows which object and user the widget is from, and lets the user hide UI from the object, or from all objects created by the user,
-or select the object.
+select the object, or open the list of hidden UI.
 
 Drawn by the client, so scripts can't create, remove or imitate it.
 =====================================================================*/
@@ -46,7 +46,8 @@ private:
 	{
 		Action_HideObject,
 		Action_HideCreator,
-		Action_SelectObject
+		Action_SelectObject,
+		Action_ListHiddenUI
 	};
 
 	void itemSelected(size_t item_index);
@@ -60,4 +61,5 @@ private:
 
 	UID ob_uid; // The object the menu was opened for.
 	UserID creator_id;
+	std::string creator_name;
 };

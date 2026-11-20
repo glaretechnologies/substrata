@@ -28,34 +28,38 @@ ScriptUIContextMenu::~ScriptUIContextMenu()
 }
 
 
-void ScriptUIContextMenu::open(const UID& ob_uid_, const UserID& creator_id_, const std::string& creator_name, const Vec2f& ui_coords)
+void ScriptUIContextMenu::open(const UID& ob_uid_, const UserID& creator_id_, const std::string& creator_name_, const Vec2f& ui_coords)
 {
 	close();
 
 	ob_uid = ob_uid_;
 	creator_id = creator_id_;
+	creator_name = creator_name_;
 
 	GLUIContextMenu::CreateArgs args;
 
 	// Title, saying which object and user the UI is from.
-	args.title = "UI from object " + ob_uid.toString();
+	args.title = "Script from object " + ob_uid.toString();
 	if(!creator_name.empty())
 		args.title += " by " + creator_name;
 	args.title = UTF8Utils::sanitiseUTF8String(args.title);
 
 	item_actions.clear();
 
-	args.items.push_back("Hide UI from this object");
+	args.items.push_back("Block on-screen items from this object");
 	item_actions.push_back(Action_HideObject);
 
 	if(creator_id.valid() && !creator_name.empty())
 	{
-		args.items.push_back(UTF8Utils::sanitiseUTF8String("Hide UI from all of " + creator_name + "'s objects"));
+		args.items.push_back(UTF8Utils::sanitiseUTF8String("Block on-screen items from all of " + creator_name + "'s objects"));
 		item_actions.push_back(Action_HideCreator);
 	}
 
 	args.items.push_back("Select object");
 	item_actions.push_back(Action_SelectObject);
+
+	args.items.push_back("List blocked on-screen items...");
+	item_actions.push_back(Action_ListHiddenUI);
 
 	menu = new GLUIContextMenu(*gl_ui, args, ui_coords);
 	menu->item_selected_func = [this](size_t item_index) { this->itemSelected(item_index); };
@@ -79,11 +83,11 @@ void ScriptUIContextMenu::itemSelected(size_t item_index)
 	const Action action = item_actions[item_index];
 	if(action == Action_HideObject)
 	{
-		lua_script_ui->hideUIForObject(ob_uid);
+		lua_script_ui->hideUIForObject(ob_uid, creator_name);
 	}
 	else if(action == Action_HideCreator)
 	{
-		lua_script_ui->hideUIForCreator(creator_id);
+		lua_script_ui->hideUIForCreator(creator_id, creator_name);
 	}
 	else if(action == Action_SelectObject)
 	{
@@ -98,5 +102,9 @@ void ScriptUIContextMenu::itemSelected(size_t item_index)
 
 		if(ob)
 			gui_client->selectObject(ob, /*selected_mat_index=*/0);
+	}
+	else if(action == Action_ListHiddenUI)
+	{
+		lua_script_ui->openHiddenScriptUI();
 	}
 }

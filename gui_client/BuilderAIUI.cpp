@@ -368,8 +368,10 @@ void BuilderAIUI::updateWidgetTransforms()
 	window->setPos(/*botleft=*/Vec2f(1 - side_margin - width, gl_ui->getViewportMinMaxY() - top_margin - height));
 
 	//---------------------------- expand_button ----------------------------
+	// The expand button and LuaScriptUI's hidden UI button are placed symmetrically about the middle of the right edge of the viewport, with this one above.
 	const float expand_button_w = gl_ui->getUIWidthForDevIndepPixelWidth(40);
-	expand_button->setPosAndDims(Vec2f(1.f - expand_button_w - gl_ui->getUIWidthForDevIndepPixelWidth(10), -expand_button_w/2),
+	const float margin = gl_ui->getUIWidthForDevIndepPixelWidth(10);
+	expand_button->setPosAndDims(Vec2f(1.f - expand_button_w - margin, margin / 2),
 		Vec2f(expand_button_w));
 }
 

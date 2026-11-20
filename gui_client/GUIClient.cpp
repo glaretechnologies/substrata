@@ -548,6 +548,7 @@ void GUIClient::afterGLInitInitialise(double device_pixel_ratio, Reference<OpenG
 	key_help_ui = new KeyHelpUI(gl_ui);
 
 	lua_script_ui = new LuaScriptUI(this, gl_ui);
+	lua_script_ui->loadHiddenLists(server_hostname); // The initial connectToServer() call is before this, so load the hidden lists for that server now.
 
 	script_message_ui = new ScriptMessageUI(gl_ui);
 
@@ -5047,6 +5048,9 @@ void GUIClient::handleUploadedTexture(const OpenGLTextureKey& path, const URLStr
 
 	if(gear_inventory_ui)
 		gear_inventory_ui->handleUploadedTexture(path, URL, opengl_tex);
+
+	if(lua_script_ui)
+		lua_script_ui->handleUploadedTexture(URL, opengl_tex);
 
 	// Look up any LODChunks, objects or avatars using this texture, and assign the newly loaded texture to them.
 	{
@@ -14522,6 +14526,9 @@ void GUIClient::connectToServer(const URLParseResults& parse_res)
 
 	this->server_hostname = parse_res.hostname;
 	this->server_worldname = parse_res.worldname;
+
+	if(lua_script_ui) // lua_script_ui is created in afterGLInitInitialise(), after the initial connectToServer() call, and loads the hidden lists then.
+		lua_script_ui->loadHiddenLists(server_hostname);
 
 	if(parse_res.parsed_parcel_uid)
 		this->url_parcel_uid = parse_res.parcel_uid;
