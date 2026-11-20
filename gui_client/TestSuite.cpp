@@ -162,6 +162,7 @@ void TestSuite::test()
 	const std::string base_dir_path = PlatformUtils::getResourceDirectoryPath();
 #endif
 
+	runTest([&]() { PlatformUtils::testPlatformUtils(); });
 	runTest([&]() { LuaTests::test(); });
 	runTest([&]() { LuaUtils::test(); });
 	runTest([&]() { SubstrataLuaScript::test(); });
