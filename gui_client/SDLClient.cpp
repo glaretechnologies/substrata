@@ -29,6 +29,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <indigo/TextureServer.h>
 #include <opengl/MeshPrimitiveBuilding.h>
 #include <utils/Exception.h>
+#include <utils/Clock.h>
 #include <utils/StandardPrintOutput.h>
 #include <utils/IncludeWindows.h>
 #include <utils/PlatformUtils.h>
@@ -873,6 +874,15 @@ static bool doing_cam_rotate_mouse_drag = false; // Is the mouse pointer hidden,
 static bool have_received_input = false;
 static bool tried_initialise_audio_engine = false;
 
+// Long-press detection for touch input, which has no right mouse button.  SDL sends touches as left mouse button events, with which == SDL_TOUCH_MOUSEID.
+// A touch held still for TOUCH_LONG_PRESS_TIME_S is sent to the UI as a right-button press, e.g. to open a context menu.  The rest of that touch is then ignored.
+static const double TOUCH_LONG_PRESS_TIME_S = 0.5;
+static const int TOUCH_LONG_PRESS_MAX_MOVE_PX = 10; // A touch that moves further than this from where it started is a drag, not a long-press.
+static bool touch_long_press_pending = false; // True while a touch is down that will become a long-press if held still for long enough.
+static bool touch_long_press_fired = false; // True after the long-press has been sent, until the touch is released.
+static double touch_down_time = 0;
+static Vec2i touch_down_pos(0, 0);
+
 
 static void doOneMainLoopIter()
 {
@@ -1049,7 +1059,18 @@ static void doOneMainLoopIter()
 		else if(e.type == SDL_MOUSEMOTION)
 		{
 			// conPrint("SDL_MOUSEMOTION, pos: " + Vec2i(e.motion.x, e.motion.y).toString());
-			if(!imgui_captures_mouse_ev)
+
+			// A touch that moves too far is a drag, so can't become a long-press.
+			if(touch_long_press_pending && (e.motion.which == SDL_TOUCH_MOUSEID))
+			{
+				const Vec2i delta = Vec2i(e.motion.x, e.motion.y) - touch_down_pos;
+				if(delta.x * delta.x + delta.y * delta.y > TOUCH_LONG_PRESS_MAX_MOVE_PX * TOUCH_LONG_PRESS_MAX_MOVE_PX)
+					touch_long_press_pending = false;
+			}
+
+			const bool ignore_touch_motion = touch_long_press_fired && (e.motion.which == SDL_TOUCH_MOUSEID); // Ignore the rest of a touch after a long-press, e.g. so it doesn't rotate the camera.
+
+			if(!imgui_captures_mouse_ev && !ignore_touch_motion)
 			{
 				if(doing_cam_rotate_mouse_drag && (e.motion.state & SDL_BUTTON_LMASK))
 				{
@@ -1091,6 +1112,15 @@ static void doOneMainLoopIter()
 
 				SDL_GetMouseState(&mouse_move_origin.x, &mouse_move_origin.y);
 
+				// Start timing a possible long-press for a touch.
+				if((e.button.which == SDL_TOUCH_MOUSEID) && (e.button.button == SDL_BUTTON_LEFT) && (e.button.clicks == 1))
+				{
+					touch_long_press_pending = true;
+					touch_long_press_fired = false;
+					touch_down_time = Clock::getCurTimeRealSec();
+					touch_down_pos = Vec2i(e.button.x, e.button.y);
+				}
+
 				MouseEvent mouse_event;
 				mouse_event.cursor_pos = Vec2i(e.button.x, e.button.y);
 				mouse_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.button.x, (float)e.button.y), canvas_drawable_pixels_per_css_pixels);
@@ -1115,12 +1145,20 @@ static void doOneMainLoopIter()
 		}
 		else if(e.type == SDL_MOUSEBUTTONUP)
 		{
+			// If this is the end of a touch that was sent as a long-press, release the right button that the long-press pressed, instead of the left button.
+			const bool end_of_touch_long_press = touch_long_press_fired && (e.button.which == SDL_TOUCH_MOUSEID);
+			if(e.button.which == SDL_TOUCH_MOUSEID)
+			{
+				touch_long_press_pending = false;
+				touch_long_press_fired = false;
+			}
+
 			if(!imgui_captures_mouse_ev)
 			{
 				MouseEvent mouse_event;
 				mouse_event.cursor_pos = Vec2i(e.button.x, e.button.y);
 				mouse_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)e.button.x, (float)e.button.y), canvas_drawable_pixels_per_css_pixels);
-				mouse_event.button = convertSDLMouseButton(e.button.button);
+				mouse_event.button = end_of_touch_long_press ? MouseButton::Right : convertSDLMouseButton(e.button.button);
 				mouse_event.modifiers = convertSDLModifiers(SDL_GetModState());
 				gui_client->gl_ui->handleMouseRelease(mouse_event);
 
@@ -1147,6 +1185,30 @@ static void doOneMainLoopIter()
 				gui_client->onMouseWheelEvent(wheel_event);
 			}
 		}
+	}
+
+
+	// If a touch has been held still for long enough, send it to the UI as a right-button press, e.g. to open a context menu.
+	if(touch_long_press_pending && ((Clock::getCurTimeRealSec() - touch_down_time) >= TOUCH_LONG_PRESS_TIME_S))
+	{
+		touch_long_press_pending = false;
+		touch_long_press_fired = true;
+
+		// Stop any camera rotation drag that the touch started.
+		if(doing_cam_rotate_mouse_drag)
+		{
+			SDL_SetRelativeMouseMode(SDL_FALSE);
+			doing_cam_rotate_mouse_drag = false;
+		}
+
+		gui_client->gl_ui->cancelMousePress(); // Cancel the left press from the start of the touch, so that e.g. a button under the touch isn't clicked when the touch is released.
+
+		MouseEvent mouse_event;
+		mouse_event.cursor_pos = touch_down_pos;
+		mouse_event.gl_coords = GLCoordsForGLWidgetPos(*opengl_engine, Vec2f((float)touch_down_pos.x, (float)touch_down_pos.y), canvas_drawable_pixels_per_css_pixels);
+		mouse_event.button = MouseButton::Right;
+		mouse_event.modifiers = convertSDLModifiers(SDL_GetModState());
+		gui_client->gl_ui->handleMousePress(mouse_event); // Only sent to the UI, not to the world, e.g. web views.
 	}
 
 
