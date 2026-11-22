@@ -123,6 +123,7 @@ void AvatarPreviewGLUIWidget::handleMousePress(GLUIMouseEvent& e)
 
 void AvatarPreviewGLUIWidget::handleMousePressCancelled()
 {
+	if(press_cancelled_interceptor) press_cancelled_interceptor();
 	drag_active = false;
 	middle_drag_active = false;
 }

@@ -313,6 +313,19 @@ GearEditorUI::GearEditorUI(GUIClient* gui_client_, GLUIRef gl_ui_, GearItemRef g
 			transform_gizmo->mouseReleased(&delegate);
 			engine->setCurrentScene(old_scene);
 		};
+
+		// If the press is cancelled, e.g. by a touch long-press, end any gizmo drag as if the mouse were released, keeping the gear where the drag has moved it to.
+		avatar_preview_widget->press_cancelled_interceptor = [this]()
+		{
+			if(transform_gizmo)
+			{
+				GearGizmoDelegate delegate(this);
+				OpenGLSceneRef old_scene = engine->getCurrentScene();
+				engine->setCurrentScene(avatar_preview_scene);
+				transform_gizmo->mouseReleased(&delegate);
+				engine->setCurrentScene(old_scene);
+			}
+		};
 	}
 
 	const float GEAR_GRID_BACKGROUND_ALPHA = 0;

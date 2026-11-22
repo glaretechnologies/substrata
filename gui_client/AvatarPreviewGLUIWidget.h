@@ -62,6 +62,7 @@ public:
 	std::function<bool(GLUIMouseEvent&)> press_interceptor;
 	std::function<bool(GLUIMouseEvent&)> move_interceptor;
 	std::function<void(GLUIMouseEvent&)> release_interceptor;
+	std::function<void()> press_cancelled_interceptor; // Called from handleMousePressCancelled(), instead of release_interceptor, when a press ends without a release.
 
 private:
 	void updateOverlayTransform();
