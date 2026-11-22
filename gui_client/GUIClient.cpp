@@ -3665,6 +3665,10 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 
 		if(hasPrefix(ob->script, "--lua"))
 		{
+			// Keep the UI activation of any previous script for the object, so that a reloaded script, e.g. after its UI is unblocked or its script is edited,
+			// can create UI without the user interacting with it again.
+			const bool prev_ui_activated = ob->sub_lua_script && ob->sub_lua_script->ui_activated;
+
 			ob->sub_lua_script = NULL;
 			scripted_ob_proximity_checker.removeObject(ob);
 
@@ -3674,6 +3678,7 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 					ui_interface->printFromLuaScript("Running script at " + Clock::get12HourClockLocalTimeOfDayString(), ob->uid);
 
 				ob->sub_lua_script = new SubstrataLuaScript(this->lua_vm, /*script output handler=*/this, ob->script, ob, this, world_state_lock);
+				ob->sub_lua_script->ui_activated = prev_ui_activated; // Before exec(), so that top-level code can create UI.
 				ob->sub_lua_script->exec(world_state_lock);
 
 				// Start loading any audio files the script declares with @resource
