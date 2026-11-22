@@ -49,6 +49,9 @@ public:
 	// An object was removed from the world, e.g. because it was deleted.  Used to mark any script editor window for the object.
 	virtual void objectDeleted(UID object_uid) {}
 
+	// The user blocked or unblocked on-screen items from an object or creator.  Used to update the blocked notice on script editor windows.
+	virtual void scriptUIBlockedListsChanged() {}
+
 	// UserDetailsWidget:
 	virtual void setTextAsNotLoggedIn() = 0;
 	virtual void setTextAsLoggedIn(const std::string& username) = 0;

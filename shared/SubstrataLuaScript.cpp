@@ -86,6 +86,7 @@ SubstrataLuaScript::SubstrataLuaScript(const Reference<SubstrataLuaVM>& substrat
 	world_object(world_object_),
 #if GUI_CLIENT
 	gui_client(gui_client_),
+	ui_activated(false),
 #endif
 #if SERVER
 	server(server_),
@@ -246,6 +247,62 @@ void SubstrataLuaScript::removeScriptUIWidgets()
 }
 
 
+#if GUI_CLIENT
+// Tells thread-safety analysis that world_state->mutex is held, given a lock on it.  The check is a debug assert only, so this has no cost in release builds.
+static inline void assertHoldsWorldStateMutex(WorldState* world_state, [[maybe_unused]] const WorldStateLock& world_state_lock) ASSERT_CAPABILITY(world_state->mutex)
+{
+	assert(&world_state_lock.getMutex() == &world_state->mutex);
+}
+
+
+bool SubstrataLuaScript::isUIActivated() const
+{
+	const UserID world_owner_id = gui_client->connected_world_details.owner_id;
+	return ui_activated || (world_owner_id.valid() && (world_object->creator_id == world_owner_id));
+}
+
+
+void SubstrataLuaScript::activateUIForObjectEvent(UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock)
+{
+	if(!ui_activated && (avatar_uid == gui_client->client_avatar_uid))
+	{
+		if(ob_uid == world_object->uid)
+			ui_activated = true;
+		else
+		{
+			// The event is for another object that this script added an event listener to.  Only activate if that object has the same creator as this script's object,
+			// so that a script can't be activated by listening to other users' objects.
+			WorldState* world_state = gui_client->world_state.ptr();
+			assertHoldsWorldStateMutex(world_state, world_state_lock);
+			auto res = world_state->objects.find(ob_uid);
+			if((res != world_state->objects.end()) && (res.getValue()->creator_id == world_object->creator_id))
+				ui_activated = true;
+		}
+	}
+}
+
+
+void SubstrataLuaScript::activateUIForParcelEntry(UID avatar_uid, ParcelID parcel_id, WorldStateLock& world_state_lock)
+{
+	if(!ui_activated && (avatar_uid == gui_client->client_avatar_uid))
+	{
+		WorldState* world_state = gui_client->world_state.ptr();
+		assertHoldsWorldStateMutex(world_state, world_state_lock);
+		auto res = world_state->parcels.find(parcel_id);
+		if(res != world_state->parcels.end())
+		{
+			const Parcel* parcel = res->second.ptr();
+			const UserID creator_id = world_object->creator_id;
+
+			// Check the owner, admins and writers explicitly, rather than with userHasWritePerms(), which is true for every logged-in user on all-writeable parcels.
+			if((creator_id == parcel->owner_id) || parcel->userIsParcelAdmin(creator_id) || parcel->userIsParcelWriter(creator_id))
+				ui_activated = true;
+		}
+	}
+}
+#endif
+
+
 void SubstrataLuaScript::doOnUserTouchedObject(LuaVM::LuaValueRef func_ref, UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock) noexcept
 {
 	//conPrint("SubstrataLuaScript: doOnUserTouchedObject");
@@ -256,6 +313,10 @@ void SubstrataLuaScript::doOnUserTouchedObject(LuaVM::LuaValueRef func_ref, UID 
 	{
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
+
+#if GUI_CLIENT
+		activateUIForObjectEvent(avatar_uid, ob_uid, world_state_lock); // Before calling the handler, so that the handler can create UI widgets.
+#endif
 
 		assert(num_interrupts == 0);
 
@@ -297,6 +358,10 @@ void SubstrataLuaScript::doOnUserUsedObject(LuaVM::LuaValueRef func_ref, UID ava
 	{
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
+
+#if GUI_CLIENT
+		activateUIForObjectEvent(avatar_uid, ob_uid, world_state_lock); // Before calling the handler, so that the handler can create UI widgets.
+#endif
 
 		assert(num_interrupts == 0);
 
@@ -421,6 +486,10 @@ void SubstrataLuaScript::doOnUserEnteredParcel(LuaVM::LuaValueRef func_ref, UID 
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
 
+#if GUI_CLIENT
+		activateUIForParcelEntry(avatar_uid, parcel_id, world_state_lock); // Before calling the handler, so that the handler can create UI widgets.
+#endif
+
 		assert(num_interrupts == 0);
 
 		lua_getref(thread_state, func_ref.ref); // Pushes func_ref onto the stack.
@@ -502,6 +571,10 @@ void SubstrataLuaScript::doOnUserEnteredVehicle(LuaVM::LuaValueRef func_ref, UID
 	{
 		SetCurWorldStateLockClass setter(this, world_state_lock);
 		this->calling_avatar_uid = avatar_uid;
+
+#if GUI_CLIENT
+		activateUIForObjectEvent(avatar_uid, vehicle_ob_uid, world_state_lock); // Before calling the handler, so that the handler can create UI widgets.
+#endif
 
 		assert(num_interrupts == 0);
 

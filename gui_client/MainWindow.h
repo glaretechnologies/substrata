@@ -217,6 +217,9 @@ private:
 	void handlePasteOrDropMimeData(const QMimeData* mime_data);
 
 	void scriptChangedInEditor(UID ob_uid, ScriptEditorWindow* editor);
+	UserID getObjectCreatorID(UID ob_uid); // Returns an invalid UserID if the object is not loaded.
+	void updateScriptEditorBlockedNotice(UID ob_uid, ScriptEditorWindow* editor); // Shows on the editor whether on-screen items from the object's script are blocked.
+	void unblockScriptUIForObject(UID ob_uid); // Unblocks on-screen items from the object, and from its creator if they are blocked too.
 
 	std::map<UID, ScriptEditorWindow*> script_editors; // Open script editor windows, keyed by object UID.  The windows delete themselves when closed.
 
@@ -243,6 +246,8 @@ public:
 	virtual void luaErrorOccurred(const std::string& msg, UID object_uid) override;
 
 	virtual void objectDeleted(UID object_uid) override; // Marks the object's script editor window, if open.
+
+	virtual void scriptUIBlockedListsChanged() override; // Updates the blocked notice on open script editor windows.
 
 	// UserDetailsWidget:
 	virtual void setTextAsNotLoggedIn() override;

@@ -83,6 +83,29 @@ ScriptEditorWindow::ScriptEditorWindow(QWidget* parent, std::string base_dir_pat
 	this->shaderEdit->setTabStopDistance(tab_size);
 
 	cursorPositionLabel->setText(QString());
+
+	// Blocked notice, in the row with the 'Add file as Resource' button.  Hidden until setScriptUIBlockedNotice() shows it.
+	script_ui_blocked_label = new QLabel(this);
+	script_ui_blocked_label->setTextFormat(Qt::RichText);
+	script_ui_blocked_label->setStyleSheet("QLabel { color: rgb(230, 120, 0); }");
+	script_ui_blocked_label->hide();
+	connect(script_ui_blocked_label, &QLabel::linkActivated, this, [this]() { emit unblockScriptUISignal(); });
+	resourcesHorizontalLayout->addWidget(script_ui_blocked_label);
+}
+
+
+void ScriptEditorWindow::setScriptUIBlockedNotice(bool object_blocked, bool creator_blocked, const std::string& creator_name)
+{
+	QString text;
+	if(object_blocked && creator_blocked)
+		text = "You have blocked on-screen items from this object, and from all of " + QtUtils::toQString(creator_name).toHtmlEscaped() + "'s objects.";
+	else if(object_blocked)
+		text = "You have blocked on-screen items from this object.";
+	else if(creator_blocked)
+		text = "You have blocked on-screen items from all of " + QtUtils::toQString(creator_name).toHtmlEscaped() + "'s objects.";
+
+	script_ui_blocked_label->setText(text + " <a href=\"#unblock\">Unblock</a>");
+	script_ui_blocked_label->setVisible(object_blocked || creator_blocked);
 }
 
 

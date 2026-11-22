@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2019 -
 
 class QTimer;
 class QGridLayout;
+class QLabel;
 class ResourceManager;
 
 
@@ -39,12 +40,16 @@ public:
 
 	void setReadOnly(bool read_only); // For when the user doesn't have permission to edit the object.
 
+	// Shows a notice, with an Unblock link, if the user has blocked on-screen items from the object or from all of its creator's objects.  Hides it if neither is blocked.
+	void setScriptUIBlockedNotice(bool object_blocked, bool creator_blocked, const std::string& creator_name);
+
 	void closeWithoutApplying(); // Closes the window without emitting shaderChanged for any unapplied edits.
 
 	ResourceManager* resource_manager; // Used by 'Add file as Resource'.  May be null.
 signals:;
 	void shaderChanged();
 	void openServerScriptLogSignal();
+	void unblockScriptUISignal(); // The Unblock link in the blocked notice was clicked.
 
 private:
 	virtual void keyPressEvent(QKeyEvent* event);
@@ -55,6 +60,7 @@ private:
 	QTimer* syntax_highlight_timer;
 	QTimer* flash_output_timer;
 	ISLSyntaxHighlighter* highlighter;
+	QLabel* script_ui_blocked_label; // See setScriptUIBlockedNotice().
 
 private slots:;
 	void on_shaderEdit_textChanged();

@@ -110,6 +110,12 @@ public:
 //private:
 	void removeScriptUIWidgets(); // Removes any UI widgets the script created (client only).
 
+#if GUI_CLIENT
+	// Called before running a handler for the event.  Sets ui_activated if the event is an interaction of the local user that activates the script's UI.
+	void activateUIForObjectEvent(UID avatar_uid, UID ob_uid, WorldStateLock& world_state_lock); // For use, touch and enter-vehicle events on the object with UID ob_uid.
+	void activateUIForParcelEntry(UID avatar_uid, ParcelID parcel_id, WorldStateLock& world_state_lock);
+#endif
+
 	void pushUserTableOntoStack(lua_State* state, UserID client_user_id);
 	void pushAvatarTableOntoStack(lua_State* state, UID avatar_uid);
 	void pushWorldObjectTableOntoStack(lua_State* state, UID ob_uid); // OLD: Push a table for this->world_object onto Lua stack.
@@ -122,6 +128,15 @@ public:
 
 #if GUI_CLIENT
 	GUIClient* gui_client;
+
+	// The script can only create UI widgets once it has been activated, by the local user interacting with it:
+	// using or touching its object or an object with the same creator, entering a vehicle object like that, or entering a parcel that the creator of the script's object owns,
+	// administers or is a writer of.  See activateUIForObjectEvent() and activateUIForParcelEntry().  Stays true for the lifetime of the script,
+	// and is carried over to the new script when the object's script is reloaded (see GUIClient::loadScriptForObject()).
+	// Scripts in their creator's personal world don't need activating, see isUIActivated().
+	bool ui_activated;
+
+	bool isUIActivated() const; // True if ui_activated is set, or the script's object was created by the owner of the world the client is connected to.
 #endif
 
 #if SERVER

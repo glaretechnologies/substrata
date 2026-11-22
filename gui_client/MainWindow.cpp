@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "ui_MainWindow.h"
 #include "AboutDialog.h"
 #include "ScriptEditorWindow.h"
+#include "LuaScriptUI.h"
 #include "CreateObjectsDialog.h"
 #include "ClientThread.h"
 #include "GoToPositionDialog.h"
@@ -965,6 +966,63 @@ void MainWindow::objectDeleted(UID object_uid)
 	auto res = script_editors.find(object_uid);
 	if(res != script_editors.end())
 		res->second->setWindowTitle(res->second->windowTitle() + " (object deleted)");
+}
+
+
+void MainWindow::scriptUIBlockedListsChanged()
+{
+	for(auto it = script_editors.begin(); it != script_editors.end(); ++it)
+		updateScriptEditorBlockedNotice(it->first, it->second);
+}
+
+
+UserID MainWindow::getObjectCreatorID(UID ob_uid)
+{
+	UserID creator_id = UserID::invalidUserID();
+	if(gui_client.world_state)
+	{
+		WorldStateLock lock(gui_client.world_state->mutex);
+		auto res = gui_client.world_state->objects.find(ob_uid);
+		if(res != gui_client.world_state->objects.end())
+			creator_id = res.getValue()->creator_id;
+	}
+	return creator_id;
+}
+
+
+void MainWindow::updateScriptEditorBlockedNotice(UID ob_uid, ScriptEditorWindow* editor)
+{
+	bool object_blocked = false;
+	bool creator_blocked = false;
+	std::string creator_name;
+	if(gui_client.lua_script_ui)
+	{
+		object_blocked = gui_client.lua_script_ui->getHiddenObjects().count(ob_uid) > 0;
+
+		const auto& hidden_creators = gui_client.lua_script_ui->getHiddenCreators();
+		auto res = hidden_creators.find(getObjectCreatorID(ob_uid));
+		if(res != hidden_creators.end())
+		{
+			creator_blocked = true;
+			creator_name = res->second.creator_name;
+		}
+	}
+
+	editor->setScriptUIBlockedNotice(object_blocked, creator_blocked, creator_name);
+}
+
+
+void MainWindow::unblockScriptUIForObject(UID ob_uid)
+{
+	if(gui_client.lua_script_ui)
+	{
+		if(gui_client.lua_script_ui->getHiddenObjects().count(ob_uid) > 0)
+			gui_client.lua_script_ui->unhideUIForObject(ob_uid);
+
+		const UserID creator_id = getObjectCreatorID(ob_uid);
+		if(gui_client.lua_script_ui->getHiddenCreators().count(creator_id) > 0)
+			gui_client.lua_script_ui->unhideUIForCreator(creator_id);
+	}
 }
 
 
@@ -4350,9 +4408,12 @@ void MainWindow::openScriptEditorSlot()
 
 	connect(editor, &ScriptEditorWindow::shaderChanged, this, [this, ob_uid, editor]() { scriptChangedInEditor(ob_uid, editor); });
 	connect(editor, &ScriptEditorWindow::openServerScriptLogSignal, this, &MainWindow::openServerScriptLogSlot);
+	connect(editor, &ScriptEditorWindow::unblockScriptUISignal, this, [this, ob_uid]() { unblockScriptUIForObject(ob_uid); });
 	connect(editor, &QObject::destroyed, this, [this, ob_uid]() { script_editors.erase(ob_uid); });
 
 	script_editors[ob_uid] = editor;
+
+	updateScriptEditorBlockedNotice(ob_uid, editor);
 
 	editor->show();
 	editor->raise();

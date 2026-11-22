@@ -999,6 +999,9 @@ void LuaScriptUI::hiddenListsChanged()
 {
 	if(hidden_script_ui)
 		hidden_script_ui->listChanged();
+
+	if(gui_client->ui_interface)
+		gui_client->ui_interface->scriptUIBlockedListsChanged();
 }
 
 
