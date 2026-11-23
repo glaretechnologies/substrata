@@ -9,6 +9,11 @@
 		<fragment_path>example_luau_scripts.htmlfrag</fragment_path>
 		<page_title>Example Luau scripts</page_title>
 	</page>
+	<page>
+		<url_path>/luau_ui_scripting</url_path>
+		<fragment_path>luau_ui_scripting.htmlfrag</fragment_path>
+		<page_title>User Interface Scripting in Luau</page_title>
+	</page>
 	
 	<page>
 		<url_path>/features</url_path>

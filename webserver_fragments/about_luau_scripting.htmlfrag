@@ -45,7 +45,7 @@ To apply changes in your script to the object, just close the script editor wind
 <h2 id="resources">Declaring resources</h2>
 
 <p>
-If your script uses resource files, such as sounds played with <a href="#playSound">playSound</a>, you need to declare them in the script's comment header,
+If your script uses resource files, such as sounds played with <a href="#playSound">playSound</a>, or images shown with <a href="/luau_ui_scripting#createUIImage">createUIImage</a>, you need to declare them in the script's comment header,
 with one <b>-- @resource</b> line per resource:
 </p>
 
@@ -584,6 +584,14 @@ num_visits = objectstorage.getItem("num_visits")
 
 
 
+<h2 id="ui">User interface</h2>
+
+<p>
+Scripts can show buttons, sliders, labels, windows and other items on the user's screen, with functions such as createUIButton and createUIWindow.
+See <a href="/luau_ui_scripting">User Interface scripting in Luau</a>.
+</p>
+
+
 <h2>Global variables</h2>
 
 
@@ -795,6 +803,11 @@ This is approximately the position of the eyes of the avatar for a standard avat
 <h2>Examples</h2>
 
 <a href="/example_luau_scripts">Luau scripting examples</a>
+
+
+<h2>See also</h2>
+
+<a href="/luau_ui_scripting">User Interface scripting in Luau</a>
 
 
 <br/><br/>

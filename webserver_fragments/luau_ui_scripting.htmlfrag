@@ -1,0 +1,460 @@
+
+
+<p>
+<a href="/about_luau_scripting">Luau scripts</a> can show UI widgets, such as buttons, sliders, labels and windows, on the user's screen, over the 3D view.
+</p>
+
+
+<h2>When UI widgets can be created</h2>
+
+<p>
+So that scripts can't pop up widgets on the screen of everyone who comes near, a script can only create UI widgets after the user has interacted with it.
+A script is activated for the user when the user:
+</p>
+<ul>
+<li>uses the script's object (onUserUsedObject),</li>
+<li>touches the script's object (onUserTouchedObject),</li>
+<li>enters the script's object as a vehicle (onUserEnteredVehicle),</li>
+<li>or enters a parcel that the script's object is in, if the creator of the object is the owner, an admin or a writer of the parcel (onUserEnteredParcel).</li>
+</ul>
+<p>
+Events on other objects listened to with addEventListener also activate the script, if the other object was created by the same user as the script's object.
+</p>
+<p>
+Once activated, the script stays activated, including when the script is reloaded.  Scripts in their creator's personal world are always activated.
+</p>
+<p>
+Calling a createUI function before the script is activated raises an error.  So create your UI widgets in an event handler, for example:
+</p>
+
+<pre class="code-block">
+--lua
+
+local button = nil
+
+function onUserUsedObject(av : Avatar, ob : Object)
+	if button then
+		button.visible = true
+	else
+		button = createUIButton({ text = "Close me", anchor = "bottom", offset = Vec2(0, 100),
+			onClick = function() button.visible = false end })
+	end
+end
+</pre>
+
+<p>
+The error can be caught with pcall, if you want to handle it yourself.
+</p>
+
+
+<h2>Blocking</h2>
+
+<p>
+Users can right-click a widget (or long-press it on a touch screen) and choose "Block on-screen items from this object", or block widgets from all objects created by the same user.
+For a blocked script, the createUI functions don't raise an error, but return handles that do nothing, so the script keeps running as normal.
+</p>
+<p>
+Users can see and unblock the widgets they have blocked with the blocked on-screen items button on the right edge of the screen.
+If you have blocked widgets from your own object, the script editor window shows a notice, with a link to unblock them.
+</p>
+
+
+<h2>Client and server</h2>
+
+<p>
+UI widgets only exist on the client.  On the server the createUI functions return handles that do nothing, so a script that runs on both doesn't need to check IS_CLIENT around its UI code.
+</p>
+<p>
+Callback functions such as onClick and onChange run only on the client of the user who clicked or changed the widget, not on the server.
+</p>
+
+
+<h2>Layout</h2>
+
+<p>
+Each createUI function takes a single table of parameters.  Most widgets take these parameters:
+</p>
+
+<div class="code-arg"><span class="code-arg-code">anchor : string</span><span class="code-arg-descrip">The point of the screen the widget is placed relative to.  One of "top-left", "top", "top-right", "left", "centre", "right", "bottom-left", "bottom", "bottom-right".  Default "centre".</span></div>
+<div class="code-arg"><span class="code-arg-code">offset : Vec2</span><span class="code-arg-descrip">Offset of the widget from the anchor point, in pixels.  +x is right, +y is up.  Default Vec2(0, 0).</span></div>
+<div class="code-arg"><span class="code-arg-code">visible : boolean</span><span class="code-arg-descrip">Default true.</span></div>
+<div class="code-arg"><span class="code-arg-code">tooltip : string</span><span class="code-arg-descrip">Text shown when the mouse is held over the widget.  At most 200 bytes, on a single line (newlines are shown as spaces).
+The tooltip also always has a second line saying which object and user the widget is from.  Default "" (only that line).</span></div>
+
+<p>
+To lay out several widgets together, put them in a grid with grid:setCell(), and optionally put the grid in a window with window:setBody().
+A widget in a grid or window is positioned by the grid or window, and its own anchor and offset are not used.
+Grids can be nested.  Windows can't be put in grids or windows.
+</p>
+<p>
+Positions and sizes are Vec2 values, e.g. Vec2(20, -20).  A table with x and y fields, like {x=20, y=-20}, also works.
+</p>
+<p>
+Unknown parameter names are reported as warnings in the log, so you can find misspelt parameters.
+</p>
+<p>
+A script can create up to 1000 widgets.
+</p>
+
+
+<h2>Functions</h2>
+
+<p>
+The examples below create their widgets when the user uses the object, so using the object again creates the widgets again.
+To create widgets only once, keep the handle in a variable, as in the example at the top of the page.
+</p>
+
+<div class="code-func-definition" id="createUIImage">createUIImage(params : table) : UIWidget</div>
+
+<div class="code-arg"><span class="code-arg-code">image_url : string</span><span class="code-arg-descrip">The image to show.  Must be declared in the script's comment header, see <a href="/about_luau_scripting#resources">Declaring resources</a>.</span></div>
+<div class="code-arg"><span class="code-arg-code">size : Vec2</span><span class="code-arg-descrip">Size in pixels.  Default Vec2(128, 128).</span></div>
+
+<div class="code-func-description">
+Creates an image.  The image is shown once it has downloaded and loaded.
+<p>For example, to show an image in the top-right corner of the screen:</p>
+<pre class="code-block">
+--lua
+-- @resource logo.png
+
+function onUserUsedObject(av : Avatar, ob : Object)
+	createUIImage({ image_url = "logo.png", size = Vec2(64, 64), anchor = "top-right", offset = Vec2(-20, -20) })
+end
+</pre>
+<img src="/files/luau_ui_image.png" />
+</div>
+
+
+<div class="code-func-definition" id="createUIButton">createUIButton(params : table) : UIWidget</div>
+
+<div class="code-arg"><span class="code-arg-code">text : string</span><span class="code-arg-descrip">Text shown on the button.  Either text or image_url must be given, but not both.</span></div>
+<div class="code-arg"><span class="code-arg-code">image_url : string</span><span class="code-arg-descrip">Image shown on the button.  Must be declared in the script's comment header.</span></div>
+<div class="code-arg"><span class="code-arg-code">size : Vec2</span><span class="code-arg-descrip">Size in pixels, for image buttons.  Default Vec2(32, 32).</span></div>
+<div class="code-arg"><span class="code-arg-code">onClick : function</span><span class="code-arg-descrip">Called with no arguments when the button is clicked.  Optional.</span></div>
+
+<div class="code-func-description">
+Creates a button with text or an image.
+<p>For example:</p>
+<pre class="code-block">
+--lua
+
+function onUserUsedObject(av : Avatar, ob : Object)
+	createUIButton({ text = "Say hello", anchor = "bottom", offset = Vec2(0, 100), tooltip = "Shows a greeting",
+		onClick = function() showMessage("Hello!") end })
+end
+</pre>
+<img src="/files/luau_ui_button.png" />
+</div>
+
+
+<div class="code-func-definition" id="createUILabel">createUILabel(params : table) : UIWidget</div>
+
+<div class="code-arg"><span class="code-arg-code">text : string</span><span class="code-arg-descrip">The text.  Can contain newlines.</span></div>
+<div class="code-arg"><span class="code-arg-code">text_colour : Vec3f</span><span class="code-arg-descrip">Non-linear sRGB colour, components between 0 and 1.  Default Vec3f(1, 1, 1).</span></div>
+<div class="code-arg"><span class="code-arg-code">font_size : number</span><span class="code-arg-descrip">In pixels, between 6 and 100.  Default is the default UI font size.</span></div>
+<div class="code-arg"><span class="code-arg-code">background_colour : Vec3f</span><span class="code-arg-descrip">Non-linear sRGB colour.  Default Vec3f(0, 0, 0).</span></div>
+<div class="code-arg"><span class="code-arg-code">background_alpha : number</span><span class="code-arg-descrip">Between 0 and 1.  Default 0 (no background).</span></div>
+<div class="code-arg"><span class="code-arg-code">size : Vec2</span><span class="code-arg-descrip">Minimum size in pixels.  The label is made bigger if needed to fit the text.
+An empty label with a size and a background is a plain rectangle of exactly that size.  Default Vec2(0, 0): fit the text.</span></div>
+
+<div class="code-func-description">
+Creates a text label.
+<p>For example, to show some text on a semi-transparent background at the top of the screen:</p>
+<pre class="code-block">
+--lua
+
+function onUserUsedObject(av : Avatar, ob : Object)
+	createUILabel({ text = "Welcome to my house!\nUse the door to open it.", font_size = 20,
+		background_alpha = 0.5, anchor = "top", offset = Vec2(0, -50) })
+end
+</pre>
+<img src="/files/luau_ui_label.png" />
+</div>
+
+
+<div class="code-func-definition" id="createUISlider">createUISlider(params : table) : UIWidget</div>
+
+<div class="code-arg"><span class="code-arg-code">min : number</span><span class="code-arg-descrip">Default 0.</span></div>
+<div class="code-arg"><span class="code-arg-code">max : number</span><span class="code-arg-descrip">Default 1.</span></div>
+<div class="code-arg"><span class="code-arg-code">value : number</span><span class="code-arg-descrip">Initial value, clamped to between min and max.  Default min.</span></div>
+<div class="code-arg"><span class="code-arg-code">onChange : function</span><span class="code-arg-descrip">Called with the new value when the user changes the value.  Optional.</span></div>
+<div class="code-arg"><span class="code-arg-code">width : number</span><span class="code-arg-descrip">Width in pixels.  Default 200.</span></div>
+
+<div class="code-func-description">
+Creates a horizontal slider.
+<p>For example, a slider with a label above it showing the value:</p>
+<pre class="code-block">
+--lua
+
+function onUserUsedObject(av : Avatar, ob : Object)
+	local label = createUILabel({ text = "Brightness: 0.50", anchor = "bottom", offset = Vec2(0, 140) })
+	createUISlider({ min = 0, max = 1, value = 0.5, anchor = "bottom", offset = Vec2(0, 100),
+		onChange = function(value) label.text = string.format("Brightness: %.2f", value) end })
+end
+</pre>
+<img src="/files/luau_ui_slider.png" />
+</div>
+
+
+<div class="code-func-definition" id="createUISpinBox">createUISpinBox(params : table) : UIWidget</div>
+
+<div class="code-arg"><span class="code-arg-code">min : number</span><span class="code-arg-descrip">Default 0.</span></div>
+<div class="code-arg"><span class="code-arg-code">max : number</span><span class="code-arg-descrip">Default 100.</span></div>
+<div class="code-arg"><span class="code-arg-code">value : number</span><span class="code-arg-descrip">Initial value, clamped to between min and max.  Default min.</span></div>
+<div class="code-arg"><span class="code-arg-code">step : number</span><span class="code-arg-descrip">Amount the arrow buttons change the value by.  Default 1.</span></div>
+<div class="code-arg"><span class="code-arg-code">decimals : number</span><span class="code-arg-descrip">Number of decimal places shown, between 0 and 10.  Default 3.</span></div>
+<div class="code-arg"><span class="code-arg-code">onChange : function</span><span class="code-arg-descrip">Called with the new value when the user changes the value.  Optional.</span></div>
+<div class="code-arg"><span class="code-arg-code">width : number</span><span class="code-arg-descrip">Width in pixels.  Default 100.</span></div>
+
+<div class="code-func-description">
+Creates a number box with up and down arrow buttons.
+<p>For example, a whole-number spin box:</p>
+<pre class="code-block">
+--lua
+
+function onUserUsedObject(av : Avatar, ob : Object)
+	createUISpinBox({ min = 1, max = 10, value = 3, step = 1, decimals = 0,
+		onChange = function(value) showMessage("Number of balls: " .. value) end })
+end
+</pre>
+<img src="/files/luau_ui_spinbox.png" />
+</div>
+
+
+<div class="code-func-definition" id="createUICheckBox">createUICheckBox(params : table) : UIWidget</div>
+
+<div class="code-arg"><span class="code-arg-code">checked : boolean</span><span class="code-arg-descrip">Initial state.  Default false.</span></div>
+<div class="code-arg"><span class="code-arg-code">onChange : function</span><span class="code-arg-descrip">Called with the new state (a boolean) when the user toggles the checkbox.  Optional.</span></div>
+
+<div class="code-func-description">
+Creates a checkbox.
+<p>For example, a checkbox with a label next to it:</p>
+<pre class="code-block">
+--lua
+
+function onUserUsedObject(av : Avatar, ob : Object)
+	createUILabel({ text = "Music", anchor = "bottom", offset = Vec2(-30, 100) })
+	createUICheckBox({ checked = true, anchor = "bottom", offset = Vec2(20, 100),
+		onChange = function(checked) showMessage(checked and "Music on" or "Music off") end })
+end
+</pre>
+<img src="/files/luau_ui_checkbox.png" />
+</div>
+
+
+<div class="code-func-definition" id="createUIDropDown">createUIDropDown(params : table) : UIWidget</div>
+
+<div class="code-arg"><span class="code-arg-code">options : table</span><span class="code-arg-descrip">List of strings, e.g. {"Low", "Medium", "High"}.  Between 1 and 100 options, each at most 200 bytes.</span></div>
+<div class="code-arg"><span class="code-arg-code">value : string</span><span class="code-arg-descrip">Initially selected option.  Default is the first option.</span></div>
+<div class="code-arg"><span class="code-arg-code">onChange : function</span><span class="code-arg-descrip">Called with the newly selected option (a string) when the user changes the selection.  Optional.</span></div>
+<div class="code-arg"><span class="code-arg-code">width : number</span><span class="code-arg-descrip">Width in pixels.  Default 150.</span></div>
+
+<div class="code-func-description">
+Creates a drop-down list.
+<p>For example:</p>
+<pre class="code-block">
+--lua
+
+function onUserUsedObject(av : Avatar, ob : Object)
+	createUIDropDown({ options = {"Red", "Green", "Blue"}, value = "Green",
+		onChange = function(value) showMessage("You chose " .. value) end })
+end
+</pre>
+<img src="/files/luau_ui_dropdown.png" />
+</div>
+
+
+<div class="code-func-definition" id="createUILineEdit">createUILineEdit(params : table) : UIWidget</div>
+
+<div class="code-arg"><span class="code-arg-code">text : string</span><span class="code-arg-descrip">Initial text.  Default "".</span></div>
+<div class="code-arg"><span class="code-arg-code">onChange : function</span><span class="code-arg-descrip">Called with the new text when the user changes the text.  Optional.</span></div>
+<div class="code-arg"><span class="code-arg-code">onEnter : function</span><span class="code-arg-descrip">Called with the text when the user presses enter.  Optional.</span></div>
+<div class="code-arg"><span class="code-arg-code">width : number</span><span class="code-arg-descrip">Width in pixels.  Default 200.</span></div>
+
+<div class="code-func-description">
+Creates a single-line text box.
+<p>For example, a text box that greets the user when they press enter:</p>
+<pre class="code-block">
+--lua
+
+function onUserUsedObject(av : Avatar, ob : Object)
+	createUILineEdit({ width = 200,
+		onEnter = function(text) showMessage("Hello, " .. text) end })
+end
+</pre>
+<img src="/files/luau_ui_lineedit.png" />
+</div>
+
+
+<div class="code-func-definition" id="createUIGrid">createUIGrid(params : table) : UIWidget</div>
+
+<div class="code-arg"><span class="code-arg-code">background_colour : Vec3f</span><span class="code-arg-descrip">Non-linear sRGB colour.  Default Vec3f(0.1, 0.1, 0.1).</span></div>
+<div class="code-arg"><span class="code-arg-code">background_alpha : number</span><span class="code-arg-descrip">Between 0 and 1.  Default 0 (no background).  If greater than 0, clicks on the background don't go through to the world.</span></div>
+<div class="code-arg"><span class="code-arg-code">interior_padding : number</span><span class="code-arg-descrip">Padding in pixels on each cell side that faces another cell, so the gap between adjacent cells is twice this.  Default 5.</span></div>
+<div class="code-arg"><span class="code-arg-code">edge_padding : number</span><span class="code-arg-descrip">Padding in pixels on each cell side that faces the edge of the grid.  Default 10.</span></div>
+
+<div class="code-func-description">
+Creates a grid, for laying out other widgets in rows and columns.  Add widgets with grid:setCell() or grid:addRow().  A grid has at most 32 rows and 32 columns.
+<p>For example, a label and a text box side by side, with an OK button underneath that hides the grid:</p>
+<pre class="code-block">
+--lua
+
+function onUserUsedObject(av : Avatar, ob : Object)
+	local grid = createUIGrid({ background_alpha = 0.7, anchor = "left", offset = Vec2(20, 0) })
+	local name_edit = createUILineEdit({ width = 150 })
+	grid:setCell(1, 1, createUILabel({ text = "Name:" }))
+	grid:setCell(2, 1, name_edit)
+	grid:addRow(createUIButton({ text = "OK",
+		onClick = function()
+			showMessage("Hello, " .. name_edit.text)
+			grid.visible = false
+		end }))
+end
+</pre>
+<img src="/files/luau_ui_grid.png" />
+</div>
+
+
+<div class="code-func-definition" id="createUIWindow">createUIWindow(params : table) : UIWidget</div>
+
+<div class="code-arg"><span class="code-arg-code">title : string</span><span class="code-arg-descrip">Default "".</span></div>
+<div class="code-arg"><span class="code-arg-code">background_colour : Vec3f</span><span class="code-arg-descrip">Non-linear sRGB colour.  Default Vec3f(0.1, 0.1, 0.1).</span></div>
+<div class="code-arg"><span class="code-arg-code">background_alpha : number</span><span class="code-arg-descrip">Between 0 and 1.  Default 0.9.</span></div>
+<div class="code-arg"><span class="code-arg-code">padding : number</span><span class="code-arg-descrip">Padding around the window contents, in pixels, between 0 and 100.  Default 10.</span></div>
+<div class="code-arg"><span class="code-arg-code">onClose : function</span><span class="code-arg-descrip">Called with no arguments after the user clicks the close button.  Optional.</span></div>
+
+<div class="code-func-description">
+Creates a window with a title bar and a close button.  Set its contents with window:setBody(), usually with a grid.
+The close button hides the window.  Show it again by setting window.visible = true.
+<p>For example, a window containing a label:</p>
+<pre class="code-block">
+--lua
+
+function onUserUsedObject(av : Avatar, ob : Object)
+	local window = createUIWindow({ title = "Info", anchor = "top-left", offset = Vec2(20, -20),
+		onClose = function() showMessage("Window closed") end })
+	window:setBody(createUILabel({ text = "Close this window with the close button." }))
+end
+</pre>
+<img src="/files/luau_ui_window.png" />
+</div>
+
+
+<h2>UIWidget</h2>
+
+<p>
+The handle returned by the createUI functions.
+</p>
+
+<p>
+Attributes:
+</p>
+
+<div class="code-attr"><span class="code-attr-code">visible : boolean</span><span class="code-attr-descrip">Is the widget shown?  A widget in a grid or window is only shown if the grid or window is shown too.</span></div>
+<div class="code-attr"><span class="code-attr-code">offset : Vec2</span><span class="code-attr-descrip">Offset of the widget from its anchor point, in pixels.  Has no visible effect while the widget is in a grid or window.</span></div>
+<div class="code-attr"><span class="code-attr-code">text : string</span><span class="code-attr-descrip">The text of a text button, label or line edit.  Can only be read for line edits.</span></div>
+<div class="code-attr"><span class="code-attr-code">value : number or string</span><span class="code-attr-descrip">The value of a slider or spin box (a number), or the selected option of a drop-down list (a string).</span></div>
+<div class="code-attr"><span class="code-attr-code">checked : boolean</span><span class="code-attr-descrip">The state of a checkbox.</span></div>
+<div class="code-attr"><span class="code-attr-code">tooltip : string</span><span class="code-attr-descrip">The widget's tooltip text, see the tooltip parameter above.</span></div>
+
+<p>
+Setting text, value or checked from the script doesn't call the widget's onChange function.
+</p>
+
+<p>
+Methods:
+</p>
+
+<div class="code-attr"><span class="code-attr-code">destroy()</span><span class="code-attr-descrip">Removes the widget.  Destroying a grid or window also destroys the widgets in it.
+Widgets are also removed when the script is reloaded or its object is removed.</span></div>
+<div class="code-attr"><span class="code-attr-code">setCell(column : number, row : number, widget : UIWidget)</span><span class="code-attr-descrip">For grids.  Puts the widget in the cell.  Column and row start at 1, and (1, 1) is the top-left cell.
+If widget is nil, clears the cell.  A widget removed from a grid goes back to being positioned by its own anchor and offset.</span></div>
+<div class="code-attr"><span class="code-attr-code">addRow(widget : UIWidget)</span><span class="code-attr-descrip">For grids.  Puts the widget in the first column of a new row at the bottom of the grid.</span></div>
+<div class="code-attr"><span class="code-attr-code">setBody(widget : UIWidget)</span><span class="code-attr-descrip">For windows.  Makes the widget the contents of the window.  If widget is nil, removes the current contents.</span></div>
+
+
+<h2>Example</h2>
+
+<p>
+This script shows a settings window with one of each kind of widget when the user uses the object.
+</p>
+
+<pre class="code-block">
+--lua
+-- @resource 67e_jpg_12057920870970093540.jpg
+-- @resource microphone_png_2695896580343548136.png
+
+local window = nil -- Created the first time the user uses the object.
+
+local function createSettingsWindow()
+	window = createUIWindow({ title = "Settings", anchor = "top-left", offset = Vec2(20, -20),
+		onClose = function() print("Window closed") end })
+
+	local grid = createUIGrid({ interior_padding = 5, edge_padding = 0 })
+	window:setBody(grid)
+
+	local title = createUILabel({ text = "Options", text_colour = Vec3f(1, 0.9, 0.2), font_size = 18 })
+	local cat = createUIImage({ image_url = "67e_jpg_12057920870970093540.jpg", size = Vec2(64, 64) })
+	grid:setCell(1, 1, title)
+	grid:setCell(2, 1, cat)
+
+	local volume_label = createUILabel({ text = "Volume: 0.5" })
+	local volume_slider = createUISlider({ min = 0, max = 1, value = 0.5, width = 150,
+		onChange = function(value) volume_label.text = string.format("Volume: %.2f", value) end })
+	grid:setCell(1, 2, volume_label)
+	grid:setCell(2, 2, volume_slider)
+
+	local lights_label = createUILabel({ text = "Lights on" })
+	local lights_checkbox = createUICheckBox({ checked = true,
+		onChange = function(checked) lights_label.text = checked and "Lights on" or "Lights off" end })
+	grid:setCell(1, 3, lights_label)
+	grid:setCell(2, 3, lights_checkbox)
+
+	local quality_label = createUILabel({ text = "Quality: Medium" })
+	local quality_dropdown = createUIDropDown({ options = {"Low", "Medium", "High"}, value = "Medium", width = 120,
+		onChange = function(value) quality_label.text = "Quality: " .. value end })
+	grid:setCell(1, 4, quality_label)
+	grid:setCell(2, 4, quality_dropdown)
+
+	local name_label = createUILabel({ text = "Name:" })
+	local name_edit = createUILineEdit({ text = "", width = 150,
+		onEnter = function(text) showMessage("Hello, " .. text) end })
+	grid:setCell(1, 5, name_label)
+	grid:setCell(2, 5, name_edit)
+
+	local count_label = createUILabel({ text = "Count:" })
+	local count_spinbox = createUISpinBox({ min = 1, max = 10, value = 3, step = 1, decimals = 0, width = 80,
+		onChange = function(value) print("Count is now " .. value) end })
+	grid:setCell(1, 6, count_label)
+	grid:setCell(2, 6, count_spinbox)
+
+	local reset_button = createUIButton({ text = "Reset",
+		onClick = function()
+			volume_slider.value = 0.5 -- Setting value or checked doesn't call onChange, so update the labels as well.
+			volume_label.text = "Volume: 0.50"
+			lights_checkbox.checked = true
+			lights_label.text = "Lights on"
+			quality_dropdown.value = "Medium"
+			quality_label.text = "Quality: Medium"
+			name_edit.text = ""
+			count_spinbox.value = 3
+		end })
+	grid:addRow(reset_button) -- Puts the button in column 1 of a new row at the bottom.
+
+	local mic_button = createUIButton({ image_url = "microphone_png_2695896580343548136.png", size = Vec2(24, 24),
+		onClick = function() cat.visible = not cat.visible end })
+	grid:setCell(2, 7, mic_button) -- Next to the reset button.
+end
+
+function onUserUsedObject(av : Avatar, ob : Object)
+	if window then
+		window.visible = true -- Show the window again if it was closed.
+	else
+		createSettingsWindow()
+	end
+end
+</pre>
+<img src="/files/luau_ui_example.png" />
+
+
+<br/><br/>
+<a href="/about_luau_scripting">&lt; Luau scripting</a>
