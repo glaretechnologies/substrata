@@ -2157,7 +2157,7 @@ void GUIClient::createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix,
 {
 	ZoneScoped; // Tracy profiler
 
-	Rect2f rect_os;
+	Rect2f rect_os, line_box_rect_os;
 	OpenGLTextureRef atlas_texture;
 
 	const std::string use_text = ob->content.empty() ? " " : UTF8Utils::sanitiseUTF8String(ob->content);
@@ -2166,7 +2166,9 @@ void GUIClient::createGLAndPhysicsObsForText(const Matrix4f& ob_to_world_matrix,
 
 	std::vector<GLUIText::CharPositionInfo> char_positions_font_coords;
 	Reference<OpenGLMeshRenderData> meshdata = GLUIText::makeMeshDataForText(opengl_engine.ptr(), gl_ui->font_char_text_cache.ptr(), gl_ui->getFonts(), gl_ui->getEmojiFonts(), use_text, 
-		/*font size px=*/font_size_px, /*vert_pos_scale=*/(1.f / font_size_px), /*render SDF=*/true, this->stack_allocator, rect_os, atlas_texture, char_positions_font_coords);
+		/*font size px=*/font_size_px, 
+		/*line spacing px=*/font_size_px * 1.2f, // Not the font's line height, so that existing multi-line text objects in the world keep their layout.
+		/*vert_pos_scale=*/(1.f / font_size_px), /*render SDF=*/true, this->stack_allocator, rect_os, line_box_rect_os, atlas_texture, char_positions_font_coords);
 
 	// We will make a physics object that has the same dimensions in object space as the text mesh vertices.  This means we can use the same pos, rot and scale
 	// for the physics object as for the opengl object.
@@ -15828,10 +15830,12 @@ void GUIClient::createPathControlledPathVisObjects(const WorldObject& ob)
 					const std::string use_text = "Waypoint " + toString(i);
 
 					std::vector<GLUIText::CharPositionInfo> char_positions_font_coords;
-					Rect2f rect_os;
+					Rect2f rect_os, line_box_rect_os;
 					OpenGLTextureRef atlas_texture;
 					Reference<OpenGLMeshRenderData> meshdata = GLUIText::makeMeshDataForText(opengl_engine.ptr(), gl_ui->font_char_text_cache.ptr(), gl_ui->getFonts(), gl_ui->getEmojiFonts(), use_text, 
-						/*font size px=*/font_size_px, /*vert_pos_scale=*/(1.f / font_size_px), /*render SDF=*/true, this->stack_allocator, rect_os, atlas_texture, char_positions_font_coords);
+						/*font size px=*/font_size_px, 
+						/*line spacing px=*/font_size_px * 1.2f, // Not the font's line height, so that existing multi-line text objects in the world keep their layout
+						/*vert_pos_scale=*/(1.f / font_size_px), /*render SDF=*/true, this->stack_allocator, rect_os, line_box_rect_os, atlas_texture, char_positions_font_coords);
 
 					GLObjectRef opengl_ob = opengl_engine->allocateObject();
 					opengl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(begin_pos) * Matrix4f::uniformScaleMatrix(half_w);
