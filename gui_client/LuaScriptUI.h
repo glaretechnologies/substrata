@@ -92,6 +92,8 @@ public:
 	URLString image_URL; // For images and image buttons.
 	bool image_texture_assigned;
 
+	std::string script_tooltip; // Tooltip set by the script, shown above the line saying which object the widget is from.  Empty if none.
+
 	bool visible; // Visibility requested by the script.  The widget is not drawn while LuaScriptUI is hidden, and an image is not drawn until its texture has loaded, regardless of this.
 
 	LuaVM::LuaValueRef callback_ref; // Reference to the Lua onClick function for buttons, onClose function for windows, or onChange function for other widgets.  LUA_NOREF if none.
@@ -172,6 +174,7 @@ public:
 	void setWidgetText(LuaScriptUIWidget& widget, const std::string& text); // For buttons, labels and line edits.  Doesn't call onChange.
 	void setNumberValue(LuaScriptUIWidget& widget, double value); // For sliders and spin boxes.  Clamps to the range.  Doesn't call onChange.
 	void setCheckBoxChecked(LuaScriptUIWidget& widget, bool checked); // Doesn't call onChange.
+	void setWidgetTooltip(LuaScriptUIWidget& widget, const std::string& tooltip); // Newlines are replaced with spaces, so the tooltip is a single line above the line saying which object the widget is from.
 	void setDropDownValue(LuaScriptUIWidget& widget, const std::string& value); // Doesn't call onChange.  Throws glare::Exception if value is not one of the options.
 
 	// Puts child in the given cell of the grid (0-based, (0, 0) is the top-left cell), removing it from any grid it was in first.
@@ -231,6 +234,7 @@ public:
 
 private:
 	void addWidget(const LuaScriptUIWidgetRef& widget); // Sets the widget's tooltip and handler, and adds it to the widgets map.
+	std::string makeWidgetTooltip(const LuaScriptUIWidget& widget) const; // The script's tooltip, if any, then a line saying which object the widget is from.
 	size_t numWidgetsForScript(SubstrataLuaScript* sub_lua_script) const;
 	LuaScriptUIWidget* getParent(const LuaScriptUIWidget& widget); // Returns the grid or window containing the widget, or NULL.
 	LuaScriptUIWidget& getRootWidget(LuaScriptUIWidget& widget); // Returns the outermost grid or window containing the widget, or the widget itself if it is not in one.

@@ -39,6 +39,8 @@ static const bool ENABLE_SCRIPT_UI = true;
 
 static const size_t MAX_UI_TEXT_SIZE = 1000;
 
+static const size_t MAX_UI_TOOLTIP_SIZE = 200;
+
 static const int MAX_UI_GRID_SIZE = 32; // Max number of rows and of columns in a grid.  Same as LuaScriptUI::MAX_GRID_SIZE.
 
 static const int MAX_UI_DROPDOWN_NUM_OPTIONS = 100;
@@ -140,6 +142,31 @@ static std::string getUITextTableField(lua_State* state, int table_index, const 
 }
 
 
+// Reads the optional tooltip field, which all widget creation functions take.  Default "" (no tooltip from the script).
+// The tooltip shown is this text, then a line saying which object the widget is from, see LuaScriptUI::makeWidgetTooltip().
+static std::string getUITooltipTableField(lua_State* state, int table_index)
+{
+	const std::string tooltip = LuaUtils::getTableStringFieldWithEmptyDefault(state, table_index, "tooltip");
+	if(tooltip.size() > MAX_UI_TOOLTIP_SIZE)
+		throw glare::Exception("Field 'tooltip' is too long (max " + toString(MAX_UI_TOOLTIP_SIZE) + " bytes)" + errorContextString(state));
+	return tooltip;
+}
+
+
+// Sets the tooltip of a newly created widget, if the script gave one.  Does nothing for dummy widgets, or on the server.
+static void setUIWidgetTooltip([[maybe_unused]] SubstrataLuaScript* sub_lua_script, [[maybe_unused]] int widget_id, [[maybe_unused]] const std::string& tooltip)
+{
+#if GUI_CLIENT
+	if(!tooltip.empty() && sub_lua_script->gui_client->lua_script_ui)
+	{
+		LuaScriptUIWidget* widget = sub_lua_script->gui_client->lua_script_ui->getWidget(sub_lua_script, widget_id);
+		if(widget)
+			sub_lua_script->gui_client->lua_script_ui->setWidgetTooltip(*widget, tooltip);
+	}
+#endif
+}
+
+
 // Pushes a handle table { id = widget_id } with the widget handle metatable.
 static void pushUIWidgetHandle(SubstrataLuaScript* sub_lua_script, lua_State* state, int widget_id)
 {
@@ -214,7 +241,8 @@ static int createUIImage(lua_State* state)
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIImage", { "image_url", "size", "anchor", "offset", "visible" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIImage", { "image_url", "size", "anchor", "offset", "visible", "tooltip" });
+	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	const std::string image_URL = LuaUtils::getTableStringField(state, /*table index=*/1, "image_url");
 	const Vec2f size_px   = getUIVec2fTableField(state, /*table index=*/1, "size", /*default=*/Vec2f(128.f), /*max abs val=*/4096.f);
@@ -237,6 +265,8 @@ static int createUIImage(lua_State* state)
 		widget_id = sub_lua_script->gui_client->lua_script_ui->createImage(sub_lua_script, toURLString(image_URL), anchor, offset_px, size_px, visible);
 #endif
 
+	setUIWidgetTooltip(sub_lua_script, widget_id, tooltip);
+
 	pushUIWidgetHandle(sub_lua_script, state, widget_id); // Push handle table
 	return 1; // Count of returned values
 }
@@ -256,7 +286,8 @@ static int createUIButton(lua_State* state)
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIButton", { "text", "image_url", "size", "onClick", "anchor", "offset", "visible" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIButton", { "text", "image_url", "size", "onClick", "anchor", "offset", "visible", "tooltip" });
+	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	lua_getfield(state, /*table index=*/1, "text"); // Push text field
 	const bool has_text = !lua_isnil(state, -1);
@@ -306,6 +337,8 @@ static int createUIButton(lua_State* state)
 	}
 #endif
 
+	setUIWidgetTooltip(sub_lua_script, widget_id, tooltip);
+
 	pushUIWidgetHandle(sub_lua_script, state, widget_id); // Push handle table
 	return 1; // Count of returned values
 }
@@ -326,7 +359,8 @@ static int createUISlider(lua_State* state)
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUISlider", { "min", "max", "value", "onChange", "width", "anchor", "offset", "visible" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUISlider", { "min", "max", "value", "onChange", "width", "anchor", "offset", "visible", "tooltip" });
+	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	const double min_value = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "min", /*default=*/0.0);
 	const double max_value = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "max", /*default=*/1.0);
@@ -363,6 +397,8 @@ static int createUISlider(lua_State* state)
 	}
 #endif
 
+	setUIWidgetTooltip(sub_lua_script, widget_id, tooltip);
+
 	pushUIWidgetHandle(sub_lua_script, state, widget_id); // Push handle table
 	return 1; // Count of returned values
 }
@@ -385,7 +421,8 @@ static int createUISpinBox(lua_State* state)
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUISpinBox", { "min", "max", "value", "step", "decimals", "onChange", "width", "anchor", "offset", "visible" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUISpinBox", { "min", "max", "value", "step", "decimals", "onChange", "width", "anchor", "offset", "visible", "tooltip" });
+	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	const double min_value = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "min", /*default=*/0.0);
 	const double max_value = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "max", /*default=*/100.0);
@@ -428,6 +465,8 @@ static int createUISpinBox(lua_State* state)
 	}
 #endif
 
+	setUIWidgetTooltip(sub_lua_script, widget_id, tooltip);
+
 	pushUIWidgetHandle(sub_lua_script, state, widget_id); // Push handle table
 	return 1; // Count of returned values
 }
@@ -445,7 +484,8 @@ static int createUICheckBox(lua_State* state)
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUICheckBox", { "checked", "onChange", "anchor", "offset", "visible" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUICheckBox", { "checked", "onChange", "anchor", "offset", "visible", "tooltip" });
+	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	[[maybe_unused]] const bool checked = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "checked", /*default=*/false);
 	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f), /*max abs val=*/10000.f);
@@ -472,6 +512,8 @@ static int createUICheckBox(lua_State* state)
 	}
 #endif
 
+	setUIWidgetTooltip(sub_lua_script, widget_id, tooltip);
+
 	pushUIWidgetHandle(sub_lua_script, state, widget_id); // Push handle table
 	return 1; // Count of returned values
 }
@@ -491,7 +533,8 @@ static int createUIDropDown(lua_State* state)
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIDropDown", { "options", "value", "onChange", "width", "anchor", "offset", "visible" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIDropDown", { "options", "value", "onChange", "width", "anchor", "offset", "visible", "tooltip" });
+	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	// Read options
 	std::vector<std::string> options;
@@ -551,6 +594,8 @@ static int createUIDropDown(lua_State* state)
 	}
 #endif
 
+	setUIWidgetTooltip(sub_lua_script, widget_id, tooltip);
+
 	pushUIWidgetHandle(sub_lua_script, state, widget_id); // Push handle table
 	return 1; // Count of returned values
 }
@@ -570,7 +615,8 @@ static int createUILineEdit(lua_State* state)
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUILineEdit", { "text", "onChange", "onEnter", "width", "anchor", "offset", "visible" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUILineEdit", { "text", "onChange", "onEnter", "width", "anchor", "offset", "visible", "tooltip" });
+	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	[[maybe_unused]] const std::string text = LuaUtils::getTableStringFieldWithEmptyDefault(state, /*table index=*/1, "text");
 	const double width = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "width", /*default=*/200.0);
@@ -606,6 +652,8 @@ static int createUILineEdit(lua_State* state)
 	}
 #endif
 
+	setUIWidgetTooltip(sub_lua_script, widget_id, tooltip);
+
 	pushUIWidgetHandle(sub_lua_script, state, widget_id); // Push handle table
 	return 1; // Count of returned values
 }
@@ -628,7 +676,8 @@ static int createUILabel(lua_State* state)
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUILabel", { "text", "text_colour", "font_size", "background_colour", "background_alpha", "size", "anchor", "offset", "visible" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUILabel", { "text", "text_colour", "font_size", "background_colour", "background_alpha", "size", "anchor", "offset", "visible", "tooltip" });
+	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	[[maybe_unused]] const std::string text = getUITextTableField(state, /*table index=*/1, "text");
 	[[maybe_unused]] const Colour3f text_colour = getUIColourTableField(state, /*table index=*/1, "text_colour", /*default=*/Colour3f(1.f));
@@ -656,6 +705,8 @@ static int createUILabel(lua_State* state)
 			size_px, anchor, offset_px, visible);
 #endif
 
+	setUIWidgetTooltip(sub_lua_script, widget_id, tooltip);
+
 	pushUIWidgetHandle(sub_lua_script, state, widget_id); // Push handle table
 	return 1; // Count of returned values
 }
@@ -675,7 +726,8 @@ static int createUIGrid(lua_State* state)
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIGrid", { "background_colour", "background_alpha", "interior_padding", "edge_padding", "anchor", "offset", "visible" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIGrid", { "background_colour", "background_alpha", "interior_padding", "edge_padding", "anchor", "offset", "visible", "tooltip" });
+	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	[[maybe_unused]] const Colour3f background_colour = getUIColourTableField(state, /*table index=*/1, "background_colour", /*default=*/Colour3f(0.1f));
 	[[maybe_unused]] const float background_alpha = getUIAlphaTableField(state, /*table index=*/1, "background_alpha", /*default=*/0.f);
@@ -698,6 +750,8 @@ static int createUIGrid(lua_State* state)
 			(float)interior_padding, (float)edge_padding, visible);
 #endif
 
+	setUIWidgetTooltip(sub_lua_script, widget_id, tooltip);
+
 	pushUIWidgetHandle(sub_lua_script, state, widget_id); // Push handle table
 	return 1; // Count of returned values
 }
@@ -718,7 +772,8 @@ static int createUIWindow(lua_State* state)
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIWindow", { "title", "background_colour", "background_alpha", "padding", "onClose", "anchor", "offset", "visible" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIWindow", { "title", "background_colour", "background_alpha", "padding", "onClose", "anchor", "offset", "visible", "tooltip" });
+	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	[[maybe_unused]] const std::string title = LuaUtils::getTableStringFieldWithEmptyDefault(state, /*table index=*/1, "title");
 	[[maybe_unused]] const Colour3f background_colour = getUIColourTableField(state, /*table index=*/1, "background_colour", /*default=*/Colour3f(0.1f));
@@ -753,6 +808,8 @@ static int createUIWindow(lua_State* state)
 		}
 	}
 #endif
+
+	setUIWidgetTooltip(sub_lua_script, widget_id, tooltip);
 
 	pushUIWidgetHandle(sub_lua_script, state, widget_id); // Push handle table
 	return 1; // Count of returned values
@@ -941,9 +998,7 @@ static int scriptUIWidgetIndexMetaMethod(lua_State* state)
 		if(widget)
 			offset = widget->offset_px;
 #endif
-		lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/2); // Push offset table
-		LuaUtils::setNumberAsTableField(state, "x", offset.x);
-		LuaUtils::setNumberAsTableField(state, "y", offset.y);
+		LuaUtils::pushVec2(state, Vec2d(offset.x, offset.y)); // Push offset as a Vec2, so that Vec2 arithmetic works on it
 		return 1;
 	}
 	else if(stringEqual(key_str, "text"))
@@ -974,6 +1029,17 @@ static int scriptUIWidgetIndexMetaMethod(lua_State* state)
 		}
 #endif
 		lua_pushboolean(state, checked ? 1 : 0); // Push checked
+		return 1;
+	}
+	else if(stringEqual(key_str, "tooltip"))
+	{
+		std::string tooltip;
+#if GUI_CLIENT
+		LuaScriptUIWidget* widget = getUIWidgetForHandle(state, /*handle index=*/1);
+		if(widget)
+			tooltip = widget->script_tooltip;
+#endif
+		lua_pushlstring(state, tooltip.data(), tooltip.size()); // Push tooltip
 		return 1;
 	}
 	else
@@ -1085,6 +1151,17 @@ static int scriptUIWidgetNewIndexMetaMethod(lua_State* state)
 
 			sub_lua_script->gui_client->lua_script_ui->setCheckBoxChecked(*widget, checked); // Doesn't call onChange.
 		}
+#endif
+	}
+	else if(stringEqual(key_str, "tooltip"))
+	{
+		const std::string tooltip = LuaUtils::getString(state, /*index=*/3);
+		if(tooltip.size() > MAX_UI_TOOLTIP_SIZE)
+			throw glare::Exception("UI widget: tooltip is too long (max " + toString(MAX_UI_TOOLTIP_SIZE) + " bytes)" + errorContextString(state));
+#if GUI_CLIENT
+		LuaScriptUIWidget* widget = getUIWidgetForHandle(state, /*handle index=*/1);
+		if(widget)
+			sub_lua_script->gui_client->lua_script_ui->setWidgetTooltip(*widget, tooltip);
 #endif
 	}
 	else

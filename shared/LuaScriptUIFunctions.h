@@ -31,14 +31,14 @@ Example script, with a window containing a grid with one of each widget type, sh
 local window = nil -- Created the first time the user uses the object.
 
 local function createSettingsWindow()
-	window = createUIWindow({ title = "Settings", anchor = "top-left", offset = {x=20, y=-20},
+	window = createUIWindow({ title = "Settings", anchor = "top-left", offset = Vec2(20, -20),
 		onClose = function() print("Window closed") end }) -- The close button hides the window.  Show it again with window.visible = true.
 
 	local grid = createUIGrid({ interior_padding = 5, edge_padding = 0 })
 	window:setBody(grid)
 
 	local title = createUILabel({ text = "Options", text_colour = Vec3f(1, 0.9, 0.2), font_size = 18 })
-	local logo = createUIImage({ image_url = "https://example.com/logo.png", size = {x=64, y=64} })
+	local logo = createUIImage({ image_url = "https://example.com/logo.png", size = Vec2(64, 64) })
 	grid:setCell(1, 1, title)
 	grid:setCell(2, 1, logo)
 
@@ -85,7 +85,7 @@ local function createSettingsWindow()
 		end })
 	grid:addRow(reset_button) -- Puts the button in column 1 of a new row at the bottom.
 
-	local logo_button = createUIButton({ image_url = "https://example.com/logo.png", size = {x=24, y=24},
+	local logo_button = createUIButton({ image_url = "https://example.com/logo.png", size = Vec2(24, 24),
 		onClick = function() logo.visible = not logo.visible end })
 	grid:setCell(2, 7, logo_button) -- Next to the reset button.
 end

@@ -129,19 +129,36 @@ LuaScriptUI::~LuaScriptUI()
 
 
 // Sets the tooltip on the widget, saying which object and user it is from, makes right-clicking on the widget open the script UI context menu, and adds the widget to the widgets map.
-void LuaScriptUI::addWidget(const LuaScriptUIWidgetRef& widget)
+std::string LuaScriptUI::makeWidgetTooltip(const LuaScriptUIWidget& widget) const
 {
-	std::string tooltip = "Script";
-	const WorldObject* ob = widget->sub_lua_script->world_object;
+	std::string source = "Script";
+	const WorldObject* ob = widget.sub_lua_script->world_object;
 	if(ob)
 	{
-		tooltip += " from object " + ob->uid.toString();
+		source += " from object " + ob->uid.toString();
 		if(!ob->creator_name.empty())
-			tooltip += " by " + ob->creator_name;
-		tooltip += " - right-click for options";
+			source += " by " + ob->creator_name;
+		source += " - right-click for options";
 	}
 
-	widget->getGLUIWidget()->setTooltip(UTF8Utils::sanitiseUTF8String(tooltip));
+	return widget.script_tooltip.empty() ? source : (widget.script_tooltip + "\n" + source);
+}
+
+
+void LuaScriptUI::setWidgetTooltip(LuaScriptUIWidget& widget, const std::string& tooltip)
+{
+	std::string single_line = UTF8Utils::sanitiseUTF8String(tooltip);
+	std::replace(single_line.begin(), single_line.end(), '\r', ' ');
+	std::replace(single_line.begin(), single_line.end(), '\n', ' ');
+
+	widget.script_tooltip = single_line;
+	widget.getGLUIWidget()->setTooltip(UTF8Utils::sanitiseUTF8String(makeWidgetTooltip(widget)));
+}
+
+
+void LuaScriptUI::addWidget(const LuaScriptUIWidgetRef& widget)
+{
+	widget->getGLUIWidget()->setTooltip(UTF8Utils::sanitiseUTF8String(makeWidgetTooltip(*widget)));
 
 	widget->getGLUIWidget()->handler = this; // For click and value changed events, and contextMenuRequestedEventOccurred() on right-clicks.
 
