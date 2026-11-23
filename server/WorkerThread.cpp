@@ -1197,7 +1197,7 @@ void WorkerThread::doRun()
 	if(CAPTURE_TRACES)
 		socket.downcastToPtr<RecordingSocket>()->clearRecordBuf();
 
-	ServerAllWorldsState* world_state = server->world_state.getPointer();
+	ServerAllWorldsState* const world_state = server->world_state.getPointer();
 
 	UID client_avatar_uid(0);
 	UserID client_user_id = UserID::invalidUserID(); // Will be an invalid reference if client is not logged in, otherwise will refer to the user account the client is logged in to.
@@ -2144,7 +2144,7 @@ void WorkerThread::doRun()
 								bool send_must_be_script_creator_msg = false;
 								bool resources_changed = false;
 								{
-									WorldStateLock lock(world_state->mutex);
+									WorldStateLock lock(server->world_state->mutex); // Lock through server->world_state (the same mutex as world_state->mutex), so thread-safety analysis knows the mutex for recreateLuaScriptForObject() is held.
 									auto res = cur_world_state->getObjects(lock).find(object_uid);
 									if(res != cur_world_state->getObjects(lock).end())
 									{

@@ -48,6 +48,14 @@ namespace MCPHandlers
 // The protocol version we advertise.  See https://modelcontextprotocol.io/
 static const char* MCP_PROTOCOL_VERSION = "2024-11-05";
 
+
+// Tells thread-safety analysis that server->world_state->mutex is held, given a lock on it, e.g. a lock on all_worlds.mutex, which is the same mutex.
+// The check is a debug assert only, so this has no cost in release builds.
+static inline void assertHoldsServerWorldStateMutex(Server* server, [[maybe_unused]] const WorldStateLock& lock) ASSERT_CAPABILITY(server->world_state->mutex)
+{
+	assert(&lock.getMutex() == &server->world_state->mutex);
+}
+
 // JSON-RPC 2.0 error codes:
 static const int JSONRPC_PARSE_ERROR      = -32700;
 static const int JSONRPC_INVALID_REQUEST  = -32600;
@@ -399,7 +407,10 @@ static const std::string createObjectInWorld(ServerAllWorldsState& all_worlds, c
 	all_worlds.markAsChanged();
 
 	if(server && hasPrefix(ob->script, "--lua"))
+	{
+		assertHoldsServerWorldStateMutex(server, lock);
 		server->recreateLuaScriptForObject(ob.ptr(), world, lock);
+	}
 
 	return "{\"uid\":" + toString(ob->uid.value()) + "}";
 }
@@ -811,7 +822,10 @@ static const std::string tool_editObject(ServerAllWorldsState& all_worlds, Serve
 		ob->from_remote_other_dirty = true; // Sends an ObjectFullUpdate to clients, so they reload the script.
 
 		if(server)
+		{
+			assertHoldsServerWorldStateMutex(server, lock);
 			server->recreateLuaScriptForObject(ob, world, lock);
+		}
 	}
 
 	ob->last_modified_time = TimeStamp::currentTime();
