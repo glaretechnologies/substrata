@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2026 -
 #include "AvatarGraphics.h"
 #include "GearEditorUI.h"
 #include "../shared/GearItem.h"
+#include <opengl/OpenGLTextureKey.h>
 #include <opengl/ui/GLUI.h>
 #include <opengl/ui/GLUIButton.h>
 #include <opengl/ui/GLUITextView.h>
@@ -20,6 +21,7 @@ Copyright Glare Technologies Limited 2026 -
 
 class GUIClient;
 class GLUIContextMenu;
+class OpenGLScene;
 struct GLObject;
 class AvatarPreviewGLUIWidget;
 class FrameBuffer;
@@ -64,7 +66,7 @@ public:
 
 	void updateWidgetPositions();
 
-	void handleUploadedTexture(const OpenGLTextureKey& path, const URLString& URL, const OpenGLTextureRef& opengl_tex);
+	void handleUploadedTexture(const OpenGLTextureKey& path, const URLString& URL, const Reference<OpenGLTexture>& opengl_tex);
 private:
 	void rebuildEquippedGrid();
 	void rebuildAllGearGrid();
@@ -100,8 +102,8 @@ private:
 	GLUIGridContainerRef equipped_grid; // Inner grid of equipped item thumbnails
 	GLUIGridContainerRef all_gear_grid; // Inner grid of all item thumbnails
 
-	OpenGLSceneRef          avatar_preview_scene;
-	GLObjectRef             avatar_preview_gl_ob;
+	Reference<OpenGLScene>          avatar_preview_scene;
+	Reference<GLObject>             avatar_preview_gl_ob;
 	std::vector<EquippedGearGraphics> equipped_gear_graphics;
 
 	Reference<GearEditorUI> gear_editor_ui;

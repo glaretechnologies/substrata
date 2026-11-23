@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2026 -
 
 class FrameBuffer;
 class RenderBuffer;
+struct OverlayObject;
 
 
 /*=====================================================================
@@ -67,7 +68,7 @@ public:
 private:
 	void updateOverlayTransform();
 
-	OverlayObjectRef overlay_ob;
+	Reference<OverlayObject> overlay_ob;
 
 	Reference<FrameBuffer>   avatar_preview_fbo;         // MSAA FBO rendered into
 	Reference<FrameBuffer>   avatar_preview_resolve_fbo; // Resolve FBO backed by avatar_preview_tex

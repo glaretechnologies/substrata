@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2023 -
 
 
 #include "../shared/URLString.h"
+#include <opengl/OpenGLTextureKey.h>
 #include <opengl/ui/GLUI.h>
 #include <opengl/ui/GLUIButton.h>
 #include <opengl/ui/GLUICallbackHandler.h>
@@ -16,11 +17,14 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/Array2D.h>
 #include <utils/SocketBufferOutStream.h>
 #include <map>
+#include <unordered_map>
 
 
 class GUIClient;
+class OpenGLTexture;
 class Avatar;
 class OpenGLScene;
+class OpenGLTexture;
 class MapTilesResultReceivedMessage;
 
 
@@ -66,7 +70,7 @@ public:
 
 	void handleMapTilesResultReceivedMessage(const MapTilesResultReceivedMessage& msg);
 
-	void handleUploadedTexture(const OpenGLTextureKey& path, const URLString& URL, const OpenGLTextureRef& opengl_tex);
+	void handleUploadedTexture(const OpenGLTextureKey& path, const URLString& URL, const Reference<OpenGLTexture>& opengl_tex);
 private:
 	void setWidgetVisibility();
 	void checkUpdateTilesForCurCamPosition();
@@ -101,7 +105,7 @@ private:
 
 	SocketBufferOutStream scratch_packet;
 
-	OpenGLTextureRef tile_placeholder_tex;
+	Reference<OpenGLTexture> tile_placeholder_tex;
 
 	std::unordered_map<URLString, Vec3i, URLStringHasher> loading_texture_URL_to_tile_indices_map;
 };

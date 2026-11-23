@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2026 -
 
 #include "AvatarGraphics.h"
 #include "../shared/GearItem.h"
+#include <opengl/OpenGLTextureKey.h>
 #include <opengl/ui/GLUI.h>
 #include <opengl/ui/GLUIButton.h>
 #include <opengl/ui/GLUITextView.h>
@@ -21,6 +22,7 @@ Copyright Glare Technologies Limited 2026 -
 
 
 class GUIClient;
+class OpenGLScene;
 struct GLObject;
 class AvatarPreviewGLUIWidget;
 class FrameBuffer;
@@ -61,7 +63,7 @@ public:
 
 	void updateWidgetPositions();
 
-	void handleUploadedTexture(const OpenGLTextureKey& path, const URLString& URL, const OpenGLTextureRef& opengl_tex);
+	void handleUploadedTexture(const OpenGLTextureKey& path, const URLString& URL, const Reference<OpenGLTexture>& opengl_tex);
 private:
 	void renderAvatarPreview(); // Renders avatar_preview_scene to avatar_preview_fbo. Requires active GL context.
 
@@ -87,8 +89,8 @@ public:
 	GLUIGridContainerRef outer_grid;    // 2-column container: [avatar | controls ]
 	GLUIGridContainerRef controls_grid; //
 
-	OpenGLSceneRef          avatar_preview_scene;
-	GLObjectRef             avatar_preview_gl_ob;
+	Reference<OpenGLScene>  avatar_preview_scene;
+	Reference<GLObject>     avatar_preview_gl_ob;
 	EquippedGearGraphics    equipped_gear_graphics;
 
 	Reference<TransformGizmo> transform_gizmo;
