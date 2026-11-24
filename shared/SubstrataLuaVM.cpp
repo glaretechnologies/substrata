@@ -2483,19 +2483,17 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 
 
 	// Set some global functions
-	lua_pushcfunction(lua_vm->state, createObject, /*debugname=*/"createObject");
-	lua_setglobal(lua_vm->state, "createObject"); // Pops a value from the stack and sets it as the new value of global name.
 
 	if(register_object_script_funcs)
 	{
+		lua_pushcfunction(lua_vm->state, createObject, /*debugname=*/"createObject");
+		lua_setglobal(lua_vm->state, "createObject"); // Pops a value from the stack and sets it as the new value of global name.
+
 		lua_pushcfunction(lua_vm->state, luaGetWorldObjectForUID, /*debugname=*/"getObjectForUID");
 		lua_setglobal(lua_vm->state, "getObjectForUID");
 
 		LuaScriptUIFunctions::registerGlobalFunctions(lua_vm->state);
-	}
 	
-	if(register_object_script_funcs)
-	{
 		lua_pushcfunction(lua_vm->state, getCurrentTime, /*debugname=*/"getCurrentTime");
 		lua_setglobal(lua_vm->state, "getCurrentTime");
 
