@@ -3617,6 +3617,14 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 		
 		removeObScriptingInfo(ob);
 
+		// Keep the UI activation of any previous Lua script for the object, so that a reloaded script, e.g. after its UI is unblocked or its script is edited,
+		// can create UI without the user interacting with it again.
+		const bool prev_ui_activated = ob->sub_lua_script && ob->sub_lua_script->ui_activated;
+
+		// Remove any previous Lua script, whatever the new script is.  Destroying it removes its UI widgets and timers.
+		ob->sub_lua_script = NULL;
+		scripted_ob_proximity_checker.removeObject(ob);
+
 		if(hasPrefix(ob->script, "<?xml"))
 		{
 			const double global_time = this->world_state->getCurrentGlobalTime();
@@ -3667,13 +3675,6 @@ void GUIClient::loadScriptForObject(WorldObject* ob, WorldStateLock& world_state
 
 		if(hasPrefix(ob->script, "--lua"))
 		{
-			// Keep the UI activation of any previous script for the object, so that a reloaded script, e.g. after its UI is unblocked or its script is edited,
-			// can create UI without the user interacting with it again.
-			const bool prev_ui_activated = ob->sub_lua_script && ob->sub_lua_script->ui_activated;
-
-			ob->sub_lua_script = NULL;
-			scripted_ob_proximity_checker.removeObject(ob);
-
 			try
 			{
 				if((ob->creator_id == this->logged_in_user_id) && (selected_ob == ob))
