@@ -212,7 +212,6 @@ static inline void checkHoldWorldStateMutex(SubstrataLuaScript* sub_lua_script, 
 
 
 // Construct a WorldMaterial from a table on the lua stack
-#if 0
 static WorldMaterialRef getTableWorldMaterial(lua_State* state, int table_index)
 {
 	WorldMaterialRef mat = new WorldMaterial();
@@ -222,7 +221,6 @@ static WorldMaterialRef getTableWorldMaterial(lua_State* state, int table_index)
 
 	return mat;
 }
-#endif
 
 
 static std::string errorContextString(lua_State* state)
@@ -255,23 +253,21 @@ static void enqueueMessageToSend(ClientThread& client_thread, SocketBufferOutStr
 #endif
 
 
-#if 0 // TEMP DISABLED
 static int createObject(lua_State* state)
 {
 	// Expected args:
 	// Arg 1: ob_params : Table
 
 	checkNumArgs(state, /*num_args_required*/1);
-	//const int initial_stack_size = lua_gettop(state);
-
-	if(!lua_istable(state, 1))
-		throw glare::Exception("createObject(): arg 1 (ob_params) was not a table" + errorContextString(state));
+	LuaUtils::checkValueIsTable(state, /*index=*/1);
 
 	const int ob_params_table_index = 1;
 
 	WorldObjectRef ob = new WorldObject();
 	
 	ob->model_url = LuaUtils::getTableStringFieldWithEmptyDefault(state, ob_params_table_index, "model_url"); // TODO: check URL length
+	if(ob->model_url.size() > WorldObject::MAX_URL_SIZE)
+		throw glare::Exception("Model URL too long");
 	ob->pos = LuaUtils::getTableVec3dField(state, ob_params_table_index, "pos");
 	ob->axis = LuaUtils::getTableVec3fFieldWithDefault(state, ob_params_table_index, "axis", Vec3f(1,0,0));
 	ob->angle = (float)LuaUtils::getTableNumberFieldWithDefault(state, ob_params_table_index, "angle", 0.0);
@@ -319,16 +315,15 @@ static int createObject(lua_State* state)
 #if GUI_CLIENT
 
 	// Send CreateObject message to server
-	{
-		MessageUtils::initPacket(sub_lua_script->gui_client->scratch_packet, Protocol::CreateObject);
-		ob->writeToNetworkStream(sub_lua_script->gui_client->scratch_packet);
-
-		enqueueMessageToSend(*sub_lua_script->gui_client->client_thread, sub_lua_script->gui_client->scratch_packet);
-	}
+	//{
+	//	MessageUtils::initPacket(sub_lua_script->gui_client->scratch_packet, Protocol::CreateObject);
+	//	ob->writeToNetworkStream(sub_lua_script->gui_client->scratch_packet);
+	//
+	//	enqueueMessageToSend(*sub_lua_script->gui_client->client_thread, sub_lua_script->gui_client->scratch_packet);
+	//}
 #elif SERVER
 
 	// Insert object into world state
-
 	{
 		ob->uid = sub_lua_script->server->world_state->getNextObjectUID();
 		ob->state = WorldObject::State_JustCreated;
@@ -344,7 +339,6 @@ static int createObject(lua_State* state)
 
 	return 0; // Count of returned values
 }
-#endif
 
 
 // Find a WorldObject for the given UID.  Throws exception if no such object with UID found.
@@ -1436,8 +1430,7 @@ static int luaMoveTo(lua_State* state)
 	// Update the object's canonical position to the target, so it persists and late-joining clients see the final position.
 	// Note: we deliberately do not set from_remote_transform_dirty, as that would broadcast an ObjectTransformUpdate that snaps clients to the target.
 	ob->pos = target_pos;
-	sub_lua_script->world_state->addWorldObjectAsDBDirty(ob, *sub_lua_script->cur_world_state_lock);
-	sub_lua_script->server->world_state->markAsChanged();
+	sub_lua_script->server->world_state->checkAddWorldObjectAsDBDirty(ob, *sub_lua_script->world_state, *sub_lua_script->cur_world_state_lock);
 
 	// If an onCompleted callback was provided, schedule it to fire when the move finishes.
 	if(callback_ref.ref != LUA_NOREF)
@@ -1501,8 +1494,7 @@ static int luaRotateTo(lua_State* state)
 	// Update the object's canonical orientation to the target (see note in luaMoveTo).
 	ob->axis = target_axis;
 	ob->angle = target_angle;
-	sub_lua_script->world_state->addWorldObjectAsDBDirty(ob, *sub_lua_script->cur_world_state_lock);
-	sub_lua_script->server->world_state->markAsChanged();
+	sub_lua_script->server->world_state->checkAddWorldObjectAsDBDirty(ob, *sub_lua_script->world_state, *sub_lua_script->cur_world_state_lock);
 
 	// If an onCompleted callback was provided, schedule it to fire when the rotation finishes.
 	if(callback_ref.ref != LUA_NOREF)
@@ -1883,8 +1875,7 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		sub_lua_script->world_state->getDirtyFromRemoteObjects(*sub_lua_script->cur_world_state_lock).insert(ob);
 
 		// Update in the database
-		sub_lua_script->world_state->addWorldObjectAsDBDirty(ob, *sub_lua_script->cur_world_state_lock);
-		sub_lua_script->server->world_state->markAsChanged();
+		sub_lua_script->server->world_state->checkAddWorldObjectAsDBDirty(ob, *sub_lua_script->world_state, *sub_lua_script->cur_world_state_lock);
 	}
 
 	return 0; // Count of returned values
@@ -2087,8 +2078,7 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 		ob->from_remote_other_dirty = true; // TODO: rename
 		sub_lua_script->world_state->getDirtyFromRemoteObjects(*sub_lua_script->cur_world_state_lock).insert(ob);
 
-		sub_lua_script->world_state->addWorldObjectAsDBDirty(ob, *sub_lua_script->cur_world_state_lock);
-		sub_lua_script->server->world_state->markAsChanged();
+		sub_lua_script->server->world_state->checkAddWorldObjectAsDBDirty(ob, *sub_lua_script->world_state, *sub_lua_script->cur_world_state_lock);
 	}
 
 	return 0; // Count of returned values

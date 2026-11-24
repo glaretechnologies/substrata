@@ -323,7 +323,7 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 				new_object->materials[z] = source_ob->materials[z]->clone();
 
 			world_state->getRootWorldState()->getObjects(lock)[new_object->uid] = new_object; // Insert into world
-			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object, lock);
+			world_state->checkAddWorldObjectAsDBDirty(new_object, *world_state->getRootWorldState(), lock);
 		}
 
 
@@ -360,7 +360,7 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 				new_object->materials[z] = source_ob->materials[z]->clone();
 			
 			world_state->getRootWorldState()->getObjects(lock)[new_object->uid] = new_object; // Insert into world
-			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object, lock);
+			world_state->checkAddWorldObjectAsDBDirty(new_object, *world_state->getRootWorldState(), lock);
 		}
 
 		// Make couches etc..
@@ -409,7 +409,7 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 				new_object->materials[z] = source_ob->materials[z]->clone();
 
 			world_state->getRootWorldState()->getObjects(lock)[new_object->uid] = new_object; // Insert into world
-			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object, lock);
+			world_state->checkAddWorldObjectAsDBDirty(new_object, *world_state->getRootWorldState(), lock);
 		}
 
 		// Add carpet
@@ -445,7 +445,7 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 				new_object->materials[z] = source_ob->materials[z]->clone();
 
 			world_state->getRootWorldState()->getObjects(lock)[new_object->uid] = new_object; // Insert into world
-			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object, lock);
+			world_state->checkAddWorldObjectAsDBDirty(new_object, *world_state->getRootWorldState(), lock);
 		}
 
 		// Add couch 1
@@ -482,7 +482,7 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 				new_object->materials[z] = source_ob->materials[z]->clone();
 
 			world_state->getRootWorldState()->getObjects(lock)[new_object->uid] = new_object; // Insert into world
-			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object, lock);
+			world_state->checkAddWorldObjectAsDBDirty(new_object, *world_state->getRootWorldState(), lock);
 		}
 
 		// Add seat
@@ -521,7 +521,7 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 				new_object->materials[z] = source_ob->materials[z]->clone();
 
 			world_state->getRootWorldState()->getObjects(lock)[new_object->uid] = new_object; // Insert into world
-			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object, lock);
+			world_state->checkAddWorldObjectAsDBDirty(new_object, *world_state->getRootWorldState(), lock);
 		}
 
 		// Add lamp
@@ -561,7 +561,7 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 				new_object->materials[z] = source_ob->materials[z]->clone();
 
 			world_state->getRootWorldState()->getObjects(lock)[new_object->uid] = new_object; // Insert into world
-			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object, lock);
+			world_state->checkAddWorldObjectAsDBDirty(new_object, *world_state->getRootWorldState(), lock);
 		}
 	}
 }
@@ -676,7 +676,7 @@ void WorldCreation::removeHypercardMaterials(ServerAllWorldsState& all_worlds_st
 				if((ob->object_type == WorldObject::ObjectType_Hypercard) && !ob->materials.empty())
 				{
 					ob->materials.clear();
-					world_state->addWorldObjectAsDBDirty(ob, lock);
+					all_worlds_state.checkAddWorldObjectAsDBDirty(ob, *world_state, lock);
 					num_updated++;
 				}
 			}

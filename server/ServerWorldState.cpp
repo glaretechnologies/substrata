@@ -849,6 +849,16 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 }
 
 
+void ServerAllWorldsState::checkAddWorldObjectAsDBDirty(const WorldObjectRef ob, ServerWorldState& world, WorldStateLock& world_state_lock)
+{
+	if(!ob->isEphemeralScriptCreated())
+	{
+		world.addWorldObjectAsDBDirty(ob, world_state_lock);
+		this->changed = 1;
+	}
+}
+
+
 void ServerAllWorldsState::addEverythingToDirtySets()
 {
 	WorldStateLock lock(mutex);
@@ -1093,7 +1103,7 @@ void ServerAllWorldsState::doMigrations(WorldStateLock& lock)
 				if(!ob->audio_source_url.empty())
 				{
 					ob->flags |= (WorldObject::AUDIO_AUTOPLAY | WorldObject::AUDIO_LOOP);
-					world_state->addWorldObjectAsDBDirty(ob, lock);
+					checkAddWorldObjectAsDBDirty(ob, *world_state, lock);
 				}
 			}
 		}
@@ -1427,17 +1437,22 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 				for(auto it = world_state->getDBDirtyWorldObjects(lock).begin(); it != world_state->getDBDirtyWorldObjects(lock).end(); ++it)
 				{
 					WorldObject* ob = it->ptr();
-					temp_buf.clear();
-					temp_buf.writeUInt32(WORLD_OBJECT_CHUNK);
-					temp_buf.writeStringLengthFirst(world_name); // Write world name
-					ob->writeToStream(temp_buf); // Write object
 
-					if(!ob->database_key.valid())
-						ob->database_key = database.allocUnusedKey(); // Get a new key
+					assert(!ob->isEphemeralScriptCreated());
+					if(!ob->isEphemeralScriptCreated())
+					{
+						temp_buf.clear();
+						temp_buf.writeUInt32(WORLD_OBJECT_CHUNK);
+						temp_buf.writeStringLengthFirst(world_name); // Write world name
+						ob->writeToStream(temp_buf); // Write object
 
-					database.updateRecord(ob->database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
+						if(!ob->database_key.valid())
+							ob->database_key = database.allocUnusedKey(); // Get a new key
 
-					num_obs++;
+						database.updateRecord(ob->database_key, ArrayRef<uint8>(temp_buf.buf.data(), temp_buf.buf.size()));
+
+						num_obs++;
+					}
 				}
 
 				world_state->getDBDirtyWorldObjects(lock).clear();

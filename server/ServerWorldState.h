@@ -237,8 +237,13 @@ class ServerWorldState : public ThreadSafeRefCounted
 public:
 	ServerWorldState() : db_dirty(false) {}
 
+	friend class ServerAllWorldsState;
+
 	void addParcelAsDBDirty     (const ParcelRef parcel,  WorldStateLock& /*world_state_lock*/) { db_dirty_parcels.insert(parcel); }
+private:
+	// Use ServerAllWorldsState::checkAddWorldObjectAsDBDirty() instead
 	void addWorldObjectAsDBDirty(const WorldObjectRef ob, WorldStateLock& /*world_state_lock*/) { db_dirty_world_objects.insert(ob); }
+public:
 	void addLODChunkAsDBDirty   (const LODChunkRef ob,    WorldStateLock& /*world_state_lock*/) { db_dirty_lod_chunks.insert(ob); }
 	void addChatBotAsDBDirty    (const ChatBotRef ob,     WorldStateLock& /*world_state_lock*/) { db_dirty_chatbots.insert(ob); }
 
@@ -359,6 +364,10 @@ public:
 	void addNewsPostAsDBDirty(const NewsPostRef post)						REQUIRES(mutex) { db_dirty_news_posts.insert(post); changed = 1; }
 	void addEventAsDBDirty(const SubEventRef event)							REQUIRES(mutex) { db_dirty_events.insert(event); changed = 1; }
 	void addGearItemAsDBDirty(const GearItemRef item)						REQUIRES(mutex) { db_dirty_gear_items.insert(item); changed = 1; }
+
+
+	// If the object is not script-created-ephemeral, add to the world dirty object set and then set changed=1.
+	void checkAddWorldObjectAsDBDirty(const WorldObjectRef ob, ServerWorldState& world, WorldStateLock& world_state_lock) REQUIRES(mutex);
 
 	void addEverythingToDirtySets();
 

@@ -1301,8 +1301,7 @@ static void updateObjectExcludeFlagsAndUpdateChunks(ServerAllWorldsState* all_wo
 			BitUtils::setOrZeroBit(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH, should_exclude);
 
 			// Mark as db-dirty so gets saved to disk.
-			world_state->addWorldObjectAsDBDirty(ob, lock);
-			all_worlds_state->markAsChanged();
+			all_worlds_state->checkAddWorldObjectAsDBDirty(ob, *world_state, lock);
 		}
 
 		if(!should_exclude || exclusion_changed)
@@ -1530,7 +1529,7 @@ void ChunkGenThread::doRun()
 
 							// TODO: send out object updated message to clients.
 
-							dirty_chunks[i].world_state->addWorldObjectAsDBDirty(ob, lock);
+							all_worlds_state->checkAddWorldObjectAsDBDirty(ob, *dirty_chunks[i].world_state, lock);
 						}
 					}
 

@@ -215,6 +215,7 @@ public:
 	inline void setDynamic(bool c);
 	inline bool isSensor() const;
 	inline void setIsSensor(bool c);
+	inline bool isEphemeralScriptCreated() const;
 
 	enum PhysicsShapeType
 	{
@@ -376,7 +377,8 @@ public:
 	static const uint32 AUDIO_LOOP                              = 1 << 11; // For objects that play audio, should the audio loop?
 	static const uint32 CREATED_VIA_MCP                         = 1 << 12; // Was this object created via the Model Context Protocol (MCP) API?
 	static const uint32 MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1       = 1 << 13; // Is the minimum model lod level for this object -1, instead of 0?
-	// bits 14 and 15 store the physics shape type
+	// bits 14 and 15 store the physics shape type.  See WorldObject::getPhysicsShapeType()
+	static const uint32 EPHEMERAL_SCRIPT_CREATED                = 1 << 16; // Was this object created by the createObject Lua function call?
 
 	uint32 flags;
 
@@ -660,6 +662,12 @@ void WorldObject::setIsSensor(bool c)
 		flags |= IS_SENSOR_FLAG;
 	else
 		flags &= ~IS_SENSOR_FLAG;
+}
+
+
+inline bool WorldObject::isEphemeralScriptCreated() const
+{
+	return (flags & EPHEMERAL_SCRIPT_CREATED) != 0;
 }
 
 

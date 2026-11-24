@@ -180,7 +180,7 @@ static void checkObjectSpaceAABB(ServerAllWorldsState* world_state, ServerWorldS
 				conPrint("New AABB_os: "+ aabb_os.toString());
 
 				ob->setAABBOS(aabb_os);
-				world->addWorldObjectAsDBDirty(ob, lock);
+				world_state->checkAddWorldObjectAsDBDirty(ob, *world, lock);
 			}
 		}
 	}
@@ -393,8 +393,7 @@ static void checkObjectFlags(ServerAllWorldsState* world_state, ServerWorldState
 						" (model URL: '" + toString(ob->model_url) + "', num_tris: " + uInt64ToStringCommaSeparated(info.num_tris) + ")");
 
 					BitUtils::setOrZeroBit(ob->flags, WorldObject::MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1, /*should set=*/new_model_neg_1_lod_flag_is_set);
-					world->addWorldObjectAsDBDirty(ob, lock);
-					world_state->markAsChanged();
+					world_state->checkAddWorldObjectAsDBDirty(ob, *world, lock);
 				}
 			}
 		}
@@ -452,7 +451,7 @@ static void checkMaterialFlags(ServerAllWorldsState* world_state, ServerWorldSta
 							{
 								{
 									WorldStateLock lock(world_state->mutex);
-									world->addWorldObjectAsDBDirty(ob, lock);
+									world_state->checkAddWorldObjectAsDBDirty(ob, *world, lock);
 								}
 								conPrint("Updated mat flags: (for mat with tex " + tex_abs_path + "): is_hi_res: " + boolToString(is_high_res));
 							}

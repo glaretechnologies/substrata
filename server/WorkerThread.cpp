@@ -1963,7 +1963,7 @@ void WorkerThread::doRun()
 											ob->last_modified_time = TimeStamp::currentTime();
 
 											ob->from_remote_transform_dirty = true;
-											cur_world_state->addWorldObjectAsDBDirty(ob, lock);
+											world_state->checkAddWorldObjectAsDBDirty(ob, *cur_world_state, lock);
 											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
 											markLODChunkAsNeedsRebuildForChangedObject(cur_world_state.ptr(), ob, lock);
@@ -2022,8 +2022,7 @@ void WorkerThread::doRun()
 												ob->last_transform_update_avatar_uid = (uint32)client_avatar_uid.value();
 												ob->last_modified_time = TimeStamp::currentTime();
 
-												cur_world_state->addWorldObjectAsDBDirty(ob, lock); // Object state has changed, so save to DB.
-												world_state->markAsChanged();
+												world_state->checkAddWorldObjectAsDBDirty(ob, *cur_world_state, lock); // Object state has changed, so save to DB.
 
 												send_summon_object_msg = true;
 											}
@@ -2106,10 +2105,8 @@ void WorkerThread::doRun()
 											ob->last_modified_time = TimeStamp::currentTime();
 
 											ob->from_remote_physics_transform_dirty = true;
-											cur_world_state->addWorldObjectAsDBDirty(ob, lock);
+											world_state->checkAddWorldObjectAsDBDirty(ob, *cur_world_state, lock);
 											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
-
-											world_state->markAsChanged();
 										}
 									}
 								} // End lock scope
@@ -2172,7 +2169,7 @@ void WorkerThread::doRun()
 											ob->last_modified_time = TimeStamp::currentTime();
 
 											ob->from_remote_other_dirty = true;
-											cur_world_state->addWorldObjectAsDBDirty(ob, lock);
+											server->world_state->checkAddWorldObjectAsDBDirty(ob, *cur_world_state, lock);
 											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
 											markLODChunkAsNeedsRebuildForChangedObject(cur_world_state.ptr(), ob, lock);
@@ -2234,10 +2231,8 @@ void WorkerThread::doRun()
 											ob->last_modified_time = TimeStamp::currentTime();
 
 											ob->from_remote_lightmap_url_dirty = true;
-											cur_world_state->addWorldObjectAsDBDirty(ob, lock);
+											world_state->checkAddWorldObjectAsDBDirty(ob, *cur_world_state, lock);
 											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
-
-											world_state->markAsChanged();
 										}
 									}
 								}
@@ -2279,7 +2274,7 @@ void WorkerThread::doRun()
 											ob->last_modified_time = TimeStamp::currentTime();
 
 											ob->from_remote_model_url_dirty = true;
-											cur_world_state->addWorldObjectAsDBDirty(ob, lock);
+											world_state->checkAddWorldObjectAsDBDirty(ob, *cur_world_state, lock);
 											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
 											markLODChunkAsNeedsRebuildForChangedObject(cur_world_state.ptr(), ob, lock);
@@ -2328,7 +2323,7 @@ void WorkerThread::doRun()
 											ob->last_modified_time = TimeStamp::currentTime();
 
 											ob->from_remote_flags_dirty = true;
-											cur_world_state->addWorldObjectAsDBDirty(ob, lock);
+											world_state->checkAddWorldObjectAsDBDirty(ob, *cur_world_state, lock);
 											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
 											markLODChunkAsNeedsRebuildForChangedObject(cur_world_state.ptr(), ob, lock);
@@ -2441,7 +2436,7 @@ void WorkerThread::doRun()
 										new_ob->uid = world_state->getNextObjectUID();
 										new_ob->state = WorldObject::State_JustCreated;
 										new_ob->from_remote_other_dirty = true;
-										cur_world_state->addWorldObjectAsDBDirty(new_ob, lock);
+										world_state->checkAddWorldObjectAsDBDirty(new_ob, *cur_world_state, lock);
 										cur_world_state->getDirtyFromRemoteObjects(lock).insert(new_ob);
 										cur_world_state->getObjects(lock).insert(std::make_pair(new_ob->uid, new_ob));
 
@@ -2505,7 +2500,7 @@ void WorkerThread::doRun()
 											// Mark object as dead
 											ob->state = WorldObject::State_Dead;
 											ob->from_remote_other_dirty = true;
-											cur_world_state->addWorldObjectAsDBDirty(ob, lock);
+											world_state->checkAddWorldObjectAsDBDirty(ob, *cur_world_state, lock);
 											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
 											markLODChunkAsNeedsRebuildForChangedObject(cur_world_state.ptr(), ob, lock);
@@ -3773,7 +3768,7 @@ void WorkerThread::doRun()
 									// Destroy the world object (mirrors DestroyObject handler).
 									ob->state = WorldObject::State_Dead;
 									ob->from_remote_other_dirty = true;
-									cur_world_state->addWorldObjectAsDBDirty(ob, lock);
+									world_state->checkAddWorldObjectAsDBDirty(ob, *cur_world_state, lock);
 									cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 								}
 
@@ -3848,7 +3843,7 @@ void WorkerThread::doRun()
 									new_ob->state = WorldObject::State_JustCreated;
 									new_ob->from_remote_other_dirty = true;
 									cur_world_state->getObjects(lock).insert(std::make_pair(new_ob->uid, new_ob));
-									cur_world_state->addWorldObjectAsDBDirty(new_ob, lock);
+									world_state->checkAddWorldObjectAsDBDirty(new_ob, *cur_world_state, lock);
 									cur_world_state->getDirtyFromRemoteObjects(lock).insert(new_ob);
 
 									// Remove from user's inventory and clear ownership - the dropped item is unowned until picked up.

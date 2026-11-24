@@ -399,7 +399,7 @@ static const std::string createObjectInWorld(ServerAllWorldsState& all_worlds, c
 	ob->uid = all_worlds.getNextObjectUID();
 	ob->state = WorldObject::State_JustCreated;
 	ob->from_remote_other_dirty = true;
-	world->addWorldObjectAsDBDirty(ob, lock);
+	all_worlds.checkAddWorldObjectAsDBDirty(ob, *world, lock);
 	world->getDirtyFromRemoteObjects(lock).insert(ob);
 	world->getObjects(lock).insert(std::make_pair(ob->uid, ob));
 
@@ -830,7 +830,7 @@ static const std::string tool_editObject(ServerAllWorldsState& all_worlds, Serve
 
 	ob->last_modified_time = TimeStamp::currentTime();
 	ob->from_remote_transform_dirty = true;
-	world->addWorldObjectAsDBDirty(ob, lock);
+	all_worlds.checkAddWorldObjectAsDBDirty(ob, *world, lock);
 	world->getDirtyFromRemoteObjects(lock).insert(res->second);
 
 	markLODChunkNeedsRebuild(world, ob, lock);
@@ -861,7 +861,7 @@ static const std::string tool_deleteObject(ServerAllWorldsState& all_worlds, con
 
 	ob->state = WorldObject::State_Dead;
 	ob->from_remote_other_dirty = true;
-	world->addWorldObjectAsDBDirty(ob, lock);
+	all_worlds.checkAddWorldObjectAsDBDirty(ob, *world, lock);
 	world->getDirtyFromRemoteObjects(lock).insert(res->second);
 
 	markLODChunkNeedsRebuild(world, ob, lock);
