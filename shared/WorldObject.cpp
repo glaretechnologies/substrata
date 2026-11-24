@@ -133,6 +133,10 @@ WorldObject::WorldObject() noexcept
 
 	chunk_batch0_start = chunk_batch0_end = chunk_batch1_start = chunk_batch1_end = 0;
 
+#if SERVER
+	die_time = std::numeric_limits<double>::max();
+#endif
+
 	compressed_voxels_hash = 0;
 }
 
@@ -1045,7 +1049,10 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other, bool restrict_c
 	if(allow_all_changes)
 		creator_id = other.creator_id;
 
-	flags = other.flags;
+	if(allow_all_changes)
+		flags = other.flags;
+	else
+		setAllowedFlagsFromClient(other.flags);
 
 	if(allow_all_changes)
 		creator_name = other.creator_name;

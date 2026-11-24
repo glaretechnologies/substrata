@@ -223,6 +223,19 @@ struct UserSecretRefHash
 };
 
 
+struct WorldStateMeshInfo
+{
+	WorldStateMeshInfo();
+
+	GLARE_ALIGNED_16_NEW_DELETE
+
+	js::AABBox aabb_os;
+	size_t num_tris;
+	size_t num_verts;
+	bool load_succeeded; // If the mesh file was present on disk, but loading failed, this will be set to false, in which case num_tris and aabb_os are not valid.
+};
+
+
 /*=====================================================================
 ServerWorldState
 ----------------
@@ -481,8 +494,15 @@ public:
 	// Ephemeral state: per-client-IP rate limiters for failed login attempts.  Created lazily.  See tooManyRecentFailedLogins().
 	std::map<IPAddress, Reference<RateLimiter>> failed_login_rate_limiters GUARDED_BY(mutex);
 
-	// Ephemeral state: A cache of object-space AABBs for models, used by the MCP endpoint for object creation.
-	std::map<URLString, js::AABBox> mesh_URL_to_aabb_os GUARDED_BY(mutex);
+	// Ephemeral state: A cache of object-space AABBs and num tris for models, used by the MCP endpoint and Lua createObject function for object creation, and by MeshLodGenThread.
+	std::map<URLString, WorldStateMeshInfo> mesh_URL_to_mesh_info GUARDED_BY(mutex);
+
+	struct EphemeralObInfo
+	{
+		WorldObjectRef ob;
+		ServerWorldState* world; // World the object is in, so we can remove from world->objects etc.  ServerWorldStates are not removed from worlds once inserted, so we can just use a raw pointer here.
+	};
+	std::vector<EphemeralObInfo> ephemeral_objects GUARDED_BY(mutex);
 
 	// Sets of objects that should be written to (updated) in the database.
 	std::unordered_set<ResourceRef, ResourceRefHash>					db_dirty_resources				GUARDED_BY(mutex);

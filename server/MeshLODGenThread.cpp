@@ -85,13 +85,6 @@ struct MeshLODGenThreadTexInfo
 };
 
 
-struct MeshLODGenThreadMeshInfo
-{
-	size_t num_tris;
-	bool load_succeeded; // If false, the mesh could not be loaded, and num_tris is not valid.
-};
-
-
 // Set object world space AABB if not set yet, or if it's incorrect.
 static void checkObjectSpaceAABB(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob)
 {
@@ -331,10 +324,9 @@ static void checkInsertMeshURLToLoad(WorldObject* ob, std::set<URLString>& mesh_
 
 
 // Try and load the mesh identified by mesh_url, insert load result and number of triangles in mesh into mesh_info.
-static MeshLODGenThreadMeshInfo buildMeshInfoForMeshURL(ServerAllWorldsState* world_state, const URLString& mesh_url, std::map<URLString, MeshLODGenThreadMeshInfo>& mesh_info)
+static WorldStateMeshInfo buildMeshInfoForMeshURL(ServerAllWorldsState* world_state, const URLString& mesh_url)
 {
-	MeshLODGenThreadMeshInfo info;
-	info.num_tris = 0;
+	WorldStateMeshInfo info;
 	info.load_succeeded = false;
 
 	try
@@ -346,8 +338,10 @@ static MeshLODGenThreadMeshInfo buildMeshInfoForMeshURL(ServerAllWorldsState* wo
 			
 			BatchedMeshRef batched_mesh = LODGeneration::loadModel(model_local_abs_path);
 
+			info.aabb_os = batched_mesh->aabb_os;
+			info.num_tris  = batched_mesh->numIndices()/3;
+			info.num_verts = batched_mesh->numVerts();
 			info.load_succeeded = true;
-			info.num_tris = batched_mesh->numIndices()/3;
 		}
 		else
 		{
@@ -360,12 +354,15 @@ static MeshLODGenThreadMeshInfo buildMeshInfoForMeshURL(ServerAllWorldsState* wo
 		conPrint("MeshLODGenThread: buildMeshInfoForMeshURL: Failed to load mesh with URL: '" + toString(mesh_url) + "': " + e.what());
 	}
 
-	mesh_info[mesh_url] = info; // Cache the info.  Load failures are cached too, since the resource for a URL doesn't change.
+	{
+		Lock lock(world_state->mutex);
+		world_state->mesh_URL_to_mesh_info[mesh_url] = info; // Cache the info.  Load failures are cached too, since the resource for a URL doesn't change.
+	}
 	return info;
 }
 
 
-static void checkObjectFlags(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::map<URLString, MeshLODGenThreadMeshInfo>& mesh_info, WorldStateLock& lock)
+static void checkObjectFlags(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, WorldStateLock& lock)
 {
 	//-------------------------------------------- Check MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1 flag ---------------------------------------
 	if((ob->object_type == WorldObject::ObjectType_Generic) && !ob->model_url.empty()) // Only consider the object types that have LOD-able meshes.
@@ -374,12 +371,19 @@ static void checkObjectFlags(ServerAllWorldsState* world_state, ServerWorldState
 		if(base_resource && base_resource->isPresent()) // Base resource needs to be fully present before we start processing it.
 		{
 			// Get num triangles in the mesh. Either get from cached mesh info, or if not in cache, load mesh and get from loaded mesh, then store in cache.
-			MeshLODGenThreadMeshInfo info;
-			auto res = mesh_info.find(ob->model_url);
-			if(res != mesh_info.end())
-				info = res->second;
-			else
-				info = buildMeshInfoForMeshURL(world_state, ob->model_url, mesh_info); // Inserts info into mesh_info also.
+			WorldStateMeshInfo info;
+			bool found_mesh_info = false;
+			{
+				auto res = world_state->mesh_URL_to_mesh_info.find(ob->model_url);
+				if(res != world_state->mesh_URL_to_mesh_info.end())
+				{
+					info = res->second;
+					found_mesh_info = true;
+				}
+			}
+
+			if(!found_mesh_info)
+				info = buildMeshInfoForMeshURL(world_state, ob->model_url); // Inserts info into mesh_info also.
 
 			if(info.load_succeeded)
 			{
@@ -912,7 +916,6 @@ void MeshLODGenThread::doRun()
 		// as the resource is present.
 		std::unordered_set<URLString, URLStringHasher> queued_high_priority_URLs;
 		std::unordered_set<URLString, URLStringHasher> queued_low_priority_URLs;
-		std::map<URLString, MeshLODGenThreadMeshInfo> mesh_info; // Cached info about meshes.  Only meshes that are present are cached, so that the info isn't stale.
 
 		Timer timer;
 		
@@ -937,7 +940,7 @@ void MeshLODGenThread::doRun()
 			// Populate mesh_info cache without holding the lock
 			{
 				for(auto it = mesh_URLS_to_load.begin(); it != mesh_URLS_to_load.end(); ++it)
-					buildMeshInfoForMeshURL(world_state, /*mesh URL=*/*it, mesh_info);
+					buildMeshInfoForMeshURL(world_state, /*mesh URL=*/*it);
 			}
 
 			{
@@ -952,7 +955,7 @@ void MeshLODGenThread::doRun()
 						WorldObject* ob = it->second.ptr();
 						try
 						{
-							checkObjectFlags(world_state, world, ob, mesh_info, lock);
+							checkObjectFlags(world_state, world, ob, lock);
 
 							if(false)
 								checkObjectSpaceAABB(world_state, world, ob);
@@ -1033,12 +1036,14 @@ void MeshLODGenThread::doRun()
 		js::Vector<ThreadMessageRef> messages;
 		std::set<UID> obs_to_scan_UIDs;
 		std::set<URLString> URLs_to_check;
+		std::set<URLString> mesh_info_URLs_to_check;
 
 		while(!should_quit)
 		{
 			messages.clear();
 			obs_to_scan_UIDs.clear();
 			URLs_to_check.clear();
+			mesh_info_URLs_to_check.clear();
 
 			const bool have_work_queued = meshes_to_gen.nonEmpty() || lod_textures_to_gen.nonEmpty() || basis_textures_to_gen.nonEmpty() ||
 				meshes_to_gen_low_priority.nonEmpty() || lod_textures_to_gen_low_priority.nonEmpty() || basis_textures_to_gen_low_priority.nonEmpty();
@@ -1070,10 +1075,30 @@ void MeshLODGenThread::doRun()
 
 						conPrint("MeshLODGenThread: Received message to scan URL " + toStdString(check_gen_msg->URL));
 					}
+					else if(CheckGenMeshInfoForURL* check_mesh_info_msg = dynamic_cast<CheckGenMeshInfoForURL*>(msg.ptr()))
+					{
+						mesh_info_URLs_to_check.insert(check_mesh_info_msg->URL);
+					}
 					else if(dynamic_cast<KillThreadMessage*>(msg.ptr()))
 					{
 						return;
 					}
+				}
+			}
+
+			// Process mesh_info_URLs_to_check.  Load meshes without holding the world state lock.
+			for(auto it = mesh_info_URLs_to_check.begin(); it != mesh_info_URLs_to_check.end(); ++it)
+			{
+				bool already_cached;
+				{
+					WorldStateLock lock(world_state->mutex);
+					already_cached = world_state->mesh_URL_to_mesh_info.count(*it) != 0;
+				}
+
+				if(!already_cached)
+				{
+					conPrint("MeshLODGenThread: Loading mesh info for URL " + toStdString(*it));
+					buildMeshInfoForMeshURL(world_state, /*mesh URL=*/*it); // Inserts into mesh_URL_to_mesh_info, if the mesh resource is present.
 				}
 			}
 
@@ -1095,7 +1120,7 @@ void MeshLODGenThread::doRun()
 							WorldObject* ob = res->second.ptr();
 							try
 							{
-								checkObjectFlags(world_state, world, ob, mesh_info, lock);
+								checkObjectFlags(world_state, world, ob, lock);
 								checkForLODAndOptimisedMeshesToGenerate(world_state, world, ob, queued_high_priority_URLs, meshes_to_gen);
 								checkForBasisAndBC13KTXTexturesToGenerateForOb(server, world_state,ob, queued_high_priority_URLs, basis_textures_to_gen);
 								//checkForLODTexturesToGenerate(server, world_state,world, ob, queued_high_priority_URLs, lod_textures_to_gen);

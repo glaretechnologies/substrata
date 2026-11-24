@@ -1264,6 +1264,44 @@ int main(int argc, char *argv[])
 				} // End for each server world
 
 
+				// Iterate over the ephemeral objects and see if we should kill any of them.
+				const double cur_global_time = server.getCurrentGlobalTime();
+				for(size_t i=0; i<server.world_state->ephemeral_objects.size(); )
+				{
+					ServerAllWorldsState::EphemeralObInfo& ob_info = server.world_state->ephemeral_objects[i];
+					WorldObject* ob = ob_info.ob.ptr();
+					if(ob->state == WorldObject::State_Dead) // Object was already deleted some other way.
+					{
+						// Remove object from ephemeral_objects vector: swap with last element in vector then remove it.
+						server.world_state->ephemeral_objects[i] = server.world_state->ephemeral_objects.back();
+						server.world_state->ephemeral_objects.pop_back();
+					}
+					else if(cur_global_time >= ob->die_time)
+					{
+						std::vector<uint8>& world_packets = broadcast_packets[ob_info.world];
+
+						// Send ObjectDestroyed packet
+						MessageUtils::initPacket(scratch_packet, Protocol::ObjectDestroyed);
+						writeToStream(ob->uid, scratch_packet);
+
+						enqueueMessageToBroadcast(scratch_packet, world_packets);
+
+						// Remove ob from object map
+						ob_info.world->getObjects(lock).erase(ob->uid);
+
+						ob->state = WorldObject::State_Dead;
+
+						conPrint("Removed ephemeral object from world_state->objects");
+
+						// Remove object from ephemeral_objects vector: swap with last element in vector then remove it.
+						server.world_state->ephemeral_objects[i] = server.world_state->ephemeral_objects.back();
+						server.world_state->ephemeral_objects.pop_back();
+					}
+					else
+						++i;
+				}
+
+
 				if(server.world_state->server_admin_message_changed)
 				{
 					conPrint("Sending ServerAdminMessages to clients...");

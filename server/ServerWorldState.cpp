@@ -123,6 +123,7 @@ ServerAllWorldsState::~ServerAllWorldsState()
 	root_world_state = nullptr;
 
 	// Delete any objects first, which may contain references to Lua stuff, before we delete the Lua VMs
+	ephemeral_objects.clear();
 	world_states.clear();
 
 	lua_vms.clear();
@@ -2183,3 +2184,11 @@ FeatureFlagInfo::FeatureFlagInfo()
 	),
 	db_dirty(false) 
 {}
+
+WorldStateMeshInfo::WorldStateMeshInfo()
+:	aabb_os(js::AABBox::emptyAABBox()), 
+	num_tris(0),
+	num_verts(0),
+	load_succeeded(false)
+{
+}

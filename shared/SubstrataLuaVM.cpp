@@ -22,6 +22,7 @@ Copyright Glare Technologies Limited 2024 -
 #elif SERVER
 #include "../server/Server.h"
 #include "../server/LuaHTTPRequestManager.h"
+#include "../server/MeshLODGenThread.h"
 #endif
 #include <lua/LuaVM.h>
 #include <lua/LuaScript.h>
@@ -253,6 +254,17 @@ static void enqueueMessageToSend(ClientThread& client_thread, SocketBufferOutStr
 #endif
 
 
+// Returns true if the string value changed, false otherwise.
+static std::string getTableStringFieldWithSizeCheck(lua_State* state, int index, const char* field_name, size_t max_size)
+{
+	const std::string new_string = LuaUtils::getTableStringFieldWithEmptyDefault(state, index, field_name);
+	if(new_string.size() > max_size)
+		throw glare::Exception("field " + std::string(field_name) + " was too long. (string had length " + toString(new_string.size()) + ", max len is " + toString(max_size) + ")" + errorContextString(state));
+	
+	return new_string;
+}
+
+
 static int createObject(lua_State* state)
 {
 	// Expected args:
@@ -263,21 +275,87 @@ static int createObject(lua_State* state)
 
 	const int ob_params_table_index = 1;
 
-	WorldObjectRef ob = new WorldObject();
-	
-	ob->model_url = LuaUtils::getTableStringFieldWithEmptyDefault(state, ob_params_table_index, "model_url"); // TODO: check URL length
-	if(ob->model_url.size() > WorldObject::MAX_URL_SIZE)
-		throw glare::Exception("Model URL too long");
-	ob->pos = LuaUtils::getTableVec3dField(state, ob_params_table_index, "pos");
-	ob->axis = LuaUtils::getTableVec3fFieldWithDefault(state, ob_params_table_index, "axis", Vec3f(1,0,0));
-	ob->angle = (float)LuaUtils::getTableNumberFieldWithDefault(state, ob_params_table_index, "angle", 0.0);
-	ob->scale = LuaUtils::getTableVec3fFieldWithDefault(state, ob_params_table_index, "scale", Vec3f(1,1,1));
+	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
+	WorldObjectRef ob = new WorldObject();
+
+	const double lifetime = LuaUtils::getTableNumberFieldWithDefault(state, ob_params_table_index, "lifetime", 30.0);
+	if(!isFinite(lifetime) || (lifetime <= 0) || (lifetime > 60.0))
+		throw glare::Exception("Invalid lifetime, must be finite, and > 0 and <= 60 (seconds)");
+
+	ob->model_url = getTableStringFieldWithSizeCheck(state, ob_params_table_index, "model_url", WorldObject::MAX_URL_SIZE);
+	
 	ob->setCollidable(LuaUtils::getTableBoolFieldWithDefault(state, ob_params_table_index, "collidable", /*default val=*/true));
 	ob->setDynamic(LuaUtils::getTableBoolFieldWithDefault(state, ob_params_table_index, "dynamic", /*default val=*/true));
 	
-	ob->content = LuaUtils::getTableStringFieldWithEmptyDefault(state, ob_params_table_index, "content");
-	ob->script = LuaUtils::getTableStringFieldWithEmptyDefault(state, ob_params_table_index, "script");
+	ob->content    = getTableStringFieldWithSizeCheck(state, ob_params_table_index, "content",    WorldObject::MAX_CONTENT_SIZE);
+	ob->script     = getTableStringFieldWithSizeCheck(state, ob_params_table_index, "script",     WorldObject::MAX_SCRIPT_SIZE);
+	ob->target_url = getTableStringFieldWithSizeCheck(state, ob_params_table_index, "target_url", WorldObject::MAX_URL_SIZE);
+
+
+	ob->pos = Vec3d(sub_lua_script->world_object->getAABBWS().centroid() + Vec4f(sub_lua_script->world_object->getAABBWS().span()[0]/2 + 0.5f, 0,0,0)); // By default, position just to side of the script object.
+	if(LuaUtils::tableHasField(state, ob_params_table_index, "pos"))
+	{
+		ob->pos = LuaUtils::getTableVec3dField(state, ob_params_table_index, "pos");
+		if(!ob->pos.isFinite())
+			throw glare::Exception("Invalid pos: not finite");
+	}
+
+	ob->axis = LuaUtils::getTableVec3fFieldWithDefault(state, ob_params_table_index, "axis", Vec3f(1,0,0));
+	if(!ob->axis.isFinite() || (ob->axis.length2() < Maths::square(1.0e-6)))
+		throw glare::Exception("Invalid axis: infinite, NaN or approximately zero");
+	ob->angle = (float)LuaUtils::getTableNumberFieldWithDefault(state, ob_params_table_index, "angle", 0.0);
+	if(!::isFinite(ob->angle))
+		throw glare::Exception("Invalid angle: not finite");
+	ob->scale = LuaUtils::getTableVec3fFieldWithDefault(state, ob_params_table_index, "scale", Vec3f(1,1,1));
+	if(!ob->scale.isFinite() || (ob->scale.length2() < Maths::square(1.0e-6)))
+		throw glare::Exception("Invalid scale: infinite, NaN or approximately zero");
+
+	checkTransformOK(ob.ptr()); // Throws glare::Exception if not
+
+#if SERVER
+	// Set aabb_os and max_model_lod_level
+	{
+		ServerAllWorldsState* worlds_state = sub_lua_script->server->world_state.ptr();
+		WorldStateLock lock(worlds_state->mutex);
+
+		auto res = worlds_state->mesh_URL_to_mesh_info.find(ob->model_url);
+		if(res != worlds_state->mesh_URL_to_mesh_info.end())
+		{
+			WorldStateMeshInfo& mesh_info = res->second;
+			if(!mesh_info.load_succeeded)
+				throw glare::Exception("Failed to load model with URL '" + toStdString(ob->model_url) + "'.  Model could not be loaded.");
+			
+			ob->setAABBOS(mesh_info.aabb_os);
+
+			ob->max_model_lod_level = mesh_info.num_verts <= 24 ? 0 : 2;
+		}
+		else
+		{
+			// Mesh info was not cached.  Get MeshLODGenThread to load the mesh and cache its info, so that a later call can succeed.
+			sub_lua_script->server->enqueueMsgForLodGenThread(new CheckGenMeshInfoForURL(ob->model_url));
+
+			throw glare::Exception("Failed to create object with model URL '" + toStdString(ob->model_url) + "'.  Model information not loaded yet. Try again soon.");
+		}
+	}
+#endif
+
+	ob->flags |= (WorldObject::EPHEMERAL_SCRIPT_CREATED | WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH);
+
+	ob->created_time = TimeStamp::currentTime();
+	ob->last_modified_time = ob->created_time;
+	ob->creator_id = sub_lua_script->world_object->creator_id;
+
+#if SERVER
+	{
+		auto res = sub_lua_script->server->world_state->user_id_to_users.find(sub_lua_script->world_object->creator_id);
+		if(res != sub_lua_script->server->world_state->user_id_to_users.end())
+			ob->creator_name = res->second->name;
+	}
+#endif
+
+	
+
 
 	// Materials
 
@@ -310,7 +388,7 @@ static int createObject(lua_State* state)
 
 	//assert(lua_gettop(state) == initial_stack_size); // Check stack is same size as at the start of the function
 
-	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
+	
 
 #if GUI_CLIENT
 
@@ -328,16 +406,28 @@ static int createObject(lua_State* state)
 		ob->uid = sub_lua_script->server->world_state->getNextObjectUID();
 		ob->state = WorldObject::State_JustCreated;
 		ob->from_remote_other_dirty = true;
-	
-		//cur_world_state->addWorldObjectAsDBDirty(new_ob); // TEMP: don't add to DB
 
+		ob->die_time = sub_lua_script->server->getCurrentGlobalTime() + lifetime;
+	
 		sub_lua_script->world_state->getDirtyFromRemoteObjects(*sub_lua_script->cur_world_state_lock).insert(ob);
 		sub_lua_script->world_state->getObjects(*sub_lua_script->cur_world_state_lock).insert(std::make_pair(ob->uid, ob));
+
+		// Add to world_state->ephemeral_objects
+		ServerAllWorldsState::EphemeralObInfo ob_info;
+		ob_info.ob = ob;
+		ob_info.world = sub_lua_script->world_state;
+		sub_lua_script->server->world_state->ephemeral_objects.push_back(ob_info);
 	}
 
 #endif
 
-	return 0; // Count of returned values
+#if SERVER
+	sub_lua_script->pushWorldObjectTableOntoStack(state, ob->uid);
+	return 1; // Count of returned values
+#else
+	lua_pushnil(state);
+	return 1; // Count of returned values
+#endif
 }
 
 
@@ -2393,8 +2483,8 @@ SubstrataLuaVM::SubstrataLuaVM(const SubstrataLuaVMArgs& args)
 
 
 	// Set some global functions
-//TEMP DISABLED	lua_pushcfunction(lua_vm->state, createObject, /*debugname=*/"createObject");
-//	lua_setglobal(lua_vm->state, "createObject"); // Pops a value from the stack and sets it as the new value of global name.
+	lua_pushcfunction(lua_vm->state, createObject, /*debugname=*/"createObject");
+	lua_setglobal(lua_vm->state, "createObject"); // Pops a value from the stack and sets it as the new value of global name.
 
 	if(register_object_script_funcs)
 	{

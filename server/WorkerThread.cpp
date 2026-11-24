@@ -2319,7 +2319,7 @@ void WorkerThread::doRun()
 										}
 										else
 										{
-											ob->flags = flags; // Copy flags
+											ob->setAllowedFlagsFromClient(flags);
 											ob->last_modified_time = TimeStamp::currentTime();
 
 											ob->from_remote_flags_dirty = true;
@@ -2383,6 +2383,7 @@ void WorkerThread::doRun()
 							WorldObjectRef new_ob = new WorldObject();
 							new_ob->uid = readUIDFromStream(msg_buffer); // The UID field is not a UID here: it carries the client's token, which we echo back in the response.
 							readWorldObjectFromNetworkStreamGivenUID(msg_buffer, *new_ob);
+							new_ob->flags &= WorldObject::CLIENT_SETTABLE_FLAGS; // Clients can't set the other bits.
 
 							const uint64 client_token = new_ob->uid.value();
 

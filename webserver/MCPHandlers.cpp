@@ -437,9 +437,14 @@ static const std::string tool_createObject(ServerAllWorldsState& all_worlds, Ser
 			{
 				WorldStateLock lock(all_worlds.mutex);
 
-				auto res = all_worlds.mesh_URL_to_aabb_os.find(model_URL);
-				if(res != all_worlds.mesh_URL_to_aabb_os.end())
-					aabb_os = res->second;
+				auto res = all_worlds.mesh_URL_to_mesh_info.find(model_URL);
+				if(res != all_worlds.mesh_URL_to_mesh_info.end())
+				{
+					WorldStateMeshInfo& mesh_info = res->second;
+					if(!mesh_info.load_succeeded)
+						throw glare::Exception("Failed to load model with URL '" + toStdString(model_URL) + "'.  Model could not be loaded.");
+					aabb_os = res->second.aabb_os;
+				}
 			}
 
 			if(aabb_os == js::AABBox::emptyAABBox()) // If it wasn't in cache:
@@ -450,10 +455,16 @@ static const std::string tool_createObject(ServerAllWorldsState& all_worlds, Ser
 					
 				aabb_os = batched_mesh->aabb_os;
 
+				WorldStateMeshInfo mesh_info;
+				mesh_info.aabb_os = aabb_os;
+				mesh_info.num_tris  = batched_mesh->numIndices() / 3;
+				mesh_info.num_verts = batched_mesh->numVerts();
+				mesh_info.load_succeeded = true;
+
 				// Insert into AABB cache:
 				{
 					WorldStateLock lock(all_worlds.mutex);
-					all_worlds.mesh_URL_to_aabb_os.insert(std::make_pair(model_URL, aabb_os));
+					all_worlds.mesh_URL_to_mesh_info.insert(std::make_pair(model_URL, mesh_info));
 				}
 			}
 		}

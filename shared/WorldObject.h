@@ -217,6 +217,9 @@ public:
 	inline void setIsSensor(bool c);
 	inline bool isEphemeralScriptCreated() const;
 
+	// Sets the bits in CLIENT_SETTABLE_FLAGS from client_flags, and leaves all other bits unchanged.
+	inline void setAllowedFlagsFromClient(uint32 client_flags);
+
 	enum PhysicsShapeType
 	{
 		PhysicsShapeType_auto, // Automatically choose a good collision shape type for the object.  Currently always picks tri-mesh. (apart from dynamic objects which use convex-hull)
@@ -379,6 +382,27 @@ public:
 	static const uint32 MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1       = 1 << 13; // Is the minimum model lod level for this object -1, instead of 0?
 	// bits 14 and 15 store the physics shape type.  See WorldObject::getPhysicsShapeType()
 	static const uint32 EPHEMERAL_SCRIPT_CREATED                = 1 << 16; // Was this object created by the createObject Lua function call?
+
+
+	// The flags that clients are allowed to set or clear.  The server keeps its own values of all other bits.  See setAllowedFlagsFromClient().
+	// When adding a new flag that clients should be able to change, add it here.
+	static const uint32 CLIENT_SETTABLE_FLAGS =
+		COLLIDABLE_FLAG |
+		LIGHTMAP_NEEDS_COMPUTING_FLAG |
+		HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG |
+		DYNAMIC_FLAG |
+		SUMMONED_FLAG |
+		VIDEO_AUTOPLAY |
+		VIDEO_LOOP |
+		VIDEO_MUTED |
+		IS_SENSOR_FLAG |
+		EXCLUDE_FROM_LOD_CHUNK_MESH |
+		AUDIO_AUTOPLAY |
+		AUDIO_LOOP |
+		CREATED_VIA_MCP | // Set by LuaBuildScript on the client.
+		MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1 |
+		(3u << 14); // Physics shape type (bits 14 and 15)
+
 
 	uint32 flags;
 
@@ -600,6 +624,10 @@ public:
 	Reference<ObjectMoveToController> move_to_controller;
 #endif
 
+#if SERVER
+	double die_time; // For ephemeral objects, the server.getCurrentGlobalTime() at which time they should be deleted.  Ephemeral state, not serialised.
+#endif
+
 private:
 	VoxelGroup voxel_group;
 	Reference<glare::SharedImmutableArray<uint8> > compressed_voxels;
@@ -668,6 +696,14 @@ void WorldObject::setIsSensor(bool c)
 inline bool WorldObject::isEphemeralScriptCreated() const
 {
 	return (flags & EPHEMERAL_SCRIPT_CREATED) != 0;
+}
+
+
+void WorldObject::setAllowedFlagsFromClient(uint32 client_flags)
+{
+	// client_flags is restricted to only those in CLIENT_SETTABLE_FLAGS, then combined with 
+	// the existing bits set in flags that aren't in CLIENT_SETTABLE_FLAGS.
+	flags = (flags & ~CLIENT_SETTABLE_FLAGS) | (client_flags & CLIENT_SETTABLE_FLAGS);
 }
 
 

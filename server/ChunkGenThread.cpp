@@ -1223,6 +1223,10 @@ static ChunkBuildResults buildChunk(ServerAllWorldsState* world_state, Reference
 
 inline static bool shouldExcludeObjectFromLODChunkMesh(const WorldObject* ob)
 {
+	// Exclude ephemeral objects that will be deleted soon anyway.
+	if(ob->isEphemeralScriptCreated())
+		return true;
+
 	// Objects with scripts are likely to be moving, so don't bake into chunk.
 	if(!ob->script.empty())
 	{

@@ -30,6 +30,15 @@ public:
 };
 
 
+// Load the mesh with the given URL, if it is not already in ServerAllWorldsState::mesh_URL_to_mesh_info, and insert its info (AABB, num tris etc.) into mesh_URL_to_mesh_info.
+class CheckGenMeshInfoForURL : public ThreadMessage
+{
+public:
+	CheckGenMeshInfoForURL(const URLString& URL_) : URL(URL_) {}
+	URLString URL;
+};
+
+
 class NewResourceGenerated : public ThreadMessage
 {
 public:
