@@ -2350,7 +2350,7 @@ void WorkerThread::doRun()
 														((log_msg.msg_type == UserScriptLogMessage::MessageType_warning) ? Protocol::ServerScriptOutput_Warning : Protocol::ServerScriptOutput_Print);
 													scratch_packet.writeUInt32(output_type);
 													scratch_packet.writeDouble(myMax(1.0, (double)log_msg.time.numSecondsAgo())); // Age.  At least 1 s, as an age of 0 means the output just happened.
-													scratch_packet.writeStringLengthFirst((log_msg.msg.size() > max_msg_len) ? log_msg.msg.substr(0, max_msg_len) : log_msg.msg);
+													scratch_packet.writeStringLengthFirst(string_view(log_msg.msg).substr(0, max_msg_len));
 													MessageUtils::updatePacketLengthField(scratch_packet);
 
 													const size_t write_i = m_temp_buf.size();
