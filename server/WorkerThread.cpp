@@ -3103,11 +3103,11 @@ void WorkerThread::doRun()
 						}
 					case Protocol::UserUsedObjectMessage:
 						{
-							conPrintIfNotFuzzing("Received UserUsedObjectMessage msg.");
+							//conPrintIfNotFuzzing("Received UserUsedObjectMessage msg.");
 
 							const UID object_uid = readUIDFromStream(msg_buffer);
 
-							conPrintIfNotFuzzing("object_uid: " + object_uid.toString());
+							//conPrintIfNotFuzzing("object_uid: " + object_uid.toString());
 
 							Reference<UserUsedObjectThreadMessage> msg = new UserUsedObjectThreadMessage();
 							msg->world = cur_world_state;
@@ -3119,7 +3119,7 @@ void WorkerThread::doRun()
 						}
 					case Protocol::UserTouchedObjectMessage:
 						{
-							conPrintIfNotFuzzing("Received UserTouchedObjectMessage msg.");
+							//conPrintIfNotFuzzing("Received UserTouchedObjectMessage msg.");
 
 							const UID object_uid = readUIDFromStream(msg_buffer);
 
@@ -3133,7 +3133,7 @@ void WorkerThread::doRun()
 						}
 					case Protocol::UserMovedNearToObjectMessage:
 						{
-							conPrintIfNotFuzzing("Received UserMovedNearToObjectMessage msg.");
+							//conPrintIfNotFuzzing("Received UserMovedNearToObjectMessage msg.");
 
 							const UID object_uid = readUIDFromStream(msg_buffer);
 
@@ -3147,7 +3147,7 @@ void WorkerThread::doRun()
 						}
 					case Protocol::UserMovedAwayFromObjectMessage:
 						{
-							conPrintIfNotFuzzing("Received UserMovedAwayFromObjectMessage msg.");
+							//conPrintIfNotFuzzing("Received UserMovedAwayFromObjectMessage msg.");
 
 							const UID object_uid = readUIDFromStream(msg_buffer);
 
@@ -3161,7 +3161,7 @@ void WorkerThread::doRun()
 						}
 					case Protocol::UserEnteredParcelMessage:
 						{
-							conPrintIfNotFuzzing("Received UserEnteredParcelMessage msg.");
+							//conPrintIfNotFuzzing("Received UserEnteredParcelMessage msg.");
 
 							const UID object_uid = readUIDFromStream(msg_buffer);
 							const ParcelID parcel_id = readParcelIDFromStream(msg_buffer);
@@ -3178,7 +3178,7 @@ void WorkerThread::doRun()
 						}
 					case Protocol::UserExitedParcelMessage:
 						{
-							conPrintIfNotFuzzing("Received UserExitedParcelMessage msg.");
+							//conPrintIfNotFuzzing("Received UserExitedParcelMessage msg.");
 
 							const UID object_uid = readUIDFromStream(msg_buffer);
 							const ParcelID parcel_id = readParcelIDFromStream(msg_buffer);

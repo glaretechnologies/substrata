@@ -1066,7 +1066,7 @@ void MeshLODGenThread::doRun()
 						const CheckGenResourcesForObject* check_gen_msg = static_cast<CheckGenResourcesForObject*>(msg.ptr());
 						obs_to_scan_UIDs.insert(check_gen_msg->ob_uid);
 
-						conPrint("MeshLODGenThread: Received message to scan object with UID " + check_gen_msg->ob_uid.toString());
+						//conPrint("MeshLODGenThread: Received message to scan object with UID " + check_gen_msg->ob_uid.toString());
 					}
 					else if(CheckGenLodResourcesForURL* check_gen_msg = dynamic_cast<CheckGenLodResourcesForURL*>(msg.ptr()))
 					{

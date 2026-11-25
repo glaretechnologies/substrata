@@ -1294,7 +1294,7 @@ int main(int argc, char *argv[])
 
 						ob->state = WorldObject::State_Dead;
 
-						conPrint("Removed ephemeral object from world_state->objects");
+						// conPrint("Removed ephemeral object from world_state->objects");
 
 						ob_info.creator->num_live_ephemeral_obs--;
 						assert(ob_info.creator->num_live_ephemeral_obs >= 0);
