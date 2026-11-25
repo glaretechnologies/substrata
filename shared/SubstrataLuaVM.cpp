@@ -283,6 +283,8 @@ static int createObject(lua_State* state)
 	if(!isFinite(lifetime) || (lifetime <= 0) || (lifetime > 60.0))
 		throw glare::Exception("Invalid lifetime, must be finite, and > 0 and <= 60 (seconds)");
 
+	if(!LuaUtils::tableHasField(state, ob_params_table_index, "model_url"))
+		throw glare::Exception("createObject: model_url table field required.");
 	ob->model_url = getTableStringFieldWithSizeCheck(state, ob_params_table_index, "model_url", WorldObject::MAX_URL_SIZE);
 	
 	ob->setCollidable(LuaUtils::getTableBoolFieldWithDefault(state, ob_params_table_index, "collidable", /*default val=*/true));
