@@ -228,7 +228,8 @@ GUIClient::GUIClient(const std::string& base_dir_path_, const std::string& appda
 	last_ping_send_time(-1000),
 	gear_item_update_sender(/*send period=*/2.0),
 	active_move_to_controllers(/*empty val=*/nullptr),
-	draw_chunks(true)
+	draw_chunks(true),
+	last_create_object_token(std::numeric_limits<uint64>::max())
 {
 	ZoneScoped; // Tracy profiler
 
@@ -3018,6 +3019,9 @@ void GUIClient::loadModelForObject(WorldObject* ob, WorldStateLock& world_state_
 			}
 		}
 
+		if((this->selected_ob == ob))
+			selectObject(ob, /*selected mat index=*/0); // Re-select object now that the graphics may have been loaded
+
 		//print("\tModel loaded. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
 	}
 	catch(glare::Exception& e)
@@ -3164,9 +3168,9 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 
 	loadScriptForObject(ob, world_state_lock); // Load any script for the object.
 
-	// If we replaced the model for selected_ob, reselect it in the OpenGL engine
+	// If we replaced the model for selected_ob, reselect it.
 	if(this->selected_ob == ob)
-		opengl_engine->selectObject(ob->opengl_engine_ob);
+		selectObject(ob, /*selected_mat_index=*/0);
 }
 
 
@@ -5319,6 +5323,13 @@ PhysicsObject::ShapeType GUIClient::getShapeTypeWantedForOb(const WorldObject& o
 		shape_type = PhysicsObject::ShapeType_convex_hull;
 
 	return shape_type;
+}
+
+
+uint64 GUIClient::nextCreateObjectToken()
+{
+	this->last_create_object_token = (uint64)1'000'000'000 + (uint64)rng.genrand_int32(); // To avoid clashes with CreateObjectTracker tokens.
+	return this->last_create_object_token;
 }
 
 
@@ -7596,11 +7607,9 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 								last_restored_ob_uid_in_edit = UID::invalidUID();
 							}
 
-							// If this object was (just) created by this user, select it.  NOTE: bit of a hack distinguishing newly created objects by checking numSecondsAgo().
-							// Don't select summoned vehicles though, as the intent is probably to ride them, not edit them.
-							if((ob->creator_id == this->logged_in_user_id) && (ob->created_time.numSecondsAgo() < 30) && !BitUtils::isBitSet(ob->flags, WorldObject::SUMMONED_FLAG) &&
-								!BitUtils::isBitSet(ob->flags, WorldObject::CREATED_VIA_MCP))
+							if(ob->uid == this->last_created_ob_UID) // If this object is the last object explicitly created by the user:
 								selectObject(ob, /*selected_mat_index=*/0); // select it
+
 
 							ob->state = WorldObject::State_Alive;
 						}
@@ -10379,6 +10388,22 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 
 			if(!handled_by_tracker && (m->result != Protocol::CreateObjectResult_Success))
 				showErrorNotification(m->error_msg);
+
+			if(m->result == Protocol::CreateObjectResult_Success)
+			{
+				if(m->client_token == this->last_create_object_token)
+				{
+					this->last_created_ob_UID = m->object_uid;
+
+					// Select the object if it has been created already.  Otherwise we will select it when it is created based on last_created_ob_UID.
+					{
+						WorldStateLock lock(world_state->mutex);
+						auto ob_res = world_state->objects.find(m->object_uid);
+						if(ob_res != world_state->objects.end())
+							selectObject(ob_res.getValue(), /*selected mat index=*/0);
+					}
+				}
+			}
 		}
 		break;
 		case Msg_TerrainQueriesToProcessMessage:
@@ -11783,7 +11808,7 @@ void GUIClient::createObject(const std::string& mesh_path, BatchedMeshRef loaded
 		aabb_os = new_world_object->getDecompressedVoxelGroup().getAABB();
 	}
 
-	new_world_object->uid = UID(0); // A new UID will be assigned by server
+	new_world_object->uid = UID(nextCreateObjectToken()); // A new UID will be assigned by server.
 	new_world_object->materials = materials;
 	new_world_object->pos = ob_pos;
 	new_world_object->axis = axis;
@@ -12265,15 +12290,16 @@ void GUIClient::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 			}
 			else
 			{
+				this->last_restored_ob_uid_in_edit = restored_ob->uid; // Store edit UID, will be used when receiving new object to add entry to recreated_ob_uid map.
+
+				restored_ob->uid = UID(nextCreateObjectToken()); // UID will be set by the server. Send a token which we will receive back in a CreateObjectResponse msg, allowing us to select the object.
+
 				// Object had been deleted.  Re-create it, by sending CreateObject message to server
 				// Note that the recreated object will have a different ID.
 				// To apply more undo edits to the recreated object, use recreated_ob_uid to map from edit UID to recreated object UID.
 				{
 					MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
 					restored_ob->writeToNetworkStream(scratch_packet);
-
-					this->last_restored_ob_uid_in_edit = restored_ob->uid; // Store edit UID, will be used when receiving new object to add entry to recreated_ob_uid map.
-
 					enqueueMessageToSend(*this->client_thread, scratch_packet);
 				}
 			}
@@ -15918,12 +15944,16 @@ static bool isObjectDecal(const WorldObjectRef& ob)
 }
 
 
+// Can be called when the object is already selected, to do stuff like turn on voxel grid drawing if this is a voxel object.
 void GUIClient::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 {
 	assert(ob.nonNull());
 
-	// Deselect any existing object
-	deselectObject();
+	const bool newly_selected = ob != this->selected_ob;
+
+	// If we had another object selected, deselect the other object.
+	if(this->selected_ob != ob)
+		deselectObject();
 
 
 	this->selected_ob = ob;
@@ -15931,11 +15961,12 @@ void GUIClient::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 
 	this->selected_ob->is_selected = true;
 
-	this->selection_point_os = Vec4f(0, 0, 0, 1); // Store a default value for this (kind of a pivot point).
+	if(newly_selected)
+		this->selection_point_os = Vec4f(0, 0, 0, 1); // Store a default value for this (kind of a pivot point).
 
 
 	// If diagnostics widget is shown, show an AABB visualisation as well.
-	if(ui_interface->diagnosticsVisible() && ui_interface->showObAABBsEnabled())
+	if(ui_interface->diagnosticsVisible() && ui_interface->showObAABBsEnabled() && this->aabb_os_vis_gl_ob.isNull())
 	{
 		// Add object-space AABB visualisation gl ob.
 		this->aabb_os_vis_gl_ob = opengl_engine->makeAABBObject(this->selected_ob->getAABBOS().min_, this->selected_ob->getAABBOS().max_, Colour4f(0.3f, 0.7f, 0.3f, 0.5f));
@@ -15950,7 +15981,7 @@ void GUIClient::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 	createPathControlledPathVisObjects(*this->selected_ob);
 
 	// Mark the materials on the hit object as selected
-	if(this->selected_ob->opengl_engine_ob.nonNull())
+	if(this->selected_ob->opengl_engine_ob)
 	{
 		opengl_engine->selectObject(selected_ob->opengl_engine_ob);
 		opengl_engine->setSelectionOutlineColour(DEFAULT_OUTLINE_COLOUR);
@@ -15970,14 +16001,17 @@ void GUIClient::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 	// Add an object placement beam
 	if(have_edit_permissions)
 	{
-		opengl_engine->addObject(ob_placement_beam);
-		opengl_engine->addObject(ob_placement_marker);
+		if(!opengl_engine->isObjectAdded(ob_placement_beam))
+		{
+			opengl_engine->addObject(ob_placement_beam);
+			opengl_engine->addObject(ob_placement_marker);
+		}
 
-		if(ui_interface->posAndRot3DControlsEnabled())
+		if(ui_interface->posAndRot3DControlsEnabled() && transform_gizmo.isNull())
 			transform_gizmo = new TransformGizmo(opengl_engine.ptr(), this->selected_ob->pos.toVec4fPoint());
 	}
 
-	if(isObjectDecal(ob))
+	if(isObjectDecal(ob) && ob->edit_aabb.isNull())
 	{
 		const float edge_w = DECAL_EDGE_AABB_WIDTH;
 		ob->edit_aabb = opengl_engine->makeCuboidEdgeAABBObject(
@@ -15993,32 +16027,35 @@ void GUIClient::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 
 
 	// Show object editor, hide parcel editor.
-	ui_interface->setObjectEditorFromOb(*selected_ob, selected_mat_index, /*ob in editing user's world=*/connectedToUsersWorldOrGodUser()); // Update the editor widget with values from the selected object
-	ui_interface->setObjectEditorEnabled(true);
-	ui_interface->showObjectEditor();
-
-	ui_interface->setUIForSelectedObject();
-
-	ui_interface->setObjectEditorControlsEditable(have_edit_permissions);
-	ui_interface->showEditorDockWidget(); // Show the object editor dock widget if it is hidden.
-
-	// Update help text
-	if(have_edit_permissions)
+	if(newly_selected)
 	{
-		std::string text;
-		if(selected_ob->object_type == WorldObject::ObjectType_VoxelGroup)
-			text += "Ctrl + left-click: Add voxel.\n"
-			"Alt + left-click: Delete voxel.\n"
-			"\n";
+		ui_interface->setObjectEditorFromOb(*selected_ob, selected_mat_index, /*ob in editing user's world=*/connectedToUsersWorldOrGodUser()); // Update the editor widget with values from the selected object
+		ui_interface->setObjectEditorEnabled(true);
+		ui_interface->showObjectEditor();
+
+		ui_interface->setUIForSelectedObject();
+
+		ui_interface->setObjectEditorControlsEditable(have_edit_permissions);
+		ui_interface->showEditorDockWidget(); // Show the object editor dock widget if it is hidden.
+
+		// Update help text
+		if(have_edit_permissions)
+		{
+			std::string text;
+			if(selected_ob->object_type == WorldObject::ObjectType_VoxelGroup)
+				text += "Ctrl + left-click: Add voxel.\n"
+				"Alt + left-click: Delete voxel.\n"
+				"\n";
 	
-		text += "'P' key: Pick up/drop object.\n"
-			"Click and drag the mouse to move the object around when picked up.\n"
-			"'[' and  ']' keys rotate the object.\n"
-			"PgUp and  pgDown keys rotate the object.\n"
-			"'-' and '+' keys move object near/far.\n"
-			"Esc key: deselect object.";
+			text += "'P' key: Pick up/drop object.\n"
+				"Click and drag the mouse to move the object around when picked up.\n"
+				"'[' and  ']' keys rotate the object.\n"
+				"PgUp and  pgDown keys rotate the object.\n"
+				"'-' and '+' keys move object near/far.\n"
+				"Esc key: deselect object.";
 	
-		ui_interface->setHelpInfoLabel(text);
+			ui_interface->setHelpInfoLabel(text);
+		}
 	}
 }
 		
@@ -16828,6 +16865,7 @@ void GUIClient::createImageObjectForWidthAndHeight(const std::string& local_imag
 	new_world_object->convertLocalPathsToURLS(*resource_manager);
 
 	// Send CreateObject message to server
+	new_world_object->uid = UID(nextCreateObjectToken()); // UID will be set by the server. Send a token which we will receive back in a CreateObjectResponse msg, allowing us to select the object.
 	MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
 	new_world_object->writeToNetworkStream(scratch_packet);
 	enqueueMessageToSend(*client_thread, scratch_packet);

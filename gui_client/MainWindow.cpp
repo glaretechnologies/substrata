@@ -2171,7 +2171,7 @@ void MainWindow::on_actionAddHypercard_triggered()
 	}
 
 	WorldObjectRef new_world_object = new WorldObject();
-	new_world_object->uid = UID(0); // Will be set by server
+	new_world_object->uid = UID(gui_client.nextCreateObjectToken()); // UID will be set by the server. Send a random token which we will receive back in a CreateObjectResponse msg, allowing us to select the object.
 	new_world_object->object_type = WorldObject::ObjectType_Hypercard;
 	new_world_object->pos = ob_pos;
 	new_world_object->axis = Vec3f(0, 0, 1);
@@ -2219,7 +2219,7 @@ void MainWindow::on_actionAdd_Text_triggered()
 	total_rot.toAxisAndAngle(total_rot_axis, total_rot_angle);
 
 	WorldObjectRef new_world_object = new WorldObject();
-	new_world_object->uid = UID(0); // Will be set by server
+	new_world_object->uid = UID(gui_client.nextCreateObjectToken()); // UID will be set by the server. Send a random token which we will receive back in a CreateObjectResponse msg, allowing us to select the object.
 	new_world_object->object_type = WorldObject::ObjectType_Text;
 	new_world_object->pos = ob_pos;
 	new_world_object->axis = toVec3f(total_rot_axis);
@@ -2264,7 +2264,7 @@ void MainWindow::on_actionAdd_Spotlight_triggered()
 	}
 
 	WorldObjectRef new_world_object = new WorldObject();
-	new_world_object->uid = UID(0); // Will be set by server
+	new_world_object->uid = UID(gui_client.nextCreateObjectToken()); // UID will be set by the server. Send a random token which we will receive back in a CreateObjectResponse msg, allowing us to select the object.
 	new_world_object->object_type = WorldObject::ObjectType_Spotlight;
 	new_world_object->pos = ob_pos;
 	new_world_object->axis = Vec3f(0, 0, 1);
@@ -2315,7 +2315,7 @@ void MainWindow::on_actionAdd_Seat_triggered()
 	}
 
 	WorldObjectRef new_world_object = new WorldObject();
-	new_world_object->uid = UID(0); // Will be set by server
+	new_world_object->uid = UID(gui_client.nextCreateObjectToken()); // UID will be set by the server. Send a random token which we will receive back in a CreateObjectResponse msg, allowing us to select the object.
 	new_world_object->object_type = WorldObject::ObjectType_Seat;
 	new_world_object->pos = ob_pos;
 	new_world_object->axis = Vec3f(0, 0, 1);
@@ -2366,7 +2366,7 @@ void MainWindow::on_actionAdd_Portal_triggered()
 	}
 
 	WorldObjectRef new_world_object = new WorldObject();
-	new_world_object->uid = UID(0); // Will be set by server
+	new_world_object->uid = UID(gui_client.nextCreateObjectToken()); // UID will be set by the server. Send a random token which we will receive back in a CreateObjectResponse msg, allowing us to select the object.
 	new_world_object->object_type = WorldObject::ObjectType_Portal;
 	new_world_object->pos = ob_pos;
 	new_world_object->axis = Vec3f(0, 0, 1);
@@ -2408,7 +2408,7 @@ void MainWindow::on_actionAdd_Web_View_triggered()
 	}
 
 	WorldObjectRef new_world_object = new WorldObject();
-	new_world_object->uid = UID(0); // Will be set by server
+	new_world_object->uid = UID(gui_client.nextCreateObjectToken()); // UID will be set by the server. Send a random token which we will receive back in a CreateObjectResponse msg, allowing us to select the object.
 	new_world_object->object_type = WorldObject::ObjectType_WebView;
 	new_world_object->pos = ob_pos;
 	new_world_object->axis = Vec3f(0, 0, 1);
@@ -2488,7 +2488,7 @@ void MainWindow::on_actionAdd_Video_triggered()
 			}
 
 			WorldObjectRef new_world_object = new WorldObject();
-			new_world_object->uid = UID(0); // Will be set by server
+			new_world_object->uid = UID(gui_client.nextCreateObjectToken()); // UID will be set by the server. Send a random token which we will receive back in a CreateObjectResponse msg, allowing us to select the object.
 			new_world_object->object_type = WorldObject::ObjectType_Video;
 			new_world_object->pos = ob_pos;
 			new_world_object->axis = Vec3f(0, 0, 1);
@@ -2581,7 +2581,7 @@ void MainWindow::on_actionAdd_Audio_Source_triggered()
 			const URLString model_URL = "Capsule_obj_7611321750126528672.bmesh"; // This file is in the client distribution.
 		
 			WorldObjectRef new_world_object = new WorldObject();
-			new_world_object->uid = UID(0); // Will be set by server
+			new_world_object->uid = UID(gui_client.nextCreateObjectToken()); // UID will be set by the server. Send a random token which we will receive back in a CreateObjectResponse msg, allowing us to select the object.
 			new_world_object->object_type = WorldObject::ObjectType_Generic;
 			new_world_object->pos = ob_pos;
 			new_world_object->axis = Vec3f(0, 0, 1);
@@ -2655,7 +2655,7 @@ void MainWindow::on_actionAdd_Decal_triggered()
 	(facing_rot * x_y_plane_to_vert_rot).toAxisAndAngle(axis, angle);
 
 	WorldObjectRef new_world_object = new WorldObject();
-	new_world_object->uid = UID(0); // Will be set by server
+	new_world_object->uid = UID(gui_client.nextCreateObjectToken()); // UID will be set by the server. Send a random token which we will receive back in a CreateObjectResponse msg, allowing us to select the object.
 	new_world_object->object_type = WorldObject::ObjectType_Generic;
 	new_world_object->pos = ob_pos;
 	new_world_object->axis = Vec3f(axis);
@@ -2722,7 +2722,7 @@ void MainWindow::on_actionAdd_Voxels_triggered()
 
 	
 	WorldObjectRef new_world_object = new WorldObject();
-	new_world_object->uid = UID(0); // Will be set by server
+	new_world_object->uid = UID(gui_client.nextCreateObjectToken()); // UID will be set by the server. Send a random token which we will receive back in a CreateObjectResponse msg, allowing us to select the object.
 	new_world_object->object_type = WorldObject::ObjectType_VoxelGroup;
 	new_world_object->materials.resize(1);
 	new_world_object->materials[0] = new WorldMaterial();
@@ -2885,7 +2885,8 @@ void MainWindow::handlePasteOrDropMimeData(const QMimeData* mime_data)
 					}
 
 					// Create object, by sending CreateObject message to server
-					// Note that the recreated object will have a different ID than in the clipboard.
+					// The server will assign a new UID.  Send a token in the UID field, which we will receive back in a CreateObjectResponse msg, allowing us to select the object.
+					pasted_ob->uid = UID(gui_client.nextCreateObjectToken());
 					{
 						MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
 						pasted_ob->writeToNetworkStream(scratch_packet);
@@ -3015,7 +3016,8 @@ void MainWindow::on_actionCloneObject_triggered()
 		}
 
 		WorldObjectRef new_world_object = new WorldObject();
-		new_world_object->uid = UID(0); // Will be set by server
+
+		new_world_object->uid = UID(gui_client.nextCreateObjectToken()); // UID will be set by the server. Send a random token which we will receive back in a CreateObjectResponse msg, allowing us to select the object.
 		new_world_object->object_type = source_ob->object_type;
 		new_world_object->model_url = source_ob->model_url;
 		new_world_object->script = source_ob->script;

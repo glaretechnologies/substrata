@@ -297,7 +297,7 @@ private:
 	void discardTerrainEditor();
 public:
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
-	void selectObject(const WorldObjectRef& ob, int selected_mat_index);
+	void selectObject(const WorldObjectRef& ob, int selected_mat_index); // Can be called when the object is already selected, to do stuff like turn on voxel grid drawing if this is a voxel object.
 	void deleteSelectedObject();
 	void deselectObject();
 	void deselectParcel();
@@ -512,6 +512,8 @@ public:
 	void setOnlyLoadMostImportantObs(bool only_load_most_important_obs);
 
 	PhysicsObject::ShapeType getShapeTypeWantedForOb(const WorldObject& ob) const;
+
+	uint64 nextCreateObjectToken(); // Generates a new token, and stores it in last_create_object_token, then returns it.
 
 	//----------------------- LuaScriptOutputHandler interface -----------------------
 	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;
@@ -1070,4 +1072,11 @@ public:
 	std::unordered_set<OpenGLTextureKey, OpenGLTextureKeyHasher> tex_paths_being_server_processed;
 
 	OpenGLTextureRef processing_placeholder_texture;
+
+	// We send a random token to the server in the UID field of WorldObject in the CreateObject message. (See nextCreateObjectToken() also).
+	// The server then returns it in a CreateObjectResponse message as client_token, with the object_uid of the object it created.
+	// In this way we can select the object with object_uid when it is created, so that newly created objects are selected.
+	// We only send a token for objects we actually want to be selected - we don't want to select summoned vehicles, objects that are created by scripts etc.
+	uint64 last_create_object_token;
+	UID last_created_ob_UID;
 };
