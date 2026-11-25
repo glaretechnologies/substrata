@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <opengl/ui/GLUILineEdit.h>
 #include <opengl/ui/GLUIGridContainer.h>
 #include "ClientThread.h"
+#include <list>
 
 
 class GUIClient;
