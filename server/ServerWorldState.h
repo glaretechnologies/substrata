@@ -501,8 +501,13 @@ public:
 	{
 		WorldObjectRef ob;
 		ServerWorldState* world; // World the object is in, so we can remove from world->objects etc.  ServerWorldStates are not removed from worlds once inserted, so we can just use a raw pointer here.
+		User* creator; // User whose script created the object.  Their num_live_ephemeral_obs is decremented when the object is removed from ephemeral_objects.  Users are not removed from user_id_to_users, so a raw pointer is fine.
 	};
 	std::vector<EphemeralObInfo> ephemeral_objects GUARDED_BY(mutex);
+
+	// Limits on objects created by scripts with createObject(), per user (counted over all of the user's scripts).
+	static const int MAX_NUM_EPHEMERAL_OBS_PER_USER = 200; // Max number of live objects.
+	static const int MAX_NUM_EPHEMERAL_OBS_CREATED_PER_USER_PER_SEC = 10;
 
 	// Sets of objects that should be written to (updated) in the database.
 	std::unordered_set<ResourceRef, ResourceRefHash>					db_dirty_resources				GUARDED_BY(mutex);

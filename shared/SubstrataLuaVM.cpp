@@ -314,18 +314,43 @@ static int createObject(lua_State* state)
 	checkTransformOK(ob.ptr()); // Throws glare::Exception if not
 
 #if SERVER
-	// Set aabb_os and max_model_lod_level
+	// When an object can't be created for a reason other than invalid arguments (e.g. a limit is reached), return nil and print a warning,
+	// rather than raising a Lua error, since an error would stop the script from running any more handlers.
+	User* creator_user = nullptr;
 	{
 		ServerAllWorldsState* worlds_state = sub_lua_script->server->world_state.ptr();
 		WorldStateLock lock(worlds_state->mutex);
 
+		// The new object's creator is set to the user who created the script's object (this_object), so that user owns the new object.
+		// The limits below are per user, and count objects created by all of that user's scripts.
+		auto user_res = worlds_state->user_id_to_users.find(sub_lua_script->world_object->creator_id);
+		if(user_res == worlds_state->user_id_to_users.end())
+			throw glare::Exception("createObject(): Could not find the creator of the script object, object not created.");
+		
+		creator_user = user_res->second.ptr();
+
+		if(creator_user->num_live_ephemeral_obs >= ServerAllWorldsState::MAX_NUM_EPHEMERAL_OBS_PER_USER)
+		{
+			sub_lua_script->printWarningOnce("createObject(): Too many objects created by scripts of this user exist (max " + toString(ServerAllWorldsState::MAX_NUM_EPHEMERAL_OBS_PER_USER) + "), object not created.");
+			lua_pushnil(state);
+			return 1;
+		}
+
+		if(!creator_user->create_ephemeral_ob_rate_limiter.checkAddEvent(sub_lua_script->server->getCurrentGlobalTime()))
+		{
+			sub_lua_script->printWarningOnce("createObject(): Objects are being created too often by scripts of this user (max " + toString(ServerAllWorldsState::MAX_NUM_EPHEMERAL_OBS_CREATED_PER_USER_PER_SEC) + " per second), object not created.");
+			lua_pushnil(state);
+			return 1;
+		}
+
+		// Set aabb_os and max_model_lod_level
 		auto res = worlds_state->mesh_URL_to_mesh_info.find(ob->model_url);
 		if(res != worlds_state->mesh_URL_to_mesh_info.end())
 		{
 			WorldStateMeshInfo& mesh_info = res->second;
 			if(!mesh_info.load_succeeded)
 				throw glare::Exception("Failed to load model with URL '" + toStdString(ob->model_url) + "'.  Model could not be loaded.");
-			
+
 			ob->setAABBOS(mesh_info.aabb_os);
 
 			ob->max_model_lod_level = mesh_info.num_verts <= 24 ? 0 : 2;
@@ -335,7 +360,9 @@ static int createObject(lua_State* state)
 			// Mesh info was not cached.  Get MeshLODGenThread to load the mesh and cache its info, so that a later call can succeed.
 			sub_lua_script->server->enqueueMsgForLodGenThread(new CheckGenMeshInfoForURL(ob->model_url));
 
-			throw glare::Exception("Failed to create object with model URL '" + toStdString(ob->model_url) + "'.  Model information not loaded yet. Try again soon.");
+			sub_lua_script->printWarningOnce("createObject(): Model information for model URL '" + toStdString(ob->model_url) + "' not loaded yet, object not created.  Try again soon.");
+			lua_pushnil(state);
+			return 1;
 		}
 	}
 #endif
@@ -347,11 +374,7 @@ static int createObject(lua_State* state)
 	ob->creator_id = sub_lua_script->world_object->creator_id;
 
 #if SERVER
-	{
-		auto res = sub_lua_script->server->world_state->user_id_to_users.find(sub_lua_script->world_object->creator_id);
-		if(res != sub_lua_script->server->world_state->user_id_to_users.end())
-			ob->creator_name = res->second->name;
-	}
+	ob->creator_name = creator_user->name;
 #endif
 
 	
@@ -416,7 +439,10 @@ static int createObject(lua_State* state)
 		ServerAllWorldsState::EphemeralObInfo ob_info;
 		ob_info.ob = ob;
 		ob_info.world = sub_lua_script->world_state;
+		ob_info.creator = creator_user;
 		sub_lua_script->server->world_state->ephemeral_objects.push_back(ob_info);
+
+		creator_user->num_live_ephemeral_obs++;
 	}
 
 #endif

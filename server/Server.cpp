@@ -1272,6 +1272,9 @@ int main(int argc, char *argv[])
 					WorldObject* ob = ob_info.ob.ptr();
 					if(ob->state == WorldObject::State_Dead) // Object was already deleted some other way.
 					{
+						ob_info.creator->num_live_ephemeral_obs--;
+						assert(ob_info.creator->num_live_ephemeral_obs >= 0);
+
 						// Remove object from ephemeral_objects vector: swap with last element in vector then remove it.
 						server.world_state->ephemeral_objects[i] = server.world_state->ephemeral_objects.back();
 						server.world_state->ephemeral_objects.pop_back();
@@ -1292,6 +1295,9 @@ int main(int argc, char *argv[])
 						ob->state = WorldObject::State_Dead;
 
 						conPrint("Removed ephemeral object from world_state->objects");
+
+						ob_info.creator->num_live_ephemeral_obs--;
+						assert(ob_info.creator->num_live_ephemeral_obs >= 0);
 
 						// Remove object from ephemeral_objects vector: swap with last element in vector then remove it.
 						server.world_state->ephemeral_objects[i] = server.world_state->ephemeral_objects.back();

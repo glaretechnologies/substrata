@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2017 -
 #include "../shared/WorldMaterial.h"
 #include "../shared/Avatar.h"
 #include "../shared/GestureSettings.h"
+#include "../shared/RateLimiter.h"
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
 #include <string>
@@ -93,6 +94,10 @@ public:
 	uint32 flags;
 
 	DatabaseKey database_key;
+
+	// Ephemeral state, not serialised: limits on the objects that this user's scripts create with createObject().  Accessed with the world state mutex held.
+	int num_live_ephemeral_obs; // Number of objects created by this user's scripts that haven't been removed from ServerAllWorldsState::ephemeral_objects yet.
+	RateLimiter create_ephemeral_ob_rate_limiter;
 };
 
 

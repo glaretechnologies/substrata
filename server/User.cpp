@@ -20,8 +20,11 @@ Copyright Glare Technologies Limited 2022 -
 
 
 User::User()
-:	flags(0)
+:	flags(0),
+	num_live_ephemeral_obs(0),
+	create_ephemeral_ob_rate_limiter(/*period (s)=*/1.0, /*max num in period=*/ServerAllWorldsState::MAX_NUM_EPHEMERAL_OBS_CREATED_PER_USER_PER_SEC)
 {
+	create_ephemeral_ob_rate_limiter.setAsNotIndependentlyHeapAllocated(); // Embedded in User, so must never be deleted via a Reference.
 }
 
 
