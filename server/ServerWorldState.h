@@ -129,7 +129,8 @@ struct UserScriptLogMessage
 	enum MessageType
 	{
 		MessageType_print,
-		MessageType_error
+		MessageType_error,
+		MessageType_warning
 	};
 	MessageType msg_type;
 
@@ -139,7 +140,7 @@ struct UserScriptLogMessage
 
 struct UserScriptLog : public ThreadSafeRefCounted
 {
-	CircularBuffer<UserScriptLogMessage> messages GUARDED_BY(mutex);
+	CircularBuffer<UserScriptLogMessage> messages GUARDED_BY(mutex); // Appended to in Server::logLuaMessage().
 	Mutex mutex;
 };
 

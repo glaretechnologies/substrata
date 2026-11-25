@@ -44,7 +44,9 @@ public:
 	// Lua scripting:
 	// A lua script created by the logged in user printed something
 	virtual void printFromLuaScript(const std::string& msg, UID object_uid) {}
-	virtual void luaErrorOccurred(const std::string& msg, UID object_uid) {}
+	// underline_error_line: Should the script line given in msg be underlined in the script editor?  Should be false for errors that may be from an older version of the script.
+	virtual void luaErrorOccurred(const std::string& msg, UID object_uid, bool underline_error_line) {}
+	virtual void luaWarningOccurred(const std::string& msg, UID object_uid) { printFromLuaScript(msg, object_uid); }
 
 	// An object was removed from the world, e.g. because it was deleted.  Used to mark any script editor window for the object.
 	virtual void objectDeleted(UID object_uid) {}

@@ -631,6 +631,9 @@ a
 .log-error {
 	color: firebrick;
 }
+.log-warning {
+	color: #b56300;
+}
 .log-print {
 }
 

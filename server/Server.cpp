@@ -1340,7 +1340,7 @@ int main(int argc, char *argv[])
 				for(auto i = server.worker_thread_manager.getThreads().begin(); i != server.worker_thread_manager.getThreads().end(); ++i)
 				{
 					WorkerThread* worker = static_cast<WorkerThread*>(i->ptr());
-					auto res = broadcast_packets.find(worker->cur_world_state.ptr());
+					auto res = broadcast_packets.find(worker->m_cur_world_state.load(std::memory_order_relaxed));
 					if(res != broadcast_packets.end())
 					{
 						const std::vector<uint8>& packets = res->second;
@@ -1523,6 +1523,8 @@ void Server::printFromLuaScript(LuaScript* script, const char* s, size_t len)
 	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
 
 	logLuaMessage(message, UserScriptLogMessage::MessageType_print, sub_lua_script->world_object->uid, sub_lua_script->world_object->creator_id);
+
+	sendScriptOutputMessageToCreatorClient(Protocol::ServerScriptOutput_Print, message, sub_lua_script->world_object->uid, sub_lua_script->world_object->creator_id);
 }
 
 
@@ -1534,7 +1536,59 @@ void Server::errorOccurredFromLuaScript(LuaScript* script, const std::string& ms
 
 	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
 
-	logLuaError("Error: " + msg, sub_lua_script->world_object->uid, sub_lua_script->world_object->creator_id);
+	logLuaError(msg, sub_lua_script->world_object->uid, sub_lua_script->world_object->creator_id);
+}
+
+
+void Server::warningOccurredFromLuaScript(LuaScript* script, const std::string& msg)
+{
+	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+
+	logLuaMessage("Warning: " + msg, UserScriptLogMessage::MessageType_warning, sub_lua_script->world_object->uid, sub_lua_script->world_object->creator_id);
+
+	sendScriptOutputMessageToCreatorClient(Protocol::ServerScriptOutput_Warning, msg, sub_lua_script->world_object->uid, sub_lua_script->world_object->creator_id);
+}
+
+
+// Sends a ServerScriptOutput message to the clients logged in as script_creator_user_id, so they can show it in their log window and script editor.  Thread-safe
+void Server::sendScriptOutputMessageToCreatorClient(uint32 output_type, const string_view msg, UID world_ob_uid, UserID script_creator_user_id)
+{
+	if(!script_creator_user_id.valid())
+		return;
+
+	const size_t max_msg_len = 16384; // Truncate very long messages.  Should be <= the max length the client reads in ClientThread.
+
+	// NOTE: have inlined the Server::enqueuePacketToUser() code here so we can build the ServerScriptOutput message only if there is the right client actually currently connected.
+	{
+		Lock lock(worker_thread_manager.getMutex());
+
+		m_temp_packet.clear(); // m_temp_packet is protected by worker_thread_manager.mutex.
+
+		for(auto i = worker_thread_manager.getThreads().begin(); i != worker_thread_manager.getThreads().end(); ++i)
+		{
+			assert(dynamic_cast<WorkerThread*>(i->ptr()));
+			WorkerThread* worker_thread = static_cast<WorkerThread*>(i->ptr());
+
+			if((worker_thread->m_client_user_id.load(std::memory_order_relaxed) == script_creator_user_id.value()) &&
+				(worker_thread->m_client_protocol_version.load(std::memory_order_relaxed) >= 59)) // ServerScriptOutput was added in protocol version 59.
+			{
+				if(m_temp_packet.buf.empty()) // If packet not built yet:
+				{
+					// Build the packet
+					m_temp_packet.buf.reserve(myMin(max_msg_len, msg.size()) + 128);
+
+					MessageUtils::initPacket(m_temp_packet, Protocol::ServerScriptOutput);
+					writeToStream(world_ob_uid, m_temp_packet);
+					m_temp_packet.writeUInt32(output_type);
+					m_temp_packet.writeDouble(0.0); // Age: the output just happened.
+					m_temp_packet.writeStringLengthFirst(msg.substr(0, max_msg_len)); // Truncate to max_msg_len.  (string_view::substr clamps the length, and doesn't copy.)
+					MessageUtils::updatePacketLengthField(m_temp_packet);
+				}
+
+				worker_thread->enqueueDataToSend(m_temp_packet);
+			}
+		}
+	}
 }
 
 
@@ -1600,13 +1654,13 @@ void Server::recreateLuaScriptForObject(WorldObject* ob, ServerWorldState* world
 		{
 			ob->sub_lua_script = nullptr;
 			conPrint("Error creating SubstrataLuaScript for ob " + ob->uid.toString() + ": " + e.messageWithLocations());
-			logLuaError("Error: " + e.messageWithLocations(), ob->uid, ob->creator_id);
+			logLuaError(e.messageWithLocations(), ob->uid, ob->creator_id);
 		}
 		catch(glare::Exception& e)
 		{
 			ob->sub_lua_script = nullptr;
 			conPrint("Error creating SubstrataLuaScript for ob " + ob->uid.toString() + ": " + e.what());
-			logLuaError("Error: " + e.what(), ob->uid, ob->creator_id);
+			logLuaError(e.what(), ob->uid, ob->creator_id);
 		}
 	}
 }
@@ -1614,8 +1668,10 @@ void Server::recreateLuaScriptForObject(WorldObject* ob, ServerWorldState* world
 
 void Server::logLuaError(const std::string& msg, UID world_ob_uid, UserID script_creator_user_id)
 {
-	const std::string full_msg = msg + "\nScript will be disabled.";
+	const std::string full_msg = "Error: " + msg + "\nScript will be disabled.";
 	logLuaMessage(full_msg, UserScriptLogMessage::MessageType_error, world_ob_uid, script_creator_user_id);
+
+	sendScriptOutputMessageToCreatorClient(Protocol::ServerScriptOutput_Error, msg, world_ob_uid, script_creator_user_id);
 }
 
 
@@ -1692,7 +1748,7 @@ void Server::enqueuePacketToBroadcastForWorld(const SocketBufferOutStream& packe
 		assert(dynamic_cast<WorkerThread*>(i->ptr()));
 		WorkerThread* worker_thread = static_cast<WorkerThread*>(i->ptr());
 
-		if(worker_thread->cur_world_state.ptr() == world) // If connected to the given world:
+		if(worker_thread->m_cur_world_state.load(std::memory_order_relaxed) == world) // If connected to the given world:
 		{
 			worker_thread->enqueueDataToSend(packet_buffer);
 		}
@@ -1709,6 +1765,26 @@ void Server::enqueuePacketToBroadcastForAllWorlds(const SocketBufferOutStream& p
 		WorkerThread* worker_thread = static_cast<WorkerThread*>(i->ptr());
 
 		worker_thread->enqueueDataToSend(packet_buffer);
+	}
+}
+
+
+void Server::enqueuePacketToUser(const SocketBufferOutStream& packet_buffer, UserID user_id, uint32 min_client_protocol_version)
+{
+	if(!user_id.valid())
+		return;
+
+	Lock lock(worker_thread_manager.getMutex());
+	for(auto i = worker_thread_manager.getThreads().begin(); i != worker_thread_manager.getThreads().end(); ++i)
+	{
+		assert(dynamic_cast<WorkerThread*>(i->ptr()));
+		WorkerThread* worker_thread = static_cast<WorkerThread*>(i->ptr());
+
+		if((worker_thread->m_client_user_id.load(std::memory_order_relaxed) == user_id.value()) &&
+			(worker_thread->m_client_protocol_version.load(std::memory_order_relaxed) >= min_client_protocol_version))
+		{
+			worker_thread->enqueueDataToSend(packet_buffer);
+		}
 	}
 }
 

@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2024 -
 #include "UID.h"
 #include "ParcelID.h"
 #include "DependencyURL.h"
+#include "RateLimiter.h"
 #include <lua/LuaScript.h>
 #include <maths/Vec4f.h>
 #include <utils/RefCounted.h>
@@ -19,7 +20,6 @@ Copyright Glare Technologies Limited 2024 -
 #include <memory>
 #include <set>
 class SubstrataLuaVM;
-class RateLimiter;
 class WorldObject;
 class ServerWorldState;
 class WorldStateLock;
@@ -101,9 +101,7 @@ public:
 	// URLs longer than WorldObject::MAX_URL_SIZE are ignored, without a warning.
 	void warnAboutUndeclaredResourceURL(const string_view func_name, const string_view URL);
 
-	// Prints "Warning: " followed by msg to the script output, unless msg has been printed already, so that a timer repeating a mistake doesn't flood the output.
-	// At most 16 distinct warnings are printed per script.
-	void printWarningOnce(const std::string& msg);
+	void printRateLimitedWarning(const std::string& msg);
 
 	static void test();
 
@@ -165,9 +163,9 @@ public:
 	DependencyURLVector resource_URLs; // Resources declared in the script header.  See appendScriptResourceURLs().
 
 	std::set<std::string> warned_undeclared_resource_URLs; // URLs that warnAboutUndeclaredResourceURL() has already warned about.
-	std::set<std::string> printed_warnings; // Messages that printWarningOnce() has already printed.
 
 #if SERVER
-	Reference<RateLimiter> play_sound_rate_limiter; // Limits how often this script can broadcast ScriptPlaySound messages.
+	RateLimiter play_sound_rate_limiter; // Limits how often this script can broadcast ScriptPlaySound messages.
 #endif
+	RateLimiter warning_rate_limiter; // Limits how often warnings are printed.
 };

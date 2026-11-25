@@ -90,11 +90,11 @@ static void warnAboutUnknownTableKeys(lua_State* state, int table_index, const c
 				for(const char* valid_key : valid_keys)
 					valid_keys_str += (valid_keys_str.empty() ? "" : ", ") + std::string(valid_key);
 
-				sub_lua_script->printWarningOnce(std::string(func_name) + "(): unknown parameter '" + std::string(key).substr(0, 100) + "' was ignored (valid parameters are " + valid_keys_str + ")");
+				sub_lua_script->printRateLimitedWarning(std::string(func_name) + "(): unknown parameter '" + std::string(key).substr(0, 100) + "' was ignored (valid parameters are " + valid_keys_str + ")");
 			}
 		}
 		else
-			sub_lua_script->printWarningOnce(std::string(func_name) + "(): parameter table has a key that is not a string, which was ignored");
+			sub_lua_script->printRateLimitedWarning(std::string(func_name) + "(): parameter table has a key that is not a string, which was ignored");
 
 		lua_pop(state, 1); // Pop value, keep key for the next lua_next call
 	}

@@ -31,6 +31,7 @@ enum GuiClientThreadMessages
 	Msg_ChatMessage,
 	Msg_ScriptedObMoveToMessage,
 	Msg_ScriptPlaySoundMessage,
+	Msg_ServerScriptOutputMessage,
 	Msg_InfoMessage,
 	Msg_ErrorMessage,
 	Msg_LogMessage,

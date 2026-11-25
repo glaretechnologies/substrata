@@ -664,7 +664,24 @@ void ScriptEditorWindow::printFromLuaScript(const std::string& msg)
 }
 
 
-void ScriptEditorWindow::luaErrorOccurred(const std::string& msg)
+void ScriptEditorWindow::luaWarningOccurred(const std::string& msg)
+{
+	// Only show runtime output if the build succeeded
+	if(error_locations.empty())
+	{
+		this->executionOutputTextEdit->moveCursor(QTextCursor::End);
+
+		// Change text colour to orange
+		QTextCharFormat format = this->executionOutputTextEdit->currentCharFormat();
+		format.setForeground(QBrush(QColor(181, 99, 0)));
+		this->executionOutputTextEdit->setCurrentCharFormat(format);
+
+		this->executionOutputTextEdit->insertPlainText(QtUtils::toQString(msg + "\n"));
+	}
+}
+
+
+void ScriptEditorWindow::luaErrorOccurred(const std::string& msg, bool underline_error_line)
 {
 	// Only show runtime errors if the build succeeded
 	if(error_locations.empty())
@@ -681,7 +698,7 @@ void ScriptEditorWindow::luaErrorOccurred(const std::string& msg)
 		// Underline the line the error occurred on.  The cursor isn't moved, as errors can arrive at any time, e.g. from event handlers, while the user is typing.
 		// If the text has been edited since it was applied, the running script is an older version, so its line numbers may not match the editor text.
 		int line_num;
-		if(!text_edited_since_apply && parseLuaErrorLineNum(msg, line_num))
+		if(underline_error_line && !text_edited_since_apply && parseLuaErrorLineNum(msg, line_num))
 		{
 			const QTextBlock block = shaderEdit->document()->findBlockByNumber(line_num - 1);
 			if(block.isValid())

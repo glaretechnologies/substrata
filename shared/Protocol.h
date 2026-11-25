@@ -54,13 +54,14 @@ CyberspaceProtocolVersion
 56: Added ConnectionTypeUploadVideo.
 57: Added ResourceBeingProcessed message, and GetFiles result code 2 (resource is being processed).
 58: Added ScriptPlaySound message.
+59: Added ServerScriptOutput message.
 */
 namespace Protocol
 {
 
 const uint32 CyberspaceHello = 1357924680;
 
-const uint32 CyberspaceProtocolVersion = 58;
+const uint32 CyberspaceProtocolVersion = 59;
 
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
@@ -129,6 +130,14 @@ const uint32 ObjectMoveTo			= 3018; // Server tells clients to smoothly move an 
 const uint32 ObjectRotateTo			= 3019; // Server tells clients to smoothly rotate an object to a target orientation over some duration (scripted rotateTo).
 const uint32 SummonObject			= 3030;
 const uint32 ScriptPlaySound		= 3031; // Server tells clients to play a sound at an object (from playSound() lua function call).  Holds object UID, resource URL, and the UID of the avatar that triggered the script event (invalid if none).
+const uint32 ServerScriptOutput		= 3032; // Output (prints, warnings, errors) from a script running on the server.  Sent only to clients logged in as the creator of the script's object.  Holds script object UID, uint32 ServerScriptOutput_* type, double age (s), message string.
+										// Age is 0 for output sent as it happens, and how long ago the output happened for output sent in response to GetScriptOutputForObject.
+const uint32 GetScriptOutputForObject	= 3033; // Client asks for recent output from the server-side script of an object it created.  Holds object UID.  The server responds with ServerScriptOutput messages.
+
+// Types for ServerScriptOutput messages.
+const uint32 ServerScriptOutput_Print	= 0;
+const uint32 ServerScriptOutput_Error	= 1; // The script hit an error and has been disabled.
+const uint32 ServerScriptOutput_Warning	= 2;
 
 // Easing values used in ObjectMoveTo and ObjectRotateTo messages.
 const uint32 MoveTo_EasingLinear		= 0;

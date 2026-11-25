@@ -36,7 +36,8 @@ public:
 	void mouseDoubleClickedInOutput(ScriptEditorOutputTextEdit* sender, QMouseEvent* e);
 
 	void printFromLuaScript(const std::string& msg);
-	void luaErrorOccurred(const std::string& msg);
+	void luaErrorOccurred(const std::string& msg, bool underline_error_line); // underline_error_line: Underline the script line given in msg, if the script hasn't been edited since it was applied.
+	void luaWarningOccurred(const std::string& msg); // Shows msg in the output in orange.
 
 	void setReadOnly(bool read_only); // For when the user doesn't have permission to edit the object.
 

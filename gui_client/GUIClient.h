@@ -515,9 +515,13 @@ public:
 
 	uint64 nextCreateObjectToken(); // Generates a new token, and stores it in last_create_object_token, then returns it.
 
+	// Asks the server for recent output from the object's server-side script, which it sends as ServerScriptOutput messages.  Does nothing if not connected.
+	void requestServerScriptOutputForObject(UID ob_uid);
+
 	//----------------------- LuaScriptOutputHandler interface -----------------------
 	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;
 	virtual void errorOccurredFromLuaScript(LuaScript* script, const std::string& msg) override;
+	virtual void warningOccurredFromLuaScript(LuaScript* script, const std::string& msg) override;
 	//----------------------- end LuaScriptOutputHandler interface -----------------------
 
 public:

@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "../shared/SubstrataLuaScript.h"
 #include "../shared/ScriptTimerQueue.h"
 #include <IPAddress.h>
+#include <utils/SocketBufferOutStream.h>
 #include <utils/UniqueRef.h>
 #include <utils/Timer.h>
 #include <unordered_set>
@@ -19,7 +20,6 @@ class WorkerThread;
 class SubstrataLuaVM;
 class LuaHTTPRequestManager;
 class LuaHTTPRequest;
-class SocketBufferOutStream;
 class CurrentTLSServerContextPointer;
 
 
@@ -102,9 +102,10 @@ public:
 	// LuaScriptOutputHandler interface:
 	virtual void printFromLuaScript(LuaScript* script, const char* s, size_t len) override;
 	virtual void errorOccurredFromLuaScript(LuaScript* script, const std::string& msg) override;
+	virtual void warningOccurredFromLuaScript(LuaScript* script, const std::string& msg) override;
 
 	void logLuaMessage(const std::string& msg, UserScriptLogMessage::MessageType message_type, UID world_ob_uid, UserID script_creator_user_id); // Thread-safe
-	void logLuaError(const std::string& msg, UID world_ob_uid, UserID script_creator_user_id); // Thread-safe
+	void logLuaError(const std::string& msg, UID world_ob_uid, UserID script_creator_user_id); // Logs "Error: " + msg, and sends msg to the script creator's clients.  Thread-safe
 
 	// Replaces the server-side script evaluator (ob->sub_lua_script) for the object, for when the object is loaded or its script changes.
 	// Creates one if the script is a Lua script, server-side script execution is enabled and the object has a valid creator; otherwise just removes any existing one.
@@ -134,11 +135,20 @@ public:
 	// Thread-safe, can be called from any thread.
 	void enqueuePacketToBroadcastForAllWorlds(const SocketBufferOutStream& packet_buffer);
 
+	// Enqueues packet to all WorkerThreads whose client is logged in as the given user, and has a protocol version >= min_client_protocol_version.
+	// Thread-safe, can be called from any thread.
+	void enqueuePacketToUser(const SocketBufferOutStream& packet_buffer, UserID user_id, uint32 min_client_protocol_version);
+
 	// Tracks URLs of textures that MeshLODGenThread has queued to generate, and hasn't finished with yet.  A client that asks for one of these is told it is being processed.
 	// Thread-safe.
 	void textureGenerationQueued(const URLString& URL); // Records the URL as being generated, and tells connected clients.
 	void removeTextureURLBeingGenerated(const URLString& URL);
 	bool isTextureURLBeingGenerated(const URLString& URL);
+
+private:
+	// Sends a ServerScriptOutput message to the clients logged in as script_creator_user_id, so they can show it in their log window and script editor.  Thread-safe
+	void sendScriptOutputMessageToCreatorClient(uint32 output_type, const string_view msg, UID world_ob_uid, UserID script_creator_user_id);
+public:
 
 
 	Reference<ServerAllWorldsState> world_state;
@@ -176,4 +186,6 @@ public:
 
 	Reference<CurrentTLSServerContextPointer> cur_web_tls_context_ptr;
 	Reference<CurrentTLSServerContextPointer> cur_sub_tls_context_ptr;
+
+	SocketBufferOutStream m_temp_packet GUARDED_BY(worker_thread_manager.getMutex());
 };

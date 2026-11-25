@@ -19,6 +19,7 @@ Copyright Glare Technologies Limited 2018 -
 #include <BufferInStream.h>
 #include <AtomicInt.h>
 #include <string>
+#include <atomic>
 class Server;
 class ServerAllWorldsState;
 class ServerWorldState;
@@ -41,12 +42,15 @@ public:
 
 	virtual void kill() override;
 
-	Reference<ServerWorldState> cur_world_state; // World the client is connected to.
-
 	void enqueueDataToSend(const SocketBufferOutStream& packet); // threadsafe
 	void enqueueDataToSend(const ArrayRef<uint8> data); // threadsafe
 
 	web::RequestInfo websocket_request_info; // If the client connected via a websocket, this the HTTP request data.  Is used for accessing the login cookie.
+
+	// Copies of state from doRun(), for reading from other threads (e.g. by Server::enqueuePacketToUser()).  Only written by this thread.
+	std::atomic<ServerWorldState*> m_cur_world_state; // Same as cur_world_state.ptr().  Null until the client has connected to a world.
+	std::atomic<uint32> m_client_user_id; // Value of the UserID the client is logged in as, UserID::invalidUserID() if not logged in.
+	std::atomic<uint32> m_client_protocol_version; // 0 until the client has sent its protocol version.
 
 private:
 	void sendGetFileMessageIfNeeded(const URLString& resource_URL);
@@ -58,6 +62,8 @@ private:
 	void sendPerWorldInitialDataToClient(ServerAllWorldsState* world_state, uint32 client_protocol_version);
 	void enqueuePacketToBroadcast(const SocketBufferOutStream& packet_buffer);
 	void handleBuilderAIUserMessage(UserID client_user_id, const std::string& client_user_name);
+
+	Reference<ServerWorldState> cur_world_state; // World the client is connected to.  Only use from this thread, other threads should use m_cur_world_state.
 
 	Reference<SocketInterface> socket;
 	Server* server;

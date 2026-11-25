@@ -243,7 +243,8 @@ public:
 	// Lua scripting:
 	// A lua script created by the logged in user printed something
 	virtual void printFromLuaScript(const std::string& msg, UID object_uid) override;
-	virtual void luaErrorOccurred(const std::string& msg, UID object_uid) override;
+	virtual void luaErrorOccurred(const std::string& msg, UID object_uid, bool underline_error_line) override;
+	virtual void luaWarningOccurred(const std::string& msg, UID object_uid) override;
 
 	virtual void objectDeleted(UID object_uid) override; // Marks the object's script editor window, if open.
 

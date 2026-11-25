@@ -22,6 +22,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <utils/StringUtils.h>
 #include <utils/Lock.h>
 #include <utils/Parser.h>
+#include <utils/Clock.h>
 #include <lua/LuaUtils.h>
 #include <lualib.h>
 
@@ -95,14 +96,21 @@ SubstrataLuaScript::SubstrataLuaScript(const Reference<SubstrataLuaVM>& substrat
 	next_timer_id(0),
 	num_obs_event_listening(0),
 	cur_world_state_lock(nullptr),
-	calling_avatar_uid(UID::invalidUID())
+	calling_avatar_uid(UID::invalidUID()),
+#if SERVER
+	play_sound_rate_limiter(/*period (s)=*/1.0, /*max num in period=*/10),
+#endif
+	warning_rate_limiter(/*period (s)=*/60.0, /*max num in period=*/20)
 {
+#if SERVER
+	play_sound_rate_limiter.setAsNotIndependentlyHeapAllocated();
+#endif
+	warning_rate_limiter   .setAsNotIndependentlyHeapAllocated();
+
+
 	// Parse "--@resource URL" lines from script, save in resource_URLs.
 	appendScriptResourceURLs(script_src, /*allocator=*/nullptr, /*urls out=*/this->resource_URLs);
 
-#if SERVER
-	play_sound_rate_limiter = new RateLimiter(/*period (s)=*/1.0, /*max num in period=*/10);
-#endif
 
 	for(int i=0; i<MAX_NUM_TIMERS; ++i)
 		timers[i].id = -1;
@@ -1099,18 +1107,14 @@ void SubstrataLuaScript::warnAboutUndeclaredResourceURL(const string_view func_n
 }
 
 
-void SubstrataLuaScript::printWarningOnce(const std::string& msg)
+void SubstrataLuaScript::printRateLimitedWarning(const std::string& msg)
 {
-	const size_t max_num_warnings = 16; // Bound the memory used.
-	if(printed_warnings.size() >= max_num_warnings)
-		return;
-
-	const bool inserted = printed_warnings.insert(msg).second;
-	if(inserted && script_output_handler)
+	if(script_output_handler && warning_rate_limiter.checkAddEvent(Clock::getCurTimeRealSec()))
 	{
-		const std::string output = "Warning: " + msg;
-		script_output_handler->printFromLuaScript(this, output.data(), output.size());
+		script_output_handler->warningOccurredFromLuaScript(this, msg);
 	}
+
+	// TODO: append something about prior warnings being suppressed?
 }
 
 

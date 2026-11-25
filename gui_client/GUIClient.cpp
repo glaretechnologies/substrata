@@ -1251,6 +1251,19 @@ void GUIClient::sendChatMessage(const std::string& message)
 }
 
 
+void GUIClient::requestServerScriptOutputForObject(UID ob_uid)
+{
+	// Servers older than protocol version 59 don't know GetScriptOutputForObject, and disconnect clients that send unknown messages.
+	if(client_thread.nonNull() && (this->connection_state != ServerConnectionState_NotConnected) && (this->server_protocol_version >= 59))
+	{
+		MessageUtils::initPacket(scratch_packet, Protocol::GetScriptOutputForObject);
+		writeToStream(ob_uid, scratch_packet);
+
+		enqueueMessageToSend(*client_thread, scratch_packet);
+	}
+}
+
+
 bool GUIClient::checkAddAudioToProcessingSet(const AudioProcessingKey& key)
 {
 	auto res = audio_processing.insert(key);
@@ -2261,7 +2274,22 @@ void GUIClient::errorOccurredFromLuaScript(LuaScript* script, const std::string&
 		logMessage(full_msg);
 
 		// Pass to UIInterface to show on script editor window if applicable
-		ui_interface->luaErrorOccurred(msg, sub_lua_script->world_object->uid);
+		ui_interface->luaErrorOccurred(msg, sub_lua_script->world_object->uid, /*underline_error_line=*/true);
+	}
+}
+
+
+void GUIClient::warningOccurredFromLuaScript(LuaScript* script, const std::string& msg)
+{
+	// If this is our script, print message to log window and script editor
+
+	SubstrataLuaScript* sub_lua_script = (SubstrataLuaScript*)script->userdata;
+	if(sub_lua_script->world_object->creator_id == this->logged_in_user_id)
+	{
+		logMessage("Lua warning (ob " + sub_lua_script->world_object->uid.toString() + "): " + msg);
+
+		// Pass to UIInterface to show on script editor window if applicable
+		ui_interface->luaWarningOccurred("Warning: " + msg, sub_lua_script->world_object->uid);
 	}
 }
 
@@ -7440,8 +7468,6 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 				{
 					if(ob->state == WorldObject::State_Dead)
 					{
-						print("Removing WorldObject.");
-
 						removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
 
 						//proximity_loader.removeObject(ob);
@@ -9970,6 +9996,42 @@ void GUIClient::handleMessages(double global_time, double cur_time)
 				auto res = this->world_state->objects.find(m->ob_uid);
 				if(res != this->world_state->objects.end())
 					playScriptSound(*res.getValue(), m->URL);
+			}
+		}
+		break;
+		case Msg_ServerScriptOutputMessage:
+		{
+			// Output from one of our scripts running on the server.  Show it in the log window, and in the script editor output if the script editor is open for the object.
+			// Prefix with "[from server]" to distinguish it from output from our client's copy of the script.
+			const ServerScriptOutputMessage* m = checkedDowncastPtr<const ServerScriptOutputMessage>(msg);
+
+			if(m->age_s > 0)
+			{
+				// Earlier output, sent in response to the GetScriptOutputForObject message we send when a script editor is opened.
+				// The message is as stored in the server's script log, e.g. already with an "Error: " prefix for errors.
+				const std::string time_ago = TimeStamp::timeAgoDescription((int64)m->age_s);
+				logMessage("Lua (from server, ob " + m->ob_uid.toString() + ", " + time_ago + "): " + m->msg);
+				if(m->output_type == Protocol::ServerScriptOutput_Error)
+					ui_interface->luaErrorOccurred("[from server, " + time_ago + "] " + m->msg, m->ob_uid, /*underline_error_line=*/false); // The error may be from an older version of the script, so its line numbers may not match the current script.
+				else if(m->output_type == Protocol::ServerScriptOutput_Warning)
+					ui_interface->luaWarningOccurred("[from server, " + time_ago + "] " + m->msg, m->ob_uid);
+				else
+					ui_interface->printFromLuaScript("[from server, " + time_ago + "] " + m->msg, m->ob_uid);
+			}
+			else if(m->output_type == Protocol::ServerScriptOutput_Error)
+			{
+				logMessage("Lua error (from server, ob " + m->ob_uid.toString() + "): " + m->msg + "\nScript will be disabled.");
+				ui_interface->luaErrorOccurred("[from server] " + m->msg, m->ob_uid, /*underline_error_line=*/true);
+			}
+			else if(m->output_type == Protocol::ServerScriptOutput_Warning)
+			{
+				logMessage("Lua warning (from server, ob " + m->ob_uid.toString() + "): " + m->msg);
+				ui_interface->luaWarningOccurred("[from server] Warning: " + m->msg, m->ob_uid);
+			}
+			else
+			{
+				logMessage("Lua (from server, ob " + m->ob_uid.toString() + "): " + m->msg);
+				ui_interface->printFromLuaScript("[from server] " + m->msg, m->ob_uid);
 			}
 		}
 		break;
@@ -13838,7 +13900,7 @@ void GUIClient::reloadChangedScriptForObject(WorldObject* ob)
 		showErrorNotification("Error while loading script: " + e.what());
 
 		// Pass to UIInterface to show on script editor window if applicable
-		ui_interface->luaErrorOccurred(e.what(), ob->uid);
+		ui_interface->luaErrorOccurred(e.what(), ob->uid, /*underline_error_line=*/true);
 	}
 }
 

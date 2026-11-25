@@ -757,6 +757,8 @@ void renderScriptLog(ServerAllWorldsState& world_state, const web::RequestInfo& 
 			page += "<span class=\"log-timestamp\">" + msg.time.RFC822FormatedString() + "</span>: <span class=\"log-ob\">ob " + msg.script_ob_uid.toString() + "</span>: ";
 			if(msg.msg_type == UserScriptLogMessage::MessageType_error)
 				page += "<span class=\"log-error\">";
+			else if(msg.msg_type == UserScriptLogMessage::MessageType_warning)
+				page += "<span class=\"log-warning\">";
 			else
 				page += "<span class=\"log-print\">";
 			page += web::Escaping::HTMLEscape(msg.msg);

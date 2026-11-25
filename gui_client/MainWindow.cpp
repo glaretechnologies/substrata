@@ -953,11 +953,19 @@ void MainWindow::printFromLuaScript(const std::string& msg, UID object_uid)
 }
 
 
-void MainWindow::luaErrorOccurred(const std::string& msg, UID object_uid)
+void MainWindow::luaErrorOccurred(const std::string& msg, UID object_uid, bool underline_error_line)
 {
 	auto res = script_editors.find(object_uid);
 	if(res != script_editors.end())
-		res->second->luaErrorOccurred(msg);
+		res->second->luaErrorOccurred(msg, underline_error_line);
+}
+
+
+void MainWindow::luaWarningOccurred(const std::string& msg, UID object_uid)
+{
+	auto res = script_editors.find(object_uid);
+	if(res != script_editors.end())
+		res->second->luaWarningOccurred(msg);
 }
 
 
@@ -4416,6 +4424,9 @@ void MainWindow::openScriptEditorSlot()
 	script_editors[ob_uid] = editor;
 
 	updateScriptEditorBlockedNotice(ob_uid, editor);
+
+	// Get recent output from the object's server-side script, e.g. an error that happened while we weren't connected.  It will be shown in the editor output when it arrives.
+	gui_client.requestServerScriptOutputForObject(ob_uid);
 
 	editor->show();
 	editor->raise();

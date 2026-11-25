@@ -331,14 +331,14 @@ static int createObject(lua_State* state)
 
 		if(creator_user->num_live_ephemeral_obs >= ServerAllWorldsState::MAX_NUM_EPHEMERAL_OBS_PER_USER)
 		{
-			sub_lua_script->printWarningOnce("createObject(): Too many objects created by scripts of this user exist (max " + toString(ServerAllWorldsState::MAX_NUM_EPHEMERAL_OBS_PER_USER) + "), object not created.");
+			sub_lua_script->printRateLimitedWarning("createObject(): Too many objects created by scripts of this user exist (max " + toString(ServerAllWorldsState::MAX_NUM_EPHEMERAL_OBS_PER_USER) + "), object not created.");
 			lua_pushnil(state);
 			return 1;
 		}
 
 		if(!creator_user->create_ephemeral_ob_rate_limiter.checkAddEvent(sub_lua_script->server->getCurrentGlobalTime()))
 		{
-			sub_lua_script->printWarningOnce("createObject(): Objects are being created too often by scripts of this user (max " + toString(ServerAllWorldsState::MAX_NUM_EPHEMERAL_OBS_CREATED_PER_USER_PER_SEC) + " per second), object not created.");
+			sub_lua_script->printRateLimitedWarning("createObject(): Objects are being created too often by scripts of this user (max " + toString(ServerAllWorldsState::MAX_NUM_EPHEMERAL_OBS_CREATED_PER_USER_PER_SEC) + " per second), object not created.");
 			lua_pushnil(state);
 			return 1;
 		}
@@ -360,7 +360,7 @@ static int createObject(lua_State* state)
 			// Mesh info was not cached.  Get MeshLODGenThread to load the mesh and cache its info, so that a later call can succeed.
 			sub_lua_script->server->enqueueMsgForLodGenThread(new CheckGenMeshInfoForURL(ob->model_url));
 
-			sub_lua_script->printWarningOnce("createObject(): Model information for model URL '" + toStdString(ob->model_url) + "' not loaded yet, object not created.  Try again soon.");
+			sub_lua_script->printRateLimitedWarning("createObject(): Model information for model URL '" + toStdString(ob->model_url) + "' not loaded yet, object not created.  Try again soon.");
 			lua_pushnil(state);
 			return 1;
 		}
@@ -1328,7 +1328,7 @@ static int playSound(lua_State* state)
 	// We don't need to send a ScriptPlaySound message to the server, instead we rely on e.g. UserUsedObjectMessages being sent to the server, and the same script calling playSound on the server.
 
 #elif SERVER
-	if(!sub_lua_script->play_sound_rate_limiter->checkAddEvent(sub_lua_script->server->getCurrentGlobalTime()))
+	if(!sub_lua_script->play_sound_rate_limiter.checkAddEvent(sub_lua_script->server->getCurrentGlobalTime()))
 		return 0; // Over the rate limit, don't broadcast.
 
 	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);

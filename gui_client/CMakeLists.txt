@@ -591,6 +591,8 @@ SET(shared_files
 ../shared/GearItem.cpp
 ../shared/GearItem.h
 ../shared/VehiclesShared.h
+../shared/RateLimiter.cpp
+../shared/RateLimiter.h
 )
 
 SET(client_indigo_files

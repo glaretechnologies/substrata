@@ -64,7 +64,10 @@ WorkerThread::WorkerThread(const Reference<SocketInterface>& socket_, Server* se
 	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
 	fuzzing(false),
 	write_trace(false),
-	is_websocket_connection(is_websocket_connection_)
+	is_websocket_connection(is_websocket_connection_),
+	m_cur_world_state(nullptr),
+	m_client_user_id(UserID::invalidUserID().value()),
+	m_client_protocol_version(0)
 {
 	//if(VERBOSE) print("event_fd.efd: " + toString(event_fd.efd));
 
@@ -1221,6 +1224,7 @@ void WorkerThread::doRun()
 
 		// Read protocol version
 		const uint32 client_protocol_version = socket->readUInt32();
+		m_client_protocol_version.store(client_protocol_version, std::memory_order_relaxed);
 		conPrintIfNotFuzzing("client protocol version: " + toString(client_protocol_version));
 		if(client_protocol_version < 38) // We can't handle protocol versions < 38
 		{
@@ -1292,6 +1296,7 @@ void WorkerThread::doRun()
 					throw glare::Exception("Invalid world name '" + initial_world_name + "'.");
 
 				this->cur_world_state = world_state->world_states[initial_world_name];
+				m_cur_world_state.store(cur_world_state.ptr(), std::memory_order_relaxed);
 			}
 
 			// Write avatar UID assigned to the connected client.
@@ -1307,6 +1312,7 @@ void WorkerThread::doRun()
 				if(cookie_logged_in_user != NULL)
 				{
 					client_user_id = cookie_logged_in_user->id;
+					m_client_user_id.store(client_user_id.value(), std::memory_order_relaxed);
 					client_user_name = cookie_logged_in_user->name;
 					client_user_avatar_settings = cookie_logged_in_user->avatar_settings; // TODO: clone materials?
 					getEquippedGearForUser(*cookie_logged_in_user, world_state, lock, /*gear items out=*/client_equipped_gear); // Set client_equipped_gear
@@ -1455,6 +1461,7 @@ void WorkerThread::doRun()
 									throw glare::Exception("Invalid world name '" + new_world_name + "'.");
 
 								this->cur_world_state = world_state->world_states[new_world_name];
+								m_cur_world_state.store(cur_world_state.ptr(), std::memory_order_relaxed);
 
 								world_state->recordWorldEventAttendance(new_world_name, client_user_id, lock);
 							}
@@ -2293,6 +2300,74 @@ void WorkerThread::doRun()
 							if(model_url_changed)
 								server->enqueueMsgForLodGenThread(new CheckGenResourcesForObject(object_uid));
 
+							break;
+						}
+					case Protocol::GetScriptOutputForObject: // Client wants recent output from the server-side script of an object.
+						{
+							const UID ob_uid = readUIDFromStream(msg_buffer);
+
+							// Send the object's most recent messages from the user's script log, oldest first, as ServerScriptOutput messages.
+							// The log for a user only contains output from scripts of objects the user created, so a separate permission check isn't needed.
+							if(client_user_id.valid())
+							{
+								Reference<UserScriptLog> user_script_log;
+								{
+									WorldStateLock lock(world_state->mutex);
+									auto res = world_state->user_script_log.find(client_user_id);
+									if(res != world_state->user_script_log.end())
+										user_script_log = res->second;
+								}
+
+								if(user_script_log)
+								{
+									const size_t max_num_messages = 50;
+									const size_t max_msg_len = 16384; // Should be <= the max length the client reads in ClientThread.
+
+									m_temp_buf.clear(); // Will hold the ServerScriptOutput messages to send, concatenated.
+									{
+										Lock lock(user_script_log->mutex);
+
+										// The log iterator only goes forwards, so first count the object's messages, to know how many to skip so that only the most recent are sent.
+										size_t num_ob_messages = 0;
+										for(auto it = user_script_log->messages.beginIt(); it != user_script_log->messages.endIt(); ++it)
+											if((*it).script_ob_uid == ob_uid)
+												num_ob_messages++;
+
+										size_t num_to_skip = (num_ob_messages > max_num_messages) ? (num_ob_messages - max_num_messages) : 0;
+										for(auto it = user_script_log->messages.beginIt(); it != user_script_log->messages.endIt(); ++it)
+										{
+											const UserScriptLogMessage& log_msg = *it;
+											if(log_msg.script_ob_uid == ob_uid)
+											{
+												if(num_to_skip > 0)
+													num_to_skip--;
+												else
+												{
+													// Messages are sent as they were stored in the log, e.g. with an "Error: " prefix for errors.
+													MessageUtils::initPacket(scratch_packet, Protocol::ServerScriptOutput);
+													writeToStream(ob_uid, scratch_packet);
+													const uint32 output_type = (log_msg.msg_type == UserScriptLogMessage::MessageType_error) ? Protocol::ServerScriptOutput_Error :
+														((log_msg.msg_type == UserScriptLogMessage::MessageType_warning) ? Protocol::ServerScriptOutput_Warning : Protocol::ServerScriptOutput_Print);
+													scratch_packet.writeUInt32(output_type);
+													scratch_packet.writeDouble(myMax(1.0, (double)log_msg.time.numSecondsAgo())); // Age.  At least 1 s, as an age of 0 means the output just happened.
+													scratch_packet.writeStringLengthFirst((log_msg.msg.size() > max_msg_len) ? log_msg.msg.substr(0, max_msg_len) : log_msg.msg);
+													MessageUtils::updatePacketLengthField(scratch_packet);
+
+													const size_t write_i = m_temp_buf.size();
+													m_temp_buf.resize(write_i + scratch_packet.buf.size());
+													std::memcpy(&m_temp_buf[write_i], scratch_packet.buf.data(), scratch_packet.buf.size());
+												}
+											}
+										}
+									}
+
+									if(!m_temp_buf.empty())
+									{
+										socket->writeData(m_temp_buf.data(), m_temp_buf.size());
+										socket->flush();
+									}
+								}
+							}
 							break;
 						}
 					case Protocol::ObjectFlagsChanged:
@@ -3149,6 +3224,7 @@ void WorkerThread::doRun()
 										{
 											// Password is valid, log user in.
 											client_user_id = user->id;
+											m_client_user_id.store(client_user_id.value(), std::memory_order_relaxed);
 											client_user_name = user->name;
 											client_user_avatar_settings = user->avatar_settings;
 											client_user_flags = user->flags;
@@ -3204,6 +3280,7 @@ void WorkerThread::doRun()
 							conPrintIfNotFuzzing("LogOutMessage");
 
 							client_user_id = UserID::invalidUserID(); // Mark the client as not logged in.
+							m_client_user_id.store(client_user_id.value(), std::memory_order_relaxed);
 							client_user_name = "";
 							client_user_flags = 0;
 
@@ -3268,6 +3345,7 @@ void WorkerThread::doRun()
 												world_state->markAsChanged(); // Mark as changed so gets saved to disk.
 
 												client_user_id = new_user->id; // Log user in as well.
+												m_client_user_id.store(client_user_id.value(), std::memory_order_relaxed);
 												client_user_name = new_user->name;
 												client_user_avatar_settings = new_user->avatar_settings;
 												getEquippedGearForUser(*new_user, world_state, lock, /*gear items out=*/client_equipped_gear); // Set client_equipped_gear

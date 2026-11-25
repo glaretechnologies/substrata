@@ -71,6 +71,18 @@ public:
 };
 
 
+// Sent from ClientThread to the main thread when a ServerScriptOutput message is received from the server: output from one of our scripts running on the server.
+class ServerScriptOutputMessage : public ThreadMessage
+{
+public:
+	ServerScriptOutputMessage() : ThreadMessage(Msg_ServerScriptOutputMessage) {}
+	UID ob_uid; // UID of the script's object.
+	uint32 output_type; // One of Protocol::ServerScriptOutput_*
+	double age_s; // How long ago the output happened.  0 for output sent as it happens, > 0 for earlier output sent in response to a GetScriptOutputForObject message.
+	std::string msg;
+};
+
+
 class AvatarPerformGestureMessage : public ThreadMessage
 {
 public:

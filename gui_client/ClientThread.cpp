@@ -711,6 +711,16 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			out_msg_queue->enqueue(m); // Inform MainWindow
 			break;
 		}
+		case Protocol::ServerScriptOutput:
+		{
+			Reference<ServerScriptOutputMessage> m = new ServerScriptOutputMessage();
+			m->ob_uid      = readUIDFromStream(msg_buffer);
+			m->output_type = msg_buffer.readUInt32();
+			m->age_s       = msg_buffer.readDouble();
+			m->msg         = msg_buffer.readStringLengthFirst(/*max string length=*/16384); // Server truncates messages to this length.
+			out_msg_queue->enqueue(m); // Inform MainWindow
+			break;
+		}
 		case Protocol::SummonObject:
 		{
 			// conPrint("ClientThread: received SummonObject message.");
