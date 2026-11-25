@@ -1278,7 +1278,7 @@ inline static bool shouldExcludeObjectFromLODChunkMesh(const WorldObject* ob)
 
 // Iterates over WorldObjects, and creates a LODChunk containing the object if one does not already exist.
 // Also sets or unsets INCLUDE_IN_LOD_CHUNK_MESH flag for all objects in world.
-static void updateObjectExcludeFlagsAndUpdateChunks(ServerAllWorldsState* all_worlds_state, const std::string& world_name, ServerWorldState* world_state, WorldStateLock& lock)
+static void updateObjectExcludeFlagsAndUpdateChunks(ServerAllWorldsState* all_worlds_state, const std::string& world_name, ServerWorldState* world_state, WorldStateLock& lock) REQUIRES(all_worlds_state->mutex)
 {
 	Timer timer;
 

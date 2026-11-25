@@ -362,7 +362,7 @@ static WorldStateMeshInfo buildMeshInfoForMeshURL(ServerAllWorldsState* world_st
 }
 
 
-static void checkObjectFlags(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, WorldStateLock& lock)
+static void checkObjectFlags(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, WorldStateLock& lock) REQUIRES(world_state->mutex)
 {
 	//-------------------------------------------- Check MIN_MODEL_LOD_LEVEL_IS_NEGATIVE_1 flag ---------------------------------------
 	if((ob->object_type == WorldObject::ObjectType_Generic) && !ob->model_url.empty()) // Only consider the object types that have LOD-able meshes.

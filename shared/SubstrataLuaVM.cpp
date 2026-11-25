@@ -321,7 +321,7 @@ static int createObject(lua_State* state)
 	User* creator_user = nullptr;
 	{
 		ServerAllWorldsState* worlds_state = sub_lua_script->server->world_state.ptr();
-		WorldStateLock lock(worlds_state->mutex);
+		checkHoldWorldStateMutex(sub_lua_script, worlds_state);
 
 		// The new object's creator is set to the user who created the script's object (this_object), so that user owns the new object.
 		// The limits below are per user, and count objects created by all of that user's scripts.
@@ -428,7 +428,10 @@ static int createObject(lua_State* state)
 
 	// Insert object into world state
 	{
-		ob->uid = sub_lua_script->server->world_state->getNextObjectUID();
+		ServerAllWorldsState* worlds_state = sub_lua_script->server->world_state.ptr();
+		checkHoldWorldStateMutex(sub_lua_script, worlds_state);
+
+		ob->uid = worlds_state->getNextObjectUID();
 		ob->state = WorldObject::State_JustCreated;
 		ob->from_remote_other_dirty = true;
 
@@ -442,7 +445,7 @@ static int createObject(lua_State* state)
 		ob_info.ob = ob;
 		ob_info.world = sub_lua_script->world_state;
 		ob_info.creator = creator_user;
-		sub_lua_script->server->world_state->ephemeral_objects.push_back(ob_info);
+		worlds_state->ephemeral_objects.push_back(ob_info);
 
 		creator_user->num_live_ephemeral_obs++;
 	}
@@ -1545,10 +1548,13 @@ static int luaMoveTo(lua_State* state)
 
 	sub_lua_script->server->enqueuePacketToBroadcastForWorld(packet, sub_lua_script->world_state);
 
+	ServerAllWorldsState* worlds_state = sub_lua_script->server->world_state.ptr();
+	checkHoldWorldStateMutex(sub_lua_script, worlds_state);
+
 	// Update the object's canonical position to the target, so it persists and late-joining clients see the final position.
 	// Note: we deliberately do not set from_remote_transform_dirty, as that would broadcast an ObjectTransformUpdate that snaps clients to the target.
 	ob->pos = target_pos;
-	sub_lua_script->server->world_state->checkAddWorldObjectAsDBDirty(ob, *sub_lua_script->world_state, *sub_lua_script->cur_world_state_lock);
+	worlds_state->checkAddWorldObjectAsDBDirty(ob, *sub_lua_script->world_state, *sub_lua_script->cur_world_state_lock);
 
 	// If an onCompleted callback was provided, schedule it to fire when the move finishes.
 	if(callback_ref.ref != LUA_NOREF)
@@ -1609,10 +1615,13 @@ static int luaRotateTo(lua_State* state)
 
 	sub_lua_script->server->enqueuePacketToBroadcastForWorld(packet, sub_lua_script->world_state);
 
+	ServerAllWorldsState* worlds_state = sub_lua_script->server->world_state.ptr();
+	checkHoldWorldStateMutex(sub_lua_script, worlds_state);
+
 	// Update the object's canonical orientation to the target (see note in luaMoveTo).
 	ob->axis = target_axis;
 	ob->angle = target_angle;
-	sub_lua_script->server->world_state->checkAddWorldObjectAsDBDirty(ob, *sub_lua_script->world_state, *sub_lua_script->cur_world_state_lock);
+	worlds_state->checkAddWorldObjectAsDBDirty(ob, *sub_lua_script->world_state, *sub_lua_script->cur_world_state_lock);
 
 	// If an onCompleted callback was provided, schedule it to fire when the rotation finishes.
 	if(callback_ref.ref != LUA_NOREF)
@@ -1989,11 +1998,14 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 
 	if(transform_changed || other_changed || specific_dirty_flag_set)
 	{
+		ServerAllWorldsState* worlds_state = sub_lua_script->server->world_state.ptr();
+		checkHoldWorldStateMutex(sub_lua_script, worlds_state);
+
 		// Add to dirty set so changes will be sent to clients
 		sub_lua_script->world_state->getDirtyFromRemoteObjects(*sub_lua_script->cur_world_state_lock).insert(ob);
 
 		// Update in the database
-		sub_lua_script->server->world_state->checkAddWorldObjectAsDBDirty(ob, *sub_lua_script->world_state, *sub_lua_script->cur_world_state_lock);
+		worlds_state->checkAddWorldObjectAsDBDirty(ob, *sub_lua_script->world_state, *sub_lua_script->cur_world_state_lock);
 	}
 
 	return 0; // Count of returned values
@@ -2196,7 +2208,10 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 		ob->from_remote_other_dirty = true; // TODO: rename
 		sub_lua_script->world_state->getDirtyFromRemoteObjects(*sub_lua_script->cur_world_state_lock).insert(ob);
 
-		sub_lua_script->server->world_state->checkAddWorldObjectAsDBDirty(ob, *sub_lua_script->world_state, *sub_lua_script->cur_world_state_lock);
+		ServerAllWorldsState* worlds_state = sub_lua_script->server->world_state.ptr();
+		checkHoldWorldStateMutex(sub_lua_script, worlds_state);
+
+		worlds_state->checkAddWorldObjectAsDBDirty(ob, *sub_lua_script->world_state, *sub_lua_script->cur_world_state_lock);
 	}
 
 	return 0; // Count of returned values
