@@ -2082,7 +2082,6 @@ void WorkerThread::doRun()
 							}
 							else
 							{
-								std::string err_msg_to_client;
 								// Look up existing object in world state
 								{
 									WorldStateLock lock(world_state->mutex);
@@ -2092,8 +2091,6 @@ void WorkerThread::doRun()
 										WorldObject* ob = res->second.getPointer();
 
 										// See if the user has permissions to alter this object:
-										//if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms))
-										//	err_msg_to_client = "You must be the owner of this object to change it.";
 										if(ob->isDynamic()) // We will only allow clients to apply PhysicsTransformUpdates to objects it the object is a dynamic object.
 										{
 											ob->pos = pos;
@@ -2117,9 +2114,6 @@ void WorkerThread::doRun()
 										}
 									}
 								} // End lock scope
-
-								if(!err_msg_to_client.empty())
-									writeErrorMessageToClient(socket, err_msg_to_client);
 							}
 
 							break;
