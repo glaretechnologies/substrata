@@ -61,6 +61,28 @@ static inline Colour3f sanitiseEmissionColour(const Colour3f& col)
 }
 
 
+// Returns x clamped to [min_val, max_val], or default_val if x is NaN or infinite.  (Check isFinite before clamping, as clamping NaN is unreliable with /fp:fast)
+static inline float sanitiseScalar(float x, float min_val, float max_val, float default_val)
+{
+	return isFinite(x) ? myClamp(x, min_val, max_val) : default_val;
+}
+
+
+static inline float sanitiseEmissionLuminance(float lum)
+{
+	return sanitiseScalar(lum, 0.f, 1.0e8f, /*default val=*/0.f); // Max is the same as the luminance spin box maximum in the material editor.
+}
+
+
+static inline Matrix2f sanitiseTexMatrix(const Matrix2f& m)
+{
+	if(isFinite(m.e[0]) && isFinite(m.e[1]) && isFinite(m.e[2]) && isFinite(m.e[3]))
+		return m;
+	else
+		return Matrix2f::identity();
+}
+
+
 static inline Colour3f sanitiseAndConvertToLinearAlbedoColour(const Colour3f& col)
 {
 	return toLinearSRGB(sanitiseAlbedoColour(col));
@@ -93,9 +115,9 @@ void ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMater
 	emission_scale = 1.0e-9 * L_v / (683.002 lm/W * 106.856 * 10^-9 m)
 	               = L_v * (1.0e-9 / (683.002 lm/W * 106.856 * 10^-9 m))
 	*/
-	opengl_mat.emission_scale = mat.emission_lum_flux_or_lum * (1.0e-9f / (683.002f * 106.856e-9f)); // 1.0e-9f factor to avoid floating point issues.
+	opengl_mat.emission_scale = sanitiseEmissionLuminance(mat.emission_lum_flux_or_lum) * (1.0e-9f / (683.002f * 106.856e-9f)); // 1.0e-9f factor to avoid floating point issues.
 
-	opengl_mat.roughness = mat.roughness.val;
+	opengl_mat.roughness = sanitiseScalar(mat.roughness.val, 0.f, 1.f, /*default val=*/0.5f);
 	opengl_mat.metallic_roughness_tex_path = mat.roughness.texture_url;
 	opengl_mat.normal_map_path = mat.normal_map_url;
 	opengl_mat.transparent = (mat.opacity.val < 1.0f) || BitUtils::isBitSet(mat.flags, WorldMaterial::HOLOGRAM_FLAG); // Hologram is done with transparent material shader.
@@ -105,12 +127,12 @@ void ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMater
 	opengl_mat.simple_double_sided  = BitUtils::isBitSet(mat.flags, WorldMaterial::DOUBLE_SIDED_FLAG);
 	opengl_mat.decal                = BitUtils::isBitSet(mat.flags, WorldMaterial::DECAL_FLAG);
 
-	opengl_mat.metallic_frac = mat.metallic_fraction.val;
+	opengl_mat.metallic_frac = sanitiseScalar(mat.metallic_fraction.val, 0.f, 1.f, /*default val=*/0.f);
 
 	opengl_mat.fresnel_scale = 0.3f;
 
 	// glTexImage2D expects the start of the texture data to be the lower left of the image, whereas it is actually the upper left.  So flip y coord to compensate.
-	opengl_mat.tex_matrix = Matrix2f(1, 0, 0, -1) * mat.tex_matrix;
+	opengl_mat.tex_matrix = Matrix2f(1, 0, 0, -1) * sanitiseTexMatrix(mat.tex_matrix);
 }
 
 
@@ -142,7 +164,7 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int 
 
 	opengl_mat.emission_linear_rgb = sanitiseAndConvertToLinearEmissionColour(mat.emission_rgb);
 	opengl_mat.emission_tex_path = mat.emission_texture_url;
-	opengl_mat.emission_scale = mat.emission_lum_flux_or_lum * (1.0e-9f / (683.002f * 106.856e-9f)); // See comments above
+	opengl_mat.emission_scale = sanitiseEmissionLuminance(mat.emission_lum_flux_or_lum) * (1.0e-9f / (683.002f * 106.856e-9f)); // See comments above
 
 
 	if(!mat.emission_texture_url.empty())
@@ -165,10 +187,10 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int 
 	else
 		opengl_mat.lightmap_path.clear();
 
-	opengl_mat.roughness = mat.roughness.val;
+	opengl_mat.roughness = sanitiseScalar(mat.roughness.val, 0.f, 1.f, /*default val=*/0.5f);
 	opengl_mat.transparent = (mat.opacity.val < 1.0f) || BitUtils::isBitSet(mat.flags, WorldMaterial::HOLOGRAM_FLAG); // Hologram is done with transparent material shader.
 
-	opengl_mat.metallic_frac = mat.metallic_fraction.val;
+	opengl_mat.metallic_frac = sanitiseScalar(mat.metallic_fraction.val, 0.f, 1.f, /*default val=*/0.f);
 
 	opengl_mat.hologram             = BitUtils::isBitSet(mat.flags, WorldMaterial::HOLOGRAM_FLAG);
 	opengl_mat.use_wind_vert_shader = BitUtils::isBitSet(mat.flags, WorldMaterial::USE_VERT_COLOURS_FOR_WIND);
@@ -178,7 +200,7 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int 
 	opengl_mat.fresnel_scale = 0.3f;
 
 	// glTexImage2D expects the start of the texture data to be the lower left of the image, whereas it is actually the upper left.  So flip y coord to compensate.
-	opengl_mat.tex_matrix = Matrix2f(1, 0, 0, -1) * mat.tex_matrix;
+	opengl_mat.tex_matrix = Matrix2f(1, 0, 0, -1) * sanitiseTexMatrix(mat.tex_matrix);
 
 	if(::hasExtension(opengl_mat.tex_path, "mp4"))
 		opengl_mat.fresnel_scale = 0; // Remove specular reflections, reduces washed-out look.

@@ -212,15 +212,84 @@ static inline void checkHoldWorldStateMutex(SubstrataLuaScript* sub_lua_script, 
 #endif
 
 
-// Construct a WorldMaterial from a table on the lua stack
-static WorldMaterialRef getTableWorldMaterial(lua_State* state, int table_index)
+static std::string getTableStringFieldWithSizeCheck(lua_State* state, int index, const char* field_name, size_t max_size); // Defined below.
+
+
+// Construct a WorldMaterial from a table on the lua stack.  The fields have the same names as the Material attributes.  Missing fields keep the WorldMaterial default values.
+static WorldMaterialRef getWorldMaterialFromLuaTable(lua_State* state, int table_index)
 {
 	WorldMaterialRef mat = new WorldMaterial();
-	mat->colour_texture_url = LuaUtils::getTableStringField(state, table_index, "colour_texture_url");
-	mat->roughness.val = (float)LuaUtils::getTableNumberFieldWithDefault(state, table_index, "roughness_val", 0.5);
-	mat->tex_matrix = LuaUtils::getTableMatrix2fFieldWithDefault(state, table_index, "tex_matrix", Matrix2f::identity());
+	mat->colour_rgb					= Colour3f(LuaUtils::getTableVec3fFieldWithDefault(state, table_index, "colour", Vec3f(mat->colour_rgb.r, mat->colour_rgb.g, mat->colour_rgb.b)));
+	mat->colour_texture_url			= getTableStringFieldWithSizeCheck(state, table_index, "colour_texture_url", WorldObject::MAX_URL_SIZE);
+	mat->emission_rgb				= Colour3f(LuaUtils::getTableVec3fFieldWithDefault(state, table_index, "emission_rgb", Vec3f(mat->emission_rgb.r, mat->emission_rgb.g, mat->emission_rgb.b)));
+	mat->emission_texture_url		= getTableStringFieldWithSizeCheck(state, table_index, "emission_texture_url", WorldObject::MAX_URL_SIZE);
+	mat->normal_map_url				= getTableStringFieldWithSizeCheck(state, table_index, "normal_map_url", WorldObject::MAX_URL_SIZE);
+	mat->roughness.val				= (float)LuaUtils::getTableNumberFieldWithDefault(state, table_index, "roughness_val", mat->roughness.val);
+	mat->roughness.texture_url		= getTableStringFieldWithSizeCheck(state, table_index, "roughness_texture_url", WorldObject::MAX_URL_SIZE);
+	mat->metallic_fraction.val		= (float)LuaUtils::getTableNumberFieldWithDefault(state, table_index, "metallic_fraction_val", mat->metallic_fraction.val);
+	mat->opacity.val				= (float)LuaUtils::getTableNumberFieldWithDefault(state, table_index, "opacity_val", mat->opacity.val);
+	mat->tex_matrix					= LuaUtils::getTableMatrix2fFieldWithDefault(state, table_index, "tex_matrix", mat->tex_matrix);
+	mat->emission_lum_flux_or_lum	= (float)LuaUtils::getTableNumberFieldWithDefault(state, table_index, "emission_lum_flux_or_lum", mat->emission_lum_flux_or_lum);
+	BitUtils::setOrZeroBit(mat->flags, WorldMaterial::HOLOGRAM_FLAG,     LuaUtils::getTableBoolFieldWithDefault(state, table_index, "hologram",     /*default val=*/false));
+	BitUtils::setOrZeroBit(mat->flags, WorldMaterial::DOUBLE_SIDED_FLAG, LuaUtils::getTableBoolFieldWithDefault(state, table_index, "double_sided", /*default val=*/false));
 
 	return mat;
+}
+
+
+static WorldObject* getWorldObjectForUID(SubstrataLuaScript* sub_lua_script, const UID uid); // Defined below.
+static std::string errorContextString(lua_State* state); // Defined below.
+
+
+// Reads the Lua array of materials at array_index on the stack, and appends a WorldMaterial for each element to materials_out.
+// An element can be a Material object (a table with the Material metatable, as returned by ob.materials and ob:getMaterial()), in which case the material
+// it refers to is copied, with all its fields.  Otherwise the element should be a plain table of material fields, which is read with getTableWorldMaterial().
+// Reads elements up to the first nil.  Throws glare::Exception if an element is not a table, or if there are more than WorldObject::maxNumMaterials() elements.
+static void getWorldMaterialsFromLuaArray(lua_State* state, SubstrataLuaScript* sub_lua_script, int array_index, std::vector<WorldMaterialRef>& materials_out)
+{
+	array_index = lua_absindex(state, array_index); // Make the index absolute, as values are pushed below.
+	LuaUtils::checkValueIsTable(state, array_index);
+
+	const int max_num_mats = (int)WorldObject::maxNumMaterials();
+	for(int i=1; i<=max_num_mats + 1; ++i) // Read one past the max, so that we can detect too many materials.
+	{
+		const int elem_type = lua_rawgeti(state, array_index, i); // Pushes array[i]
+		if(elem_type == LUA_TNIL)
+		{
+			lua_pop(state, 1); // Pops nil
+			break;
+		}
+		if(i > max_num_mats)
+			throw glare::Exception("Too many materials in materials array (max " + toString(max_num_mats) + ")." + errorContextString(state));
+		if(elem_type != LUA_TTABLE)
+			throw glare::Exception("Material " + toString(i) + " in materials array was not a table." + errorContextString(state));
+
+		// See if the element is a Material object, by checking if its metatable is the Material class metatable.  (lua_rawequal doesn't call any metamethods)
+		bool is_material_ob = false;
+		if(lua_getmetatable(state, -1)) // If the element has a metatable, pushes it and returns non-zero.  Otherwise pushes nothing.
+		{
+			lua_getref(state, sub_lua_script->substrata_lua_vm->worldMaterialClassMetaTable_ref.ref); // Pushes worldMaterialClassMetaTable
+			is_material_ob = lua_rawequal(state, -1, -2) != 0; // Stack unchanged
+			lua_pop(state, 2); // Pops worldMaterialClassMetaTable and the element's metatable
+		}
+
+		if(is_material_ob)
+		{
+			// Copy the material the Material object refers to.
+			const UID src_ob_uid((uint64)LuaUtils::getTableLightUserDataField(state, /*table index=*/-1, "uid")); // Stack unchanged
+			const size_t src_mat_index = (size_t)LuaUtils::getTableLightUserDataField(state, /*table index=*/-1, "idx"); // Stack unchanged
+
+			const WorldObject* src_ob = getWorldObjectForUID(sub_lua_script, src_ob_uid); // Throws if there is no object with the UID.
+			if(src_mat_index >= src_ob->materials.size())
+				throw glare::Exception("Material " + toString(i) + " in materials array refers to a material that no longer exists." + errorContextString(state));
+
+			materials_out.push_back(src_ob->materials[src_mat_index]->clone());
+		}
+		else
+			materials_out.push_back(getWorldMaterialFromLuaTable(state, /*table index=*/-1)); // Stack unchanged
+
+		lua_pop(state, 1); // Pops array[i]
+	}
 }
 
 
@@ -380,40 +449,12 @@ static int createObject(lua_State* state)
 #endif
 
 	
-
-
 	// Materials
-
-	const int value_type = lua_rawgetfield(state, ob_params_table_index, "materials"); // Push field value onto stack (use lua_rawgetfield to avoid metamethod call).  Returns the type of the pushed value.
+	const int value_type = lua_rawgetfield(state, ob_params_table_index, "materials"); // Pushes materials field value (use lua_rawgetfield to avoid metamethod call).  Returns the type of the pushed value.
 	if(value_type == LUA_TTABLE)
-	{
-		const int max_num_mats = 100;
-		for(int i=1; i<=max_num_mats; ++i)
-		{
-			runtimeCheck(lua_istable(state, -1)); // Materials table should still be on top of stack
+		getWorldMaterialsFromLuaArray(state, sub_lua_script, /*array index=*/-1, ob->materials); // Stack unchanged
+	lua_pop(state, 1); // Pops materials field value
 
-			const int mat_type = lua_rawgeti(state, /*table index=*/-1, i);
-			if(mat_type == LUA_TTABLE)
-			{
-				// Parse table
-				WorldMaterialRef mat = getTableWorldMaterial(state, -1);
-				ob->materials.push_back(mat);
-
-				lua_pop(state, 1); // Pop material value
-			}
-			else
-			{
-				lua_pop(state, 1); // Pop null value
-				break;
-			}
-		}
-
-	}
-	lua_pop(state, 1); // Pop materials value
-
-	//assert(lua_gettop(state) == initial_stack_size); // Check stack is same size as at the start of the function
-
-	
 
 #if GUI_CLIENT
 
@@ -448,6 +489,10 @@ static int createObject(lua_State* state)
 		worlds_state->ephemeral_objects.push_back(ob_info);
 
 		creator_user->num_live_ephemeral_obs++;
+
+		// The object's script is created and run by the server main loop on a later tick, not here.  See ServerAllWorldsState::ephemeral_obs_pending_script_init.
+		if(!ob->script.empty())
+			worlds_state->ephemeral_obs_pending_script_init.push_back(ob_info);
 	}
 
 #endif
@@ -1214,13 +1259,30 @@ static int getNumMaterials(lua_State* state)
 }
 
 
+// Pushes a Material table for the material with the given (zero-based) index of the object with UID ob_uid onto the stack.
+static void pushWorldMaterialTable(lua_State* state, SubstrataLuaScript* sub_lua_script, UID ob_uid, size_t index)
+{
+	// Make a material table with object UID and material index
+	lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/2); // Pushes new material table
+
+	//LuaUtils::setNumberAsTableField(state, "uid", (double)uid.value());
+	LuaUtils::setLightUserDataAsTableField(state, "uid", (void*)ob_uid.value()); // Sets material_table.uid, stack unchanged
+	//LuaUtils::setNumberAsTableField(state, "idx", (double)index);
+	LuaUtils::setLightUserDataAsTableField(state, "idx", (void*)index); // Sets material_table.idx, stack unchanged
+
+	// Set metatable to worldMaterialClassMetaTable_ref
+	lua_getref(state, sub_lua_script->substrata_lua_vm->worldMaterialClassMetaTable_ref.ref); // Pushes worldMaterialClassMetaTable onto the stack.
+	lua_setmetatable(state, -2); // Pops worldMaterialClassMetaTable, sets it as the metatable of the material table.  Material table is left on top of the stack.
+}
+
+
 static int getMaterial(lua_State* state)
 {
 	// arg 1: ob : WorldObject
 	// arg 2: index : Number
 
 	checkNumArgs(state, /*num_args_required*/2);
-	
+
 	// Get object UID
 	const UID ob_uid((uint64)LuaUtils::getTableNumberField(state, /*table index=*/1, "uid"));
 	const double value = LuaUtils::getDoubleArg(state, /*index=*/2);
@@ -1236,17 +1298,7 @@ static int getMaterial(lua_State* state)
 	if(index >= ob->materials.size())
 		throw glare::Exception("Invalid material index" + errorContextString(state));
 
-	// Make a material table with object UID and material index
-	lua_createtable(state, /*num array elems=*/0, /*num non-array elems=*/2);
-
-	//LuaUtils::setNumberAsTableField(state, "uid", (double)uid.value());
-	LuaUtils::setLightUserDataAsTableField(state, "uid", (void*)ob_uid.value());
-	//LuaUtils::setNumberAsTableField(state, "idx", (double)index);
-	LuaUtils::setLightUserDataAsTableField(state, "idx", (void*)index);
-
-	// Set metatable to worldMaterialClassMetaTable_ref
-	lua_getref(state, sub_lua_script->substrata_lua_vm->worldMaterialClassMetaTable_ref.ref); // Pushes worldObjectClassMetaTable_ref onto the stack.
-	lua_setmetatable(state, -2); // "Pops a table from the stack and sets it as the new metatable for the value at the given acceptable index."
+	pushWorldMaterialTable(state, sub_lua_script, ob_uid, index); // Pushes material table
 
 	return 1; // Count of returned values
 }
@@ -1688,6 +1740,10 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 		assert(stringEqual(key_str, "content"));
 		LuaUtils::pushString(state, ob->content);
 		break;
+	case Atom_script:
+		assert(stringEqual(key_str, "script"));
+		LuaUtils::pushString(state, ob->script);
+		break;
 	case Atom_target_url:
 		assert(stringEqual(key_str, "target_url"));
 		LuaUtils::pushString(state, ob->target_url);
@@ -1736,6 +1792,19 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 		assert(stringEqual(key_str, "getMaterial"));
 		lua_pushcfunction(state, getMaterial, "getMaterial");
 		break;
+	case Atom_materials:
+	{
+		assert(stringEqual(key_str, "materials"));
+
+		// Push a Lua array (indexed from 1, like the materials table passed to createObject()) of the object's materials.  So materials[1] is the same material as getMaterial(0).
+		lua_createtable(state, /*num array elems=*/(int)ob->materials.size(), /*num non-array elems=*/0); // Pushes array table
+		for(size_t i=0; i<ob->materials.size(); ++i)
+		{
+			pushWorldMaterialTable(state, sub_lua_script, uid, /*index=*/i); // Pushes material table
+			lua_rawseti(state, /*table index=*/-2, (int)i + 1); // Pops material table, sets array[i + 1] = material table.  Array table is left on top of the stack.
+		}
+		break;
+	}
 	case Atom_playAudio:
 		assert(stringEqual(key_str, "playAudio"));
 		lua_pushcfunction(state, playAudio, "playAudio");
@@ -1982,6 +2051,20 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		assert(stringEqual(key_str, "audio_loop"));
 		other_changed = setOrZeroBitIfChanged(ob->flags, WorldObject::AUDIO_LOOP, LuaUtils::getBool(state, /*index=*/3));
 		break;
+	case Atom_materials:
+	{
+		assert(stringEqual(key_str, "materials"));
+
+		// Build the complete new materials list before replacing ob->materials, as the array may contain Material objects that refer to this object's current materials.
+		std::vector<WorldMaterialRef> new_materials;
+		getWorldMaterialsFromLuaArray(state, sub_lua_script, /*array index=*/3, new_materials); // Stack unchanged.  Throws if the value is not a table.
+		ob->materials = new_materials;
+		other_changed = true;
+
+		// The new materials may use textures that don't have basis/KTX versions generated yet.
+		sub_lua_script->server->enqueueMsgForLodGenThread(new CheckGenResourcesForObject(ob->uid));
+		break;
+	}
 	default:
 		throw glare::Exception("Unknown field '" + std::string(key_str) + "'");
 	}
