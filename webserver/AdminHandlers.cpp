@@ -152,6 +152,8 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 		uint64 sum_num_mem_allocation_failures = 0;
 		uint64 sum_num_refs = 0;
 		uint64 sum_total_num_interrupts = 0;
+		int64 sum_num_scripts = 0;
+		int64 sum_num_threads = 0;
 		double sum_last_period_interrupts_per_sec = 0;
 
 		for(auto it = world_state.lua_vms.begin(); it != world_state.lua_vms.end(); ++it)
@@ -180,6 +182,8 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 			sum_num_refs += lua_vm->getNumLuaValueReferences();
 			sum_total_num_interrupts += lua_vm->total_num_interrupts;
 			sum_last_period_interrupts_per_sec += sub_lua_vm->last_period_interrupts_per_sec;
+			sum_num_scripts += lua_vm->num_scripts;
+			sum_num_threads += lua_vm->num_threads;
 			
 			page_out += "<table class=\"stats-table\">\n";
 			page_out += "<tr><td>total_allocated:                 </td><td>" + uInt64ToStringCommaSeparated(lua_vm->total_allocated) + " B </td></tr>\n";
@@ -189,6 +193,8 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 			page_out += "<tr><td>num lua value references:        </td><td>" + uInt64ToStringCommaSeparated(lua_vm->getNumLuaValueReferences()) + " refs</td></tr>\n";
 			page_out += "<tr><td>total_num_interrupts:            </td><td>" + uInt64ToStringCommaSeparated(lua_vm->total_num_interrupts) + " interrupts</td></tr>\n";
 			page_out += "<tr><td>last_interrupts_per_sec:         </td><td>" + doubleToStringMaxNDecimalPlaces(sub_lua_vm->last_period_interrupts_per_sec, 2) + " interrupts/s</td></tr>\n";
+			page_out += "<tr><td>num_scripts:                     </td><td>" + toString(lua_vm->num_scripts) + "</td></tr>\n";
+			page_out += "<tr><td>num_threads:                     </td><td>" + toString(lua_vm->num_threads) + "</td></tr>\n";
 			page_out += "</table>\n";
 		}
 
@@ -201,6 +207,9 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 		page_out += "<tr><td>num lua value references:           </td><td>" + uInt64ToStringCommaSeparated(sum_num_refs) + " refs</td></tr>\n";
 		page_out += "<tr><td>total_num_interrupts:               </td><td>" + uInt64ToStringCommaSeparated(sum_total_num_interrupts) + " interrupts</td></tr>\n";
 		page_out += "<tr><td>last_interrupts_per_sec:            </td><td>" + doubleToStringMaxNDecimalPlaces(sum_last_period_interrupts_per_sec, 2) + " interrupts/s</td></tr>\n";
+		page_out += "<tr><td>total num scripts:                  </td><td>" + toString(sum_num_scripts) + "</td></tr>\n";
+		page_out += "<tr><td>total num threads:                  </td><td>" + toString(sum_num_threads) + "</td></tr>\n";
+		page_out += "<tr><td>last GC step time (all VMs):        </td><td>" + doubleToStringMaxNDecimalPlaces(world_state.last_lua_vms_gc_step_time_s * 1000, 3) + " ms</td></tr>\n";
 		page_out += "</table>\n";
 	} // End lock scope
 

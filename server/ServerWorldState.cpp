@@ -99,6 +99,8 @@ ServerAllWorldsState::ServerAllWorldsState()
 	next_chatbot_uid = 0;
 	next_gear_item_uid = UID(0);
 
+	last_lua_vms_gc_step_time_s = 0;
+
 	setWorldState(/*world name=*/"", new ServerWorldState());
 
 	last_parcel_update_info.last_parcel_sale_update_hour = 0;
@@ -124,6 +126,7 @@ ServerAllWorldsState::~ServerAllWorldsState()
 
 	// Delete any objects first, which may contain references to Lua stuff, before we delete the Lua VMs
 	ephemeral_objects.clear();
+	ephemeral_obs_pending_script_init.clear();
 	world_states.clear();
 
 	lua_vms.clear();

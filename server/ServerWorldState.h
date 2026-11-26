@@ -441,6 +441,7 @@ public:
 	std::map<UID, GearItemRef> gear_items GUARDED_BY(mutex);
 
 	HashMap<UserID, Reference<SubstrataLuaVM>, UserIDHasher> lua_vms GUARDED_BY(mutex);
+	double last_lua_vms_gc_step_time_s GUARDED_BY(mutex); // Time taken by the last round of explicit garbage collection steps over all lua_vms, done by the server main loop.
 
 	// For the map:
 	MapTileInfo map_tile_info;
@@ -505,6 +506,10 @@ public:
 		User* creator; // User whose script created the object.  Their num_live_ephemeral_obs is decremented when the object is removed from ephemeral_objects.  Users are not removed from user_id_to_users, so a raw pointer is fine.
 	};
 	std::vector<EphemeralObInfo> ephemeral_objects GUARDED_BY(mutex);
+
+	// Objects created by createObject() that have a script that hasn't been created and run yet.  The scripts are created by the server main loop on a later tick,
+	// rather than inside createObject(), so that a script that creates scripted objects doesn't recursively run the new scripts inside its own createObject() call.
+	CircularBuffer<EphemeralObInfo> ephemeral_obs_pending_script_init GUARDED_BY(mutex);
 
 	// Limits on objects created by scripts with createObject(), per user (counted over all of the user's scripts).
 	static const int MAX_NUM_EPHEMERAL_OBS_PER_USER = 200; // Max number of live objects.

@@ -1308,6 +1308,25 @@ int main(int argc, char *argv[])
 				}
 
 
+				// Create and run scripts for objects created by createObject().
+				// Only process the objects that were queued before this tick: objects created by scripts run here are queued, and are processed on the next tick.
+				{
+					CircularBuffer<ServerAllWorldsState::EphemeralObInfo>& pending = server.world_state->ephemeral_obs_pending_script_init;
+					const size_t num_to_process = pending.size();
+					for(size_t i=0; i<num_to_process; ++i)
+					{
+						const ServerAllWorldsState::EphemeralObInfo ob_info = pending.popAndReturnFront();
+						WorldObject* ob = ob_info.ob.ptr();
+
+						// Skip objects that have expired or been deleted, or that already have a script (e.g. the script was edited by a client before it was created here).
+						if((ob->state == WorldObject::State_Dead) || ob->sub_lua_script)
+							continue;
+
+						server.recreateLuaScriptForObject(ob, ob_info.world, lock);
+					}
+				}
+
+
 				if(server.world_state->server_admin_message_changed)
 				{
 					conPrint("Sending ServerAdminMessages to clients...");
@@ -1399,6 +1418,21 @@ int main(int argc, char *argv[])
 			if((loop_iter % 1024) == 64) // Approx every 100 s.
 				if(isFeatureFlagSet(server.world_state, ServerAllWorldsState::DO_WORLD_MAINTENANCE_FEATURE_FLAG))
 					WorldMaintenance::removeOldVehicles(server.world_state);
+
+
+			// Do an explicit garbage collection step for each Lua VM, approx every second.
+			// Luau only does GC work when Lua code allocates, so otherwise garbage (e.g. from destroyed scripts) may not be collected in a VM that isn't running code,
+			// or whose GC is waiting to start the next cycle at a heap size that max_total_mem_allowed won't let it reach.
+			if((loop_iter % 10) == 5)
+			{
+				const int lua_vm_gc_step_size_KB = 32; // Amount of GC work per step, as KB of allocation.  A full cycle over a heap of N KB takes very roughly N / 256 steps.
+
+				WorldStateLock lock(server.world_state->mutex);
+				Timer gc_timer;
+				for(auto it = server.world_state->lua_vms.begin(); it != server.world_state->lua_vms.end(); ++it)
+					it->second->lua_vm->doGCStep(lua_vm_gc_step_size_KB);
+				server.world_state->last_lua_vms_gc_step_time_s = gc_timer.elapsed(); // Shown in the Lua VM stats on the admin page.
+			}
 
 
 			if((loop_iter % 100) == 10) // Approx every 10 s.
@@ -1530,7 +1564,7 @@ void Server::printFromLuaScript(LuaScript* script, const char* s, size_t len)
 
 void Server::errorOccurredFromLuaScript(LuaScript* script, const std::string& msg)
 {
-	conPrint("LUA ERROR: " + msg);
+	// conPrint("LUA ERROR: " + msg);
 
 	// Store log message for user in the per-user script message log.
 
