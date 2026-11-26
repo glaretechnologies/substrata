@@ -4564,7 +4564,7 @@ void GUIClient::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos
 	else
 	{
 		// Mark as from-local-dirty to send an object transform updated message to the server
-		ob->from_local_transform_dirty = true;
+		ob->from_local_dirty |= WorldObject::TRANSFORM_DIRTY;
 		this->world_state->dirty_from_local_objects.insert(ob);
 	}
 
@@ -6981,7 +6981,7 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 								ob->angular_vel = toVec4fVec(angular_vel);
 
 								// Mark as from-local-physics-dirty to send a physics transform updated message to the server
-								ob->from_local_physics_dirty = true;
+								ob->from_local_dirty |= WorldObject::PHYSICS_TRANSFORM_DIRTY;
 								this->world_state->dirty_from_local_objects.insert(ob);
 
 								// Check for sending of renewal of object physics ownership message
@@ -7464,8 +7464,9 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 
 				// conPrint("Processing dirty object.");
 
-				if(ob->from_remote_other_dirty || ob->from_remote_model_url_dirty)
+				if(BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::OTHER_DIRTY | WorldObject::MODEL_URL_DIRTY))
 				{
+					// The processing here also handles lightmap URL and content changes, so the other dirty bits don't need processing below.
 					if(ob->state == WorldObject::State_Dead)
 					{
 						removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
@@ -7643,71 +7644,63 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 						{
 							ob->state = WorldObject::State_Alive;
 						}
-
-						ob->from_remote_other_dirty = false;
-						ob->from_remote_model_url_dirty = false;
 					}
 				}
-				else if(ob->from_remote_lightmap_url_dirty)
+				else
 				{
-					// Try and download any resources we don't have for this object
-					const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
-					startDownloadingResourcesForObject(ob, ob_lod_level);
-
-					// Update materials in opengl engine, so it picks up the new lightmap URL
-					GLObjectRef opengl_ob = ob->opengl_engine_ob;
-					if(opengl_ob.nonNull())
+					if(BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::LIGHTMAP_URL_DIRTY))
 					{
-						glare::ArenaFrame frame(arena_allocator);
-						for(size_t i=0; i<ob->materials.size(); ++i)
-							if(i < opengl_ob->materials.size())
-								ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*tex_format_prefs=*/this->tex_format_prefs, *this->resource_manager, &arena_allocator, opengl_ob->materials[i]);
-						opengl_engine->objectMaterialsUpdated(*opengl_ob);
+						// Try and download any resources we don't have for this object
+						const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+						startDownloadingResourcesForObject(ob, ob_lod_level);
+
+						// Update materials in opengl engine, so it picks up the new lightmap URL
+						GLObjectRef opengl_ob = ob->opengl_engine_ob;
+						if(opengl_ob.nonNull())
+						{
+							glare::ArenaFrame frame(arena_allocator);
+							for(size_t i=0; i<ob->materials.size(); ++i)
+								if(i < opengl_ob->materials.size())
+									ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, /*tex_format_prefs=*/this->tex_format_prefs, *this->resource_manager, &arena_allocator, opengl_ob->materials[i]);
+							opengl_engine->objectMaterialsUpdated(*opengl_ob);
+						}
+
+						ob->lightmap_baking = false; // Since the lightmap URL has changed, we will assume that means the baking is done for this object.
+
+						if(ob == selected_ob.ptr())
+							ui_interface->objectLightmapURLUpdated(*ob); // Update lightmap URL in UI if we have selected the object.
 					}
 
-					ob->lightmap_baking = false; // Since the lightmap URL has changed, we will assume that means the baking is done for this object.
-
-					if(ob == selected_ob.ptr())
-						ui_interface->objectLightmapURLUpdated(*ob); // Update lightmap URL in UI if we have selected the object.
-
-					ob->from_remote_lightmap_url_dirty = false;
-				}
-				else if(ob->from_remote_content_dirty)
-				{
-					// conPrint("GUICLIENT: timerEvent(): handling from_remote_content_dirty..");
-
-					if(ob->object_type == WorldObject::ObjectType_Text)
+					if(BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::CONTENT_DIRTY))
 					{
-						recreateTextGraphicsAndPhysicsObs(ob);
-						BitUtils::zeroBit(ob->changed_flags, WorldObject::CONTENT_CHANGED);
+						// conPrint("GUICLIENT: timerEvent(): handling content dirty..");
+
+						if(ob->object_type == WorldObject::ObjectType_Text)
+						{
+							recreateTextGraphicsAndPhysicsObs(ob);
+							BitUtils::zeroBit(ob->changed_flags, WorldObject::CONTENT_CHANGED);
+						}
+						// TODO: handle non-text objects.  Also move this code into some kind of objectChanged() function?
 					}
-					// TODO: handle non-text objects.  Also move this code into some kind of objectChanged() function?
 
-					ob->from_remote_content_dirty = false;
+					if(BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::PHYSICS_OWNERSHIP_DIRTY))
+					{
+						if(ui_interface->showPhysicsObOwnershipEnabled())
+							obs_with_diagnostic_vis.insert(ob);
+					}
 				}
-				else if(ob->from_remote_physics_ownership_dirty)
-				{
-					if(ui_interface->showPhysicsObOwnershipEnabled())
-						obs_with_diagnostic_vis.insert(ob);
 
-					ob->from_remote_physics_ownership_dirty = false;
-				}
-				
-				if(ob->from_remote_transform_dirty)
+				if(BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::TRANSFORM_DIRTY))
 				{
 					active_objects.insert(ob); // Add to active_objects: objects that have moved recently and so need interpolation done on them.
-
-					ob->from_remote_transform_dirty = false;
 				}
 
-				if(ob->from_remote_physics_transform_dirty)
+				if(BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::PHYSICS_TRANSFORM_DIRTY))
 				{
 					active_objects.insert(ob); // Add to active_objects: objects that have moved recently and so need interpolation done on them.
-
-					ob->from_remote_physics_transform_dirty = false;
 				}
 
-				if(ob->from_remote_summoned_dirty)
+				if(BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::SUMMONED_DIRTY))
 				{
 					enableMaterialisationEffectOnOb(*ob);
 
@@ -7729,9 +7722,9 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					}
 
 					updateSplatObjectTransform(*ob);
-
-					ob->from_remote_summoned_dirty = false;
 				}
+
+				ob->from_remote_dirty = 0;
 			}
 
 			this->world_state->dirty_from_remote_objects.clear();
@@ -7921,19 +7914,15 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 			for(auto it = this->world_state->dirty_from_local_objects.begin(); it != this->world_state->dirty_from_local_objects.end(); ++it)
 			{
 				WorldObject* world_ob = it->getPointer();
-				if(world_ob->from_local_other_dirty)
+				if(BitUtils::isBitSet(world_ob->from_local_dirty, WorldObject::OTHER_DIRTY))
 				{
-					// Enqueue ObjectFullUpdate
+					// Enqueue ObjectFullUpdate.  This sends all information, including the transform, so the other dirty bits don't need processing.
 					MessageUtils::initPacket(scratch_packet, Protocol::ObjectFullUpdate);
 					world_ob->writeToNetworkStream(scratch_packet);
 
 					enqueueMessageToSend(*this->client_thread, scratch_packet);
-
-					world_ob->from_local_other_dirty = false;
-					world_ob->from_local_transform_dirty = false; // We sent all information, including transform, so transform is no longer dirty.
-					world_ob->from_local_physics_dirty = false;
 				}
-				else if(world_ob->from_local_transform_dirty)
+				else if(BitUtils::isBitSet(world_ob->from_local_dirty, WorldObject::TRANSFORM_DIRTY))
 				{
 					// Enqueue ObjectTransformUpdate
 					MessageUtils::initPacket(scratch_packet, Protocol::ObjectTransformUpdate);
@@ -7944,10 +7933,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					writeToStream(Vec3f(world_ob->scale), scratch_packet);
 
 					enqueueMessageToSend(*this->client_thread, scratch_packet);
-
-					world_ob->from_local_transform_dirty = false;
 				}
-				else if(world_ob->from_local_physics_dirty)
+				else if(BitUtils::isBitSet(world_ob->from_local_dirty, WorldObject::PHYSICS_TRANSFORM_DIRTY))
 				{
 					// Send ObjectPhysicsTransformUpdate packet
 					MessageUtils::initPacket(scratch_packet, Protocol::ObjectPhysicsTransformUpdate);
@@ -7963,9 +7950,9 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					scratch_packet.writeDouble(global_time); // Write last_transform_client_time
 
 					enqueueMessageToSend(*this->client_thread, scratch_packet);
-
-					world_ob->from_local_physics_dirty = false;
 				}
+
+				world_ob->from_local_dirty = 0;
 			}
 
 			this->world_state->dirty_from_local_objects.clear();
@@ -12346,7 +12333,7 @@ void GUIClient::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 					in_world_ob->transformChanged();
 
 					// Mark as from-local-dirty to send an object updated message to the server
-					in_world_ob->from_local_other_dirty = true;
+					in_world_ob->from_local_dirty |= WorldObject::OTHER_DIRTY;
 					this->world_state->dirty_from_local_objects.insert(in_world_ob);
 				}
 			}
@@ -12468,7 +12455,7 @@ void GUIClient::removeLightmapsForAllObjectsInParcel()
 						ob->lightmap_url.clear();
 
 						// Mark as from-local-dirty to send an object updated message to the server
-						ob->from_local_other_dirty = true;
+						ob->from_local_dirty |= WorldObject::OTHER_DIRTY;
 						this->world_state->dirty_from_local_objects.insert(ob);
 
 						num_lightmaps_removed++;
@@ -13363,7 +13350,7 @@ void GUIClient::objectTransformEdited()
 				}
 
 				// Mark as from-local-dirty to send an object updated message to the server
-				this->selected_ob->from_local_transform_dirty = true;
+				this->selected_ob->from_local_dirty |= WorldObject::TRANSFORM_DIRTY;
 				this->world_state->dirty_from_local_objects.insert(this->selected_ob);
 
 				// Update any instanced copies of object
@@ -13774,7 +13761,7 @@ void GUIClient::objectEdited()
 
 
 					// Mark as from-local-dirty to send an object updated message to the server
-					this->selected_ob->from_local_other_dirty = true;
+					this->selected_ob->from_local_dirty |= WorldObject::OTHER_DIRTY;
 					this->world_state->dirty_from_local_objects.insert(this->selected_ob);
 
 
@@ -13939,7 +13926,7 @@ void GUIClient::setObjectScript(UID ob_uid, const std::string& script)
 		Lock lock(this->world_state->mutex);
 
 		// Mark as from-local-dirty to send an object updated message to the server
-		ob->from_local_other_dirty = true;
+		ob->from_local_dirty |= WorldObject::OTHER_DIRTY;
 		this->world_state->dirty_from_local_objects.insert(ob);
 	}
 
@@ -15410,7 +15397,7 @@ void GUIClient::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob
 	}
 
 	// Mark as from-local-dirty to send an object updated message to the server
-	ob->from_local_other_dirty = true;
+	ob->from_local_dirty |= WorldObject::OTHER_DIRTY;
 	this->world_state->dirty_from_local_objects.insert(ob);
 }
 
@@ -15814,7 +15801,7 @@ void GUIClient::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 		// Mark as from-local-dirty to send an object updated message to the server.
 		{
 			Lock lock(world_state->mutex);
-			ob->from_local_transform_dirty = true;
+			ob->from_local_dirty |= WorldObject::TRANSFORM_DIRTY;
 			this->world_state->dirty_from_local_objects.insert(ob);
 		}
 

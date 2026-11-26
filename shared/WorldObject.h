@@ -477,19 +477,20 @@ public:
 	};
 
 	State state;
-	bool from_remote_transform_dirty; // Transformation has been changed remotely
-	bool from_remote_physics_transform_dirty; // Transformation has been changed remotely
-	bool from_remote_summoned_dirty;  // Object has been summoned remotely, changing transformation.
-	bool from_remote_other_dirty;     // Something else has been changed remotely
-	bool from_remote_lightmap_url_dirty; // Lightmap URL has been changed remotely
-	bool from_remote_model_url_dirty; // Model URL has been changed remotely
-	bool from_remote_content_dirty; // Content has changed remotely.
-	bool from_remote_flags_dirty;     // Flags have been changed remotely
-	bool from_remote_physics_ownership_dirty; // Physics ownership has been changed remotely.
+	// Bits for from_remote_dirty and from_local_dirty.
+	static const uint32 TRANSFORM_DIRTY				= 1;   // Transformation has been changed
+	static const uint32 PHYSICS_TRANSFORM_DIRTY		= 2;   // Physics transformation (including velocities) has been changed.  Locally this means by the physics engine.
+	static const uint32 SUMMONED_DIRTY				= 4;   // Object has been summoned, changing transformation.
+	static const uint32 OTHER_DIRTY					= 8;   // Something else has been changed
+	static const uint32 LIGHTMAP_URL_DIRTY			= 16;  // Lightmap URL has been changed
+	static const uint32 MODEL_URL_DIRTY				= 32;  // Model URL has been changed
+	static const uint32 CONTENT_DIRTY				= 64;  // Content has been changed
+	static const uint32 FLAGS_DIRTY					= 128; // Flags have been changed
+	static const uint32 PHYSICS_OWNERSHIP_DIRTY		= 256; // Physics ownership has been changed
 
-	bool from_local_transform_dirty;  // Transformation has been changed locally
-	bool from_local_other_dirty;      // Something else has been changed locally
-	bool from_local_physics_dirty; // The physics engine has changed the state of an object locally.
+	// These are set along with inserting the object into the world's dirty-from-remote or dirty-from-local object set, with the world state mutex held.
+	uint32 from_remote_dirty; // Things changed remotely.  Bitwise-or of *_DIRTY values above.
+	uint32 from_local_dirty;  // Things changed locally.  Only TRANSFORM_DIRTY, OTHER_DIRTY and PHYSICS_TRANSFORM_DIRTY are used.
 
 	bool was_just_created; // True if object was created from a State_JustCreated message, false if from a State_InitialSend message.
 

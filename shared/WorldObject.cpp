@@ -67,18 +67,8 @@ WorldObject::WorldObject() noexcept
 	flags = COLLIDABLE_FLAG | AUDIO_AUTOPLAY | AUDIO_LOOP;
 	
 	object_type = ObjectType_Generic;
-	from_remote_transform_dirty = false;
-	from_remote_physics_transform_dirty = false;
-	from_remote_summoned_dirty = false;
-	from_remote_other_dirty = false;
-	from_remote_lightmap_url_dirty = false;
-	from_remote_model_url_dirty = false;
-	from_remote_content_dirty = false;
-	from_remote_flags_dirty = false;
-	from_remote_physics_ownership_dirty = false;
-	from_local_transform_dirty = false;
-	from_local_other_dirty = false;
-	from_local_physics_dirty = false;
+	from_remote_dirty = 0;
+	from_local_dirty = 0;
 	changed_flags = 0;
 	using_placeholder_model = false;
 

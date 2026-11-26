@@ -975,7 +975,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 		if(ob->content == "tower" || ob->content == "tower prefab" || ob->content == "tower platform" || ob->content == "tower furniture")
 		{
 			ob->state = WorldObject::State_Dead;
-			ob->from_remote_other_dirty = true;
+			ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
 			world_state->getRootWorldState()->dirty_from_remote_objects.insert(ob);
 		}
 	}*/

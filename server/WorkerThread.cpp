@@ -1969,7 +1969,7 @@ void WorkerThread::doRun()
 											ob->last_transform_update_avatar_uid = (uint32)client_avatar_uid.value();
 											ob->last_modified_time = TimeStamp::currentTime();
 
-											ob->from_remote_transform_dirty = true;
+											ob->from_remote_dirty |= WorldObject::TRANSFORM_DIRTY;
 											world_state->checkAddWorldObjectAsDBDirty(ob, *cur_world_state, lock);
 											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
@@ -2108,7 +2108,7 @@ void WorkerThread::doRun()
 
 											ob->last_modified_time = TimeStamp::currentTime();
 
-											ob->from_remote_physics_transform_dirty = true;
+											ob->from_remote_dirty |= WorldObject::PHYSICS_TRANSFORM_DIRTY;
 											world_state->checkAddWorldObjectAsDBDirty(ob, *cur_world_state, lock);
 											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 										}
@@ -2169,7 +2169,7 @@ void WorkerThread::doRun()
 
 											ob->last_modified_time = TimeStamp::currentTime();
 
-											ob->from_remote_other_dirty = true;
+											ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
 											server->world_state->checkAddWorldObjectAsDBDirty(ob, *cur_world_state, lock);
 											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
@@ -2231,7 +2231,7 @@ void WorkerThread::doRun()
 											ob->lightmap_url = new_lightmap_url;
 											ob->last_modified_time = TimeStamp::currentTime();
 
-											ob->from_remote_lightmap_url_dirty = true;
+											ob->from_remote_dirty |= WorldObject::LIGHTMAP_URL_DIRTY;
 											world_state->checkAddWorldObjectAsDBDirty(ob, *cur_world_state, lock);
 											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 										}
@@ -2274,7 +2274,7 @@ void WorkerThread::doRun()
 											ob->model_url = new_model_url;
 											ob->last_modified_time = TimeStamp::currentTime();
 
-											ob->from_remote_model_url_dirty = true;
+											ob->from_remote_dirty |= WorldObject::MODEL_URL_DIRTY;
 											world_state->checkAddWorldObjectAsDBDirty(ob, *cur_world_state, lock);
 											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
@@ -2391,7 +2391,7 @@ void WorkerThread::doRun()
 											ob->setAllowedFlagsFromClient(flags);
 											ob->last_modified_time = TimeStamp::currentTime();
 
-											ob->from_remote_flags_dirty = true;
+											ob->from_remote_dirty |= WorldObject::FLAGS_DIRTY;
 											world_state->checkAddWorldObjectAsDBDirty(ob, *cur_world_state, lock);
 											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
@@ -2505,7 +2505,7 @@ void WorkerThread::doRun()
 
 										new_ob->uid = world_state->getNextObjectUID();
 										new_ob->state = WorldObject::State_JustCreated;
-										new_ob->from_remote_other_dirty = true;
+										new_ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
 										world_state->checkAddWorldObjectAsDBDirty(new_ob, *cur_world_state, lock);
 										cur_world_state->getDirtyFromRemoteObjects(lock).insert(new_ob);
 										cur_world_state->getObjects(lock).insert(std::make_pair(new_ob->uid, new_ob));
@@ -2569,7 +2569,7 @@ void WorkerThread::doRun()
 										{
 											// Mark object as dead
 											ob->state = WorldObject::State_Dead;
-											ob->from_remote_other_dirty = true;
+											ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
 											world_state->checkAddWorldObjectAsDBDirty(ob, *cur_world_state, lock);
 											cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 
@@ -3840,7 +3840,7 @@ void WorkerThread::doRun()
 
 									// Destroy the world object (mirrors DestroyObject handler).
 									ob->state = WorldObject::State_Dead;
-									ob->from_remote_other_dirty = true;
+									ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
 									world_state->checkAddWorldObjectAsDBDirty(ob, *cur_world_state, lock);
 									cur_world_state->getDirtyFromRemoteObjects(lock).insert(ob);
 								}
@@ -3914,7 +3914,7 @@ void WorkerThread::doRun()
 
 									new_ob->uid = world_state->getNextObjectUID();
 									new_ob->state = WorldObject::State_JustCreated;
-									new_ob->from_remote_other_dirty = true;
+									new_ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
 									cur_world_state->getObjects(lock).insert(std::make_pair(new_ob->uid, new_ob));
 									world_state->checkAddWorldObjectAsDBDirty(new_ob, *cur_world_state, lock);
 									cur_world_state->getDirtyFromRemoteObjects(lock).insert(new_ob);

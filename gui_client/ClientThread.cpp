@@ -153,7 +153,7 @@ void ClientThread::handleObjectInitialSend(RandomAccessInStream& msg_stream)
 		ob->axis = Vec3f(1,0,0);
 
 	ob->state = WorldObject::State_InitialSend;
-	ob->from_remote_other_dirty = true;
+	ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
 	ob->setTransformAndHistory(ob->pos, ob->axis, ob->angle);
 
 	// TEMP HACK: set a smaller max loading distance for CV features
@@ -661,7 +661,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 
 						ob->next_snapshot_i++;
 
-						ob->from_remote_transform_dirty = true;
+						ob->from_remote_dirty |= WorldObject::TRANSFORM_DIRTY;
 						world_state->dirty_from_remote_objects.insert(ob);
 
 						//conPrint("updated object transform");
@@ -747,7 +747,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 						ob->next_snapshot_i = 0;
 						ob->snapshots_are_physics_snapshots = false;
 
-						ob->from_remote_summoned_dirty = true;
+						ob->from_remote_dirty |= WorldObject::SUMMONED_DIRTY;
 						world_state->dirty_from_remote_objects.insert(ob);
 					}
 				}
@@ -811,7 +811,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 							conPrint("Storing new ob->transmission_time_offset: " + doubleToString(ob->transmission_time_offset));
 						}*/
 
-						ob->from_remote_physics_transform_dirty = true;
+						ob->from_remote_dirty |= WorldObject::PHYSICS_TRANSFORM_DIRTY;
 						world_state->dirty_from_remote_objects.insert(ob);
 					}
 					else
@@ -846,7 +846,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 					{
 						readWorldObjectFromNetworkStreamGivenUID(msg_buffer, *ob);
 						read = true;
-						ob->from_remote_other_dirty = true;
+						ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
 						world_state->dirty_from_remote_objects.insert(ob);
 					}
 				}
@@ -878,7 +878,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 
 					ob->lightmap_url = new_lightmap_url;
 
-					ob->from_remote_lightmap_url_dirty = true;
+					ob->from_remote_dirty |= WorldObject::LIGHTMAP_URL_DIRTY;
 					world_state->dirty_from_remote_objects.insert(ob);
 				}
 			}
@@ -901,7 +901,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 
 					ob->model_url = new_model_url;
 
-					ob->from_remote_model_url_dirty = true;
+					ob->from_remote_dirty |= WorldObject::MODEL_URL_DIRTY;
 					world_state->dirty_from_remote_objects.insert(ob);
 				}
 			}
@@ -924,7 +924,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 
 					ob->content = new_content;
 
-					ob->from_remote_content_dirty = true;
+					ob->from_remote_dirty |= WorldObject::CONTENT_DIRTY;
 					world_state->dirty_from_remote_objects.insert(ob);
 				}
 			}
@@ -945,7 +945,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 					WorldObject* ob = res.getValue().ptr();
 								
 					ob->flags = flags; // Copy flags
-					ob->from_remote_other_dirty = true;
+					ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
 					world_state->dirty_from_remote_objects.insert(ob);
 				}
 			}
@@ -976,7 +976,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 						ob->physics_owner_id = physics_owner_id;
 						ob->last_physics_ownership_change_global_time = last_physics_ownership_change_global_time;
 
-						ob->from_remote_physics_ownership_dirty = true;
+						ob->from_remote_dirty |= WorldObject::PHYSICS_OWNERSHIP_DIRTY;
 						world_state->dirty_from_remote_objects.insert(ob);
 
 						if(renewal)
@@ -1009,7 +1009,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			readWorldObjectFromNetworkStreamGivenUID(msg_buffer, *ob);
 
 			ob->state = WorldObject::State_JustCreated;
-			ob->from_remote_other_dirty = true;
+			ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
 			ob->setTransformAndHistory(ob->pos, ob->axis, ob->angle);
 
 			// Insert into world state.
@@ -1051,7 +1051,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 				{
 					WorldObject* ob = res.getValue().ptr();
 					ob->state = WorldObject::State_Dead;
-					ob->from_remote_other_dirty = true;
+					ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
 					world_state->dirty_from_remote_objects.insert(ob);
 				}
 			}

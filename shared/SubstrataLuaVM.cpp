@@ -474,7 +474,7 @@ static int createObject(lua_State* state)
 
 		ob->uid = worlds_state->getNextObjectUID();
 		ob->state = WorldObject::State_JustCreated;
-		ob->from_remote_other_dirty = true;
+		ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
 
 		ob->die_time = sub_lua_script->server->getCurrentGlobalTime() + lifetime;
 	
@@ -1604,7 +1604,7 @@ static int luaMoveTo(lua_State* state)
 	checkHoldWorldStateMutex(sub_lua_script, worlds_state);
 
 	// Update the object's canonical position to the target, so it persists and late-joining clients see the final position.
-	// Note: we deliberately do not set from_remote_transform_dirty, as that would broadcast an ObjectTransformUpdate that snaps clients to the target.
+	// Note: we deliberately do not set TRANSFORM_DIRTY in from_remote_dirty, as that would broadcast an ObjectTransformUpdate that snaps clients to the target.
 	ob->pos = target_pos;
 	worlds_state->checkAddWorldObjectAsDBDirty(ob, *sub_lua_script->world_state, *sub_lua_script->cur_world_state_lock);
 
@@ -1936,7 +1936,7 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 
 		if(assignStringWithSizeCheck(state, /*index=*/3, /*field=*/ob->model_url, /*field name=*/"model_url", /*max size=*/WorldObject::MAX_URL_SIZE))
 		{
-			ob->from_remote_model_url_dirty = true;
+			ob->from_remote_dirty |= WorldObject::MODEL_URL_DIRTY;
 			specific_dirty_flag_set = true;
 		}
 
@@ -1996,7 +1996,7 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 
 		if(assignStringWithSizeCheck(state, /*index=*/3, /*field=*/ob->content, /*field name=*/"content", /*max size=*/WorldObject::MAX_CONTENT_SIZE))
 		{
-			ob->from_remote_content_dirty = true;
+			ob->from_remote_dirty |= WorldObject::CONTENT_DIRTY;
 			specific_dirty_flag_set = true;
 		}
 		break;
@@ -2072,11 +2072,11 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 	if(transform_changed)
 	{
 		ob->last_transform_update_avatar_uid = std::numeric_limits<uint32>::max();
-		ob->from_remote_transform_dirty = true; // TODO: rename
+		ob->from_remote_dirty |= WorldObject::TRANSFORM_DIRTY; // TODO: rename
 	}
 	else if(other_changed)
 	{
-		ob->from_remote_other_dirty = true; // TODO: rename
+		ob->from_remote_dirty |= WorldObject::OTHER_DIRTY; // TODO: rename
 	}
 
 	if(transform_changed || other_changed || specific_dirty_flag_set)
@@ -2288,7 +2288,7 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 	if(changed)
 	{
 		// Mark the object as dirty, sending the updated object will send the updated material as well.
-		ob->from_remote_other_dirty = true; // TODO: rename
+		ob->from_remote_dirty |= WorldObject::OTHER_DIRTY; // TODO: rename
 		sub_lua_script->world_state->getDirtyFromRemoteObjects(*sub_lua_script->cur_world_state_lock).insert(ob);
 
 		ServerAllWorldsState* worlds_state = sub_lua_script->server->world_state.ptr();

@@ -243,7 +243,7 @@ static void checkDynamicTexture(const ObWithDynamicTexture& ob_with_dyn_tex, Ser
 
 						world_state->checkAddWorldObjectAsDBDirty(ob, *world_state->world_states[ob_with_dyn_tex.world_name], lock);
 
-						ob->from_remote_other_dirty = true; // Set this so a ObjectFullUpdate message is sent to clients.
+						ob->from_remote_dirty |= WorldObject::OTHER_DIRTY; // Set this so a ObjectFullUpdate message is sent to clients.
 						world_state->world_states[ob_with_dyn_tex.world_name]->getDirtyFromRemoteObjects(lock).insert(ob);
 
 						// Send a message to MeshLODGenThread to generate LOD textures for this new texture (if not already generated)

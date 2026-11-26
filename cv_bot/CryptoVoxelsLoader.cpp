@@ -755,8 +755,8 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 												// This is a new feature:
 												ob->uid = UID(next_uid++); // Alloc new id
 												ob->state = WorldObject::State_JustCreated;
-												//ob->from_remote_other_dirty = true;
-												ob->from_local_other_dirty = true;
+												//ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
+												ob->from_local_dirty |= WorldObject::OTHER_DIRTY;
 
 												//Lock lock(world_state.mutex);
 												//world_state.objects[ob->uid] = ob;
@@ -781,7 +781,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 													//world_state.objects[ob->uid] = ob;
 
 													//ob->state = WorldObject::State_Alive;
-													//ob->from_remote_other_dirty = true;
+													//ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
 
 													sendObjectFullUpdateMessageToServer(ob, client_thread);
 
@@ -1005,7 +1005,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 														// This is a new feature:
 														ob->uid = UID(next_uid++); // Alloc new id
 														ob->state = WorldObject::State_JustCreated;
-														ob->from_remote_other_dirty = true;
+														ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
 
 														//Lock lock(world_state.mutex);
 														//world_state.objects[ob->uid] = ob;
@@ -1035,7 +1035,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 															//world_state.objects[ob->uid] = ob;
 
 															//ob->state = WorldObject::State_Alive;
-															//ob->from_remote_other_dirty = true;
+															//ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
 
 															conPrint("Updating feature with UID " + ob->uid.toString() + "...");
 
@@ -1192,7 +1192,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 						// This is a new parcel:
 						voxels_ob->uid = UID(next_uid++); // Alloc new id
 						voxels_ob->state = WorldObject::State_JustCreated;
-						voxels_ob->from_remote_other_dirty = true;
+						voxels_ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
 
 						//Lock lock(world_state.mutex);
 						//world_state.objects[voxels_ob->uid] = voxels_ob;
@@ -1221,7 +1221,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 							//world_state.objects[voxels_ob->uid] = voxels_ob;
 
 							//voxels_ob->state = WorldObject::State_Alive;
-							//voxels_ob->from_remote_other_dirty = true;
+							//voxels_ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
 
 							conPrint("Updating parcel with UID " + voxels_ob->uid.toString() + "...");
 

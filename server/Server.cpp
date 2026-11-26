@@ -1082,8 +1082,9 @@ int main(int argc, char *argv[])
 					for(auto i = dirty_from_remote_objects.begin(); i != dirty_from_remote_objects.end(); ++i)
 					{
 						WorldObject* ob = i->ptr();
-						if(ob->from_remote_other_dirty)
+						if(BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::OTHER_DIRTY))
 						{
+							// The ObjectFullUpdate, ObjectCreated or ObjectDestroyed message covers all changes, so the other dirty bits are cleared below without sending their messages.
 							// conPrint("Object 'other' dirty, sending full update");
 
 							if(ob->state == WorldObject::State_Alive)
@@ -1094,8 +1095,6 @@ int main(int argc, char *argv[])
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
-								ob->from_remote_other_dirty = false;
-								ob->from_remote_transform_dirty = false; // transform is sent in full packet also.
 								server.world_state->markAsChanged();
 							}
 							else if(ob->state == WorldObject::State_JustCreated)
@@ -1107,7 +1106,6 @@ int main(int argc, char *argv[])
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
 								ob->state = WorldObject::State_Alive;
-								ob->from_remote_other_dirty = false;
 								server.world_state->markAsChanged();
 
 								new_ob_UIDs.push_back(ob->uid);
@@ -1138,12 +1136,13 @@ int main(int argc, char *argv[])
 								assert(0);
 							}
 						}
-						else if(ob->from_remote_transform_dirty)
+						else if(ob->state == WorldObject::State_Alive)
 						{
-							//conPrint("Object 'transform' dirty, sending transform update");
-
-							if(ob->state == WorldObject::State_Alive)
+							// Send a message for each individual change.
+							if(BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::TRANSFORM_DIRTY))
 							{
+								//conPrint("Object 'transform' dirty, sending transform update");
+
 								// Send ObjectTransformUpdate packet
 								MessageUtils::initPacket(scratch_packet, Protocol::ObjectTransformUpdate);
 								writeToStream(ob->uid, scratch_packet);
@@ -1156,16 +1155,13 @@ int main(int argc, char *argv[])
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
-								ob->from_remote_transform_dirty = false;
 								server.world_state->markAsChanged();
 							}
-						}
-						else if(ob->from_remote_physics_transform_dirty)
-						{
-							//conPrint("Object 'physics transform' dirty, sending physics transform update");
 
-							if(ob->state == WorldObject::State_Alive)
+							if(BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::PHYSICS_TRANSFORM_DIRTY))
 							{
+								//conPrint("Object 'physics transform' dirty, sending physics transform update");
+
 								// Send ObjectPhysicsTransformUpdate packet
 								MessageUtils::initPacket(scratch_packet, Protocol::ObjectPhysicsTransformUpdate);
 								writeToStream(ob->uid, scratch_packet);
@@ -1182,58 +1178,59 @@ int main(int argc, char *argv[])
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
-								ob->from_remote_transform_dirty = false;
+								server.world_state->markAsChanged();
+							}
+
+							if(BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::LIGHTMAP_URL_DIRTY))
+							{
+								// Send ObjectLightmapURLChanged packet
+								MessageUtils::initPacket(scratch_packet, Protocol::ObjectLightmapURLChanged);
+								writeToStream(ob->uid, scratch_packet);
+								scratch_packet.writeStringLengthFirst(ob->lightmap_url);
+
+								enqueueMessageToBroadcast(scratch_packet, world_packets);
+
+								server.world_state->markAsChanged();
+							}
+
+							if(BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::MODEL_URL_DIRTY))
+							{
+								// Send ObjectModelURLChanged packet
+								MessageUtils::initPacket(scratch_packet, Protocol::ObjectModelURLChanged);
+								writeToStream(ob->uid, scratch_packet);
+								scratch_packet.writeStringLengthFirst(ob->model_url);
+
+								enqueueMessageToBroadcast(scratch_packet, world_packets);
+
+								server.world_state->markAsChanged();
+							}
+
+							if(BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::CONTENT_DIRTY))
+							{
+								// Send ObjectContentChanged packet
+								MessageUtils::initPacket(scratch_packet, Protocol::ObjectContentChanged);
+								writeToStream(ob->uid, scratch_packet);
+								scratch_packet.writeStringLengthFirst(ob->content);
+
+								enqueueMessageToBroadcast(scratch_packet, world_packets);
+
+								server.world_state->markAsChanged();
+							}
+
+							if(BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::FLAGS_DIRTY))
+							{
+								// Send ObjectFlagsChanged packet
+								MessageUtils::initPacket(scratch_packet, Protocol::ObjectFlagsChanged);
+								writeToStream(ob->uid, scratch_packet);
+								scratch_packet.writeUInt32(ob->flags);
+
+								enqueueMessageToBroadcast(scratch_packet, world_packets);
+
 								server.world_state->markAsChanged();
 							}
 						}
-						else if(ob->from_remote_lightmap_url_dirty)
-						{
-							// Send ObjectLightmapURLChanged packet
-							MessageUtils::initPacket(scratch_packet, Protocol::ObjectLightmapURLChanged);
-							writeToStream(ob->uid, scratch_packet);
-							scratch_packet.writeStringLengthFirst(ob->lightmap_url);
 
-							enqueueMessageToBroadcast(scratch_packet, world_packets);
-
-							ob->from_remote_lightmap_url_dirty = false;
-							server.world_state->markAsChanged();
-						}
-						else if(ob->from_remote_model_url_dirty)
-						{
-							// Send ObjectModelURLChanged packet
-							MessageUtils::initPacket(scratch_packet, Protocol::ObjectModelURLChanged);
-							writeToStream(ob->uid, scratch_packet);
-							scratch_packet.writeStringLengthFirst(ob->model_url);
-
-							enqueueMessageToBroadcast(scratch_packet, world_packets);
-
-							ob->from_remote_model_url_dirty = false;
-							server.world_state->markAsChanged();
-						}
-						else if(ob->from_remote_content_dirty)
-						{
-							// Send ObjectContentChanged packet
-							MessageUtils::initPacket(scratch_packet, Protocol::ObjectContentChanged);
-							writeToStream(ob->uid, scratch_packet);
-							scratch_packet.writeStringLengthFirst(ob->content);
-
-							enqueueMessageToBroadcast(scratch_packet, world_packets);
-
-							ob->from_remote_content_dirty = false;
-							server.world_state->markAsChanged();
-						}
-						else if(ob->from_remote_flags_dirty)
-						{
-							// Send ObjectFlagsChanged packet
-							MessageUtils::initPacket(scratch_packet, Protocol::ObjectFlagsChanged);
-							writeToStream(ob->uid, scratch_packet);
-							scratch_packet.writeUInt32(ob->flags);
-
-							enqueueMessageToBroadcast(scratch_packet, world_packets);
-
-							ob->from_remote_flags_dirty = false;
-							server.world_state->markAsChanged();
-						}
+						ob->from_remote_dirty = 0;
 					}
 
 					dirty_from_remote_objects.clear();
