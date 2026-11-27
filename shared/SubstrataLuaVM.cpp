@@ -546,10 +546,12 @@ static WorldObject* getWorldObjectForUID(SubstrataLuaScript* sub_lua_script, con
 			// The object may have been created by createObject() and not inserted into the object map yet.
 			ServerAllWorldsState* worlds_state = sub_lua_script->server->world_state.ptr();
 			checkHoldWorldStateMutex(sub_lua_script, worlds_state);
-			const std::vector<ServerAllWorldsState::EphemeralObInfo>& pending = worlds_state->ephemeral_obs_pending_insert;
-			for(size_t i=0; i<pending.size(); ++i)
-				if((pending[i].ob->uid == uid) && (pending[i].world == sub_lua_script->world_state))
-					return pending[i].ob.ptr();
+			for(size_t i=0; i<worlds_state->ephemeral_obs_pending_insert.size(); ++i)
+			{
+				const ServerAllWorldsState::EphemeralObInfo& info = worlds_state->ephemeral_obs_pending_insert[i];
+				if((info.ob->uid == uid) && (info.world == sub_lua_script->world_state))
+					return info.ob.ptr();
+			}
 
 			throw glare::Exception("getObjectForUID(): No object with UID " + uid.toString());
 		}
