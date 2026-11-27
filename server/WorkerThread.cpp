@@ -1548,23 +1548,20 @@ void WorkerThread::doRun()
 					case Protocol::AvatarTransformUpdate:
 						{
 							//conPrint("AvatarTransformUpdate");
-							readUIDFromStream(msg_buffer); // Ignore the UID in the message: a client may only act on its own avatar.
-							const UID avatar_uid = client_avatar_uid;
-							const Vec3d pos = readVec3FromStream<double>(msg_buffer);
-							const Vec3f rotation = readVec3FromStream<float>(msg_buffer);
-							const uint32 anim_state = msg_buffer.readUInt32();
+							AvatarTransformUpdateStruct update;
+							msg_buffer.readData(&update, sizeof(AvatarTransformUpdateStruct));
 
 							// Look up existing avatar in world state
 							{
 								WorldStateLock lock(world_state->mutex);
 								const ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
-								auto res = avatars.find(avatar_uid);
+								auto res = avatars.find(client_avatar_uid); // Ignore the avatar UID in the message and use client_avatar_uid instead: a client may only act on its own avatar.
 								if(res != avatars.end())
 								{
 									Avatar* avatar = res->second.getPointer();
-									avatar->pos = pos;
-									avatar->rotation = rotation;
-									avatar->anim_state = anim_state;
+									avatar->pos = update.pos;
+									avatar->rotation = update.rotation;
+									avatar->anim_state = update.anim_state;
 									avatar->transform_dirty = true;
 
 									//conPrint("updated avatar transform");
@@ -1949,12 +1946,11 @@ void WorkerThread::doRun()
 					case Protocol::ObjectTransformUpdate:
 						{
 							//conPrint("received ObjectTransformUpdate");
-							const UID object_uid = readUIDFromStream(msg_buffer);
-							const Vec3d pos = readVec3FromStream<double>(msg_buffer);
-							const Vec3f axis = readVec3FromStream<float>(msg_buffer);
-							const float angle = msg_buffer.readFloat();
-							const Vec3f scale = readVec3FromStream<float>(msg_buffer);
-							checkUIDIsValid(object_uid);
+
+							ObjectTransformUpdateStruct update;
+							msg_buffer.readData(&update, sizeof(ObjectTransformUpdateStruct));
+
+							checkUIDIsValid(update.object_uid);
 
 							// If client is not logged in, refuse object modification.
 							if(!client_user_id.valid())
@@ -1971,7 +1967,7 @@ void WorkerThread::doRun()
 								// Look up existing object in world state
 								{
 									WorldStateLock lock(world_state->mutex);
-									auto res = cur_world_state->getObjects(lock).find(object_uid);
+									auto res = cur_world_state->getObjects(lock).find(update.object_uid);
 									if(res != cur_world_state->getObjects(lock).end())
 									{
 										WorldObject* ob = res.getValue().getPointer();
@@ -1981,10 +1977,10 @@ void WorkerThread::doRun()
 											err_msg_to_client = "You must be the owner of this object to change it.";
 										else
 										{
-											ob->pos = pos;
-											ob->axis = axis;
-											ob->angle = angle;
-											ob->scale = scale;
+											ob->pos = update.pos;
+											ob->axis = update.axis;
+											ob->angle = update.angle;
+											ob->scale = update.scale;
 											ob->last_transform_update_avatar_uid = (uint32)client_avatar_uid.value();
 											ob->last_modified_time = TimeStamp::currentTime();
 
@@ -2075,19 +2071,10 @@ void WorkerThread::doRun()
 					case Protocol::ObjectPhysicsTransformUpdate:
 						{
 							//conPrint("received ObjectPhysicsTransformUpdate");
-							const UID object_uid = readUIDFromStream(msg_buffer);
-							const Vec3d pos = readVec3FromStream<double>(msg_buffer);
-						
-							Quatf rot;
-							msg_buffer.readData(rot.v.x, sizeof(float) * 4);
+							ObjectPhysicsTransformUpdateStruct update;
+							msg_buffer.readData(&update, sizeof(ObjectPhysicsTransformUpdateStruct));
 
-							Vec4f linear_vel(0.f);
-							Vec4f angular_vel(0.f);
-							msg_buffer.readData(linear_vel.x, sizeof(float) * 3);
-							msg_buffer.readData(angular_vel.x, sizeof(float) * 3);
-
-							const double client_cur_time = msg_buffer.readDouble();
-							checkUIDIsValid(object_uid);
+							checkUIDIsValid(update.object_uid);
 
 							// If client is not logged in, refuse object modification.
 							/*if(!client_user_id.valid())
@@ -2104,7 +2091,7 @@ void WorkerThread::doRun()
 								// Look up existing object in world state
 								{
 									WorldStateLock lock(world_state->mutex);
-									auto res = cur_world_state->getObjects(lock).find(object_uid);
+									auto res = cur_world_state->getObjects(lock).find(update.object_uid);
 									if(res != cur_world_state->getObjects(lock).end())
 									{
 										WorldObject* ob = res.getValue().getPointer();
@@ -2112,19 +2099,19 @@ void WorkerThread::doRun()
 										// See if the user has permissions to alter this object:
 										if(ob->isDynamic()) // We will only allow clients to apply PhysicsTransformUpdates to objects it the object is a dynamic object.
 										{
-											ob->pos = pos;
+											ob->pos = update.pos;
 											Vec4f axis;
 											float angle;
-											rot.toAxisAndAngle(axis, angle);
+											update.rot.toAxisAndAngle(axis, angle);
 											ob->axis = Vec3f(axis);
 											ob->angle = angle;
 
 											if(!BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::LINEAR_VEL_DIRTY)) // Don't overwrite a linear velocity set by a script that hasn't been sent yet.
-												ob->linear_vel = linear_vel;
-											ob->angular_vel = angular_vel;
+												ob->linear_vel = update.linear_vel.toVec4fVector();
+											ob->angular_vel = update.angular_vel.toVec4fVector();
 
 											ob->last_transform_update_avatar_uid = (uint32)client_avatar_uid.value();
-											ob->last_transform_client_time = client_cur_time;
+											ob->last_transform_client_time = update.client_cur_time;
 
 											ob->last_modified_time = TimeStamp::currentTime();
 
