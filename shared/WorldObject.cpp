@@ -65,7 +65,12 @@ WorldObject::WorldObject() noexcept
 
 	creator_id = UserID::invalidUserID();
 	flags = COLLIDABLE_FLAG | AUDIO_AUTOPLAY | AUDIO_LOOP;
-	
+
+	pos = Vec3d(0.0);
+	axis = Vec3f(0,0,1);
+	angle = 0;
+	scale = Vec3f(1.f);
+
 	object_type = ObjectType_Generic;
 	from_remote_dirty = 0;
 	from_local_dirty = 0;

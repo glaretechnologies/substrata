@@ -52,6 +52,7 @@ Avatar::Avatar()
 #endif
 {
 	flags = 0;
+	pos = Vec3d(0.0);
 
 	transform_dirty = false;
 	other_dirty = false;
