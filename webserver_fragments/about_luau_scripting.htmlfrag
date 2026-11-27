@@ -243,6 +243,68 @@ Returns the object that has the given UID.  Throws exception if no such object e
 
 
 
+<div class="code-func-definition" id="createObject">createObject(params : table) : Object</div>
+
+<div class="code-arg"><span class="code-arg-code">params : table</span><span class="code-arg-descrip">A table describing the object to create, with the following fields.  All fields apart from model_url are optional.</span></div>
+
+<div class="code-arg"><span class="code-arg-code">model_url : string</span><span class="code-arg-descrip">The Substrata URL of the 3d model for the object.  Required.  The model must already be uploaded to the server, for example by being used by another object.</span></div>
+<div class="code-arg"><span class="code-arg-code">pos : Vec3d</span><span class="code-arg-descrip">The position of the object.  Defaults to just beside the script's object.</span></div>
+<div class="code-arg"><span class="code-arg-code">axis : Vec3f</span><span class="code-arg-descrip">The axis the object is rotated around.  Defaults to Vec3f(1, 0, 0).</span></div>
+<div class="code-arg"><span class="code-arg-code">angle : number</span><span class="code-arg-descrip">The counter-clockwise angle of rotation around axis, in radians.  Defaults to 0.</span></div>
+<div class="code-arg"><span class="code-arg-code">scale : Vec3f</span><span class="code-arg-descrip">The scale of the object.  Defaults to Vec3f(1, 1, 1).</span></div>
+<div class="code-arg"><span class="code-arg-code">lifetime : number</span><span class="code-arg-descrip">How long, in seconds, until the object is automatically removed.  Must be greater than 0 and at most 60.  Defaults to 30.</span></div>
+<div class="code-arg"><span class="code-arg-code">collidable : boolean</span><span class="code-arg-descrip">Can avatars and other objects collide with the object.  Defaults to true.</span></div>
+<div class="code-arg"><span class="code-arg-code">dynamic : boolean</span><span class="code-arg-descrip">Is the object moved by physics, e.g. falling under gravity.  Defaults to true.</span></div>
+<div class="code-arg"><span class="code-arg-code">content : string</span><span class="code-arg-descrip">The content of the object.  Defaults to an empty string.</span></div>
+<div class="code-arg"><span class="code-arg-code">target_url : string</span><span class="code-arg-descrip">The target URL of the object.  Defaults to an empty string.</span></div>
+<div class="code-arg"><span class="code-arg-code">script : string</span><span class="code-arg-descrip">A script for the object.  Defaults to an empty string.</span></div>
+<div class="code-arg"><span class="code-arg-code">materials : table</span><span class="code-arg-descrip">An array of materials.  Each element can be a Material, for example from another object's materials attribute, which is copied.  Or it can be a table with any of the Material attribute fields: colour, colour_texture_url, emission_rgb, emission_texture_url, normal_map_url, roughness_val, roughness_texture_url, metallic_fraction_val, opacity_val, tex_matrix, emission_lum_flux_or_lum, hologram and double_sided.</span></div>
+
+<div class="code-func-description">
+<p>
+Creates a temporary object, and returns it.  The returned object can be used like any other object, for example its attributes can be set, or it can be moved with moveTo.
+</p>
+<p>
+Objects created with createObject are temporary: they are removed after their lifetime, and are not saved, so they are also removed if the server restarts.
+Their owner is set to the owner of the script.
+</p>
+<p>
+createObject only creates objects when called on the server.  On the client it does nothing and returns nil, so call it in code that only runs on the server, for example in an <b>if IS_SERVER then</b> block.
+</p>
+<p>
+If the object can't be created right now, createObject returns nil and prints a warning to the script output, instead of raising an error.  This can happen when:
+</p>
+<ul>
+<li>Your scripts already have 200 objects created with createObject that haven't been removed yet.</li>
+<li>Your scripts are creating objects too often (more than 10 per second, over all your scripts).</li>
+<li>The server hasn't loaded information about the model/mesh yet, for example the first time a model is used with createObject.  Calling createObject again soon afterwards will succeed.</li>
+</ul>
+<p>
+Invalid parameters, such as a missing model_url, a model that can't be loaded, or a non-finite position, raise an error.
+</p>
+
+<p>For example, to create a rubby ducky when an object is used ('E' key):</p>
+<pre class="code-block">
+--lua
+
+function onUserUsedObject(av : Avatar, ob : Object)
+	createObject({
+		model_url = "Duck_gltf_18271531402437131166.bmesh",
+		pos = ob.pos + Vec3d(0,0,5.0),
+		materials = {
+			{
+				colour_texture_url = "DuckCM_png_1209628088877254668.png",
+				roughness_val = 0.3,
+				tex_matrix = { 1, 0, 0, -1 }
+			}
+		}
+	})
+end
+</pre>
+</div>
+
+
+
 <div class="code-func-definition">showMessageToUser(msg : String, av : Avatar)</div>
 
 <div class="code-arg"><span class="code-arg-code">msg : String</span><span class="code-arg-descrip">The message to send to the avatar's user.</span></div>
@@ -638,10 +700,13 @@ when dynamic is true.</span></div>
 Friction of the physics body (dimensionless number, usually between 0 and 1, 0 = no friction, 1 = friction force equals force that presses the two bodies together).</span></div>
 <div class="code-attr"><span class="code-attr-code">restitution : number</span><span class="code-attr-descrip">Restitution of body (dimensionless number, usually between 0 and 1, 0 = completely inelastic collision response, 1 = completely elastic collision response).</span></div>
 <div class="code-attr"><span class="code-attr-code">centre_of_mass_offset_os : Vec3f</span><span class="code-attr-descrip">Offset of centre of mass of object, in object coordinates.  Can be used to e.g. give a vehicle a lower centre of mass than by default.</span></div>
+<div class="code-attr"><span class="code-attr-code">linear_velocity : Vec3f</span><span class="code-attr-descrip">Linear velocity of the object, in m/s.  Setting it on a dynamic object starts the object moving with that velocity.  Has no effect on non-dynamic objects.</span></div>
 <div class="code-attr"><span class="code-attr-code">audio_source_url : string</span><span class="code-attr-descrip">
 Substrata URL of the audio source for this object.   Can be a .mp3 or .wav URL.</span></div>
 <div class="code-attr"><span class="code-attr-code">audio_volume : number</span><span class="code-attr-descrip">
 Volume factor for audio source.  Default is 1.</span></div>
+<div class="code-attr"><span class="code-attr-code">materials : table</span><span class="code-attr-descrip">
+An array of the materials (Material objects) of the object.  Read-only.  Like other Lua arrays, it is indexed from 1, so materials[1] is the same material as getMaterial(0).</span></div>
 
 <p>
 Methods:
@@ -651,7 +716,7 @@ Methods:
 Returns the number of materials of the object.</span></div>
 
 <div class="code-attr"><span class="code-attr-code">getMaterial(mat_index : number) : Material</span><span class="code-attr-descrip">
-Returns the material of the object with the given index.</span></div>
+Returns the material of the object with the given (zero-based) index.</span></div>
 
 <div class="code-attr"><span class="code-attr-code">startPlayingAnimation(animation_index : number)</span><span class="code-attr-descrip">
 Starts playing the 3d model animation with the given (zero-based) index.</span></div>

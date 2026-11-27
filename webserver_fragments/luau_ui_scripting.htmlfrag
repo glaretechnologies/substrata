@@ -78,6 +78,9 @@ Each createUI function takes a single table of parameters.  Most widgets take th
 <div class="code-arg"><span class="code-arg-code">anchor : string</span><span class="code-arg-descrip">The point of the screen the widget is placed relative to.  One of "top-left", "top", "top-right", "left", "centre", "right", "bottom-left", "bottom", "bottom-right".  Default "centre".</span></div>
 <div class="code-arg"><span class="code-arg-code">offset : Vec2</span><span class="code-arg-descrip">Offset of the widget from the anchor point, in pixels.  +x is right, +y is up.  Default Vec2(0, 0).</span></div>
 <div class="code-arg"><span class="code-arg-code">visible : boolean</span><span class="code-arg-descrip">Default true.</span></div>
+<div class="code-arg"><span class="code-arg-code">z : number</span><span class="code-arg-descrip">Controls which widgets are drawn in front where widgets overlap.  Between 0 and 1, widgets with higher z are drawn in front.  Default 0.
+Overlapping widgets with the same z may be drawn in either order.  Give overlapping grids and windows z values at least 0.05 apart, as the widgets inside them are drawn slightly in front of them.
+A widget in a grid or window is drawn in front of the grid or window, and its own z is not used.</span></div>
 <div class="code-arg"><span class="code-arg-code">tooltip : string</span><span class="code-arg-descrip">Text shown when the mouse is held over the widget.  At most 200 bytes, on a single line (newlines are shown as spaces).
 The tooltip also always has a second line saying which object and user the widget is from.  Default "" (only that line).</span></div>
 
