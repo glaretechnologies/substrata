@@ -448,6 +448,8 @@ public:
 	HashMap<UserID, Reference<SubstrataLuaVM>, UserIDHasher> lua_vms GUARDED_BY(mutex);
 	double last_lua_vms_gc_step_time_s GUARDED_BY(mutex); // Time taken by the last round of explicit garbage collection steps over all lua_vms, done by the server main loop.
 
+	double last_server_tick_time_s GUARDED_BY(mutex); // Time taken by the last iteration of the server main loop, excluding the sleep at the start of the loop.
+
 	// For the map:
 	MapTileInfo map_tile_info;
 

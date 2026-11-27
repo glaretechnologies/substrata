@@ -108,6 +108,7 @@ ServerAllWorldsState::ServerAllWorldsState()
 	next_gear_item_uid = UID(0);
 
 	last_lua_vms_gc_step_time_s = 0;
+	last_server_tick_time_s = 0;
 
 	setWorldState(/*world name=*/"", new ServerWorldState());
 

@@ -755,6 +755,8 @@ int main(int argc, char *argv[])
 		{
 			PlatformUtils::Sleep(100);
 
+			Timer tick_timer;
+
 			// Do Lua timer callbacks
 			if(isFeatureFlagSet(server.world_state, ServerAllWorldsState::SERVER_SCRIPT_EXEC_FEATURE_FLAG))
 			{
@@ -1491,6 +1493,11 @@ int main(int argc, char *argv[])
 					conPrint("Warning: saving world state to disk failed: " + e.what());
 					save_state_timer.reset(); // Reset timer so we don't try again straight away.
 				}
+			}
+
+			{
+				WorldStateLock lock(server.world_state->mutex);
+				server.world_state->last_server_tick_time_s = tick_timer.elapsed(); // Shown on the admin page.
 			}
 
 			loop_iter++;

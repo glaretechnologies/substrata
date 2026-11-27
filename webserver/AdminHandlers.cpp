@@ -144,6 +144,14 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 		page_out += "</form>";
 
 
+		// Show some server stats
+		page_out += "<h2>Server stats</h2>\n";
+		page_out += "<table class=\"stats-table\">\n";
+		page_out += "<tr><td>last server tick time: </td><td>" + doubleToStringMaxNDecimalPlaces(world_state.last_server_tick_time_s * 1000, 3) + " ms</td></tr>\n";
+		page_out += "<tr><td>num worlds:            </td><td>" + toString(world_state.world_states.size()) + "</td></tr>\n";
+		page_out += "</table>\n";
+
+
 		// Show some Lua VM stats
 		page_out += "<h2>LuaVM stats</h2>\n";
 
