@@ -84,6 +84,7 @@ WorldObject::WorldObject() noexcept
 	loading_or_loaded_lod_level = -10;
 	splat_handle = 0; // = GaussianSplatRenderer::invalid_handle
 	is_path_controlled = false;
+	linear_vel_pending = false;
 	use_materialise_effect_on_load = false;
 	materialise_effect_start_time = -1000.f;
 
@@ -122,6 +123,9 @@ WorldObject::WorldObject() noexcept
 	transmission_time_offset = 0;
 
 	chunk_batch0_start = chunk_batch0_end = chunk_batch1_start = chunk_batch1_end = 0;
+
+	linear_vel  = Vec4f(0.f);
+	angular_vel = Vec4f(0.f);
 
 #if SERVER
 	die_time = std::numeric_limits<double>::max();

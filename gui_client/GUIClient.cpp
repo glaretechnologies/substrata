@@ -3158,6 +3158,13 @@ void GUIClient::loadPresentObjectGraphicsAndPhysicsModels(WorldObject* ob, const
 
 		if(ob->was_just_created && ob->isDynamic())
 			physics_world->activateObject(ob->physics_object);
+
+		if(ob->linear_vel_pending)
+		{
+			if(ob->isDynamic())
+				physics_world->setLinearVelocity(*ob->physics_object, ob->linear_vel);
+			ob->linear_vel_pending = false;
+		}
 	}
 
 
@@ -6977,7 +6984,8 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 								JPH::Vec3 linear_vel, angular_vel;
 								body_interface.GetLinearAndAngularVelocity(physics_ob->jolt_body_id, linear_vel, angular_vel);
 
-								ob->linear_vel  = toVec4fVec(linear_vel);
+								if(!BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::LINEAR_VEL_DIRTY)) // Don't overwrite a linear velocity from an ObjectLinearVelChanged message that hasn't been applied yet.
+									ob->linear_vel = toVec4fVec(linear_vel);
 								ob->angular_vel = toVec4fVec(angular_vel);
 
 								// Mark as from-local-physics-dirty to send a physics transform updated message to the server
@@ -7722,6 +7730,17 @@ void GUIClient::timerEvent(const MouseCursorState& mouse_cursor_state)
 					}
 
 					updateSplatObjectTransform(*ob);
+				}
+
+				if(BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::LINEAR_VEL_DIRTY))
+				{
+					if(ob->physics_object)
+					{
+						if(ob->physics_object->isDynamic())
+							physics_world->setLinearVelocity(*ob->physics_object, ob->linear_vel);
+					}
+					else
+						ob->linear_vel_pending = true; // Apply when the physics object is created.
 				}
 
 				ob->from_remote_dirty = 0;

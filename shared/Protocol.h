@@ -55,13 +55,14 @@ CyberspaceProtocolVersion
 57: Added ResourceBeingProcessed message, and GetFiles result code 2 (resource is being processed).
 58: Added ScriptPlaySound message.
 59: Added ServerScriptOutput message.
+60: Added ObjectLinearVelChanged message.
 */
 namespace Protocol
 {
 
 const uint32 CyberspaceHello = 1357924680;
 
-const uint32 CyberspaceProtocolVersion = 59;
+const uint32 CyberspaceProtocolVersion = 60;
 
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
@@ -124,6 +125,7 @@ const uint32 ObjectLightmapURLChanged		= 3010; // The object's lightmap URL chan
 const uint32 ObjectFlagsChanged		= 3011;
 const uint32 ObjectModelURLChanged	= 3012;
 const uint32 ObjectPhysicsOwnershipTaken	= 3013;
+const uint32 ObjectLinearVelChanged	= 3014; // Server tells clients to set the linear velocity of an object (set by a script).  Holds object UID, Vec3f linear velocity.
 const uint32 ObjectPhysicsTransformUpdate	= 3016;
 const uint32 ObjectContentChanged	= 3017;
 const uint32 ObjectMoveTo			= 3018; // Server tells clients to smoothly move an object to a target position over some duration (scripted moveTo).

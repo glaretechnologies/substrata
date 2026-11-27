@@ -2100,7 +2100,8 @@ void WorkerThread::doRun()
 											ob->axis = Vec3f(axis);
 											ob->angle = angle;
 
-											ob->linear_vel = linear_vel;
+											if(!BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::LINEAR_VEL_DIRTY)) // Don't overwrite a linear velocity set by a script that hasn't been sent yet.
+												ob->linear_vel = linear_vel;
 											ob->angular_vel = angular_vel;
 
 											ob->last_transform_update_avatar_uid = (uint32)client_avatar_uid.value();

@@ -1084,7 +1084,7 @@ int main(int argc, char *argv[])
 						WorldObject* ob = i->ptr();
 						if(BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::OTHER_DIRTY))
 						{
-							// The ObjectFullUpdate, ObjectCreated or ObjectDestroyed message covers all changes, so the other dirty bits are cleared below without sending their messages.
+							// The ObjectFullUpdate, ObjectCreated or ObjectDestroyed message covers all changes apart from linear velocity, so the other dirty bits are cleared below without sending their messages.
 							// conPrint("Object 'other' dirty, sending full update");
 
 							if(ob->state == WorldObject::State_Alive)
@@ -1228,6 +1228,17 @@ int main(int argc, char *argv[])
 
 								server.world_state->markAsChanged();
 							}
+						}
+
+						// Send after any ObjectCreated message above, so that clients have the object when they receive this.
+						if(BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::LINEAR_VEL_DIRTY) && (ob->state == WorldObject::State_Alive))
+						{
+							// Send ObjectLinearVelChanged packet
+							MessageUtils::initPacket(scratch_packet, Protocol::ObjectLinearVelChanged);
+							writeToStream(ob->uid, scratch_packet);
+							scratch_packet.writeData(ob->linear_vel.x, sizeof(float) * 3);
+
+							enqueueMessageToBroadcast(scratch_packet, world_packets);
 						}
 
 						ob->from_remote_dirty = 0;

@@ -951,6 +951,29 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 			}
 			break;
 		}
+	case Protocol::ObjectLinearVelChanged:
+		{
+			const UID object_uid = readUIDFromStream(msg_buffer);
+
+			Vec4f linear_vel(0.f);
+			msg_buffer.readData(linear_vel.x, sizeof(float) * 3);
+
+			if(linear_vel.isFinite())
+			{
+				// Look up existing object in world state
+				Lock lock(world_state->mutex);
+				auto res = world_state->objects.find(object_uid);
+				if(res != world_state->objects.end())
+				{
+					WorldObject* ob = res.getValue().ptr();
+
+					ob->linear_vel = linear_vel;
+					ob->from_remote_dirty |= WorldObject::LINEAR_VEL_DIRTY;
+					world_state->dirty_from_remote_objects.insert(ob);
+				}
+			}
+			break;
+		}
 	case Protocol::ObjectPhysicsOwnershipTaken:
 		{
 			const UID object_uid = readUIDFromStream(msg_buffer);
@@ -1400,7 +1423,7 @@ void ClientThread::readAndHandleMessage(const uint32 peer_protocol_version)
 		}
 	default:
 		{
-			conPrint("Unknown message id: " + ::toString(msg_type));
+			// conPrint("Unknown message id: " + ::toString(msg_type));
 		}
 	}
 }

@@ -74,8 +74,8 @@ enum StringAtomEnum
 	Atom_getNumMaterials,
 	Atom_getMaterial,
 	Atom_script,
-	Atom_materials,
 	Atom_audio_loop,
+	Atom_materials,
 	Atom_playAudio, // resets cur read index to start of audio, starts playing the audio (unpauses if paused)
 	Atom_isPlayingAudio,
 	Atom_playSound, // Play a sound identified by a resource URL
@@ -83,6 +83,9 @@ enum StringAtomEnum
 	Atom_getAnimationIndex,
 	Atom_moveTo,
 	Atom_rotateTo,
+
+	// Object, Avatar
+	Atom_linear_velocity,
 
 	// WorldMaterial
 	Atom_colour,
@@ -101,7 +104,6 @@ enum StringAtomEnum
 
 	// Avatar
 	Atom_name,
-	Atom_linear_velocity,
 	Atom_vehicle_inside,
 
 	// Events
@@ -1837,6 +1839,10 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 		assert(stringEqual(key_str, "audio_loop"));
 		lua_pushboolean(state, BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_LOOP));
 		break;
+	case Atom_linear_velocity:
+		assert(stringEqual(key_str, "linear_velocity"));
+		LuaUtils::pushVec3f(state, Vec3f(ob->linear_vel));
+		break;
 
 	default:
 		throw glare::Exception("Unknown field '" + std::string(key_str) + "'" + errorContextString(state));
@@ -2052,7 +2058,7 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		other_changed = setOrZeroBitIfChanged(ob->flags, WorldObject::AUDIO_LOOP, LuaUtils::getBool(state, /*index=*/3));
 		break;
 	case Atom_materials:
-	{
+		{
 		assert(stringEqual(key_str, "materials"));
 
 		// Build the complete new materials list before replacing ob->materials, as the array may contain Material objects that refer to this object's current materials.
@@ -2064,7 +2070,18 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		// The new materials may use textures that don't have basis/KTX versions generated yet.
 		sub_lua_script->server->enqueueMsgForLodGenThread(new CheckGenResourcesForObject(ob->uid));
 		break;
-	}
+		}
+	case Atom_linear_velocity:
+		{
+		assert(stringEqual(key_str, "linear_velocity"));
+		const Vec3f linear_vel = LuaUtils::getVec3f(state, /*index=*/3);
+		if(!linear_vel.isFinite())
+			throw glare::Exception("linear_velocity must be finite" + errorContextString(state));
+		ob->linear_vel = linear_vel.toVec4fVector();
+		ob->from_remote_dirty |= WorldObject::LINEAR_VEL_DIRTY; // ObjectPhysicsTransformUpdate messages won't overwrite linear_vel while this is set.
+		specific_dirty_flag_set = true;
+		break;
+		}
 	default:
 		throw glare::Exception("Unknown field '" + std::string(key_str) + "'");
 	}

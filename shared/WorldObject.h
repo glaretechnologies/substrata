@@ -487,6 +487,7 @@ public:
 	static const uint32 CONTENT_DIRTY				= 64;  // Content has been changed
 	static const uint32 FLAGS_DIRTY					= 128; // Flags have been changed
 	static const uint32 PHYSICS_OWNERSHIP_DIRTY		= 256; // Physics ownership has been changed
+	static const uint32 LINEAR_VEL_DIRTY			= 512; // Linear velocity has been set (by a script)
 
 	// These are set along with inserting the object into the world's dirty-from-remote or dirty-from-local object set, with the world state mutex held.
 	uint32 from_remote_dirty; // Things changed remotely.  Bitwise-or of *_DIRTY values above.
@@ -571,6 +572,8 @@ public:
 	// Both these lod levels will be reset to -10 if the model is unloaded due to being out of camera proximity, so that the model can be reloaded.
 
 	bool is_path_controlled; // Is this object controlled by a path controller script?  If so, we want to set the OpenGL transform from the physics engine.
+
+	bool linear_vel_pending; // linear_vel was set by an ObjectLinearVelChanged message before the physics object existed.  It is applied when the physics object is created.
 
 	Reference<WebViewData> web_view_data;
 	Reference<BrowserVidPlayer> browser_vid_player;

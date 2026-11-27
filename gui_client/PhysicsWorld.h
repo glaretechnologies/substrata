@@ -152,6 +152,7 @@ public:
 
 	Vec4f getObjectLinearVelocity(const PhysicsObject& object) const;
 	void setLinearAndAngularVelToZero(PhysicsObject& object);
+	void setLinearVelocity(PhysicsObject& object, const Vec4f& linear_vel); // Activates the object if linear_vel is non-zero.
 
 	void moveKinematicObject(PhysicsObject& object, const Vec4f& translation, const Quatf& rot, float dt);
 
