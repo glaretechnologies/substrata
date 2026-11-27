@@ -1749,10 +1749,6 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 		assert(stringEqual(key_str, "content"));
 		LuaUtils::pushString(state, ob->content);
 		break;
-	case Atom_script:
-		assert(stringEqual(key_str, "script"));
-		LuaUtils::pushString(state, ob->script);
-		break;
 	case Atom_target_url:
 		assert(stringEqual(key_str, "target_url"));
 		LuaUtils::pushString(state, ob->target_url);
@@ -1801,6 +1797,14 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 		assert(stringEqual(key_str, "getMaterial"));
 		lua_pushcfunction(state, getMaterial, "getMaterial");
 		break;
+	case Atom_script:
+		assert(stringEqual(key_str, "script"));
+		LuaUtils::pushString(state, ob->script);
+		break;
+	case Atom_audio_loop:
+		assert(stringEqual(key_str, "audio_loop"));
+		lua_pushboolean(state, BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_LOOP));
+		break;
 	case Atom_materials:
 	{
 		assert(stringEqual(key_str, "materials"));
@@ -1841,10 +1845,6 @@ static int worldObjectClassIndexMetaMethod(lua_State* state)
 	case Atom_rotateTo:
 		assert(stringEqual(key_str, "rotateTo"));
 		lua_pushcfunction(state, luaRotateTo, "rotateTo");
-		break;
-	case Atom_audio_loop:
-		assert(stringEqual(key_str, "audio_loop"));
-		lua_pushboolean(state, BitUtils::isBitSet(ob->flags, WorldObject::AUDIO_LOOP));
 		break;
 	case Atom_linear_velocity:
 		assert(stringEqual(key_str, "linear_velocity"));
@@ -2464,10 +2464,6 @@ static int avatarClassIndexMetaMethod(lua_State* state)
 		assert(stringEqual(key_str, "pos"));
 		LuaUtils::pushVec3d(state, avatar->pos);
 		return 1;
-	case Atom_name:
-		assert(stringEqual(key_str, "name"));
-		LuaUtils::pushString(state, avatar->name);
-		return 1;
 	case Atom_linear_velocity:
 		assert(stringEqual(key_str, "linear_velocity"));
 #if GUI_CLIENT
@@ -2477,6 +2473,10 @@ static int avatarClassIndexMetaMethod(lua_State* state)
 		LuaUtils::pushVec3f(state, Vec3f(0.f));
 		return 1;
 #endif
+	case Atom_name:
+		assert(stringEqual(key_str, "name"));
+		LuaUtils::pushString(state, avatar->name);
+		return 1;
 	case Atom_vehicle_inside: // Returns an Object table of the vehicle object the avatar is inside-of/riding, or nil if none.
 	{
 		assert(stringEqual(key_str, "vehicle_inside"));
@@ -2537,12 +2537,6 @@ static int avatarClassNewIndexMetaMethod(lua_State* state)
 #endif
 			break;
 		}
-		case Atom_name:
-		{
-			assert(stringEqual(key_str, "name"));
-			throw glare::Exception("Can't set avatar name");
-			break;
-		}
 		case Atom_linear_velocity:
 		{
 			assert(stringEqual(key_str, "linear_velocity"));
@@ -2553,6 +2547,12 @@ static int avatarClassNewIndexMetaMethod(lua_State* state)
 				sub_lua_script->gui_client->player_physics.setLinearVel(new_linear_vel.toVec4fVector());
 			}
 #endif
+			break;
+		}
+		case Atom_name:
+		{
+			assert(stringEqual(key_str, "name"));
+			throw glare::Exception("Can't set avatar name");
 			break;
 		}
 	default:
