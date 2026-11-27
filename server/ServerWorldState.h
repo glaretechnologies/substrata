@@ -271,7 +271,7 @@ public:
 
 	typedef glare::FastIterMap<UID, Reference<Avatar>, UIDHasher> AvatarMapType;
 	typedef glare::FastIterMap<UID, WorldObjectRef, UIDHasher> ObjectMapType;
-	typedef std::map<ParcelID, ParcelRef> ParcelMapType;
+	typedef glare::FastIterMap<ParcelID, ParcelRef, ParcelIDHasher> ParcelMapType;
 	typedef std::map<Vec3i, LODChunkRef> LODChunkMapType;
 	typedef std::vector<WorldObjectRef> DirtyFromRemoteObjectSetType;
 	typedef std::map<uint64, ChatBotRef> ChatBotMapType;

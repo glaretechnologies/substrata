@@ -147,7 +147,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 		parcel->build();
 
 		test_server->world_state->world_states[""] = new ServerWorldState();
-		test_server->world_state->getRootWorldState()->parcels[parcel_id] = parcel;
+		test_server->world_state->getRootWorldState()->parcels.insert(parcel_id, parcel);
 
 		//test_server->world_state->user_id_to_users.clear();
 		//test_server->world_state->name_to_users.clear();

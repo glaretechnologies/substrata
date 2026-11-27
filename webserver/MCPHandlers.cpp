@@ -348,10 +348,10 @@ static void checkObjectCountLimits(const WorldObject& ob, const string_view worl
 	// of MCP object creation.
 	const Vec4f ob_pos = ob.pos.toVec4fPoint();
 	const Parcel* target_parcel = NULL;
-	for(auto it = world.getParcels(lock).begin(); it != world.getParcels(lock).end(); ++it)
-		if(it->second->pointInParcel(ob_pos))
+	for(auto it = world.getParcels(lock).valuesBegin(); it != world.getParcels(lock).valuesEnd(); ++it)
+		if(it.getValue()->pointInParcel(ob_pos))
 		{
-			target_parcel = it->second.ptr();
+			target_parcel = it.getValue().ptr();
 			break;
 		}
 

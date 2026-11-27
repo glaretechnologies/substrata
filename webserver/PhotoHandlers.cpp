@@ -414,7 +414,7 @@ void handlePhotoPageRequest(ServerAllWorldsState& world_state, WebDataStore& dat
 					auto parcel_res = root_world->parcels.find(photo->parcel_id);
 					if(parcel_res != root_world->parcels.end())
 					{
-						const Parcel* parcel = parcel_res->second.ptr();
+						const Parcel* parcel = parcel_res.getValue().ptr();
 						parcel_title = parcel->getUseTitle();
 					}
 				}

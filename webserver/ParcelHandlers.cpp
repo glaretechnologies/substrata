@@ -55,7 +55,7 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 			if(res == root_world->getParcels(lock).end())
 				throw glare::Exception("Couldn't find parcel");
 
-			const Parcel* parcel = res->second.ptr();
+			const Parcel* parcel = res.getValue().ptr();
 
 
 			User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
@@ -433,7 +433,7 @@ void renderEditParcelDescriptionPage(ServerAllWorldsState& world_state, const we
 		const auto res = world_state.getRootWorldState()->parcels.find(ParcelID(parcel_id));
 		if(res != world_state.getRootWorldState()->parcels.end())
 		{
-			Parcel* parcel = res->second.ptr();
+			Parcel* parcel = res.getValue().ptr();
 
 			page += "<form action=\"/edit_parcel_description_post\" method=\"post\" id=\"usrform\">";
 			page += "<input type=\"hidden\" name=\"parcel_id\" value=\"" + toString(parcel_id) + "\"><br>";
@@ -465,7 +465,7 @@ void renderEditParcelTitlePage(ServerAllWorldsState& world_state, const web::Req
 		const auto res = world_state.getRootWorldState()->parcels.find(ParcelID(parcel_id));
 		if(res != world_state.getRootWorldState()->parcels.end())
 		{
-			Parcel* parcel = res->second.ptr();
+			Parcel* parcel = res.getValue().ptr();
 
 			page += "<form action=\"/edit_parcel_title_post\" method=\"post\" id=\"usrform\">";
 			page += "<input type=\"hidden\" name=\"parcel_id\" value=\"" + toString(parcel_id) + "\"><br>";
@@ -597,7 +597,7 @@ void renderMetadata(ServerAllWorldsState& world_state, const web::RequestInfo& r
 			if(res == root_world->parcels.end())
 				throw glare::Exception("Couldn't find parcel");
 
-			const Parcel* parcel = res->second.ptr();
+			const Parcel* parcel = res.getValue().ptr();
 
 			if(!parcel->screenshot_ids.empty())
 			{
@@ -671,7 +671,7 @@ void handleRegenerateParcelScreenshots(ServerAllWorldsState& world_state, const 
 			const auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
 			if(res != world_state.getRootWorldState()->parcels.end())
 			{
-				Parcel* parcel = res->second.ptr();
+				Parcel* parcel = res.getValue().ptr();
 
 				User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
 				if(logged_in_user && parcel->owner_id == logged_in_user->id) // If the user is logged in and owns this parcel:
@@ -736,7 +736,7 @@ void handleEditParcelDescriptionPost(ServerAllWorldsState& world_state, const we
 			const auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
 			if(res != world_state.getRootWorldState()->parcels.end())
 			{
-				Parcel* parcel = res->second.ptr();
+				Parcel* parcel = res.getValue().ptr();
 
 				User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
 				if(logged_in_user && parcel->owner_id == logged_in_user->id) // If the user is logged in and owns this parcel:
@@ -786,7 +786,7 @@ void handleEditParcelTitlePost(ServerAllWorldsState& world_state, const web::Req
 			const auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
 			if(res != world_state.getRootWorldState()->parcels.end())
 			{
-				Parcel* parcel = res->second.ptr();
+				Parcel* parcel = res.getValue().ptr();
 
 				User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
 				if(logged_in_user && parcel->owner_id == logged_in_user->id) // If the user is logged in and owns this parcel:
@@ -839,7 +839,7 @@ void handleAddParcelWriterPost(ServerAllWorldsState& world_state, const web::Req
 			const auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
 			if(res != world_state.getRootWorldState()->parcels.end())
 			{
-				Parcel* parcel = res->second.ptr();
+				Parcel* parcel = res.getValue().ptr();
 
 				User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
 				if(logged_in_user && parcel->owner_id == logged_in_user->id) // If the user is logged in and owns this parcel:
@@ -911,7 +911,7 @@ void handleRemoveParcelWriterPost(ServerAllWorldsState& world_state, const web::
 			const auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
 			if(res != world_state.getRootWorldState()->parcels.end())
 			{
-				Parcel* parcel = res->second.ptr();
+				Parcel* parcel = res.getValue().ptr();
 
 				User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
 				if(logged_in_user && parcel->owner_id == logged_in_user->id) // If the user is logged in and owns this parcel:

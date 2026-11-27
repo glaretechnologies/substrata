@@ -888,7 +888,7 @@ void WorkerThread::handleEthBotConnection()
 						auto parcel_res = server->world_state->getRootWorldState()->getParcels(lock).find(trans->parcel_id);
 						if(parcel_res != server->world_state->getRootWorldState()->getParcels(lock).end())
 						{
-							Parcel* parcel = parcel_res->second.ptr();
+							Parcel* parcel = parcel_res.getValue().ptr();
 							parcel->nft_status = Parcel::NFTStatus_MintedNFT;
 							server->world_state->getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 							server->world_state->markAsChanged();
@@ -1113,9 +1113,9 @@ void WorkerThread::sendPerWorldInitialDataToClient(ServerAllWorldsState* world_s
 
 		{ // Lock scope
 			WorldStateLock lock(world_state->mutex);
-			for(auto it = cur_world_state->getParcels(lock).begin(); it != cur_world_state->getParcels(lock).end(); ++it)
+			for(auto it = cur_world_state->getParcels(lock).valuesBegin(); it != cur_world_state->getParcels(lock).valuesEnd(); ++it)
 			{
-				const Parcel* parcel = it->second.getPointer();
+				const Parcel* parcel = it.getValue().getPointer();
 
 				// Build ParcelCreated message in scratch_packet
 				MessageUtils::initPacket(scratch_packet, Protocol::ParcelCreated);
@@ -1147,9 +1147,9 @@ void WorkerThread::sendPerWorldInitialDataToClient(ServerAllWorldsState* world_s
 
 		{ // Lock scope
 			WorldStateLock lock(world_state->mutex);
-			for(auto it = cur_world_state->getParcels(lock).begin(); it != cur_world_state->getParcels(lock).end(); ++it)
+			for(auto it = cur_world_state->getParcels(lock).valuesBegin(); it != cur_world_state->getParcels(lock).valuesEnd(); ++it)
 			{
-				const Parcel* parcel = it->second.getPointer();
+				const Parcel* parcel = it.getValue().getPointer();
 
 				// Send ParcelCreated message
 				MessageUtils::initPacket(scratch_packet, Protocol::ParcelCreated);
@@ -2860,8 +2860,8 @@ void WorkerThread::doRun()
 							{
 								WorldStateLock lock(world_state->mutex);
 								scratch_packet.writeUInt64(cur_world_state->getParcels(lock).size()); // Write num parcels
-								for(auto it = cur_world_state->getParcels(lock).begin(); it != cur_world_state->getParcels(lock).end(); ++it)
-									writeParcelToNetworkStream(*it->second, scratch_packet, client_protocol_version); // Write parcel
+								for(auto it = cur_world_state->getParcels(lock).valuesBegin(); it != cur_world_state->getParcels(lock).valuesEnd(); ++it)
+									writeParcelToNetworkStream(*it.getValue(), scratch_packet, client_protocol_version); // Write parcel
 							}
 							MessageUtils::updatePacketLengthField(scratch_packet);
 							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Send the data
@@ -2894,7 +2894,7 @@ void WorkerThread::doRun()
 									auto res = cur_world_state->getParcels(lock).find(parcel_id);
 									if(res != cur_world_state->getParcels(lock).end())
 									{
-										Parcel* parcel = res->second.getPointer();
+										Parcel* parcel = res.getValue().getPointer();
 
 										// See if the user has permissions to alter this object:
 										if(!userHasParcelWritePermissions(*parcel, client_user_id, *cur_world_state))

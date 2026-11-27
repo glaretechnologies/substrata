@@ -81,9 +81,9 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 		// Collect list of all current auctions
 		SmallVector<const ParcelAuction*, 16> current_auctions;
 		const ServerWorldState::ParcelMapType& parcels = root_world->getParcels(lock);
-		for(auto it = parcels.begin(); it != parcels.end(); ++it)
+		for(auto it = parcels.valuesBegin(); it != parcels.valuesEnd(); ++it)
 		{
-			const Parcel* parcel = it->second.ptr();
+			const Parcel* parcel = it.getValue().ptr();
 			if(!parcel->parcel_auction_ids.empty())
 			{
 				const uint32 auction_id = parcel->parcel_auction_ids.back(); // Get most recent auction
@@ -134,7 +134,7 @@ void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store,
 			auto parcel_res = root_world->getParcels(lock).find(listing.parcel_id); // Look up parcel
 			if(parcel_res != root_world->getParcels(lock).end())
 			{
-				const Parcel* parcel = parcel_res->second.ptr();
+				const Parcel* parcel = parcel_res.getValue().ptr();
 
 				if(parcel->screenshot_ids.size() >= 1)
 				{

@@ -271,9 +271,9 @@ static bool positionIsInParcelForWhichLoggedInUserHasWritePerms(const Vec3d& pos
 	const Vec4f ob_pos = pos.toVec4fPoint();
 
 	ServerWorldState::ParcelMapType& parcels = world_state.getParcels(lock);
-	for(ServerWorldState::ParcelMapType::iterator it = parcels.begin(); it != parcels.end(); ++it)
+	for(auto it = parcels.valuesBegin(); it != parcels.valuesEnd(); ++it)
 	{
-		const Parcel* parcel = it->second.ptr();
+		const Parcel* parcel = it.getValue().ptr();
 		if(parcel->pointInParcel(ob_pos) && parcel->userHasWritePerms(user_id))
 			return true;
 	}

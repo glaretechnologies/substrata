@@ -34,6 +34,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "../server/SubEthTransaction.h"
 #include "../ethereum/Signing.h"
 #include "../ethereum/Infura.h"
+#include <algorithm>
 
 
 namespace AccountHandlers
@@ -73,22 +74,25 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 
 		Reference<ServerWorldState> root_world = world_state.getRootWorldState();
 
-		for(auto it = root_world->parcels.begin(); it != root_world->parcels.end(); ++it)
-		{
-			const Parcel* parcel = it->second.ptr();
+		// Get parcels owned by user, sorted by ID
+		std::vector<const Parcel*> user_parcels;
+		for(auto it = root_world->parcels.valuesBegin(); it != root_world->parcels.valuesEnd(); ++it)
+			if(it.getValue()->owner_id == logged_in_user->id)
+				user_parcels.push_back(it.getValue().ptr());
+		std::sort(user_parcels.begin(), user_parcels.end(), [](const Parcel* a, const Parcel* b) { return a->id < b->id; });
 
-			// Look up owner
-			if(parcel->owner_id == logged_in_user->id)
-			{
-				page += "<p>\n";
-				page += "<a href=\"/parcel/" + parcel->id.toString() + "\">Parcel " + parcel->id.toString() + "</a><br/>" +
-					"description: " + web::Escaping::HTMLEscape(parcel->description);// +"<br/>" +
-					//"created " + parcel->created_time.timeAgoDescription();
-				if(parcel->nft_status == Parcel::NFTStatus_NotNFT)
-					page += "<br/><a href=\"/make_parcel_into_nft?parcel_id=" + parcel->id.toString() + "\">Mint as a NFT</a>";
-				page += "</p>\n";
-				//page += "<br/>  \n";
-			}
+		for(size_t p=0; p<user_parcels.size(); ++p)
+		{
+			const Parcel* parcel = user_parcels[p];
+
+			page += "<p>\n";
+			page += "<a href=\"/parcel/" + parcel->id.toString() + "\">Parcel " + parcel->id.toString() + "</a><br/>" +
+				"description: " + web::Escaping::HTMLEscape(parcel->description);// +"<br/>" +
+				//"created " + parcel->created_time.timeAgoDescription();
+			if(parcel->nft_status == Parcel::NFTStatus_NotNFT)
+				page += "<br/><a href=\"/make_parcel_into_nft?parcel_id=" + parcel->id.toString() + "\">Mint as a NFT</a>";
+			page += "</p>\n";
+			//page += "<br/>  \n";
 		}
 
 		//-------------------------------- List worlds owned by user --------------------------------
@@ -378,7 +382,7 @@ void renderMakeParcelIntoNFTPage(ServerAllWorldsState& world_state, const web::R
 		if(res == world_state.getRootWorldState()->parcels.end())
 			throw glare::Exception("No such parcel");
 		
-		const Parcel* parcel = res->second.ptr();
+		const Parcel* parcel = res.getValue().ptr();
 
 		if(parcel->owner_id != logged_in_user->id)
 			throw glare::Exception("Parcel must be owned by user");
@@ -552,7 +556,7 @@ void handleMakeParcelIntoNFTPost(ServerAllWorldsState& world_state, const web::R
 		if(res == world_state.getRootWorldState()->parcels.end())
 			throw glare::Exception("No such parcel");
 
-		Parcel* parcel = res->second.ptr();
+		Parcel* parcel = res.getValue().ptr();
 
 		if(parcel->owner_id != logged_in_user->id)
 			throw glare::Exception("Parcel must be owned by user");
@@ -629,7 +633,7 @@ void handleClaimParcelOwnerByNFTPost(ServerAllWorldsState& world_state, const we
 		if(res == world_state.getRootWorldState()->parcels.end())
 			throw glare::Exception("No such parcel");
 
-		Parcel* parcel = res->second.ptr();
+		Parcel* parcel = res.getValue().ptr();
 
 		if(parcel->owner_id == logged_in_user->id)
 			throw glare::Exception("parcel already owned by user.");
@@ -679,7 +683,7 @@ void handleClaimParcelOwnerByNFTPost(ServerAllWorldsState& world_state, const we
 				if(res == world_state.getRootWorldState()->parcels.end())
 					throw glare::Exception("No such parcel");
 
-				Parcel* parcel = res->second.ptr();
+				Parcel* parcel = res.getValue().ptr();
 
 				parcel->owner_id = logged_in_user->id;
 

@@ -24,6 +24,7 @@ Generated at 2016-01-12 12:22:34 +1300
 
 ServerWorldState::ServerWorldState()
 :	db_dirty(false),
+	parcels(/*empty key=*/ParcelID::invalidParcelID()),
 	objects(/*empty key=*/UID::invalidUID()),
 	avatars(/*empty key=*/UID::invalidUID())
 {}
@@ -315,7 +316,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					readFromStream(stream, *parcel);
 
 					parcel->database_key = database_key;
-					world_states[world_name]->getParcels(lock)[parcel->id] = parcel; // Add to parcel map
+					world_states[world_name]->getParcels(lock).insert(parcel->id, parcel); // Add to parcel map
 					num_parcels++;
 				}
 				else if(chunk == WORLD_SETTINGS_CHUNK)
@@ -693,7 +694,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 				ParcelRef parcel = new Parcel();
 				readFromStream(stream, *parcel);
 
-				current_world->getParcels(lock)[parcel->id] = parcel; // Add to parcel map
+				current_world->getParcels(lock).insert(parcel->id, parcel); // Add to parcel map
 				num_parcels++;
 			}
 			else if(chunk == RESOURCE_CHUNK)
@@ -919,8 +920,8 @@ void ServerAllWorldsState::addEverythingToDirtySets()
 			it.getValue()->in_db_dirty_world_objects = true;
 		}
 
-		for(auto it = world_state->getParcels(lock).begin(); it != world_state->getParcels(lock).end(); ++it)
-			world_state->getDBDirtyParcels(lock).insert(it->second);
+		for(auto it = world_state->getParcels(lock).valuesBegin(); it != world_state->getParcels(lock).valuesEnd(); ++it)
+			world_state->getDBDirtyParcels(lock).insert(it.getValue());
 	}
 
 	for(auto it = user_web_sessions.begin(); it != user_web_sessions.end(); ++it)
@@ -1078,9 +1079,9 @@ void ServerAllWorldsState::denormaliseData()
 				i.getValue()->creator_name = res->second->name;
 		}
 
-		for(auto i=world_state->getParcels(lock).begin(); i != world_state->getParcels(lock).end(); ++i)
+		for(auto i=world_state->getParcels(lock).valuesBegin(); i != world_state->getParcels(lock).valuesEnd(); ++i)
 		{
-			Parcel* parcel = i->second.ptr();
+			Parcel* parcel = i.getValue().ptr();
 
 			// Denormalise Parcel::owner_name
 			{
@@ -1289,9 +1290,9 @@ void ServerAllWorldsState::saveSanitisedDatabase()
 			Reference<ServerWorldState> world_state = world_it->second;
 
 			// Sanitise parcels
-			for(auto it = world_state->getParcels(lock).begin(); it != world_state->getParcels(lock).end(); ++it)
+			for(auto it = world_state->getParcels(lock).valuesBegin(); it != world_state->getParcels(lock).valuesEnd(); ++it)
 			{
-				Parcel* parcel = it->second.ptr();
+				Parcel* parcel = it.getValue().ptr();
 				parcel->minting_transaction_id = std::numeric_limits<uint64>::max();
 				parcel->parcel_auction_ids.clear();
 

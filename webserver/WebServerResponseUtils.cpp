@@ -161,9 +161,9 @@ const std::string getMapEmbedCode(ServerAllWorldsState& world_state, ParcelID hi
 		rect_parcel_names.reserve(root_world->parcels.size());
 		rect_parcel_state.reserve(root_world->parcels.size());
 
-		for(auto it = root_world->parcels.begin(); it != root_world->parcels.end(); ++it)
+		for(auto it = root_world->parcels.valuesBegin(); it != root_world->parcels.valuesEnd(); ++it)
 		{
-			const Parcel* parcel = it->second.ptr();
+			const Parcel* parcel = it.getValue().ptr();
 
 			int state;
 			if(parcel->owner_id.value() == 0)

@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2018 -
 #include <OutStream.h>
 #include <InStream.h>
 #include <StringUtils.h>
+#include <Hasher.h>
 #include <limits>
 #include <string>
 
@@ -39,6 +40,15 @@ public:
 	bool operator >= (const ParcelID& other) const { return v >= other.v; }
 
 	uint32 v;
+};
+
+
+struct ParcelIDHasher
+{
+	size_t operator() (const ParcelID& id) const
+	{
+		return hashBytes((const uint8*)&id.v, sizeof(id.v));
+	}
 };
 
 

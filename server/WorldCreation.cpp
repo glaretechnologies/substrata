@@ -52,7 +52,7 @@ static void makeParcels(Matrix2d M, int& next_id, Reference<ServerWorldState> wo
 
 		test_parcel->build();
 
-		world_state->getParcels(lock)[parcel_id] = test_parcel;
+		world_state->getParcels(lock).insert(parcel_id, test_parcel);
 		world_state->addParcelAsDBDirty(test_parcel, lock);
 	}
 }
@@ -112,9 +112,9 @@ static void makeRandomParcel(const Vec2d& region_botleft, const Vec2d& region_to
 		 
 		// Check against existing parcels.
 		//Lock lock(world_state->mutex);
-		for(auto it = world_state->getParcels(lock).begin(); it != world_state->getParcels(lock).end(); ++it)
+		for(auto it = world_state->getParcels(lock).valuesBegin(); it != world_state->getParcels(lock).valuesEnd(); ++it)
 		{
-			const Parcel* p = it->second.ptr();
+			const Parcel* p = it.getValue().ptr();
 
 			const Rect2d other_bounds(Vec2d(p->aabb_min.x, p->aabb_min.y), Vec2d(p->aabb_max.x, p->aabb_max.y));
 
@@ -144,7 +144,7 @@ static void makeRandomParcel(const Vec2d& region_botleft, const Vec2d& region_to
 
 			test_parcel->build();
 
-			world_state->getParcels(lock)[parcel_id] = test_parcel;
+			world_state->getParcels(lock).insert(parcel_id, test_parcel);
 			world_state->addParcelAsDBDirty(test_parcel, lock);
 			return;
 		}
@@ -203,7 +203,7 @@ static void makeBlock(const Vec2d& botleft, PCG32& rng, int& next_id, Reference<
 				else
 				{
 					//Lock lock(world_state->mutex);
-					world_state->getParcels(lock)[parcel_id] = test_parcel;
+					world_state->getParcels(lock).insert(parcel_id, test_parcel);
 					world_state->addParcelAsDBDirty(test_parcel, lock);
 				}
 			}
@@ -695,7 +695,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 	WorldStateLock lock(world_state->mutex);
 
 	// Add 'town square' parcels
-	if(world_state->getRootWorldState()->getParcels(lock).empty())
+	if(world_state->getRootWorldState()->getParcels(lock).size() == 0)
 	{
 		conPrint("Adding some parcels!");
 
@@ -727,9 +727,9 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 	// TEMP: make all parcels have zmax = 10
 	if(false)
 	{
-		for(auto i = world_state->getRootWorldState()->getParcels(lock).begin(); i != world_state->getRootWorldState()->getParcels(lock).end(); ++i)
+		for(auto i = world_state->getRootWorldState()->getParcels(lock).valuesBegin(); i != world_state->getRootWorldState()->getParcels(lock).valuesEnd(); ++i)
 		{
-			ParcelRef parcel = i->second;
+			ParcelRef parcel = i.getValue();
 			parcel->zbounds.y = 10.0f;
 		}
 	}
@@ -749,9 +749,9 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 	//server.world_state->objects.clear();
 
 	ParcelID max_parcel_id(0);
-	for(auto it = world_state->getRootWorldState()->getParcels(lock).begin(); it != world_state->getRootWorldState()->getParcels(lock).end(); ++it)
+	for(auto it = world_state->getRootWorldState()->getParcels(lock).valuesBegin(); it != world_state->getRootWorldState()->getParcels(lock).valuesEnd(); ++it)
 	{
-		const Parcel* parcel = it->second.ptr();
+		const Parcel* parcel = it.getValue().ptr();
 		max_parcel_id = myMax(max_parcel_id, parcel->id);
 	}
 
@@ -778,7 +778,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 
 			parcel->build();
 
-			world_state->getRootWorldState()->getParcels(lock)[parcel_id] = parcel;
+			world_state->getRootWorldState()->getParcels(lock).insert(parcel_id, parcel);
 		}
 	}
 
@@ -795,9 +795,9 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 
 	// Recompute max_parcel_id
 	max_parcel_id = ParcelID(0);
-	for(auto it = world_state->getRootWorldState()->getParcels(lock).begin(); it != world_state->getRootWorldState()->getParcels(lock).end(); ++it)
+	for(auto it = world_state->getRootWorldState()->getParcels(lock).valuesBegin(); it != world_state->getRootWorldState()->getParcels(lock).valuesEnd(); ++it)
 	{
-		const Parcel* parcel = it->second.ptr();
+		const Parcel* parcel = it.getValue().ptr();
 		max_parcel_id = myMax(max_parcel_id, parcel->id);
 	}
 
@@ -869,7 +869,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 
 			parcel->build();
 
-			world_state->getRootWorldState()->getParcels(lock)[parcel_id] = parcel;
+			world_state->getRootWorldState()->getParcels(lock).insert(parcel_id, parcel);
 			world_state->getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 		}
 		{
@@ -890,7 +890,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 
 			parcel->build();
 
-			world_state->getRootWorldState()->getParcels(lock)[parcel_id] = parcel;
+			world_state->getRootWorldState()->getParcels(lock).insert(parcel_id, parcel);
 			world_state->getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 		}
 	}
@@ -1087,7 +1087,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 			//TEMP: remove existing parcel
 			//world_state->getRootWorldState()->parcels.erase(parcel_id);
 
-			if(world_state->getRootWorldState()->getParcels(lock).count(parcel_id) == 0)
+			if(!world_state->getRootWorldState()->getParcels(lock).contains(parcel_id))
 			{
 				ParcelRef parcel = new Parcel();
 				parcel->state = Parcel::State_Alive;
@@ -1107,7 +1107,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 
 				parcel->build();
 
-				world_state->getRootWorldState()->getParcels(lock)[parcel_id] = parcel;
+				world_state->getRootWorldState()->getParcels(lock).insert(parcel_id, parcel);
 				world_state->getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 				world_state->markAsChanged();
 

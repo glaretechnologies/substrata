@@ -20,9 +20,9 @@ bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject& ob, co
 	const Vec4f ob_pos = ob.pos.toVec4fPoint();
 
 	ServerWorldState::ParcelMapType& parcels = world_state.getParcels(lock);
-	for(ServerWorldState::ParcelMapType::iterator it = parcels.begin(); it != parcels.end(); ++it)
+	for(auto it = parcels.valuesBegin(); it != parcels.valuesEnd(); ++it)
 	{
-		const Parcel* parcel = it->second.ptr();
+		const Parcel* parcel = it.getValue().ptr();
 		if(parcel->pointInParcel(ob_pos) && parcel->userHasWritePerms(user_id))
 			return true;
 	}
@@ -36,9 +36,9 @@ bool aabbIsInParcelForWhichLoggedInUserHasWritePerms(const js::AABBox& aabb_ws, 
 	assert(user_id.valid());
 
 	ServerWorldState::ParcelMapType& parcels = world_state.getParcels(lock);
-	for(ServerWorldState::ParcelMapType::iterator it = parcels.begin(); it != parcels.end(); ++it)
+	for(auto it = parcels.valuesBegin(); it != parcels.valuesEnd(); ++it)
 	{
-		const Parcel* parcel = it->second.ptr();
+		const Parcel* parcel = it.getValue().ptr();
 		if(parcel->AABBInParcel(aabb_ws) && parcel->userHasWritePerms(user_id))
 			return true;
 	}

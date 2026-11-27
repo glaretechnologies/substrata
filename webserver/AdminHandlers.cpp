@@ -20,6 +20,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <Lock.h>
 #include <Parser.h>
 #include <Escaping.h>
+#include <algorithm>
 
 
 namespace AdminHandlers
@@ -365,9 +366,16 @@ void renderParcelsPage(ServerAllWorldsState& world_state, const web::RequestInfo
 
 		Reference<ServerWorldState> root_world = world_state.getRootWorldState();
 
-		for(auto it = root_world->parcels.begin(); it != root_world->parcels.end(); ++it)
+		// Get parcels sorted by ID
+		std::vector<const Parcel*> sorted_parcels;
+		sorted_parcels.reserve(root_world->parcels.size());
+		for(auto it = root_world->parcels.valuesBegin(); it != root_world->parcels.valuesEnd(); ++it)
+			sorted_parcels.push_back(it.getValue().ptr());
+		std::sort(sorted_parcels.begin(), sorted_parcels.end(), [](const Parcel* a, const Parcel* b) { return a->id < b->id; });
+
+		for(size_t p=0; p<sorted_parcels.size(); ++p)
 		{
-			const Parcel* parcel = it->second.ptr();
+			const Parcel* parcel = sorted_parcels[p];
 
 			// Look up owner
 			std::string owner_username;
@@ -1149,7 +1157,7 @@ void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::Reque
 			if(res != world_state.getRootWorldState()->parcels.end())
 			{
 				// Found user for username
-				Parcel* parcel = res->second.ptr();
+				Parcel* parcel = res.getValue().ptr();
 
 				ParcelAuctionRef auction = new ParcelAuction();
 				auction->id = (uint32)world_state.parcel_auctions.size() + 1;
@@ -1260,7 +1268,7 @@ void renderSetParcelOwnerPage(ServerAllWorldsState& world_state, const web::Requ
 		if(res != world_state.getRootWorldState()->parcels.end())
 		{
 			// Found user for username
-			Parcel* parcel = res->second.ptr();
+			Parcel* parcel = res.getValue().ptr();
 
 			// Look up owner
 			std::string owner_username;
@@ -1306,7 +1314,7 @@ void handleSetParcelOwnerPost(ServerAllWorldsState& world_state, const web::Requ
 			if(res != world_state.getRootWorldState()->parcels.end())
 			{
 				// Found user for username
-				Parcel* parcel = res->second.ptr();
+				Parcel* parcel = res.getValue().ptr();
 
 				parcel->owner_id = UserID(new_owner_id);
 
@@ -1351,7 +1359,7 @@ void handleMarkParcelAsNFTMintedPost(ServerAllWorldsState& world_state, const we
 			const auto res = world_state.getRootWorldState()->parcels.find(ParcelID((uint32)parcel_id));
 			if(res != world_state.getRootWorldState()->parcels.end())
 			{
-				Parcel* parcel = res->second.ptr();
+				Parcel* parcel = res.getValue().ptr();
 				parcel->nft_status = Parcel::NFTStatus_MintedNFT;
 
 				world_state.markAsChanged();
@@ -1388,7 +1396,7 @@ void handleMarkParcelAsNotNFTPost(ServerAllWorldsState& world_state, const web::
 			const auto res = world_state.getRootWorldState()->parcels.find(ParcelID((uint32)parcel_id));
 			if(res != world_state.getRootWorldState()->parcels.end())
 			{
-				Parcel* parcel = res->second.ptr();
+				Parcel* parcel = res.getValue().ptr();
 				parcel->nft_status = Parcel::NFTStatus_NotNFT;
 				world_state.getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 
@@ -1428,7 +1436,7 @@ void handleRetryParcelMintPost(ServerAllWorldsState& world_state, const web::Req
 			const auto res = world_state.getRootWorldState()->parcels.find(ParcelID((uint32)parcel_id));
 			if(res != world_state.getRootWorldState()->parcels.end())
 			{
-				Parcel* parcel = res->second.ptr();
+				Parcel* parcel = res.getValue().ptr();
 
 				// Find the last (greatest id) SubEthTransaction for this parcel.  We will use the assign-to eth address for this (Instead of admin eth address)
 				SubEthTransaction* last_trans = NULL;
@@ -1504,7 +1512,7 @@ void handleSetParcelVertexPost(ServerAllWorldsState& world_state, const web::Req
 			const auto res = world_state.getRootWorldState()->parcels.find(ParcelID((uint32)parcel_id));
 			if(res != world_state.getRootWorldState()->parcels.end())
 			{
-				Parcel* parcel = res->second.ptr();
+				Parcel* parcel = res.getValue().ptr();
 
 				parcel->verts[vert_i] = new_vert_pos;
 				parcel->build();
@@ -1552,7 +1560,7 @@ void handleSetParcelZBoundsPost(ServerAllWorldsState& world_state, const web::Re
 			const auto res = world_state.getRootWorldState()->parcels.find(ParcelID((uint32)parcel_id));
 			if(res != world_state.getRootWorldState()->parcels.end())
 			{
-				Parcel* parcel = res->second.ptr();
+				Parcel* parcel = res.getValue().ptr();
 
 				parcel->zbounds = new_zbounds;
 				parcel->build();
@@ -1600,7 +1608,7 @@ void handleSetParcelWidthsPost(ServerAllWorldsState& world_state, const web::Req
 			const auto res = world_state.getRootWorldState()->parcels.find(ParcelID((uint32)parcel_id));
 			if(res != world_state.getRootWorldState()->parcels.end())
 			{
-				Parcel* parcel = res->second.ptr();
+				Parcel* parcel = res.getValue().ptr();
 
 				parcel->verts[1] = parcel->verts[0] + Vec2d(widths.x, 0);
 				parcel->verts[2] = parcel->verts[0] + widths;
@@ -1841,12 +1849,13 @@ void handleCreateParcelPost(ServerAllWorldsState& world_state, const web::Reques
 			// Find max parcel id, also most recently created parcel.
 			uint32 max_id = 0;
 			ParcelRef most_recent_parcel;
-			for(auto it = world_state.getRootWorldState()->parcels.begin(); it != world_state.getRootWorldState()->parcels.end(); ++it)
+			for(auto it = world_state.getRootWorldState()->parcels.valuesBegin(); it != world_state.getRootWorldState()->parcels.valuesEnd(); ++it)
 			{
-				if(it->second->id.valid())
+				const ParcelRef& parcel = it.getValue();
+				if(parcel->id.valid() && (!most_recent_parcel || (parcel->id.value() > max_id)))
 				{
-					max_id = myMax(max_id, it->second->id.value());
-					most_recent_parcel = it->second; // Just approximate most recently-created with parcel with greatest id.
+					max_id = parcel->id.value();
+					most_recent_parcel = parcel; // Just approximate most recently-created with parcel with greatest id.
 				}
 			}
 
@@ -1865,7 +1874,7 @@ void handleCreateParcelPost(ServerAllWorldsState& world_state, const web::Reques
 			parcel->zbounds = most_recent_parcel ? most_recent_parcel->zbounds : Vec2d(-1.0, 4.0); // Copy zbounds from most_recent_parcel
 			parcel->build();
 
-			world_state.getRootWorldState()->parcels[new_id] = parcel;
+			world_state.getRootWorldState()->parcels.insert(new_id, parcel);
 			world_state.getRootWorldState()->addParcelAsDBDirty(parcel, lock);
 			world_state.markAsChanged();
 
@@ -1909,7 +1918,7 @@ void handleRegenerateParcelAuctionScreenshots(ServerAllWorldsState& world_state,
 				const auto res2 = world_state.getRootWorldState()->parcels.find(auction->parcel_id);
 				if(res2 != world_state.getRootWorldState()->parcels.end())
 				{
-					const Parcel* parcel = res2->second.ptr();
+					const Parcel* parcel = res2.getValue().ptr();
 
 					for(size_t z=0; z<auction->screenshot_ids.size(); ++z)
 					{
@@ -1970,7 +1979,7 @@ void handleRegenerateParcelScreenshots(ServerAllWorldsState& world_state, const 
 			const auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
 			if(res != world_state.getRootWorldState()->parcels.end())
 			{
-				Parcel* parcel = res->second.ptr();
+				Parcel* parcel = res.getValue().ptr();
 
 				for(size_t z=0; z<parcel->screenshot_ids.size(); ++z)
 				{
@@ -2030,9 +2039,9 @@ void handleRegenerateMultipleParcelScreenshots(ServerAllWorldsState& world_state
 
 			WorldStateLock lock(world_state.mutex);
 
-			for(auto it = world_state.getRootWorldState()->parcels.begin(); it != world_state.getRootWorldState()->parcels.end(); ++it)
+			for(auto it = world_state.getRootWorldState()->parcels.valuesBegin(); it != world_state.getRootWorldState()->parcels.valuesEnd(); ++it)
 			{
-				Parcel* parcel = it->second.ptr();
+				Parcel* parcel = it.getValue().ptr();
 
 				if((int)parcel->id.value() >= start_parcel_id && (int)parcel->id.value() <= end_parcel_id)
 				{
