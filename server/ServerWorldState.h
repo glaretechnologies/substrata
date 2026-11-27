@@ -38,6 +38,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <SimpleCredentials.h>
 #include <HashMap.h>
 #include <FastIterMap.h>
+#include <SocketBufferOutStream.h>
 #include <map>
 #include <unordered_set>
 class ServerWorldState;
@@ -519,6 +520,10 @@ public:
 	// and so that a script that creates scripted objects doesn't recursively run the new scripts inside its own createObject() call.
 	std::vector<EphemeralObInfo> ephemeral_obs_pending_insert GUARDED_BY(mutex);
 
+	// Reused by server-side Lua functions that build packets to broadcast, such as moveTo(), rotateTo() and playSound(), to avoid allocating a buffer per call.
+	SocketBufferOutStream lua_scratch_packet GUARDED_BY(mutex);
+	SocketBufferOutStream& getLuaScratchPacket() REQUIRES(mutex) { return lua_scratch_packet; }
+
 	// Limits on objects created by scripts with createObject(), per user (counted over all of the user's scripts).
 	static const int MAX_NUM_EPHEMERAL_OBS_PER_USER = 200; // Max number of live objects.
 	static const int MAX_NUM_EPHEMERAL_OBS_CREATED_PER_USER_PER_SEC = 10;
@@ -562,6 +567,8 @@ private:
 	UID next_gear_item_uid GUARDED_BY(mutex);
 
 	Database database GUARDED_BY(mutex);
+
+	std::string scratch_string GUARDED_BY(mutex);
 };
 
 

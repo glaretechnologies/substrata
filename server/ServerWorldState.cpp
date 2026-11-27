@@ -1981,31 +1981,32 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 
 		database.flush();
 
-		std::string msg = "Saved ";
-		if(num_worlds > 0)                msg += toString(num_worlds) + " world(s), ";
-		if(num_obs > 0)                   msg += toString(num_obs) +   " object(s), ";
-		if(num_users > 0)                 msg += toString(num_users) + " user(s), ";
-		if(num_parcels > 0)               msg += toString(num_parcels) + " parcels(s), ";
-		if(num_resources > 0)             msg += toString(num_resources) + " resources(s), ";
-		if(num_orders > 0)                msg += toString(num_orders) + " orders(s), ";
-		if(num_sessions > 0)              msg += toString(num_sessions) + " sessions(s), ";
-		if(num_auctions > 0)              msg += toString(num_auctions) + " auctions(s), ";
-		if(num_screenshots > 0)           msg += toString(num_screenshots) + " screenshots(s), ";
-		if(num_sub_eth_transactions > 0)  msg += toString(num_sub_eth_transactions) + " sub eth transactions(s), ";
-		if(num_tiles_written > 0)         msg += toString(num_tiles_written) + " tiles(s), ";
-		if(num_world_settings > 0)        msg += toString(num_world_settings) + " world setting(s), ";
-		if(num_news_posts > 0)            msg += toString(num_news_posts) + " news post(s), ";
-		if(num_object_storage_items > 0)  msg += toString(num_object_storage_items) + " object storage item(s), ";
-		if(num_user_secrets > 0)          msg += toString(num_user_secrets) + " user secret(s), ";
-		if(num_api_keys > 0)              msg += toString(num_api_keys) + " API key(s), ";
-		if(num_lod_chunks > 0)            msg += toString(num_lod_chunks) + " LOD chunk(s), ";
-		if(num_events > 0)                msg += toString(num_events) + " event(s), ";
-		if(num_gear_items > 0)            msg += toString(num_gear_items) + " gear item(s), ";
-		if(num_photos > 0)                msg += toString(num_photos) + " photo(s), ";
-		if(num_chatbots > 0)              msg += toString(num_chatbots) + " chatbot(s), ";
-		removeSuffixInPlace(msg, ", ");
-		msg += " in " + timer.elapsedStringNSigFigs(4);
-		conPrint(msg);
+		scratch_string = "Saved ";
+		if(num_worlds > 0)                scratch_string += toString(num_worlds) + " world(s), ";
+		if(num_obs > 0)                   scratch_string += toString(num_obs) +   " object(s), ";
+		if(num_users > 0)                 scratch_string += toString(num_users) + " user(s), ";
+		if(num_parcels > 0)               scratch_string += toString(num_parcels) + " parcels(s), ";
+		if(num_resources > 0)             scratch_string += toString(num_resources) + " resources(s), ";
+		if(num_orders > 0)                scratch_string += toString(num_orders) + " orders(s), ";
+		if(num_sessions > 0)              scratch_string += toString(num_sessions) + " sessions(s), ";
+		if(num_auctions > 0)              scratch_string += toString(num_auctions) + " auctions(s), ";
+		if(num_screenshots > 0)           scratch_string += toString(num_screenshots) + " screenshots(s), ";
+		if(num_sub_eth_transactions > 0)  scratch_string += toString(num_sub_eth_transactions) + " sub eth transactions(s), ";
+		if(num_tiles_written > 0)         scratch_string += toString(num_tiles_written) + " tiles(s), ";
+		if(num_world_settings > 0)        scratch_string += toString(num_world_settings) + " world setting(s), ";
+		if(num_news_posts > 0)            scratch_string += toString(num_news_posts) + " news post(s), ";
+		if(num_object_storage_items > 0)  scratch_string += toString(num_object_storage_items) + " object storage item(s), ";
+		if(num_user_secrets > 0)          scratch_string += toString(num_user_secrets) + " user secret(s), ";
+		if(num_api_keys > 0)              scratch_string += toString(num_api_keys) + " API key(s), ";
+		if(num_lod_chunks > 0)            scratch_string += toString(num_lod_chunks) + " LOD chunk(s), ";
+		if(num_events > 0)                scratch_string += toString(num_events) + " event(s), ";
+		if(num_gear_items > 0)            scratch_string += toString(num_gear_items) + " gear item(s), ";
+		if(num_photos > 0)                scratch_string += toString(num_photos) + " photo(s), ";
+		if(num_chatbots > 0)              scratch_string += toString(num_chatbots) + " chatbot(s), ";
+		removeSuffixInPlace(scratch_string, ", ");
+		scratch_string += " in ";
+		scratch_string += timer.elapsedStringNSigFigs(4);
+		conPrint(scratch_string);
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{

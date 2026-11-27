@@ -749,6 +749,8 @@ int main(int argc, char *argv[])
 
 		std::vector<AvatarRef> avatars_to_remove;
 
+		std::vector<UID> new_ob_UIDs;
+
 		// Main server loop
 		uint64 loop_iter = 0;
 		while(!should_quit)
@@ -995,7 +997,7 @@ int main(int argc, char *argv[])
 
 			// UIDs of objects created since the last iteration.  A new object may use resources that are already present on the server (e.g. a summoned vehicle model), in which
 			// case there is no resource upload to trigger generation of the optimised/LOD meshes and basis textures for it, so we need to trigger it here.
-			std::vector<UID> new_ob_UIDs;
+			new_ob_UIDs.clear();
 
 			{ // Begin scope for world_state->mutex lock
 

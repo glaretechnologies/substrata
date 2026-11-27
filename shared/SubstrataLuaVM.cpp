@@ -1399,7 +1399,10 @@ static int playSound(lua_State* state)
 	if(!sub_lua_script->play_sound_rate_limiter.checkAddEvent(sub_lua_script->server->getCurrentGlobalTime()))
 		return 0; // Over the rate limit, don't broadcast.
 
-	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+	ServerAllWorldsState* worlds_state = sub_lua_script->server->world_state.ptr();
+	checkHoldWorldStateMutex(sub_lua_script, worlds_state);
+
+	SocketBufferOutStream& packet = worlds_state->getLuaScratchPacket();
 	MessageUtils::initPacket(packet, Protocol::ScriptPlaySound);
 	writeToStream(ob->uid, packet);
 	packet.writeStringLengthFirst(resource_URL);
@@ -1598,8 +1601,11 @@ static int luaMoveTo(lua_State* state)
 	const Vec3d start_pos = ob->pos;
 	const double start_time = sub_lua_script->server->getCurrentGlobalTime();
 
+	ServerAllWorldsState* worlds_state = sub_lua_script->server->world_state.ptr();
+	checkHoldWorldStateMutex(sub_lua_script, worlds_state);
+
 	// Build and broadcast the ObjectMoveTo message.
-	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+	SocketBufferOutStream& packet = worlds_state->getLuaScratchPacket();
 	MessageUtils::initPacket(packet, Protocol::ObjectMoveTo);
 	writeToStream(ob->uid, packet);
 	packet.writeDouble(start_time);
@@ -1610,9 +1616,6 @@ static int luaMoveTo(lua_State* state)
 	MessageUtils::updatePacketLengthField(packet);
 
 	sub_lua_script->server->enqueuePacketToBroadcastForWorld(packet, sub_lua_script->world_state);
-
-	ServerAllWorldsState* worlds_state = sub_lua_script->server->world_state.ptr();
-	checkHoldWorldStateMutex(sub_lua_script, worlds_state);
 
 	// Update the object's canonical position to the target, so it persists and late-joining clients see the final position.
 	// Note: we deliberately do not set TRANSFORM_DIRTY in from_remote_dirty, as that would broadcast an ObjectTransformUpdate that snaps clients to the target.
@@ -1663,8 +1666,11 @@ static int luaRotateTo(lua_State* state)
 	const float start_angle = ob->angle;
 	const double start_time = sub_lua_script->server->getCurrentGlobalTime();
 
+	ServerAllWorldsState* worlds_state = sub_lua_script->server->world_state.ptr();
+	checkHoldWorldStateMutex(sub_lua_script, worlds_state);
+
 	// Build and broadcast the ObjectRotateTo message.
-	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+	SocketBufferOutStream& packet = worlds_state->getLuaScratchPacket();
 	MessageUtils::initPacket(packet, Protocol::ObjectRotateTo);
 	writeToStream(ob->uid, packet);
 	packet.writeDouble(start_time);
@@ -1677,9 +1683,6 @@ static int luaRotateTo(lua_State* state)
 	MessageUtils::updatePacketLengthField(packet);
 
 	sub_lua_script->server->enqueuePacketToBroadcastForWorld(packet, sub_lua_script->world_state);
-
-	ServerAllWorldsState* worlds_state = sub_lua_script->server->world_state.ptr();
-	checkHoldWorldStateMutex(sub_lua_script, worlds_state);
 
 	// Update the object's canonical orientation to the target (see note in luaMoveTo).
 	ob->axis = target_axis;
