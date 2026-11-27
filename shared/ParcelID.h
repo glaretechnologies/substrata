@@ -47,7 +47,7 @@ struct ParcelIDHasher
 {
 	size_t operator() (const ParcelID& id) const
 	{
-		return hashBytes((const uint8*)&id.v, sizeof(id.v));
+		return hashUInt64(id.v);
 	}
 };
 

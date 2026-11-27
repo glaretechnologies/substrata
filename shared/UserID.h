@@ -73,6 +73,6 @@ struct UserIDHasher
 {
 	size_t operator() (const UserID& uid) const
 	{
-		return hashBytes((const uint8*)&uid, sizeof(UserID));
+		return hashUInt64(uid.v);
 	}
 };
