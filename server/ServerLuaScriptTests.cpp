@@ -83,8 +83,8 @@ void ServerLuaScriptTests::test()
 		ParcelRef parcel = new Parcel();
 		parcel->id = ParcelID(789);
 
-		main_world_state->getObjects(lock)[world_ob->uid] = world_ob;
-		main_world_state->getObjects(lock)[world_ob2->uid] = world_ob2;
+		main_world_state->getObjects(lock).insert(world_ob->uid, world_ob);
+		main_world_state->getObjects(lock).insert(world_ob2->uid, world_ob2);
 		main_world_state->getAvatars(lock)[avatar->uid] = avatar;
 		
 		//-------------------------------- Create a SubstrataLuaScript, don't execute though --------------------------------
@@ -474,7 +474,7 @@ void ServerLuaScriptTests::test()
 
 			WorldObjectRef temp_world_ob = new WorldObject();
 			temp_world_ob->uid = UID(200);
-			main_world_state->getObjects(lock)[temp_world_ob->uid] = temp_world_ob;
+			main_world_state->getObjects(lock).insert(temp_world_ob->uid, temp_world_ob);
 
 			output_handler.buf.clear();
 			server.timer_queue.clear();
@@ -943,7 +943,7 @@ void ServerLuaScriptTests::test()
 
 			WorldObjectRef temp_world_ob = new WorldObject();
 			temp_world_ob->uid = UID(200);
-			main_world_state->getObjects(lock)[temp_world_ob->uid] = temp_world_ob;
+			main_world_state->getObjects(lock).insert(temp_world_ob->uid, temp_world_ob);
 
 			temp_world_ob->sub_lua_script = new SubstrataLuaScript(&vm, &output_handler, script_src, temp_world_ob.ptr(), &server, main_world_state.ptr(), lock);
 			temp_world_ob->sub_lua_script->exec(lock);
@@ -1893,8 +1893,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 		fuzz_server->world_state->clearObjectStorageItems();
 		fuzz_server->timer_queue.clear();
 
-		world_state->getObjects(lock)[ob->uid] = ob;
-		world_state->getObjects(lock)[ob2->uid] = ob2;
+		world_state->getObjects(lock).insert(ob->uid, ob);
+		world_state->getObjects(lock).insert(ob2->uid, ob2);
 		world_state->getAvatars(lock)[avatar->uid] = avatar;
 
 		try

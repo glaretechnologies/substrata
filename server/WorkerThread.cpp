@@ -148,6 +148,22 @@ public:
 };
 
 
+// Thrown when a client sends an invalid message.  The message is sent back to the client before the connection is closed, so must not contain internal details.
+class InvalidClientMessageExcep : public glare::Exception
+{
+public:
+	InvalidClientMessageExcep(const std::string& msg) : glare::Exception(msg) {}
+};
+
+
+// Throws an InvalidClientMessageExcep (closing the connection) if the UID is invalid.  For checking UIDs read from client messages.
+static void checkUIDIsValid(const UID& uid)
+{
+	if(!uid.valid())
+		throw InvalidClientMessageExcep("Invalid object UID in message.");
+}
+
+
 static void writeInfoMessageToClient(SocketInterfaceRef& socket, const std::string& msg)
 {
 	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
@@ -422,9 +438,9 @@ void WorkerThread::handleResourceUploadConnection()
 
 					DependencyURLSet URLs;
 					const ServerWorldState::ObjectMapType& objects = world->getObjects(lock);
-					for(auto it = objects.begin(); it != objects.end(); ++it)
+					for(auto it = objects.valuesBegin(); it != objects.valuesEnd(); ++it)
 					{
-						const WorldObject* ob = it->second.ptr();
+						const WorldObject* ob = it.getValue().ptr();
 						URLs.clear();
 						WorldObject::GetDependencyOptions options;
 						options.tex_format_prefs = TextureFormatPreferences(/*use_basis=*/false, /*use_bc13_ktx2=*/false);
@@ -1073,9 +1089,9 @@ void WorkerThread::sendPerWorldInitialDataToClient(ServerAllWorldsState* world_s
 	// Send all current object data to client
 	/*{
 		Lock lock(world_state->mutex);
-		for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
+		for(auto it = cur_world_state->objects.valuesBegin(); it != cur_world_state->objects.valuesEnd(); ++it)
 		{
-			const WorldObject* ob = it->second.getPointer();
+			const WorldObject* ob = it.getValue().getPointer();
 
 			// Send ObjectCreated packet
 			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
@@ -1797,6 +1813,7 @@ void WorkerThread::doRun()
 							const UID vehicle_ob_uid = readUIDFromStream(msg_buffer);
 							const uint32 seat_index = msg_buffer.readUInt32();
 							const uint32 flags = msg_buffer.readUInt32();
+							checkUIDIsValid(vehicle_ob_uid);
 
 							// Mark avatar as in vehicle and execute any onUserEnteredVehicle event handlers.
 							{
@@ -1814,7 +1831,7 @@ void WorkerThread::doRun()
 										auto ob_res = cur_world_state->getObjects(lock).find(vehicle_ob_uid); // Look up vehicle object
 										if(ob_res != cur_world_state->getObjects(lock).end())
 										{
-											WorldObject* vehicle_ob = ob_res->second.ptr();
+											WorldObject* vehicle_ob = ob_res.getValue().ptr();
 											if(vehicle_ob->event_handlers)
 												vehicle_ob->event_handlers->executeOnUserEnteredVehicleHandlers(avatar_uid, vehicle_ob_uid, lock);
 										}
@@ -1840,6 +1857,7 @@ void WorkerThread::doRun()
 							readUIDFromStream(msg_buffer); // Ignore the UID in the message: a client may only act on its own avatar.
 							const UID avatar_uid = client_avatar_uid;
 							const UID seat_ob_uid = readUIDFromStream(msg_buffer);
+							checkUIDIsValid(seat_ob_uid);
 
 							// Mark avatar as on seat
 							{
@@ -1910,7 +1928,7 @@ void WorkerThread::doRun()
 										auto ob_res = cur_world_state->getObjects(lock).find(avatar->vehicle_inside_uid); // Look up vehicle object
 										if(ob_res != cur_world_state->getObjects(lock).end())
 										{
-											WorldObject* vehicle_ob = ob_res->second.ptr();
+											WorldObject* vehicle_ob = ob_res.getValue().ptr();
 											if(vehicle_ob->event_handlers)
 												vehicle_ob->event_handlers->executeOnUserExitedVehicleHandlers(avatar_uid, avatar->vehicle_inside_uid, lock);
 										}
@@ -1936,6 +1954,7 @@ void WorkerThread::doRun()
 							const Vec3f axis = readVec3FromStream<float>(msg_buffer);
 							const float angle = msg_buffer.readFloat();
 							const Vec3f scale = readVec3FromStream<float>(msg_buffer);
+							checkUIDIsValid(object_uid);
 
 							// If client is not logged in, refuse object modification.
 							if(!client_user_id.valid())
@@ -1955,7 +1974,7 @@ void WorkerThread::doRun()
 									auto res = cur_world_state->getObjects(lock).find(object_uid);
 									if(res != cur_world_state->getObjects(lock).end())
 									{
-										WorldObject* ob = res->second.getPointer();
+										WorldObject* ob = res.getValue().getPointer();
 
 										// See if the user has permissions to alter this object:
 										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms, lock))
@@ -2011,7 +2030,7 @@ void WorkerThread::doRun()
 									auto res = cur_world_state->getObjects(lock).find(summon_msg.object_uid); // Look up existing object in world state
 									if(res != cur_world_state->getObjects(lock).end())
 									{
-										WorldObject* ob = res->second.getPointer();
+										WorldObject* ob = res.getValue().getPointer();
 
 										if(client_user_id != ob->creator_id)
 											err_msg_to_client = "You must be the owner of this object to summon it.";
@@ -2068,6 +2087,7 @@ void WorkerThread::doRun()
 							msg_buffer.readData(angular_vel.x, sizeof(float) * 3);
 
 							const double client_cur_time = msg_buffer.readDouble();
+							checkUIDIsValid(object_uid);
 
 							// If client is not logged in, refuse object modification.
 							/*if(!client_user_id.valid())
@@ -2087,7 +2107,7 @@ void WorkerThread::doRun()
 									auto res = cur_world_state->getObjects(lock).find(object_uid);
 									if(res != cur_world_state->getObjects(lock).end())
 									{
-										WorldObject* ob = res->second.getPointer();
+										WorldObject* ob = res.getValue().getPointer();
 
 										// See if the user has permissions to alter this object:
 										if(ob->isDynamic()) // We will only allow clients to apply PhysicsTransformUpdates to objects it the object is a dynamic object.
@@ -2124,6 +2144,7 @@ void WorkerThread::doRun()
 
 							WorldObject temp_ob;
 							readWorldObjectFromNetworkStreamGivenUID(msg_buffer, temp_ob); // Read rest of ObjectFullUpdate message.
+							checkUIDIsValid(object_uid);
 
 							// If client is not logged in, refuse object modification.
 							if(!client_user_id.valid())
@@ -2145,7 +2166,7 @@ void WorkerThread::doRun()
 									auto res = cur_world_state->getObjects(lock).find(object_uid);
 									if(res != cur_world_state->getObjects(lock).end())
 									{
-										WorldObject* ob = res->second.getPointer();
+										WorldObject* ob = res.getValue().getPointer();
 
 										// See if the user has permissions to alter this object:
 										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms, lock))
@@ -2207,6 +2228,7 @@ void WorkerThread::doRun()
 							//conPrint("ObjectLightmapURLChanged");
 							const UID object_uid = readUIDFromStream(msg_buffer);
 							const std::string new_lightmap_url = msg_buffer.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
+							checkUIDIsValid(object_uid);
 
 							bool send_must_be_owner_msg = false;
 
@@ -2216,7 +2238,7 @@ void WorkerThread::doRun()
 								auto res = cur_world_state->getObjects(lock).find(object_uid);
 								if(res != cur_world_state->getObjects(lock).end())
 								{
-									WorldObject* ob = res->second.getPointer();
+									WorldObject* ob = res.getValue().getPointer();
 
 									if(!world_state->isInReadOnlyMode())
 									{
@@ -2246,6 +2268,7 @@ void WorkerThread::doRun()
 							//conPrint("ObjectModelURLChanged");
 							const UID object_uid = readUIDFromStream(msg_buffer);
 							const std::string new_model_url = msg_buffer.readStringLengthFirst(WorldObject::MAX_URL_SIZE);
+							checkUIDIsValid(object_uid);
 
 							bool model_url_changed = false;
 							bool send_must_be_owner_msg = false;
@@ -2256,7 +2279,7 @@ void WorkerThread::doRun()
 								auto res = cur_world_state->getObjects(lock).find(object_uid);
 								if(res != cur_world_state->getObjects(lock).end())
 								{
-									WorldObject* ob = res->second.getPointer();
+									WorldObject* ob = res.getValue().getPointer();
 
 									if(!world_state->isInReadOnlyMode())
 									{
@@ -2295,6 +2318,7 @@ void WorkerThread::doRun()
 					case Protocol::GetScriptOutputForObject: // Client wants recent output from the server-side script of an object.
 						{
 							const UID ob_uid = readUIDFromStream(msg_buffer);
+							checkUIDIsValid(ob_uid);
 
 							// Send the object's most recent messages from the user's script log, oldest first, as ServerScriptOutput messages.
 							// The log for a user only contains output from scripts of objects the user created, so a separate permission check isn't needed.
@@ -2365,6 +2389,7 @@ void WorkerThread::doRun()
 							//conPrint("ObjectFlagsChanged");
 							const UID object_uid = readUIDFromStream(msg_buffer);
 							const uint32 flags = msg_buffer.readUInt32();
+							checkUIDIsValid(object_uid);
 
 							bool send_must_be_owner_msg = false;
 
@@ -2374,7 +2399,7 @@ void WorkerThread::doRun()
 								auto res = cur_world_state->getObjects(lock).find(object_uid);
 								if(res != cur_world_state->getObjects(lock).end())
 								{
-									WorldObject* ob = res->second.getPointer();
+									WorldObject* ob = res.getValue().getPointer();
 
 									if(!world_state->isInReadOnlyMode())
 									{
@@ -2410,6 +2435,7 @@ void WorkerThread::doRun()
 							const uint32 physics_owner_id = msg_buffer.readUInt32();
 							const double client_global_time = msg_buffer.readDouble();
 							const uint32 flags = msg_buffer.readUInt32();
+							checkUIDIsValid(object_uid);
 
 							// Look up existing object in world state
 							{
@@ -2417,7 +2443,7 @@ void WorkerThread::doRun()
 								auto res = cur_world_state->getObjects(lock).find(object_uid);
 								if(res != cur_world_state->getObjects(lock).end())
 								{
-									WorldObject* ob = res->second.getPointer();
+									WorldObject* ob = res.getValue().getPointer();
 
 									if(!world_state->isInReadOnlyMode())
 									{
@@ -2503,7 +2529,7 @@ void WorkerThread::doRun()
 										new_ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
 										world_state->checkAddWorldObToDBDirtyAndDirtyFromRemoteSets(new_ob.ptr(), *cur_world_state, lock);
 
-										cur_world_state->getObjects(lock).insert(std::make_pair(new_ob->uid, new_ob));
+										cur_world_state->getObjects(lock).insert(new_ob->uid, new_ob);
 
 										markLODChunkAsNeedsRebuildForChangedObject(cur_world_state.ptr(), new_ob.ptr(), lock);
 
@@ -2536,6 +2562,7 @@ void WorkerThread::doRun()
 						{
 							conPrintIfNotFuzzing("DestroyObject");
 							const UID object_uid = readUIDFromStream(msg_buffer);
+							checkUIDIsValid(object_uid);
 
 							// If client is not logged in, refuse object modification.
 							if(!client_user_id.valid())
@@ -2554,7 +2581,7 @@ void WorkerThread::doRun()
 									auto res = cur_world_state->getObjects(lock).find(object_uid);
 									if(res != cur_world_state->getObjects(lock).end())
 									{
-										WorldObject* ob = res->second.getPointer();
+										WorldObject* ob = res.getValue().getPointer();
 
 										// See if the user has permissions to alter this object:
 										const bool have_delete_perms = userHasObjectWritePermissions(*ob, client_user_id, client_user_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms, lock);
@@ -2588,9 +2615,9 @@ void WorkerThread::doRun()
 							{
 								WorldStateLock lock(world_state->mutex);
 								const ServerWorldState::ObjectMapType& objects = cur_world_state->getObjects(lock);
-								for(auto it = objects.begin(); it != objects.end(); ++it)
+								for(auto it = objects.valuesBegin(); it != objects.valuesEnd(); ++it)
 								{
-									const WorldObject* ob = it->second.getPointer();
+									const WorldObject* ob = it.getValue().getPointer();
 
 									// Build ObjectInitialSend message
 									MessageUtils::initPacket(scratch_packet, Protocol::ObjectInitialSend);
@@ -2653,9 +2680,9 @@ void WorkerThread::doRun()
 							{ // Lock scope
 								WorldStateLock lock(world_state->mutex);
 								const ServerWorldState::ObjectMapType& objects = cur_world_state->getObjects(lock);
-								for(auto it = objects.begin(); it != objects.end(); ++it)
+								for(auto it = objects.valuesBegin(); it != objects.valuesEnd(); ++it)
 								{
-									const WorldObject* ob = it->second.ptr();
+									const WorldObject* ob = it.getValue().ptr();
 
 									// See if the object is in any of the cell AABBs
 									bool in_cell = false;
@@ -2733,9 +2760,9 @@ void WorkerThread::doRun()
 							{ // Lock scope
 								WorldStateLock lock(world_state->mutex);
 								const ServerWorldState::ObjectMapType& objects = cur_world_state->getObjects(lock);
-								for(auto it = objects.begin(); it != objects.end(); ++it)
+								for(auto it = objects.valuesBegin(); it != objects.valuesEnd(); ++it)
 								{
-									const WorldObject* ob = it->second.ptr();
+									const WorldObject* ob = it.getValue().ptr();
 									const Vec4f ob_pos_vec4f = ob->pos.toVec4fPoint();
 									if(ob_pos_vec4f.isFinite() && aabb.contains(ob_pos_vec4f)) // If the object position is valid, and if it's in the query AABB:
 										obs.push_back(ob);
@@ -2958,9 +2985,9 @@ void WorkerThread::doRun()
 
 									// Execute any onChatMessage event handlers.
 									const ServerWorldState::ObjectMapType& objects = cur_world_state->getObjects(lock);
-									for(auto it = objects.begin(); it != objects.end(); ++it) // TEMP: slow linear scan
+									for(auto it = objects.valuesBegin(); it != objects.valuesEnd(); ++it) // TEMP: slow linear scan
 									{
-										WorldObject* ob = it->second.ptr();
+										WorldObject* ob = it.getValue().ptr();
 										if(ob->event_handlers && ob->event_handlers->onChatMessage_handlers.nonEmpty())
 										{
 											ob->event_handlers->executeOnChatMessageHandlers(client_avatar_uid, msg, lock);
@@ -3060,6 +3087,7 @@ void WorkerThread::doRun()
 							//conPrint("Received UserSelectedObject msg.");
 
 							const UID object_uid = readUIDFromStream(msg_buffer);
+							checkUIDIsValid(object_uid);
 
 							// Send message to connected clients
 							{
@@ -3077,6 +3105,7 @@ void WorkerThread::doRun()
 							//conPrint("Received UserDeselectedObject msg.");
 
 							const UID object_uid = readUIDFromStream(msg_buffer);
+							checkUIDIsValid(object_uid);
 
 							// Send message to connected clients
 							{
@@ -3094,6 +3123,7 @@ void WorkerThread::doRun()
 							//conPrintIfNotFuzzing("Received UserUsedObjectMessage msg.");
 
 							const UID object_uid = readUIDFromStream(msg_buffer);
+							checkUIDIsValid(object_uid);
 
 							//conPrintIfNotFuzzing("object_uid: " + object_uid.toString());
 
@@ -3110,6 +3140,7 @@ void WorkerThread::doRun()
 							//conPrintIfNotFuzzing("Received UserTouchedObjectMessage msg.");
 
 							const UID object_uid = readUIDFromStream(msg_buffer);
+							checkUIDIsValid(object_uid);
 
 							Reference<UserTouchedObjectThreadMessage> msg = new UserTouchedObjectThreadMessage();
 							msg->world = cur_world_state;
@@ -3124,6 +3155,7 @@ void WorkerThread::doRun()
 							//conPrintIfNotFuzzing("Received UserMovedNearToObjectMessage msg.");
 
 							const UID object_uid = readUIDFromStream(msg_buffer);
+							checkUIDIsValid(object_uid);
 
 							Reference<UserMovedNearToObjectThreadMessage> msg = new UserMovedNearToObjectThreadMessage();
 							msg->world = cur_world_state;
@@ -3138,6 +3170,7 @@ void WorkerThread::doRun()
 							//conPrintIfNotFuzzing("Received UserMovedAwayFromObjectMessage msg.");
 
 							const UID object_uid = readUIDFromStream(msg_buffer);
+							checkUIDIsValid(object_uid);
 
 							Reference<UserMovedAwayFromObjectThreadMessage> msg = new UserMovedAwayFromObjectThreadMessage();
 							msg->world = cur_world_state;
@@ -3170,6 +3203,7 @@ void WorkerThread::doRun()
 
 							const UID object_uid = readUIDFromStream(msg_buffer);
 							const ParcelID parcel_id = readParcelIDFromStream(msg_buffer);
+							checkUIDIsValid(object_uid);
 
 							Reference<UserExitedParcelThreadMessage> msg = new UserExitedParcelThreadMessage();
 							msg->world = cur_world_state;
@@ -3786,6 +3820,7 @@ void WorkerThread::doRun()
 							conPrintIfNotFuzzing("PickUpGearItem");
 
 							const UID object_uid = readUIDFromStream(msg_buffer);
+							checkUIDIsValid(object_uid);
 
 							try
 							{
@@ -3802,7 +3837,7 @@ void WorkerThread::doRun()
 									auto ob_it = cur_world_state->getObjects(lock).find(object_uid);
 									if(ob_it == cur_world_state->getObjects(lock).end())
 										throw ExceptionWithErrMsgForUser("Gear pickup failed: object no longer exists.");
-									WorldObject* ob = ob_it->second.getPointer();
+									WorldObject* ob = ob_it.getValue().getPointer();
 
 									// Check it's a gear item type world obhect
 									if(ob->object_type != WorldObject::ObjectType_GearItem)
@@ -3908,7 +3943,7 @@ void WorkerThread::doRun()
 									new_ob->uid = world_state->getNextObjectUID();
 									new_ob->state = WorldObject::State_JustCreated;
 									new_ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
-									cur_world_state->getObjects(lock).insert(std::make_pair(new_ob->uid, new_ob));
+									cur_world_state->getObjects(lock).insert(new_ob->uid, new_ob);
 									world_state->checkAddWorldObToDBDirtyAndDirtyFromRemoteSets(new_ob.ptr(), *cur_world_state, lock);
 
 									// Remove from user's inventory and clear ownership - the dropped item is unowned until picked up.
@@ -4076,6 +4111,18 @@ void WorkerThread::doRun()
 			conPrint("Updates client from " + IPAddress::formatIPAddressAndPort(socket->getOtherEndIPAddress(), socket->getOtherEndPort()) + " closed connection gracefully.");
 		else
 			conPrint("Socket error: " + e.what());
+	}
+	catch(InvalidClientMessageExcep& e)
+	{
+		conPrintIfNotFuzzing("Invalid client message: " + e.what());
+
+		// Tell the client why it is being disconnected.
+		try
+		{
+			writeErrorMessageToClient(socket, e.what());
+		}
+		catch(glare::Exception&) // The socket may be broken.
+		{}
 	}
 	catch(glare::Exception& e)
 	{

@@ -209,10 +209,10 @@ static void checkDynamicTexture(const ObWithDynamicTexture& ob_with_dyn_tex, Ser
 			// Update object to use new texture
 			ServerWorldState* the_world_state = world_state->world_states[ob_with_dyn_tex.world_name].ptr();
 			runtimeCheck(the_world_state != nullptr);
-			const auto ob_res = the_world_state->getObjects(lock).find(ob_with_dyn_tex.ob_uid);
+			auto ob_res = the_world_state->getObjects(lock).find(ob_with_dyn_tex.ob_uid);
 			if(ob_res != the_world_state->getObjects(lock).end())
 			{
-				WorldObject* ob = ob_res->second.ptr();
+				WorldObject* ob = ob_res.getValue().ptr();
 
 				if(ob_with_dyn_tex.script->material_index < ob->materials.size())
 				{
@@ -302,9 +302,9 @@ void DynamicTextureUpdaterThread::doRun()
 				{
 					ServerWorldState* world = world_it->second.ptr();
 					ServerWorldState::ObjectMapType& objects = world->getObjects(lock);
-					for(auto it = objects.begin(); it != objects.end(); ++it)
+					for(auto it = objects.valuesBegin(); it != objects.valuesEnd(); ++it)
 					{
-						WorldObject* ob = it->second.ptr();
+						WorldObject* ob = it.getValue().ptr();
 						try
 						{
 							checkForDynamicTextureToCheck(/*world name=*/world_it->first, ob, world_state, obs_with_dyn_textures);

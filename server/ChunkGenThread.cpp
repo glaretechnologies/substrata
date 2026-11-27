@@ -1138,9 +1138,9 @@ static ChunkBuildResults buildChunk(ServerAllWorldsState* world_state, Reference
 	{
 		WorldStateLock lock(world_state->mutex);
 		ServerWorldState::ObjectMapType& objects = world->getObjects(lock);
-		for(auto it = objects.begin(); it != objects.end(); ++it)
+		for(auto it = objects.valuesBegin(); it != objects.valuesEnd(); ++it)
 		{
-			WorldObjectRef ob = it->second;
+			WorldObjectRef ob = it.getValue();
 			if(chunk_aabb.contains(ob->getCentroidWS()) && !BitUtils::isBitSet(ob->flags, WorldObject::EXCLUDE_FROM_LOD_CHUNK_MESH))
 			{
 				bool have_mesh = false;
@@ -1285,9 +1285,9 @@ static void updateObjectExcludeFlagsAndUpdateChunks(ServerAllWorldsState* all_wo
 	ServerWorldState::ObjectMapType& objects = world_state->getObjects(lock);
 	ServerWorldState::LODChunkMapType& lod_chunks = world_state->getLODChunks(lock);
 
-	for(auto it = objects.begin(); it != objects.end(); ++it)
+	for(auto it = objects.valuesBegin(); it != objects.valuesEnd(); ++it)
 	{
-		WorldObject* ob = it->second.ptr();
+		WorldObject* ob = it.getValue().ptr();
 
 		if(!ob->axis.isFinite())
 			ob->axis = Vec3f(0,0,1);
@@ -1525,7 +1525,7 @@ void ChunkGenThread::doRun()
 						auto res = dirty_chunks[i].world_state->getObjects(lock).find(ob_batch_ranges.ob_uid);
 						if(res != dirty_chunks[i].world_state->getObjects(lock).end())
 						{
-							WorldObject* ob = res->second.ptr();
+							WorldObject* ob = res.getValue().ptr();
 							ob->chunk_batch0_start = ob_batch_ranges.batch0_start;
 							ob->chunk_batch0_end   = ob_batch_ranges.batch0_end;
 							ob->chunk_batch1_start = ob_batch_ranges.batch1_start;

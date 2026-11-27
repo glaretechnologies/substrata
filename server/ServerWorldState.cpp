@@ -22,6 +22,12 @@ Generated at 2016-01-12 12:22:34 +1300
 #include "../shared/LODChunk.h"
 
 
+ServerWorldState::ServerWorldState()
+:	db_dirty(false),
+	objects(/*empty key=*/UID::invalidUID())
+{}
+
+
 static const uint32 SERVER_SINGLE_WORLD_STATE_SERIALISATON_VERSION = 1;
 
 
@@ -126,7 +132,7 @@ ServerAllWorldsState::~ServerAllWorldsState()
 
 	// Delete any objects first, which may contain references to Lua stuff, before we delete the Lua VMs
 	ephemeral_objects.clear();
-	ephemeral_obs_pending_script_init.clear();
+	ephemeral_obs_pending_insert.clear();
 	world_states.clear();
 
 	lua_vms.clear();
@@ -279,7 +285,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					BitUtils::zeroBit(world_ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
 
 					world_ob->database_key = database_key;
-					world_states[world_name]->getObjects(lock)[world_ob->uid] = world_ob; // Add to object map
+					world_states[world_name]->getObjects(lock).insert(world_ob->uid, world_ob); // Add to object map
 					num_obs++;
 
 					next_object_uid = UID(myMax(world_ob->uid.value() + 1, next_object_uid.value()));
@@ -666,7 +672,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 				//TEMP HACK: clear lightmap needed flag
 				BitUtils::zeroBit(world_ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
 
-				current_world->getObjects(lock)[world_ob->uid] = world_ob; // Add to object map
+				current_world->getObjects(lock).insert(world_ob->uid, world_ob); // Add to object map
 				num_obs++;
 
 				next_object_uid = UID(myMax(world_ob->uid.value() + 1, next_object_uid.value()));
@@ -906,10 +912,10 @@ void ServerAllWorldsState::addEverythingToDirtySets()
 	{
 		Reference<ServerWorldState> world_state = world_it->second;
 
-		for(auto it = world_state->getObjects(lock).begin(); it != world_state->getObjects(lock).end(); ++it)
+		for(auto it = world_state->getObjects(lock).valuesBegin(); it != world_state->getObjects(lock).valuesEnd(); ++it)
 		{
-			world_state->db_dirty_world_objects.push_back(it->second);
-			it->second->in_db_dirty_world_objects = true;
+			world_state->db_dirty_world_objects.push_back(it.getValue());
+			it.getValue()->in_db_dirty_world_objects = true;
 		}
 
 		for(auto it = world_state->getParcels(lock).begin(); it != world_state->getParcels(lock).end(); ++it)
@@ -1064,11 +1070,11 @@ void ServerAllWorldsState::denormaliseData()
 		Reference<ServerWorldState> world_state = world_it->second;
 
 		// Build cached fields like WorldObject::creator_name
-		for(auto i=world_state->getObjects(lock).begin(); i != world_state->getObjects(lock).end(); ++i)
+		for(auto i=world_state->getObjects(lock).valuesBegin(); i != world_state->getObjects(lock).valuesEnd(); ++i)
 		{
-			auto res = user_id_to_users.find(i->second->creator_id);
+			auto res = user_id_to_users.find(i.getValue()->creator_id);
 			if(res != user_id_to_users.end())
-				i->second->creator_name = res->second->name;
+				i.getValue()->creator_name = res->second->name;
 		}
 
 		for(auto i=world_state->getParcels(lock).begin(); i != world_state->getParcels(lock).end(); ++i)
@@ -1127,9 +1133,9 @@ void ServerAllWorldsState::doMigrations(WorldStateLock& lock)
 		for(auto world_it = world_states.begin(); world_it != world_states.end(); ++world_it)
 		{
 			ServerWorldState* world_state = world_it->second.ptr();
-			for(auto it = world_state->getObjects(lock).begin(); it != world_state->getObjects(lock).end(); ++it)
+			for(auto it = world_state->getObjects(lock).valuesBegin(); it != world_state->getObjects(lock).valuesEnd(); ++it)
 			{
-				WorldObject* ob = it->second.ptr();
+				WorldObject* ob = it.getValue().ptr();
 				if(!ob->audio_source_url.empty())
 				{
 					ob->flags |= (WorldObject::AUDIO_AUTOPLAY | WorldObject::AUDIO_LOOP);

@@ -268,9 +268,9 @@ static const std::string tool_listObjectsNear(ServerAllWorldsState& all_worlds, 
 	std::string s = "[";
 	bool first = true;
 	size_t num_added = 0;
-	for(auto it = world->getObjects(lock).begin(); (it != world->getObjects(lock).end()) && (num_added < limit); ++it)
+	for(auto it = world->getObjects(lock).valuesBegin(); (it != world->getObjects(lock).valuesEnd()) && (num_added < limit); ++it)
 	{
-		const WorldObject* ob = it->second.ptr();
+		const WorldObject* ob = it.getValue().ptr();
 		if(ob->pos.getDist2(centre) <= radius2)
 		{
 			if(!first)
@@ -297,7 +297,7 @@ static const std::string tool_getObject(ServerAllWorldsState& all_worlds, const 
 	if(res == world->getObjects(lock).end())
 		throw glare::Exception("No object with UID " + toString(uid.value()) + " in world '" + toString(world_name) + "'");
 
-	return res->second->serialiseToJSON();
+	return res.getValue()->serialiseToJSON();
 }
 
 
@@ -358,9 +358,9 @@ static void checkObjectCountLimits(const WorldObject& ob, const string_view worl
 	if(target_parcel)
 	{
 		size_t num_in_parcel = 0;
-		for(auto it = world.getObjects(lock).begin(); it != world.getObjects(lock).end(); ++it)
+		for(auto it = world.getObjects(lock).valuesBegin(); it != world.getObjects(lock).valuesEnd(); ++it)
 		{
-			const WorldObject* other = it->second.ptr();
+			const WorldObject* other = it.getValue().ptr();
 			if((other->state != WorldObject::State_Dead) && target_parcel->pointInParcel(other->pos.toVec4fPoint()))
 				num_in_parcel++;
 		}
@@ -400,7 +400,7 @@ static const std::string createObjectInWorld(ServerAllWorldsState& all_worlds, c
 	ob->state = WorldObject::State_JustCreated;
 	ob->from_remote_dirty |= WorldObject::OTHER_DIRTY;
 	all_worlds.checkAddWorldObToDBDirtyAndDirtyFromRemoteSets(ob.ptr(), *world, lock);
-	world->getObjects(lock).insert(std::make_pair(ob->uid, ob));
+	world->getObjects(lock).insert(ob->uid, ob);
 
 	markLODChunkNeedsRebuild(world, ob.ptr(), lock);
 	all_worlds.markAsChanged();
@@ -766,7 +766,7 @@ static const std::string tool_editObject(ServerAllWorldsState& all_worlds, Serve
 	auto res = world->getObjects(lock).find(uid);
 	if(res == world->getObjects(lock).end())
 		throw glare::Exception("No object with UID " + toString(uid.value()) + " in world '" + toString(world_name) + "'");
-	WorldObject* ob = res->second.ptr();
+	WorldObject* ob = res.getValue().ptr();
 
 	if(!userHasObjectWritePermissions(*ob, acting_user_id, acting_user_name, *world, /*allow_light_mapper_bot_full_perms=*/false, lock))
 		throw glare::Exception("Permission denied: cannot modify object " + toString(uid.value()) + ".");
@@ -863,7 +863,7 @@ static const std::string tool_deleteObject(ServerAllWorldsState& all_worlds, con
 	auto res = world->getObjects(lock).find(uid);
 	if(res == world->getObjects(lock).end())
 		throw glare::Exception("No object with UID " + toString(uid.value()) + " in world '" + toString(world_name) + "'");
-	WorldObject* ob = res->second.ptr();
+	WorldObject* ob = res.getValue().ptr();
 
 	if(!userHasObjectWritePermissions(*ob, acting_user_id, /*user_name=*/std::string(), *world, /*allow_light_mapper_bot_full_perms=*/false, lock))
 		throw glare::Exception("Permission denied: cannot delete object " + toString(uid.value()) + ".");

@@ -699,9 +699,9 @@ int main(int argc, char *argv[])
 			{
 				Reference<ServerWorldState> world_state = world_it->second;
 				ServerWorldState::ObjectMapType& objects = world_state->getObjects(lock);
-				for(auto i = objects.begin(); i != objects.end(); ++i)
+				for(auto i = objects.valuesBegin(); i != objects.valuesEnd(); ++i)
 				{
-					WorldObject* ob = i->second.ptr();
+					WorldObject* ob = i.getValue().ptr();
 					if(hasPrefix(ob->script, "--lua"))
 						server.recreateLuaScriptForObject(ob, world_state.ptr(), lock);
 				}
@@ -739,6 +739,9 @@ int main(int argc, char *argv[])
 
 		// A map from world to packet data to send to clients connected to that world.
 		std::unordered_map<ServerWorldState*, std::vector<uint8>> broadcast_packets;
+
+		// Objects created by createObject() that were inserted into their world's object map this tick, and need their scripts created.
+		std::vector<ServerAllWorldsState::EphemeralObInfo> newly_inserted_ephemeral_obs;
 
 		SocketBufferOutStream scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 
@@ -804,7 +807,7 @@ int main(int argc, char *argv[])
 						auto res = used_msg->world->getObjects(world_lock).find(used_msg->object_uid);
 						if(res != used_msg->world->getObjects(world_lock).end())
 						{
-							WorldObject* ob = res->second.ptr();
+							WorldObject* ob = res.getValue().ptr();
 
 							// Execute doOnUserUsedObject event handler in any scripts that are listening for onUserUsedObject for this object
 							if(ob->event_handlers)
@@ -820,7 +823,7 @@ int main(int argc, char *argv[])
 						auto res = touched_msg->world->getObjects(world_lock).find(touched_msg->object_uid);
 						if(res != touched_msg->world->getObjects(world_lock).end())
 						{
-							WorldObject* ob = res->second.ptr();
+							WorldObject* ob = res.getValue().ptr();
 
 							// Execute doOnUserTouchedObject event handler in any scripts that are listening for onUserTouchedObject for this object
 							if(ob->event_handlers)
@@ -836,7 +839,7 @@ int main(int argc, char *argv[])
 						auto res = moved_msg->world->getObjects(world_lock).find(moved_msg->object_uid);
 						if(res != moved_msg->world->getObjects(world_lock).end())
 						{
-							WorldObject* ob = res->second.ptr();
+							WorldObject* ob = res.getValue().ptr();
 
 							// Execute onUserMovedNearToObject event handler in any scripts that are listening for onUserMovedNearToObject for this object
 							if(ob->event_handlers)
@@ -852,7 +855,7 @@ int main(int argc, char *argv[])
 						auto res = moved_msg->world->getObjects(world_lock).find(moved_msg->object_uid);
 						if(res != moved_msg->world->getObjects(world_lock).end())
 						{
-							WorldObject* ob = res->second.ptr();
+							WorldObject* ob = res.getValue().ptr();
 
 							// Execute event handler in any scripts that are listening on this object
 							if(ob->event_handlers)
@@ -870,7 +873,7 @@ int main(int argc, char *argv[])
 							auto res = parcel_msg->world->getObjects(world_lock).find(parcel_msg->object_uid);
 							if(res != parcel_msg->world->getObjects(world_lock).end())
 							{
-								WorldObject* ob = res->second.ptr();
+								WorldObject* ob = res.getValue().ptr();
 
 								// Execute event handler in any scripts that are listening on this object
 								if(ob->event_handlers)
@@ -911,7 +914,7 @@ int main(int argc, char *argv[])
 						auto res = parcel_msg->world->getObjects(world_lock).find(parcel_msg->object_uid);
 						if(res != parcel_msg->world->getObjects(world_lock).end())
 						{
-							WorldObject* ob = res->second.ptr();
+							WorldObject* ob = res.getValue().ptr();
 
 							// Execute event handler in any scripts that are listening on this object
 							if(ob->event_handlers)
@@ -993,6 +996,12 @@ int main(int argc, char *argv[])
 			{ // Begin scope for world_state->mutex lock
 
 				WorldStateLock lock(server.world_state->mutex);
+
+				// Insert objects created by createObject() since the last tick into their worlds' object maps.  This is done before the object changes loop below
+				// sends ObjectCreated messages for them.  No scripts are run here, so ephemeral_obs_pending_insert isn't added to while iterating over it.
+				newly_inserted_ephemeral_obs.swap(server.world_state->ephemeral_obs_pending_insert);
+				for(size_t i=0; i<newly_inserted_ephemeral_obs.size(); ++i)
+					newly_inserted_ephemeral_obs[i].world->getObjects(lock).insert(newly_inserted_ephemeral_obs[i].ob->uid, newly_inserted_ephemeral_obs[i].ob);
 
 				for(auto world_it = server.world_state->world_states.begin(); world_it != server.world_state->world_states.end(); ++world_it)
 				{
@@ -1327,23 +1336,17 @@ int main(int argc, char *argv[])
 				}
 
 
-				// Create and run scripts for objects created by createObject().
-				// Only process the objects that were queued before this tick: objects created by scripts run here are queued, and are processed on the next tick.
+				// Create and run scripts for the objects created by createObject() that were inserted above.
+				// Objects created by scripts run here are added to ephemeral_obs_pending_insert, and are inserted on the next tick.
+				for(size_t i=0; i<newly_inserted_ephemeral_obs.size(); ++i)
 				{
-					CircularBuffer<ServerAllWorldsState::EphemeralObInfo>& pending = server.world_state->ephemeral_obs_pending_script_init;
-					const size_t num_to_process = pending.size();
-					for(size_t i=0; i<num_to_process; ++i)
-					{
-						const ServerAllWorldsState::EphemeralObInfo ob_info = pending.popAndReturnFront();
-						WorldObject* ob = ob_info.ob.ptr();
+					WorldObject* ob = newly_inserted_ephemeral_obs[i].ob.ptr();
 
-						// Skip objects that have expired or been deleted, or that already have a script (e.g. the script was edited by a client before it was created here).
-						if((ob->state == WorldObject::State_Dead) || ob->sub_lua_script)
-							continue;
-
-						server.recreateLuaScriptForObject(ob, ob_info.world, lock);
-					}
+					// Don't create a script for objects that have expired or been deleted, or that already have a script (e.g. the script was edited by a client before it was created here).
+					if(!ob->script.empty() && (ob->state != WorldObject::State_Dead) && !ob->sub_lua_script)
+						server.recreateLuaScriptForObject(ob, newly_inserted_ephemeral_obs[i].world, lock);
 				}
+				newly_inserted_ephemeral_obs.clear();
 
 
 				if(server.world_state->server_admin_message_changed)

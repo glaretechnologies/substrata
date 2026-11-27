@@ -698,9 +698,9 @@ static void markOptimisedMeshesAsNotPresent(ServerAllWorldsState* world_state)
 	{
 		ServerWorldState* world = world_it->second.ptr();
 		ServerWorldState::ObjectMapType& objects = world->getObjects(lock);
-		for(auto it = objects.begin(); it != objects.end(); ++it)
+		for(auto it = objects.valuesBegin(); it != objects.valuesEnd(); ++it)
 		{
-			WorldObject* ob = it->second.ptr();
+			WorldObject* ob = it.getValue().ptr();
 			try
 			{
 				markOptimisedMeshesAsNotPresentForOb(world_state, world, ob);
@@ -932,8 +932,8 @@ void MeshLODGenThread::doRun()
 				for(auto world_it = world_state->world_states.begin(); world_it != world_state->world_states.end(); ++world_it)
 				{
 					ServerWorldState* world = world_it->second.ptr();
-					for(auto it = world->getObjects(lock).begin(); it != world->getObjects(lock).end(); ++it)
-						checkInsertMeshURLToLoad(/*ob=*/it->second.ptr(), mesh_URLS_to_load, lock);
+					for(auto it = world->getObjects(lock).valuesBegin(); it != world->getObjects(lock).valuesEnd(); ++it)
+						checkInsertMeshURLToLoad(/*ob=*/it.getValue().ptr(), mesh_URLS_to_load, lock);
 				}
 			}
 
@@ -950,9 +950,9 @@ void MeshLODGenThread::doRun()
 				{
 					ServerWorldState* world = world_it->second.ptr();
 					ServerWorldState::ObjectMapType& objects = world->getObjects(lock);
-					for(auto it = objects.begin(); it != objects.end(); ++it)
+					for(auto it = objects.valuesBegin(); it != objects.valuesEnd(); ++it)
 					{
-						WorldObject* ob = it->second.ptr();
+						WorldObject* ob = it.getValue().ptr();
 						try
 						{
 							checkObjectFlags(world_state, world, ob, lock);
@@ -1117,7 +1117,7 @@ void MeshLODGenThread::doRun()
 						auto res = world->getObjects(lock).find(ob_to_scan_UID);
 						if(res != world->getObjects(lock).end())
 						{
-							WorldObject* ob = res->second.ptr();
+							WorldObject* ob = res.getValue().ptr();
 							try
 							{
 								checkObjectFlags(world_state, world, ob, lock);

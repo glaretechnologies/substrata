@@ -37,6 +37,7 @@ Copyright Glare Technologies Limited 2024 -
 #include <CircularBuffer.h>
 #include <SimpleCredentials.h>
 #include <HashMap.h>
+#include <FastIterMap.h>
 #include <map>
 #include <unordered_set>
 class ServerWorldState;
@@ -249,7 +250,7 @@ members private and having accessor methods that take a WorldStateLock argument.
 class ServerWorldState : public ThreadSafeRefCounted
 {
 public:
-	ServerWorldState() : db_dirty(false) {}
+	ServerWorldState();
 
 	friend class ServerAllWorldsState;
 
@@ -269,7 +270,7 @@ public:
 
 
 	typedef std::map<UID, Reference<Avatar>> AvatarMapType;
-	typedef std::map<UID, WorldObjectRef> ObjectMapType;
+	typedef glare::FastIterMap<UID, WorldObjectRef, UIDHasher> ObjectMapType;
 	typedef std::map<ParcelID, ParcelRef> ParcelMapType;
 	typedef std::map<Vec3i, LODChunkRef> LODChunkMapType;
 	typedef std::vector<WorldObjectRef> DirtyFromRemoteObjectSetType;
@@ -511,9 +512,10 @@ public:
 	};
 	std::vector<EphemeralObInfo> ephemeral_objects GUARDED_BY(mutex);
 
-	// Objects created by createObject() that have a script that hasn't been created and run yet.  The scripts are created by the server main loop on a later tick,
-	// rather than inside createObject(), so that a script that creates scripted objects doesn't recursively run the new scripts inside its own createObject() call.
-	CircularBuffer<EphemeralObInfo> ephemeral_obs_pending_script_init GUARDED_BY(mutex);
+	// Objects created by createObject() that haven't been inserted into their world's object map yet.  The server main loop inserts them, then creates and runs their scripts.
+	// This is done on a later tick, rather than inside createObject(), so that scripts can't insert into an object map while something is iterating over it,
+	// and so that a script that creates scripted objects doesn't recursively run the new scripts inside its own createObject() call.
+	std::vector<EphemeralObInfo> ephemeral_obs_pending_insert GUARDED_BY(mutex);
 
 	// Limits on objects created by scripts with createObject(), per user (counted over all of the user's scripts).
 	static const int MAX_NUM_EPHEMERAL_OBS_PER_USER = 200; // Max number of live objects.

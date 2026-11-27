@@ -480,7 +480,6 @@ static int createObject(lua_State* state)
 
 		ob->die_time = sub_lua_script->server->getCurrentGlobalTime() + lifetime;
 	
-		sub_lua_script->world_state->getObjects(*sub_lua_script->cur_world_state_lock).insert(std::make_pair(ob->uid, ob));
 		worlds_state->checkAddWorldObjectToDirtyFromRemoteSet(ob.ptr(), *sub_lua_script->world_state, *sub_lua_script->cur_world_state_lock);
 
 		// Add to world_state->ephemeral_objects
@@ -492,9 +491,9 @@ static int createObject(lua_State* state)
 
 		creator_user->num_live_ephemeral_obs++;
 
-		// The object's script is created and run by the server main loop on a later tick, not here.  See ServerAllWorldsState::ephemeral_obs_pending_script_init.
-		if(!ob->script.empty())
-			worlds_state->ephemeral_obs_pending_script_init.push_back(ob_info);
+		// The object is inserted into the world's object map, and its script created and run, by the server main loop on a later tick, not here.
+		// See ServerAllWorldsState::ephemeral_obs_pending_insert.
+		worlds_state->ephemeral_obs_pending_insert.push_back(ob_info);
 	}
 
 #endif
@@ -541,10 +540,18 @@ static WorldObject* getWorldObjectForUID(SubstrataLuaScript* sub_lua_script, con
 			ServerWorldState::ObjectMapType& objects = sub_lua_script->world_state->getObjects(*sub_lua_script->cur_world_state_lock);
 
 			auto res = objects.find(uid);
-			if(res == objects.end())
-				throw glare::Exception("getObjectForUID(): No object with UID " + uid.toString());
+			if(res != objects.end())
+				return res.getValue().ptr();
 
-			return res->second.ptr();
+			// The object may have been created by createObject() and not inserted into the object map yet.
+			ServerAllWorldsState* worlds_state = sub_lua_script->server->world_state.ptr();
+			checkHoldWorldStateMutex(sub_lua_script, worlds_state);
+			const std::vector<ServerAllWorldsState::EphemeralObInfo>& pending = worlds_state->ephemeral_obs_pending_insert;
+			for(size_t i=0; i<pending.size(); ++i)
+				if((pending[i].ob->uid == uid) && (pending[i].world == sub_lua_script->world_state))
+					return pending[i].ob.ptr();
+
+			throw glare::Exception("getObjectForUID(): No object with UID " + uid.toString());
 		}
 #endif
 	}

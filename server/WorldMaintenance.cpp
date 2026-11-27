@@ -188,9 +188,9 @@ void WorldMaintenance::removeOldVehicles(Reference<ServerAllWorldsState> all_wor
 		ServerWorldState* world_state = it->second.ptr();
 
 		ServerWorldState::ObjectMapType& objects = world_state->getObjects(lock);
-		for(auto ob_it = objects.begin(); ob_it != objects.end(); ++ob_it)
+		for(auto ob_it = objects.valuesBegin(); ob_it != objects.valuesEnd(); ++ob_it)
 		{
-			WorldObject* object = ob_it->second.ptr();
+			WorldObject* object = ob_it.getValue().ptr();
 
 			if(BitUtils::isBitSet(object->flags, WorldObject::SUMMONED_FLAG) && (object->last_modified_time <= timestamp_cutoff))
 			{
