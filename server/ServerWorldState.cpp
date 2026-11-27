@@ -24,7 +24,8 @@ Generated at 2016-01-12 12:22:34 +1300
 
 ServerWorldState::ServerWorldState()
 :	db_dirty(false),
-	objects(/*empty key=*/UID::invalidUID())
+	objects(/*empty key=*/UID::invalidUID()),
+	avatars(/*empty key=*/UID::invalidUID())
 {}
 
 
@@ -87,7 +88,7 @@ AvatarRef ServerWorldState::createAndInsertAvatarForChatBot(ServerAllWorldsState
 	avatar->state = Avatar::State_JustCreated;
 	avatar->other_dirty = true;
 
-	avatars[avatar->uid] = avatar;
+	avatars.insert(avatar->uid, avatar);
 
 	return avatar;
 }

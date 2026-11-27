@@ -269,7 +269,7 @@ public:
 	bool db_dirty; // If true, there is a change that has not been saved to the DB.
 
 
-	typedef std::map<UID, Reference<Avatar>> AvatarMapType;
+	typedef glare::FastIterMap<UID, Reference<Avatar>, UIDHasher> AvatarMapType;
 	typedef glare::FastIterMap<UID, WorldObjectRef, UIDHasher> ObjectMapType;
 	typedef std::map<ParcelID, ParcelRef> ParcelMapType;
 	typedef std::map<Vec3i, LODChunkRef> LODChunkMapType;

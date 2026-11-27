@@ -239,9 +239,9 @@ static const std::string tool_listAvatars(ServerAllWorldsState& all_worlds, cons
 
 	std::string s = "[";
 	bool first = true;
-	for(auto it = world->getAvatars(lock).begin(); it != world->getAvatars(lock).end(); ++it)
+	for(auto it = world->getAvatars(lock).valuesBegin(); it != world->getAvatars(lock).valuesEnd(); ++it)
 	{
-		const Avatar* av = it->second.ptr();
+		const Avatar* av = it.getValue().ptr();
 		if(!first)
 			s += ",";
 		first = false;

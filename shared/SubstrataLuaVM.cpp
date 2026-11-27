@@ -2362,7 +2362,7 @@ static int userClassIndexMetaMethod(lua_State* state)
 	if(res == avatars.end())
 		throw glare::Exception("No such avatar with given UID" + errorContextString(state));
 
-	const Avatar* avatar = res->second.ptr();
+	const Avatar* avatar = res.getValue().ptr();
 	//if(res == sub_lua_vm->server->world_state->user_id_to_users.end())
 	//	throw glare::Exception("No such user with given UID");
 
@@ -2452,7 +2452,7 @@ static int avatarClassIndexMetaMethod(lua_State* state)
 	if(res == avatars.end())
 		throw glare::Exception("No such avatar with given UID" + errorContextString(state));
 
-	Avatar* avatar = res->second.ptr();
+	Avatar* avatar = res.getValue().ptr();
 #endif
 
 	// Read key

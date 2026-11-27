@@ -1042,9 +1042,9 @@ void WorkerThread::sendPerWorldInitialDataToClient(ServerAllWorldsState* world_s
 		{ // Lock scope
 			WorldStateLock lock(world_state->mutex);
 			const ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
-			for(auto it = avatars.begin(); it != avatars.end(); ++it)
+			for(auto it = avatars.valuesBegin(); it != avatars.valuesEnd(); ++it)
 			{
-				const Avatar* avatar = it->second.getPointer();
+				const Avatar* avatar = it.getValue().getPointer();
 
 				// Write AvatarIsHere message
 				MessageUtils::initPacket(scratch_packet, Protocol::AvatarIsHere);
@@ -1558,7 +1558,7 @@ void WorkerThread::doRun()
 								auto res = avatars.find(client_avatar_uid); // Ignore the avatar UID in the message and use client_avatar_uid instead: a client may only act on its own avatar.
 								if(res != avatars.end())
 								{
-									Avatar* avatar = res->second.getPointer();
+									Avatar* avatar = res.getValue().getPointer();
 									avatar->pos = update.pos;
 									avatar->rotation = update.rotation;
 									avatar->anim_state = update.anim_state;
@@ -1600,7 +1600,7 @@ void WorkerThread::doRun()
 								auto res = avatars.find(avatar_uid);
 								if(res != avatars.end())
 								{
-									Avatar* avatar = res->second.getPointer();
+									Avatar* avatar = res.getValue().getPointer();
 									avatar->current_gesture_name = gesture_name;
 									avatar->current_gesture_URL = gesture_URL;
 									avatar->current_gesture_flags = flags;
@@ -1639,7 +1639,7 @@ void WorkerThread::doRun()
 								auto res = avatars.find(avatar_uid);
 								if(res != avatars.end())
 								{
-									Avatar* avatar = res->second.getPointer();
+									Avatar* avatar = res.getValue().getPointer();
 									avatar->current_gesture_name.clear();
 									avatar->current_gesture_URL.clear();
 								}
@@ -1679,7 +1679,7 @@ void WorkerThread::doRun()
 								auto res = avatars.find(temp_avatar.uid);
 								if(res != avatars.end())
 								{
-									Avatar* avatar = res->second.getPointer();
+									Avatar* avatar = res.getValue().getPointer();
 									avatar->copyNetworkStateFrom(temp_avatar);
 									avatar->other_dirty = true;
 
@@ -1755,7 +1755,7 @@ void WorkerThread::doRun()
 									avatar->copyNetworkStateFrom(temp_avatar);
 									avatar->state = Avatar::State_JustCreated;
 									avatar->other_dirty = true;
-									avatars.insert(std::make_pair(use_avatar_uid, avatar));
+									avatars.insert(use_avatar_uid, avatar);
 
 									conPrintIfNotFuzzing("created new avatar");
 								}
@@ -1794,7 +1794,7 @@ void WorkerThread::doRun()
 								auto res = avatars.find(avatar_uid);
 								if(res != avatars.end())
 								{
-									Avatar* avatar = res->second.getPointer();
+									Avatar* avatar = res.getValue().getPointer();
 									avatar->state = Avatar::State_Dead;
 									avatar->other_dirty = true;
 								}
@@ -1819,7 +1819,7 @@ void WorkerThread::doRun()
 								auto res = avatars.find(avatar_uid);
 								if(res != avatars.end())
 								{
-									Avatar* avatar = res->second.getPointer();
+									Avatar* avatar = res.getValue().getPointer();
 									if(!avatar->vehicle_inside_uid.valid()) // If avatar wasn't in a vehicle before:
 									{
 										avatar->vehicle_inside_uid = vehicle_ob_uid;
@@ -1863,7 +1863,7 @@ void WorkerThread::doRun()
 								auto res = avatars.find(avatar_uid);
 								if(res != avatars.end())
 								{
-									Avatar* avatar = res->second.getPointer();
+									Avatar* avatar = res.getValue().getPointer();
 									avatar->sitting_on_seat_uid = seat_ob_uid;
 								}
 							}
@@ -1891,7 +1891,7 @@ void WorkerThread::doRun()
 								auto res = avatars.find(avatar_uid);
 								if(res != avatars.end())
 								{
-									Avatar* avatar = res->second.getPointer();
+									Avatar* avatar = res.getValue().getPointer();
 									avatar->sitting_on_seat_uid = UID::invalidUID();
 								}
 							}
@@ -1918,7 +1918,7 @@ void WorkerThread::doRun()
 								auto res = avatars.find(avatar_uid);
 								if(res != avatars.end())
 								{
-									Avatar* avatar = res->second.getPointer();
+									Avatar* avatar = res.getValue().getPointer();
 									if(avatar->vehicle_inside_uid.valid()) // If avatar was in a vehicle before:
 									{
 										// Execute event handlers in any scripts that are listening for the onUserExitedVehicle event from this object.
@@ -2990,8 +2990,8 @@ void WorkerThread::doRun()
 										auto res = cur_world_state->getAvatars(lock).find(client_avatar_uid);
 										if(res != cur_world_state->getAvatars(lock).end())
 										{
-											sender_avatar = res->second;
-											sender_position = res->second->pos;
+											sender_avatar = res.getValue();
+											sender_position = sender_avatar->pos;
 										}
 									}
 
@@ -3023,7 +3023,7 @@ void WorkerThread::doRun()
 								AvatarRef sender_avatar;
 								auto av_res = cur_world_state->getAvatars(lock).find(client_avatar_uid);
 								if(av_res != cur_world_state->getAvatars(lock).end())
-									sender_avatar = av_res->second;
+									sender_avatar = av_res.getValue();
 
 								// Find the chatbot the user moved near to
 								for(auto& it : cur_world_state->getChatBots(lock))
@@ -3052,7 +3052,7 @@ void WorkerThread::doRun()
 								AvatarRef sender_avatar;
 								auto av_res = cur_world_state->getAvatars(lock).find(client_avatar_uid);
 								if(av_res != cur_world_state->getAvatars(lock).end())
-									sender_avatar = av_res->second;
+									sender_avatar = av_res.getValue();
 
 								// Find the chatbot the user moved away from
 								for(auto& it : cur_world_state->getChatBots(lock))
@@ -4131,10 +4131,12 @@ void WorkerThread::doRun()
 	{
 		WorldStateLock lock(world_state->mutex);
 		ServerWorldState::AvatarMapType& avatars = cur_world_state->getAvatars(lock);
-		if(avatars.count(client_avatar_uid) == 1)
+		auto res = avatars.find(client_avatar_uid);
+		if(res != avatars.end())
 		{
-			avatars[client_avatar_uid]->state = Avatar::State_Dead;
-			avatars[client_avatar_uid]->other_dirty = true;
+			Avatar* avatar = res.getValue().getPointer();
+			avatar->state = Avatar::State_Dead;
+			avatar->other_dirty = true;
 		}
 	}
 

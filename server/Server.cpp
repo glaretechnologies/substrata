@@ -747,6 +747,8 @@ int main(int argc, char *argv[])
 
 		js::Vector<ThreadMessageRef, 16> temp_thread_messages;
 
+		std::vector<AvatarRef> avatars_to_remove;
+
 		// Main server loop
 		uint64 loop_iter = 0;
 		while(!should_quit)
@@ -1010,10 +1012,11 @@ int main(int argc, char *argv[])
 					std::vector<uint8>& world_packets = broadcast_packets[world_state];
 
 					// Generate packets for avatar changes
-					const ServerWorldState::AvatarMapType& avatars = world_state->getAvatars(lock);
-					for(auto i = avatars.begin(); i != avatars.end();)
+					ServerWorldState::AvatarMapType& avatars = world_state->getAvatars(lock);
+					avatars_to_remove.clear();
+					for(auto i = avatars.valuesBegin(); i != avatars.valuesEnd(); ++i)
 					{
-						Avatar* avatar = i->second.ptr();
+						Avatar* avatar = i.getValue().ptr();
 						if(avatar->other_dirty)
 						{
 							if(avatar->state == Avatar::State_Alive)
@@ -1026,7 +1029,6 @@ int main(int argc, char *argv[])
 
 								avatar->other_dirty = false;
 								avatar->transform_dirty = false;
-								i++;
 							}
 							else if(avatar->state == Avatar::State_JustCreated)
 							{
@@ -1039,8 +1041,6 @@ int main(int argc, char *argv[])
 								avatar->state = Avatar::State_Alive;
 								avatar->other_dirty = false;
 								avatar->transform_dirty = false;
-
-								i++;
 							}
 							else if(avatar->state == Avatar::State_Dead)
 							{
@@ -1052,10 +1052,7 @@ int main(int argc, char *argv[])
 
 								conPrint("Removing avatar '" + avatar->name + "' from world_state->avatars");
 
-								// Remove avatar from avatar map
-								auto old_avatar_iterator = i;
-								i++;
-								world_state->getAvatars(lock).erase(old_avatar_iterator);
+								avatars_to_remove.push_back(avatar); // Don't erase while iterating over avatar list (undefined), add to avatars_to_remove to remove later.
 							}
 							else
 							{
@@ -1077,13 +1074,12 @@ int main(int argc, char *argv[])
 
 								avatar->transform_dirty = false;
 							}
-							i++;
-						}
-						else
-						{
-							i++;
 						}
 					}
+
+					// Remove any dead avatars
+					for(size_t i=0; i<avatars_to_remove.size(); ++i)
+						avatars.erase(avatars_to_remove[i]->uid);
 
 
 					// Generate packets for object changes

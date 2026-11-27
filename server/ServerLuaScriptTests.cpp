@@ -85,7 +85,7 @@ void ServerLuaScriptTests::test()
 
 		main_world_state->getObjects(lock).insert(world_ob->uid, world_ob);
 		main_world_state->getObjects(lock).insert(world_ob2->uid, world_ob2);
-		main_world_state->getAvatars(lock)[avatar->uid] = avatar;
+		main_world_state->getAvatars(lock).insert(avatar->uid, avatar);
 		
 		//-------------------------------- Create a SubstrataLuaScript, don't execute though --------------------------------
 		{
@@ -1895,7 +1895,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 
 		world_state->getObjects(lock).insert(ob->uid, ob);
 		world_state->getObjects(lock).insert(ob2->uid, ob2);
-		world_state->getAvatars(lock)[avatar->uid] = avatar;
+		world_state->getAvatars(lock).insert(avatar->uid, avatar);
 
 		try
 		{
