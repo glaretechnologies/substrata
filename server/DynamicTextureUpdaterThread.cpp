@@ -207,9 +207,10 @@ static void checkDynamicTexture(const ObWithDynamicTexture& ob_with_dyn_tex, Ser
 			const URLString substrata_URL = fetch_results.substrata_URL;
 
 			// Update object to use new texture
-			runtimeCheck(world_state->world_states[ob_with_dyn_tex.world_name].nonNull());
-			const auto ob_res = world_state->world_states[ob_with_dyn_tex.world_name]->getObjects(lock).find(ob_with_dyn_tex.ob_uid);
-			if(ob_res != world_state->world_states[ob_with_dyn_tex.world_name]->getObjects(lock).end())
+			ServerWorldState* the_world_state = world_state->world_states[ob_with_dyn_tex.world_name].ptr();
+			runtimeCheck(the_world_state != nullptr);
+			const auto ob_res = the_world_state->getObjects(lock).find(ob_with_dyn_tex.ob_uid);
+			if(ob_res != the_world_state->getObjects(lock).end())
 			{
 				WorldObject* ob = ob_res->second.ptr();
 
@@ -241,10 +242,8 @@ static void checkDynamicTexture(const ObWithDynamicTexture& ob_with_dyn_tex, Ser
 					{
 						conPrint("\tDynamicTextureUpdaterThread: Texture is different from existing texture, updating object...");
 
-						world_state->checkAddWorldObjectAsDBDirty(ob, *world_state->world_states[ob_with_dyn_tex.world_name], lock);
-
 						ob->from_remote_dirty |= WorldObject::OTHER_DIRTY; // Set this so a ObjectFullUpdate message is sent to clients.
-						world_state->world_states[ob_with_dyn_tex.world_name]->getDirtyFromRemoteObjects(lock).insert(ob);
+						world_state->checkAddWorldObToDBDirtyAndDirtyFromRemoteSets(ob, *the_world_state, lock);
 
 						// Send a message to MeshLODGenThread to generate LOD textures for this new texture (if not already generated)
 						server->enqueueMsgForLodGenThread(new CheckGenResourcesForObject(ob_with_dyn_tex.ob_uid));

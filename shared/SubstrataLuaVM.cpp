@@ -480,8 +480,8 @@ static int createObject(lua_State* state)
 
 		ob->die_time = sub_lua_script->server->getCurrentGlobalTime() + lifetime;
 	
-		sub_lua_script->world_state->getDirtyFromRemoteObjects(*sub_lua_script->cur_world_state_lock).insert(ob);
 		sub_lua_script->world_state->getObjects(*sub_lua_script->cur_world_state_lock).insert(std::make_pair(ob->uid, ob));
+		worlds_state->checkAddWorldObjectToDirtyFromRemoteSet(ob.ptr(), *sub_lua_script->world_state, *sub_lua_script->cur_world_state_lock);
 
 		// Add to world_state->ephemeral_objects
 		ServerAllWorldsState::EphemeralObInfo ob_info;
@@ -2101,11 +2101,8 @@ static int worldObjectClassNewIndexMetaMethod(lua_State* state)
 		ServerAllWorldsState* worlds_state = sub_lua_script->server->world_state.ptr();
 		checkHoldWorldStateMutex(sub_lua_script, worlds_state);
 
-		// Add to dirty set so changes will be sent to clients
-		sub_lua_script->world_state->getDirtyFromRemoteObjects(*sub_lua_script->cur_world_state_lock).insert(ob);
-
-		// Update in the database
-		worlds_state->checkAddWorldObjectAsDBDirty(ob, *sub_lua_script->world_state, *sub_lua_script->cur_world_state_lock);
+		// Update in the database, Add to dirty set so changes will be sent to clients
+		worlds_state->checkAddWorldObToDBDirtyAndDirtyFromRemoteSets(ob, *sub_lua_script->world_state, *sub_lua_script->cur_world_state_lock);
 	}
 
 	return 0; // Count of returned values
@@ -2306,12 +2303,11 @@ static int worldMaterialClassNewIndexMetaMethod(lua_State* state)
 	{
 		// Mark the object as dirty, sending the updated object will send the updated material as well.
 		ob->from_remote_dirty |= WorldObject::OTHER_DIRTY; // TODO: rename
-		sub_lua_script->world_state->getDirtyFromRemoteObjects(*sub_lua_script->cur_world_state_lock).insert(ob);
 
 		ServerAllWorldsState* worlds_state = sub_lua_script->server->world_state.ptr();
 		checkHoldWorldStateMutex(sub_lua_script, worlds_state);
 
-		worlds_state->checkAddWorldObjectAsDBDirty(ob, *sub_lua_script->world_state, *sub_lua_script->cur_world_state_lock);
+		worlds_state->checkAddWorldObToDBDirtyAndDirtyFromRemoteSets(ob, *sub_lua_script->world_state, *sub_lua_script->cur_world_state_lock);
 	}
 
 	return 0; // Count of returned values

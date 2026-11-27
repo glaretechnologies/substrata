@@ -1079,9 +1079,9 @@ int main(int argc, char *argv[])
 
 					// Generate packets for object changes
 					ServerWorldState::DirtyFromRemoteObjectSetType& dirty_from_remote_objects = world_state->getDirtyFromRemoteObjects(lock);
-					for(auto i = dirty_from_remote_objects.begin(); i != dirty_from_remote_objects.end(); ++i)
+					for(size_t i=0; i != dirty_from_remote_objects.size(); ++i)
 					{
-						WorldObject* ob = i->ptr();
+						WorldObject* ob = dirty_from_remote_objects[i].ptr();
 						if(BitUtils::isBitSet(ob->from_remote_dirty, WorldObject::OTHER_DIRTY))
 						{
 							// The ObjectFullUpdate, ObjectCreated or ObjectDestroyed message covers all changes apart from linear velocity, so the other dirty bits are cleared below without sending their messages.
@@ -1118,8 +1118,13 @@ int main(int argc, char *argv[])
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
+								// Destroy the script now, rather than when the last reference to the object goes away, so that its timers and event handlers stop.
+								// Destroy event_handlers before the script, so that Lua function refs are freed properly.
+								ob->event_handlers = nullptr;
+								ob->sub_lua_script = nullptr;
+
 								// Remove from dirty-set, so it's not updated in DB.
-								world_state->getDBDirtyWorldObjects(lock).erase(ob);
+								//world_state->getDBDirtyWorldObjects(lock).erase(ob);
 
 								// Add DB record to list of records to be deleted.
 								server.world_state->db_records_to_delete.insert(ob->database_key);
@@ -1242,6 +1247,7 @@ int main(int argc, char *argv[])
 						}
 
 						ob->from_remote_dirty = 0;
+						ob->in_dirty_from_remote_set = false;
 					}
 
 					dirty_from_remote_objects.clear();
@@ -1301,6 +1307,11 @@ int main(int argc, char *argv[])
 						ob_info.world->getObjects(lock).erase(ob->uid);
 
 						ob->state = WorldObject::State_Dead;
+
+						// Destroy the script now, rather than when the last reference to the object goes away, so that its timers and event handlers stop.
+						// Destroy event_handlers before the script, so that Lua function refs are freed properly.
+						ob->event_handlers = nullptr;
+						ob->sub_lua_script = nullptr;
 
 						// conPrint("Removed ephemeral object from world_state->objects");
 

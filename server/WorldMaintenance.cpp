@@ -236,7 +236,7 @@ void WorldMaintenance::removeOldVehicles(Reference<ServerAllWorldsState> all_wor
 					// Mark object as dead
 					object->state = WorldObject::State_Dead;
 					object->from_remote_dirty |= WorldObject::OTHER_DIRTY; // This is not actually dirty based on a remote client, use this flag anyway.
-					world_state->getDirtyFromRemoteObjects(lock).insert(object);
+					all_worlds_state->checkAddWorldObjectToDirtyFromRemoteSet(object, *world_state, lock);
 
 					// Don't need to mark enclosing LOD chunk as dirty as vehicles shouldn't be baked into LOD chunk mesh anyway.
 				}

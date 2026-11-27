@@ -853,13 +853,36 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 }
 
 
-void ServerAllWorldsState::checkAddWorldObjectAsDBDirty(const WorldObjectRef ob, ServerWorldState& world, WorldStateLock& world_state_lock)
+void ServerAllWorldsState::checkAddWorldObjectAsDBDirty(WorldObject* ob, ServerWorldState& world, WorldStateLock& /*world_state_lock*/)
 {
 	if(!ob->isEphemeralScriptCreated())
 	{
-		world.addWorldObjectAsDBDirty(ob, world_state_lock);
-		this->changed = 1;
+		if(!ob->in_db_dirty_world_objects)
+		{
+			world.db_dirty_world_objects.push_back(ob);
+			ob->in_db_dirty_world_objects = true;
+
+			this->changed = 1;
+		}
 	}
+}
+
+
+void ServerAllWorldsState::checkAddWorldObjectToDirtyFromRemoteSet(WorldObject* ob, ServerWorldState& world, WorldStateLock& /*world_state_lock*/)
+{
+	if(!ob->in_dirty_from_remote_set)
+	{
+		world.dirty_from_remote_objects.push_back(ob);
+
+		ob->in_dirty_from_remote_set = true;
+	}
+}
+
+
+void ServerAllWorldsState::checkAddWorldObToDBDirtyAndDirtyFromRemoteSets(WorldObject* ob, ServerWorldState& world, WorldStateLock& world_state_lock)
+{
+	checkAddWorldObjectAsDBDirty(ob, world, world_state_lock);
+	checkAddWorldObjectToDirtyFromRemoteSet(ob, world, world_state_lock);
 }
 
 
@@ -884,7 +907,10 @@ void ServerAllWorldsState::addEverythingToDirtySets()
 		Reference<ServerWorldState> world_state = world_it->second;
 
 		for(auto it = world_state->getObjects(lock).begin(); it != world_state->getObjects(lock).end(); ++it)
-			world_state->getDBDirtyWorldObjects(lock).insert(it->second);
+		{
+			world_state->db_dirty_world_objects.push_back(it->second);
+			it->second->in_db_dirty_world_objects = true;
+		}
 
 		for(auto it = world_state->getParcels(lock).begin(); it != world_state->getParcels(lock).end(); ++it)
 			world_state->getDBDirtyParcels(lock).insert(it->second);
@@ -1442,8 +1468,10 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 				{
 					WorldObject* ob = it->ptr();
 
+					// Don't write dead objects, they have been removed from world_state->objects, and shouldn't be saved to DB.
+					// Ephemeral objects shouldn't be written to DB. (and should never have been added to db_dirty_world_objects)
 					assert(!ob->isEphemeralScriptCreated());
-					if(!ob->isEphemeralScriptCreated())
+					if((ob->state != WorldObject::State_Dead) && !ob->isEphemeralScriptCreated())
 					{
 						temp_buf.clear();
 						temp_buf.writeUInt32(WORLD_OBJECT_CHUNK);
@@ -1457,6 +1485,8 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 
 						num_obs++;
 					}
+
+					ob->in_db_dirty_world_objects = false;
 				}
 
 				world_state->getDBDirtyWorldObjects(lock).clear();

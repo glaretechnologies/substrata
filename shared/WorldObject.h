@@ -509,6 +509,10 @@ public:
 
 	bool using_placeholder_model;
 
+	bool in_db_dirty_world_objects; // Is this object in ServerWorldState::db_dirty_world_objects?
+
+	bool in_dirty_from_remote_set; // Is this object in ServerWorldState::dirty_from_remote_objects?
+
 	Vec4f translation; // As computed by a script.  Translation from current position in pos.
 
 	DatabaseKey database_key;

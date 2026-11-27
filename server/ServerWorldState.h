@@ -254,10 +254,7 @@ public:
 	friend class ServerAllWorldsState;
 
 	void addParcelAsDBDirty     (const ParcelRef parcel,  WorldStateLock& /*world_state_lock*/) { db_dirty_parcels.insert(parcel); }
-private:
-	// Use ServerAllWorldsState::checkAddWorldObjectAsDBDirty() instead
-	void addWorldObjectAsDBDirty(const WorldObjectRef ob, WorldStateLock& /*world_state_lock*/) { db_dirty_world_objects.insert(ob); }
-public:
+	// Use ServerAllWorldsState::checkAddWorldObjectAsDBDirty() to add objects to dirty set
 	void addLODChunkAsDBDirty   (const LODChunkRef ob,    WorldStateLock& /*world_state_lock*/) { db_dirty_lod_chunks.insert(ob); }
 	void addChatBotAsDBDirty    (const ChatBotRef ob,     WorldStateLock& /*world_state_lock*/) { db_dirty_chatbots.insert(ob); }
 
@@ -275,7 +272,7 @@ public:
 	typedef std::map<UID, WorldObjectRef> ObjectMapType;
 	typedef std::map<ParcelID, ParcelRef> ParcelMapType;
 	typedef std::map<Vec3i, LODChunkRef> LODChunkMapType;
-	typedef std::unordered_set<WorldObjectRef, WorldObjectRefHash> DirtyFromRemoteObjectSetType;
+	typedef std::vector<WorldObjectRef> DirtyFromRemoteObjectSetType;
 	typedef std::map<uint64, ChatBotRef> ChatBotMapType;
 
 	AvatarMapType&     getAvatars(WorldStateLock& /*world_state_lock*/) { return avatars; }
@@ -287,7 +284,7 @@ public:
 	ParcelMapType parcels; // TODO: make private.  Lots of compile errors to fix when doing so.
 
 	DirtyFromRemoteObjectSetType&                           getDirtyFromRemoteObjects(WorldStateLock& /*world_state_lock*/) { return dirty_from_remote_objects; }
-	std::unordered_set<WorldObjectRef, WorldObjectRefHash>& getDBDirtyWorldObjects(WorldStateLock& /*world_state_lock*/) { return db_dirty_world_objects; }
+	std::vector<WorldObjectRef>&							getDBDirtyWorldObjects(WorldStateLock& /*world_state_lock*/) { return db_dirty_world_objects; }
 	std::unordered_set<ParcelRef, ParcelRefHash>&           getDBDirtyParcels(WorldStateLock& /*world_state_lock*/) { return db_dirty_parcels; }
 	std::unordered_set<LODChunkRef, LODChunkRefHash>&       getDBDirtyLODChunks(WorldStateLock& /*world_state_lock*/) { return db_dirty_lod_chunks; }
 	std::unordered_set<ChatBotRef, ChatBotRefHash>&         getDBDirtyChatBots(WorldStateLock& /*world_state_lock*/) { return db_dirty_chatbots; }
@@ -295,12 +292,12 @@ public:
 	AvatarRef createAndInsertAvatarForChatBot(ServerAllWorldsState* all_world_state, const ChatBot* chatbot, WorldStateLock& /*world_state_lock*/);
 private:
 	ObjectMapType objects;
-	DirtyFromRemoteObjectSetType dirty_from_remote_objects; // TODO: could just use vector for this, and avoid duplicates by checking object dirty flag.
+	DirtyFromRemoteObjectSetType dirty_from_remote_objects;
 	AvatarMapType avatars;
 	LODChunkMapType lod_chunks;
 	ChatBotMapType chatbots;
 
-	std::unordered_set<WorldObjectRef, WorldObjectRefHash>	db_dirty_world_objects;
+	std::vector<WorldObjectRef>								db_dirty_world_objects;
 	std::unordered_set<ParcelRef, ParcelRefHash>			db_dirty_parcels;
 	std::unordered_set<LODChunkRef, LODChunkRefHash>		db_dirty_lod_chunks;
 	std::unordered_set<ChatBotRef, ChatBotRefHash>			db_dirty_chatbots;
@@ -380,8 +377,15 @@ public:
 	void addGearItemAsDBDirty(const GearItemRef item)						REQUIRES(mutex) { db_dirty_gear_items.insert(item); changed = 1; }
 
 
-	// If the object is not script-created-ephemeral, add to the world dirty object set and then set changed=1.
-	void checkAddWorldObjectAsDBDirty(const WorldObjectRef ob, ServerWorldState& world, WorldStateLock& world_state_lock) REQUIRES(mutex);
+	// If the object is not script-created-ephemeral, add to the world DB-dirty object set and then set changed=1.
+	void checkAddWorldObjectAsDBDirty(WorldObject* ob, ServerWorldState& world, WorldStateLock& world_state_lock) REQUIRES(mutex);
+
+	// Add a world object to the dirty-from-remote set, so changes are sent to clients, unless the object is already in the set.
+	void checkAddWorldObjectToDirtyFromRemoteSet(WorldObject* ob, ServerWorldState& world, WorldStateLock& world_state_lock) REQUIRES(mutex);
+
+	// Add to the dirty-from-remote set, so changes are sent to clients, and to the DB-dirty set (unless ephemeral).
+	void checkAddWorldObToDBDirtyAndDirtyFromRemoteSets(WorldObject* ob, ServerWorldState& world, WorldStateLock& world_state_lock) REQUIRES(mutex);
+
 
 	void addEverythingToDirtySets();
 

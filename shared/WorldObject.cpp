@@ -71,6 +71,8 @@ WorldObject::WorldObject() noexcept
 	from_local_dirty = 0;
 	changed_flags = 0;
 	using_placeholder_model = false;
+	in_db_dirty_world_objects = false;
+	in_dirty_from_remote_set = false;
 
 #if GUI_CLIENT
 	is_selected = false;
