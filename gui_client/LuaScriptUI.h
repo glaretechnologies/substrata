@@ -89,6 +89,8 @@ public:
 	Vec2f offset_px; // Offset of the widget from its anchor point, in device-independent pixels.  +x is right, +y is up.
 	Vec2f size_px; // For images, image buttons and sliders.
 
+	float glui_z; // GLUI z of the widget while it is not in a grid or window, remapped from the z given by the script, see LuaScriptUI::scriptZToGLUIZ().
+
 	URLString image_URL; // For images and image buttons.
 	bool image_texture_assigned;
 
@@ -128,6 +130,7 @@ A widget can be placed in a cell of a grid widget, or be the body of a window wi
 Grids can be nested.  Windows can't be put in grids or windows.  A widget is drawn only if it and all the grids and windows containing it are visible.
 A widget removed from a grid or window (by clearing or replacing its cell or the window body) goes back to being positioned by its own anchor and offset.
 Destroying a grid or window destroys the widgets in it.
+Widgets are drawn in front of widgets with a lower script z.  A widget in a grid or window takes its z from the grid or window, and gets its own z back when removed.
 Clicking a window's close button hides the window, then calls its onClose function.
 
 Button clicks, value changes and line edit enter presses are queued and the Lua callbacks are run from think(), not from inside GLUI event dispatch,
@@ -143,26 +146,33 @@ public:
 	static const size_t MAX_NUM_WIDGETS_PER_SCRIPT = 1000;
 	static const size_t MAX_GRID_SIZE = 32; // Max number of rows and of columns in a grid.
 
+	// Script z values are in [0, 1], with higher values in front.  They are remapped to GLUI z in [SCRIPT_UI_MIN_GLUI_Z, SCRIPT_UI_MAX_GLUI_Z], so that script widgets are behind the client's own UI.
+	// The range is wide because each level of grid or window nesting puts contained widgets 0.01 nearer in GLUI z.
+	static constexpr float SCRIPT_UI_MIN_GLUI_Z = 0.1f; // GLUI z for script z = 1.
+	static constexpr float SCRIPT_UI_MAX_GLUI_Z = 0.9f; // GLUI z for script z = 0.
+	static float scriptZToGLUIZ(float script_z);
+
 	// Return the new widget id.  Throws glare::Exception if the script has too many widgets.
-	int createImage(SubstrataLuaScript* sub_lua_script, const URLString& image_URL, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Vec2f& size_px, bool visible);
-	int createButton(SubstrataLuaScript* sub_lua_script, const std::string& text, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, LuaVM::LuaValueRef onClick_ref, bool visible);
+	// z is the script z, in [0, 1].
+	int createImage(SubstrataLuaScript* sub_lua_script, const URLString& image_URL, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Vec2f& size_px, float z, bool visible);
+	int createButton(SubstrataLuaScript* sub_lua_script, const std::string& text, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, LuaVM::LuaValueRef onClick_ref, float z, bool visible);
 	int createImageButton(SubstrataLuaScript* sub_lua_script, const URLString& image_URL, const Vec2f& size_px, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px,
-		LuaVM::LuaValueRef onClick_ref, bool visible);
+		LuaVM::LuaValueRef onClick_ref, float z, bool visible);
 	int createSlider(SubstrataLuaScript* sub_lua_script, double min_value, double max_value, double initial_value, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Vec2f& size_px,
-		LuaVM::LuaValueRef onChange_ref, bool visible);
+		LuaVM::LuaValueRef onChange_ref, float z, bool visible);
 	int createSpinBox(SubstrataLuaScript* sub_lua_script, double min_value, double max_value, double initial_value, double step, int num_decimal_places, float width_px,
-		LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, LuaVM::LuaValueRef onChange_ref, bool visible);
-	int createCheckBox(SubstrataLuaScript* sub_lua_script, bool checked, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, LuaVM::LuaValueRef onChange_ref, bool visible);
+		LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, LuaVM::LuaValueRef onChange_ref, float z, bool visible);
+	int createCheckBox(SubstrataLuaScript* sub_lua_script, bool checked, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, LuaVM::LuaValueRef onChange_ref, float z, bool visible);
 	int createDropDown(SubstrataLuaScript* sub_lua_script, const std::vector<std::string>& options, const std::string& initial_value, float width_px, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px,
-		LuaVM::LuaValueRef onChange_ref, bool visible);
+		LuaVM::LuaValueRef onChange_ref, float z, bool visible);
 	int createLineEdit(SubstrataLuaScript* sub_lua_script, const std::string& text, float width_px, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px,
-		LuaVM::LuaValueRef onChange_ref, LuaVM::LuaValueRef onEnter_ref, bool visible);
+		LuaVM::LuaValueRef onChange_ref, LuaVM::LuaValueRef onEnter_ref, float z, bool visible);
 	int createLabel(SubstrataLuaScript* sub_lua_script, const std::string& text, const Colour3f& text_colour_linear, const Colour3f& background_colour_linear, float background_alpha, int font_size_px,
-		const Vec2f& size_px, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, bool visible); // size_px: minimum size, or zero to fit the text.
+		const Vec2f& size_px, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, float z, bool visible); // size_px: minimum size, or zero to fit the text.
 	int createGrid(SubstrataLuaScript* sub_lua_script, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Colour3f& background_colour_linear, float background_alpha,
-		float interior_padding_px, float edge_padding_px, bool visible);
+		float interior_padding_px, float edge_padding_px, float z, bool visible);
 	int createWindow(SubstrataLuaScript* sub_lua_script, const std::string& title, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Colour3f& background_colour_linear, float background_alpha,
-		float padding_px, LuaVM::LuaValueRef onClose_ref, bool visible);
+		float padding_px, LuaVM::LuaValueRef onClose_ref, float z, bool visible);
 
 	// Returns NULL if there is no widget with the given id belonging to the script.
 	LuaScriptUIWidget* getWidget(SubstrataLuaScript* sub_lua_script, int id);
@@ -239,7 +249,7 @@ private:
 	LuaScriptUIWidget* getParent(const LuaScriptUIWidget& widget); // Returns the grid or window containing the widget, or NULL.
 	LuaScriptUIWidget& getRootWidget(LuaScriptUIWidget& widget); // Returns the outermost grid or window containing the widget, or the widget itself if it is not in one.
 	bool isEffectivelyVisible(const LuaScriptUIWidget& widget); // True if the UI is visible, and the widget and all grids and windows containing it are visible.
-	void removeFromParent(LuaScriptUIWidget& widget); // Removes the widget from the grid or window containing it, if any.  Doesn't reposition the widget.
+	void removeFromParent(LuaScriptUIWidget& widget); // Removes the widget from the grid or window containing it, if any, and sets its own z back.  Doesn't reposition the widget.
 	void updateWidgetTransform(LuaScriptUIWidget& widget); // Updates the transform of the outermost grid or window containing the widget, or of the widget itself.
 	void updateWidgetDrawn(LuaScriptUIWidget& widget); // Also updates widgets in the widget, if it is a grid or window.
 	void checkAssignImageTexture(LuaScriptUIWidget& widget); // For images and image buttons.

@@ -176,7 +176,13 @@ size_t LuaScriptUI::numWidgetsForScript(SubstrataLuaScript* sub_lua_script) cons
 }
 
 
-int LuaScriptUI::createImage(SubstrataLuaScript* sub_lua_script, const URLString& image_URL, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Vec2f& size_px, bool visible)
+float LuaScriptUI::scriptZToGLUIZ(float script_z)
+{
+	return SCRIPT_UI_MAX_GLUI_Z + (SCRIPT_UI_MIN_GLUI_Z - SCRIPT_UI_MAX_GLUI_Z) * myClamp(script_z, 0.f, 1.f); // Lower GLUI z is nearer the camera.
+}
+
+
+int LuaScriptUI::createImage(SubstrataLuaScript* sub_lua_script, const URLString& image_URL, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Vec2f& size_px, float z, bool visible)
 {
 	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
 		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
@@ -188,12 +194,13 @@ int LuaScriptUI::createImage(SubstrataLuaScript* sub_lua_script, const URLString
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = size_px;
+	widget->glui_z = scriptZToGLUIZ(z);
 	widget->image_URL = image_URL;
 	widget->image_texture_assigned = false;
 	widget->visible = visible;
 	widget->value_change_queued = false;
 
-	widget->image = new GLUIImage(*gl_ui, /*tex_path=*/"", /*tooltip=*/"");
+	widget->image = new GLUIImage(*gl_ui, /*tex_path=*/"", /*tooltip=*/"", widget->glui_z);
 	widget->image->setMouseOverColour(Colour3f(1.f)); // No mouse-over highlight
 	widget->image->setFixedDimsPx(size_px); // So that a grid containing the image knows its size.
 	gl_ui->addWidget(widget->image);
@@ -226,7 +233,7 @@ void LuaScriptUI::startDownloadingImageIfNotPresent(const URLString& image_URL)
 }
 
 
-int LuaScriptUI::createButton(SubstrataLuaScript* sub_lua_script, const std::string& text, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, LuaVM::LuaValueRef onClick_ref, bool visible)
+int LuaScriptUI::createButton(SubstrataLuaScript* sub_lua_script, const std::string& text, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, LuaVM::LuaValueRef onClick_ref, float z, bool visible)
 {
 	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
 		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
@@ -238,12 +245,14 @@ int LuaScriptUI::createButton(SubstrataLuaScript* sub_lua_script, const std::str
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = Vec2f(0.f);
+	widget->glui_z = scriptZToGLUIZ(z);
 	widget->image_texture_assigned = false;
 	widget->visible = visible;
 	widget->callback_ref = onClick_ref;
 	widget->value_change_queued = false;
 
 	GLUITextButton::CreateArgs args;
+	args.z = widget->glui_z;
 	widget->button = new GLUITextButton(*gl_ui, UTF8Utils::sanitiseUTF8String(text), args);
 	gl_ui->addWidget(widget->button);
 
@@ -256,7 +265,7 @@ int LuaScriptUI::createButton(SubstrataLuaScript* sub_lua_script, const std::str
 
 
 int LuaScriptUI::createImageButton(SubstrataLuaScript* sub_lua_script, const URLString& image_URL, const Vec2f& size_px, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px,
-	LuaVM::LuaValueRef onClick_ref, bool visible)
+	LuaVM::LuaValueRef onClick_ref, float z, bool visible)
 {
 	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
 		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
@@ -268,6 +277,7 @@ int LuaScriptUI::createImageButton(SubstrataLuaScript* sub_lua_script, const URL
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = size_px;
+	widget->glui_z = scriptZToGLUIZ(z);
 	widget->image_URL = image_URL;
 	widget->image_texture_assigned = false;
 	widget->visible = visible;
@@ -278,6 +288,7 @@ int LuaScriptUI::createImageButton(SubstrataLuaScript* sub_lua_script, const URL
 	args.sizing_type_x = GLUIWidget::SizingType_FixedSizePx;
 	args.sizing_type_y = GLUIWidget::SizingType_FixedSizePx;
 	args.fixed_size = size_px;
+	args.z = widget->glui_z;
 	widget->image_button = new GLUIButton(*gl_ui, /*tex_path=*/"", args);
 	gl_ui->addWidget(widget->image_button);
 
@@ -293,7 +304,7 @@ int LuaScriptUI::createImageButton(SubstrataLuaScript* sub_lua_script, const URL
 
 
 int LuaScriptUI::createSlider(SubstrataLuaScript* sub_lua_script, double min_value, double max_value, double initial_value, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Vec2f& size_px,
-	LuaVM::LuaValueRef onChange_ref, bool visible)
+	LuaVM::LuaValueRef onChange_ref, float z, bool visible)
 {
 	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
 		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
@@ -305,6 +316,7 @@ int LuaScriptUI::createSlider(SubstrataLuaScript* sub_lua_script, double min_val
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = size_px;
+	widget->glui_z = scriptZToGLUIZ(z);
 	widget->image_texture_assigned = false;
 	widget->visible = visible;
 	widget->callback_ref = onChange_ref;
@@ -312,6 +324,7 @@ int LuaScriptUI::createSlider(SubstrataLuaScript* sub_lua_script, double min_val
 
 	GLUISlider::CreateArgs args;
 	args.fixed_size = size_px;
+	args.z = widget->glui_z;
 	args.min_value = min_value;
 	args.max_value = max_value;
 	args.initial_value = myClamp(initial_value, min_value, max_value);
@@ -327,7 +340,7 @@ int LuaScriptUI::createSlider(SubstrataLuaScript* sub_lua_script, double min_val
 
 
 int LuaScriptUI::createSpinBox(SubstrataLuaScript* sub_lua_script, double min_value, double max_value, double initial_value, double step, int num_decimal_places, float width_px,
-	LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, LuaVM::LuaValueRef onChange_ref, bool visible)
+	LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, LuaVM::LuaValueRef onChange_ref, float z, bool visible)
 {
 	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
 		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
@@ -339,12 +352,14 @@ int LuaScriptUI::createSpinBox(SubstrataLuaScript* sub_lua_script, double min_va
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = Vec2f(0.f);
+	widget->glui_z = scriptZToGLUIZ(z);
 	widget->image_texture_assigned = false;
 	widget->visible = visible;
 	widget->callback_ref = onChange_ref;
 	widget->value_change_queued = false;
 
 	GLUISpinBox::CreateArgs args;
+	args.z = widget->glui_z;
 	args.min_value = min_value;
 	args.max_value = max_value;
 	args.initial_value = initial_value; // Clamped by GLUISpinBox.
@@ -364,7 +379,7 @@ int LuaScriptUI::createSpinBox(SubstrataLuaScript* sub_lua_script, double min_va
 }
 
 
-int LuaScriptUI::createCheckBox(SubstrataLuaScript* sub_lua_script, bool checked, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, LuaVM::LuaValueRef onChange_ref, bool visible)
+int LuaScriptUI::createCheckBox(SubstrataLuaScript* sub_lua_script, bool checked, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, LuaVM::LuaValueRef onChange_ref, float z, bool visible)
 {
 	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
 		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
@@ -376,6 +391,7 @@ int LuaScriptUI::createCheckBox(SubstrataLuaScript* sub_lua_script, bool checked
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = Vec2f(0.f);
+	widget->glui_z = scriptZToGLUIZ(z);
 	widget->image_texture_assigned = false;
 	widget->visible = visible;
 	widget->callback_ref = onChange_ref;
@@ -383,6 +399,7 @@ int LuaScriptUI::createCheckBox(SubstrataLuaScript* sub_lua_script, bool checked
 
 	GLUICheckBox::CreateArgs args;
 	args.checked = checked;
+	args.z = widget->glui_z;
 	widget->checkbox = new GLUICheckBox(*gl_ui, gui_client->base_dir_path + "/data/gl_data/ui/tick.png", args);
 	gl_ui->addWidget(widget->checkbox);
 
@@ -395,7 +412,7 @@ int LuaScriptUI::createCheckBox(SubstrataLuaScript* sub_lua_script, bool checked
 
 
 int LuaScriptUI::createDropDown(SubstrataLuaScript* sub_lua_script, const std::vector<std::string>& options, const std::string& initial_value, float width_px, LuaScriptUIWidget::Anchor anchor,
-	const Vec2f& offset_px, LuaVM::LuaValueRef onChange_ref, bool visible)
+	const Vec2f& offset_px, LuaVM::LuaValueRef onChange_ref, float z, bool visible)
 {
 	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
 		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
@@ -407,12 +424,14 @@ int LuaScriptUI::createDropDown(SubstrataLuaScript* sub_lua_script, const std::v
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = Vec2f(0.f);
+	widget->glui_z = scriptZToGLUIZ(z);
 	widget->image_texture_assigned = false;
 	widget->visible = visible;
 	widget->callback_ref = onChange_ref;
 	widget->value_change_queued = false;
 
 	GLUIDropDownList::CreateArgs args;
+	args.z = widget->glui_z;
 	args.options.resize(options.size());
 	for(size_t i=0; i<options.size(); ++i)
 		args.options[i] = UTF8Utils::sanitiseUTF8String(options[i]);
@@ -432,7 +451,7 @@ int LuaScriptUI::createDropDown(SubstrataLuaScript* sub_lua_script, const std::v
 
 
 int LuaScriptUI::createLineEdit(SubstrataLuaScript* sub_lua_script, const std::string& text, float width_px, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px,
-	LuaVM::LuaValueRef onChange_ref, LuaVM::LuaValueRef onEnter_ref, bool visible)
+	LuaVM::LuaValueRef onChange_ref, LuaVM::LuaValueRef onEnter_ref, float z, bool visible)
 {
 	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
 		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
@@ -444,6 +463,7 @@ int LuaScriptUI::createLineEdit(SubstrataLuaScript* sub_lua_script, const std::s
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = Vec2f(0.f);
+	widget->glui_z = scriptZToGLUIZ(z);
 	widget->image_texture_assigned = false;
 	widget->visible = visible;
 	widget->callback_ref = onChange_ref;
@@ -453,6 +473,7 @@ int LuaScriptUI::createLineEdit(SubstrataLuaScript* sub_lua_script, const std::s
 
 	GLUILineEdit::CreateArgs args;
 	args.fixed_size.x = width_px;
+	args.z = widget->glui_z;
 	widget->line_edit = new GLUILineEdit(*gl_ui, args);
 	widget->line_edit->setText(widget->last_reported_text);
 	const int widget_id = widget->id;
@@ -469,7 +490,7 @@ int LuaScriptUI::createLineEdit(SubstrataLuaScript* sub_lua_script, const std::s
 
 
 int LuaScriptUI::createLabel(SubstrataLuaScript* sub_lua_script, const std::string& text, const Colour3f& text_colour_linear, const Colour3f& background_colour_linear, float background_alpha, int font_size_px,
-	const Vec2f& size_px, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, bool visible)
+	const Vec2f& size_px, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, float z, bool visible)
 {
 	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
 		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
@@ -481,11 +502,13 @@ int LuaScriptUI::createLabel(SubstrataLuaScript* sub_lua_script, const std::stri
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = Vec2f(0.f);
+	widget->glui_z = scriptZToGLUIZ(z);
 	widget->image_texture_assigned = false;
 	widget->visible = visible;
 	widget->value_change_queued = false;
 
 	GLUITextView::CreateArgs args;
+	args.z = widget->glui_z;
 	args.text_colour = text_colour_linear;
 	args.background_colour = background_colour_linear;
 	args.background_alpha = background_alpha;
@@ -506,7 +529,7 @@ int LuaScriptUI::createLabel(SubstrataLuaScript* sub_lua_script, const std::stri
 
 
 int LuaScriptUI::createGrid(SubstrataLuaScript* sub_lua_script, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Colour3f& background_colour_linear, float background_alpha,
-	float interior_padding_px, float edge_padding_px, bool visible)
+	float interior_padding_px, float edge_padding_px, float z, bool visible)
 {
 	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
 		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
@@ -518,11 +541,13 @@ int LuaScriptUI::createGrid(SubstrataLuaScript* sub_lua_script, LuaScriptUIWidge
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = Vec2f(0.f);
+	widget->glui_z = scriptZToGLUIZ(z);
 	widget->image_texture_assigned = false;
 	widget->visible = visible;
 	widget->value_change_queued = false;
 
 	GLUIGridContainer::CreateArgs args;
+	args.z = widget->glui_z;
 	args.background_colour = background_colour_linear;
 	args.background_alpha = background_alpha;
 	args.interior_cell_x_padding_px = interior_padding_px;
@@ -542,7 +567,7 @@ int LuaScriptUI::createGrid(SubstrataLuaScript* sub_lua_script, LuaScriptUIWidge
 
 
 int LuaScriptUI::createWindow(SubstrataLuaScript* sub_lua_script, const std::string& title, LuaScriptUIWidget::Anchor anchor, const Vec2f& offset_px, const Colour3f& background_colour_linear,
-	float background_alpha, float padding_px, LuaVM::LuaValueRef onClose_ref, bool visible)
+	float background_alpha, float padding_px, LuaVM::LuaValueRef onClose_ref, float z, bool visible)
 {
 	if(numWidgetsForScript(sub_lua_script) >= MAX_NUM_WIDGETS_PER_SCRIPT)
 		throw glare::Exception("Too many UI widgets created by script (max " + toString(MAX_NUM_WIDGETS_PER_SCRIPT) + ")");
@@ -554,12 +579,14 @@ int LuaScriptUI::createWindow(SubstrataLuaScript* sub_lua_script, const std::str
 	widget->anchor = anchor;
 	widget->offset_px = offset_px;
 	widget->size_px = Vec2f(0.f);
+	widget->glui_z = scriptZToGLUIZ(z);
 	widget->image_texture_assigned = false;
 	widget->visible = visible;
 	widget->callback_ref = onClose_ref;
 	widget->value_change_queued = false;
 
 	GLUIWindow::CreateArgs args;
+	args.z = widget->glui_z;
 	args.title = UTF8Utils::sanitiseUTF8String(title);
 	args.background_colour = background_colour_linear;
 	args.background_alpha = background_alpha;
@@ -817,6 +844,9 @@ void LuaScriptUI::removeFromParent(LuaScriptUIWidget& widget)
 		else if(parent->window)
 			parent->window->setBodyWidget(NULL);
 		updateWidgetTransform(*parent); // The grid or window size may have changed.
+
+		// The grid or window set the widget z to be in front of it.  Some widgets only apply a new z when next positioned, which the caller does.
+		widget.getGLUIWidget()->setZ(widget.glui_z);
 	}
 }
 

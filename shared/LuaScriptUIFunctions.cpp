@@ -133,6 +133,16 @@ static float getUIAlphaTableField(lua_State* state, int table_index, const char*
 }
 
 
+// Reads the optional z field, which all widget creation functions take.  In [0, 1], higher values are drawn in front.  Default 0.
+static float getUIZTableField(lua_State* state, int table_index)
+{
+	const double z = LuaUtils::getTableNumberFieldWithDefault(state, table_index, "z", /*default=*/0.0);
+	if(!isFinite(z) || !(z >= 0.0 && z <= 1.0)) // Check isFinite explicitly, as with /fp:fast NaN comparisons may not be false.
+		throw glare::Exception("Field 'z' must be between 0 and 1" + errorContextString(state));
+	return (float)z;
+}
+
+
 static std::string getUITextTableField(lua_State* state, int table_index, const char* key)
 {
 	const std::string text = LuaUtils::getTableStringField(state, table_index, key);
@@ -237,17 +247,19 @@ static int createUIImage(lua_State* state)
 	//   anchor : string       Viewport anchor point.  Default "centre".
 	//   offset : {x=, y=}     Offset from the anchor point in pixels, +x is right, +y is up.  Default {x=0, y=0}.
 	//   visible : bool        Default true.
+	//   z : number            In [0, 1], higher values are drawn in front.  Default 0.
 	// Returns a widget handle.
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIImage", { "image_url", "size", "anchor", "offset", "visible", "tooltip" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIImage", { "image_url", "size", "anchor", "offset", "visible", "z", "tooltip" });
 	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	const std::string image_URL = LuaUtils::getTableStringField(state, /*table index=*/1, "image_url");
 	const Vec2f size_px   = getUIVec2fTableField(state, /*table index=*/1, "size", /*default=*/Vec2f(128.f), /*max abs val=*/4096.f);
 	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f), /*max abs val=*/10000.f);
 	[[maybe_unused]] const bool visible = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "visible", /*default=*/true);
+	[[maybe_unused]] const float z = getUIZTableField(state, /*table index=*/1);
 
 	if(!(size_px.x >= 1.f && size_px.y >= 1.f))
 		throw glare::Exception("createUIImage(): size must be at least 1 pixel" + errorContextString(state));
@@ -262,7 +274,7 @@ static int createUIImage(lua_State* state)
 	const LuaScriptUIWidget::Anchor anchor = getAnchorTableField(state, /*table index=*/1);
 
 	if(shouldCreateUIWidgets(state, sub_lua_script))
-		widget_id = sub_lua_script->gui_client->lua_script_ui->createImage(sub_lua_script, toURLString(image_URL), anchor, offset_px, size_px, visible);
+		widget_id = sub_lua_script->gui_client->lua_script_ui->createImage(sub_lua_script, toURLString(image_URL), anchor, offset_px, size_px, z, visible);
 #endif
 
 	setUIWidgetTooltip(sub_lua_script, widget_id, tooltip);
@@ -282,11 +294,12 @@ static int createUIButton(lua_State* state)
 	//   anchor : string       Viewport anchor point.  Default "centre".
 	//   offset : {x=, y=}     Offset from the anchor point in pixels, +x is right, +y is up.  Default {x=0, y=0}.
 	//   visible : bool        Default true.
+	//   z : number            In [0, 1], higher values are drawn in front.  Default 0.
 	// Returns a widget handle.
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIButton", { "text", "image_url", "size", "onClick", "anchor", "offset", "visible", "tooltip" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIButton", { "text", "image_url", "size", "onClick", "anchor", "offset", "visible", "z", "tooltip" });
 	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	lua_getfield(state, /*table index=*/1, "text"); // Push text field
@@ -304,6 +317,7 @@ static int createUIButton(lua_State* state)
 	[[maybe_unused]] const Vec2f size_px = getUIVec2fTableField(state, /*table index=*/1, "size", /*default=*/Vec2f(32.f), /*max abs val=*/4096.f);
 	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f), /*max abs val=*/10000.f);
 	[[maybe_unused]] const bool visible = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "visible", /*default=*/true);
+	[[maybe_unused]] const float z = getUIZTableField(state, /*table index=*/1);
 
 	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
@@ -325,9 +339,9 @@ static int createUIButton(lua_State* state)
 		try
 		{
 			if(has_image_url)
-				widget_id = sub_lua_script->gui_client->lua_script_ui->createImageButton(sub_lua_script, toURLString(image_URL), size_px, anchor, offset_px, onClick_ref, visible); // Takes ownership of onClick_ref
+				widget_id = sub_lua_script->gui_client->lua_script_ui->createImageButton(sub_lua_script, toURLString(image_URL), size_px, anchor, offset_px, onClick_ref, z, visible); // Takes ownership of onClick_ref
 			else
-				widget_id = sub_lua_script->gui_client->lua_script_ui->createButton(sub_lua_script, text, anchor, offset_px, onClick_ref, visible); // Takes ownership of onClick_ref
+				widget_id = sub_lua_script->gui_client->lua_script_ui->createButton(sub_lua_script, text, anchor, offset_px, onClick_ref, z, visible); // Takes ownership of onClick_ref
 		}
 		catch(glare::Exception&)
 		{
@@ -355,11 +369,12 @@ static int createUISlider(lua_State* state)
 	//   anchor : string       Viewport anchor point.  Default "centre".
 	//   offset : {x=, y=}     Offset from the anchor point in pixels, +x is right, +y is up.  Default {x=0, y=0}.
 	//   visible : bool        Default true.
+	//   z : number            In [0, 1], higher values are drawn in front.  Default 0.
 	// Returns a widget handle.
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUISlider", { "min", "max", "value", "onChange", "width", "anchor", "offset", "visible", "tooltip" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUISlider", { "min", "max", "value", "onChange", "width", "anchor", "offset", "visible", "z", "tooltip" });
 	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	const double min_value = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "min", /*default=*/0.0);
@@ -368,6 +383,7 @@ static int createUISlider(lua_State* state)
 	const double width = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "width", /*default=*/200.0);
 	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f), /*max abs val=*/10000.f);
 	[[maybe_unused]] const bool visible = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "visible", /*default=*/true);
+	[[maybe_unused]] const float z = getUIZTableField(state, /*table index=*/1);
 
 	if(!isFinite(min_value) || !isFinite(max_value) || !isFinite(value) || (std::fabs(min_value) > 1.0e15) || (std::fabs(max_value) > 1.0e15))
 		throw glare::Exception("createUISlider(): min, max and value must be finite, and min and max must have magnitude at most 1e15" + errorContextString(state));
@@ -387,7 +403,7 @@ static int createUISlider(lua_State* state)
 		const LuaVM::LuaValueRef onChange_ref = sub_lua_script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onChange");
 		try
 		{
-			widget_id = sub_lua_script->gui_client->lua_script_ui->createSlider(sub_lua_script, min_value, max_value, value, anchor, offset_px, /*size_px=*/Vec2f((float)width, 21.f), onChange_ref, visible); // Takes ownership of onChange_ref
+			widget_id = sub_lua_script->gui_client->lua_script_ui->createSlider(sub_lua_script, min_value, max_value, value, anchor, offset_px, /*size_px=*/Vec2f((float)width, 21.f), onChange_ref, z, visible); // Takes ownership of onChange_ref
 		}
 		catch(glare::Exception&)
 		{
@@ -417,11 +433,12 @@ static int createUISpinBox(lua_State* state)
 	//   anchor : string       Viewport anchor point.  Default "centre".
 	//   offset : {x=, y=}     Offset from the anchor point in pixels, +x is right, +y is up.  Default {x=0, y=0}.
 	//   visible : bool        Default true.
+	//   z : number            In [0, 1], higher values are drawn in front.  Default 0.
 	// Returns a widget handle.
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUISpinBox", { "min", "max", "value", "step", "decimals", "onChange", "width", "anchor", "offset", "visible", "tooltip" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUISpinBox", { "min", "max", "value", "step", "decimals", "onChange", "width", "anchor", "offset", "visible", "z", "tooltip" });
 	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	const double min_value = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "min", /*default=*/0.0);
@@ -432,6 +449,7 @@ static int createUISpinBox(lua_State* state)
 	const double width = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "width", /*default=*/100.0);
 	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f), /*max abs val=*/10000.f);
 	[[maybe_unused]] const bool visible = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "visible", /*default=*/true);
+	[[maybe_unused]] const float z = getUIZTableField(state, /*table index=*/1);
 
 	if(!isFinite(min_value) || !isFinite(max_value) || !isFinite(value) || (std::fabs(min_value) > 1.0e15) || (std::fabs(max_value) > 1.0e15))
 		throw glare::Exception("createUISpinBox(): min, max and value must be finite, and min and max must have magnitude at most 1e15" + errorContextString(state));
@@ -455,7 +473,7 @@ static int createUISpinBox(lua_State* state)
 		const LuaVM::LuaValueRef onChange_ref = sub_lua_script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onChange");
 		try
 		{
-			widget_id = sub_lua_script->gui_client->lua_script_ui->createSpinBox(sub_lua_script, min_value, max_value, value, step, (int)decimals, (float)width, anchor, offset_px, onChange_ref, visible); // Takes ownership of onChange_ref
+			widget_id = sub_lua_script->gui_client->lua_script_ui->createSpinBox(sub_lua_script, min_value, max_value, value, step, (int)decimals, (float)width, anchor, offset_px, onChange_ref, z, visible); // Takes ownership of onChange_ref
 		}
 		catch(glare::Exception&)
 		{
@@ -480,16 +498,18 @@ static int createUICheckBox(lua_State* state)
 	//   anchor : string       Viewport anchor point.  Default "centre".
 	//   offset : {x=, y=}     Offset from the anchor point in pixels, +x is right, +y is up.  Default {x=0, y=0}.
 	//   visible : bool        Default true.
+	//   z : number            In [0, 1], higher values are drawn in front.  Default 0.
 	// Returns a widget handle.
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUICheckBox", { "checked", "onChange", "anchor", "offset", "visible", "tooltip" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUICheckBox", { "checked", "onChange", "anchor", "offset", "visible", "z", "tooltip" });
 	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	[[maybe_unused]] const bool checked = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "checked", /*default=*/false);
 	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f), /*max abs val=*/10000.f);
 	[[maybe_unused]] const bool visible = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "visible", /*default=*/true);
+	[[maybe_unused]] const float z = getUIZTableField(state, /*table index=*/1);
 
 	SubstrataLuaScript* sub_lua_script = getSubstrataLuaScript(state);
 
@@ -502,7 +522,7 @@ static int createUICheckBox(lua_State* state)
 		const LuaVM::LuaValueRef onChange_ref = sub_lua_script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onChange");
 		try
 		{
-			widget_id = sub_lua_script->gui_client->lua_script_ui->createCheckBox(sub_lua_script, checked, anchor, offset_px, onChange_ref, visible); // Takes ownership of onChange_ref
+			widget_id = sub_lua_script->gui_client->lua_script_ui->createCheckBox(sub_lua_script, checked, anchor, offset_px, onChange_ref, z, visible); // Takes ownership of onChange_ref
 		}
 		catch(glare::Exception&)
 		{
@@ -529,11 +549,12 @@ static int createUIDropDown(lua_State* state)
 	//   anchor : string       Viewport anchor point.  Default "centre".
 	//   offset : {x=, y=}     Offset from the anchor point in pixels, +x is right, +y is up.  Default {x=0, y=0}.
 	//   visible : bool        Default true.
+	//   z : number            In [0, 1], higher values are drawn in front.  Default 0.
 	// Returns a widget handle.
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIDropDown", { "options", "value", "onChange", "width", "anchor", "offset", "visible", "tooltip" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIDropDown", { "options", "value", "onChange", "width", "anchor", "offset", "visible", "z", "tooltip" });
 	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	// Read options
@@ -569,6 +590,7 @@ static int createUIDropDown(lua_State* state)
 	const double width = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "width", /*default=*/150.0);
 	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f), /*max abs val=*/10000.f);
 	[[maybe_unused]] const bool visible = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "visible", /*default=*/true);
+	[[maybe_unused]] const float z = getUIZTableField(state, /*table index=*/1);
 
 	if(!isFinite(width) || !(width >= 20.0 && width <= 4096.0))
 		throw glare::Exception("createUIDropDown(): width must be between 20 and 4096 pixels" + errorContextString(state));
@@ -584,7 +606,7 @@ static int createUIDropDown(lua_State* state)
 		const LuaVM::LuaValueRef onChange_ref = sub_lua_script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onChange");
 		try
 		{
-			widget_id = sub_lua_script->gui_client->lua_script_ui->createDropDown(sub_lua_script, options, value, (float)width, anchor, offset_px, onChange_ref, visible); // Takes ownership of onChange_ref
+			widget_id = sub_lua_script->gui_client->lua_script_ui->createDropDown(sub_lua_script, options, value, (float)width, anchor, offset_px, onChange_ref, z, visible); // Takes ownership of onChange_ref
 		}
 		catch(glare::Exception&)
 		{
@@ -611,17 +633,19 @@ static int createUILineEdit(lua_State* state)
 	//   anchor : string       Viewport anchor point.  Default "centre".
 	//   offset : {x=, y=}     Offset from the anchor point in pixels, +x is right, +y is up.  Default {x=0, y=0}.
 	//   visible : bool        Default true.
+	//   z : number            In [0, 1], higher values are drawn in front.  Default 0.
 	// Returns a widget handle.
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUILineEdit", { "text", "onChange", "onEnter", "width", "anchor", "offset", "visible", "tooltip" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUILineEdit", { "text", "onChange", "onEnter", "width", "anchor", "offset", "visible", "z", "tooltip" });
 	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	[[maybe_unused]] const std::string text = LuaUtils::getTableStringFieldWithEmptyDefault(state, /*table index=*/1, "text");
 	const double width = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "width", /*default=*/200.0);
 	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f), /*max abs val=*/10000.f);
 	[[maybe_unused]] const bool visible = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "visible", /*default=*/true);
+	[[maybe_unused]] const float z = getUIZTableField(state, /*table index=*/1);
 
 	if(text.size() > MAX_UI_TEXT_SIZE)
 		throw glare::Exception("createUILineEdit(): text is too long (max " + toString(MAX_UI_TEXT_SIZE) + " bytes)" + errorContextString(state));
@@ -641,7 +665,7 @@ static int createUILineEdit(lua_State* state)
 		try
 		{
 			onEnter_ref = sub_lua_script->getOptionalRefToFunctionInTable(state, /*table index=*/1, "onEnter");
-			widget_id = sub_lua_script->gui_client->lua_script_ui->createLineEdit(sub_lua_script, text, (float)width, anchor, offset_px, onChange_ref, onEnter_ref, visible); // Takes ownership of the refs
+			widget_id = sub_lua_script->gui_client->lua_script_ui->createLineEdit(sub_lua_script, text, (float)width, anchor, offset_px, onChange_ref, onEnter_ref, z, visible); // Takes ownership of the refs
 		}
 		catch(glare::Exception&)
 		{
@@ -672,11 +696,12 @@ static int createUILabel(lua_State* state)
 	//   anchor : string            Viewport anchor point.  Default "centre".
 	//   offset : {x=, y=}          Offset from the anchor point in pixels, +x is right, +y is up.  Default {x=0, y=0}.
 	//   visible : bool             Default true.
+	//   z : number                 In [0, 1], higher values are drawn in front.  Default 0.
 	// Returns a widget handle.
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUILabel", { "text", "text_colour", "font_size", "background_colour", "background_alpha", "size", "anchor", "offset", "visible", "tooltip" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUILabel", { "text", "text_colour", "font_size", "background_colour", "background_alpha", "size", "anchor", "offset", "visible", "z", "tooltip" });
 	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	[[maybe_unused]] const std::string text = getUITextTableField(state, /*table index=*/1, "text");
@@ -687,6 +712,7 @@ static int createUILabel(lua_State* state)
 	[[maybe_unused]] const Vec2f size_px = getUIVec2fTableField(state, /*table index=*/1, "size", /*default=*/Vec2f(0.f), /*max abs val=*/4096.f);
 	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f), /*max abs val=*/10000.f);
 	[[maybe_unused]] const bool visible = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "visible", /*default=*/true);
+	[[maybe_unused]] const float z = getUIZTableField(state, /*table index=*/1);
 
 	if(!(size_px.x >= 0.f && size_px.y >= 0.f))
 		throw glare::Exception("createUILabel(): size components must not be negative" + errorContextString(state));
@@ -702,7 +728,7 @@ static int createUILabel(lua_State* state)
 
 	if(shouldCreateUIWidgets(state, sub_lua_script))
 		widget_id = sub_lua_script->gui_client->lua_script_ui->createLabel(sub_lua_script, text, toLinearSRGB(text_colour), toLinearSRGB(background_colour), background_alpha, font_size_px,
-			size_px, anchor, offset_px, visible);
+			size_px, anchor, offset_px, z, visible);
 #endif
 
 	setUIWidgetTooltip(sub_lua_script, widget_id, tooltip);
@@ -722,11 +748,12 @@ static int createUIGrid(lua_State* state)
 	//   anchor : string            Viewport anchor point.  Default "centre".
 	//   offset : {x=, y=}          Offset from the anchor point in pixels, +x is right, +y is up.  Default {x=0, y=0}.
 	//   visible : bool             Default true.
+	//   z : number                 In [0, 1], higher values are drawn in front.  Default 0.
 	// Returns a widget handle.  Add widgets with grid:setCell(column, row, widget) or grid:addRow(widget).
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIGrid", { "background_colour", "background_alpha", "interior_padding", "edge_padding", "anchor", "offset", "visible", "tooltip" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIGrid", { "background_colour", "background_alpha", "interior_padding", "edge_padding", "anchor", "offset", "visible", "z", "tooltip" });
 	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	[[maybe_unused]] const Colour3f background_colour = getUIColourTableField(state, /*table index=*/1, "background_colour", /*default=*/Colour3f(0.1f));
@@ -735,6 +762,7 @@ static int createUIGrid(lua_State* state)
 	const double edge_padding = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "edge_padding", /*default=*/10.0);
 	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f), /*max abs val=*/10000.f);
 	[[maybe_unused]] const bool visible = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "visible", /*default=*/true);
+	[[maybe_unused]] const float z = getUIZTableField(state, /*table index=*/1);
 
 	if(!isFinite(interior_padding) || !isFinite(edge_padding) || !(interior_padding >= 0.0 && interior_padding <= 100.0) || !(edge_padding >= 0.0 && edge_padding <= 100.0))
 		throw glare::Exception("createUIGrid(): interior_padding and edge_padding must be between 0 and 100 pixels" + errorContextString(state));
@@ -747,7 +775,7 @@ static int createUIGrid(lua_State* state)
 
 	if(shouldCreateUIWidgets(state, sub_lua_script))
 		widget_id = sub_lua_script->gui_client->lua_script_ui->createGrid(sub_lua_script, anchor, offset_px, toLinearSRGB(background_colour), background_alpha,
-			(float)interior_padding, (float)edge_padding, visible);
+			(float)interior_padding, (float)edge_padding, z, visible);
 #endif
 
 	setUIWidgetTooltip(sub_lua_script, widget_id, tooltip);
@@ -768,11 +796,12 @@ static int createUIWindow(lua_State* state)
 	//   anchor : string            Viewport anchor point.  Default "centre".
 	//   offset : {x=, y=}          Offset from the anchor point in pixels, +x is right, +y is up.  Default {x=0, y=0}.
 	//   visible : bool             Default true.
+	//   z : number                 In [0, 1], higher values are drawn in front.  Default 0.
 	// Returns a widget handle.  Set the window contents with window:setBody(widget), e.g. with a grid.
 
 	checkNumArgs(state, /*num_args_required*/1);
 	LuaUtils::checkValueIsTable(state, /*index=*/1);
-	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIWindow", { "title", "background_colour", "background_alpha", "padding", "onClose", "anchor", "offset", "visible", "tooltip" });
+	warnAboutUnknownTableKeys(state, /*table index=*/1, "createUIWindow", { "title", "background_colour", "background_alpha", "padding", "onClose", "anchor", "offset", "visible", "z", "tooltip" });
 	const std::string tooltip = getUITooltipTableField(state, /*table index=*/1);
 
 	[[maybe_unused]] const std::string title = LuaUtils::getTableStringFieldWithEmptyDefault(state, /*table index=*/1, "title");
@@ -781,6 +810,7 @@ static int createUIWindow(lua_State* state)
 	const double padding = LuaUtils::getTableNumberFieldWithDefault(state, /*table index=*/1, "padding", /*default=*/10.0);
 	[[maybe_unused]] const Vec2f offset_px = getUIVec2fTableField(state, /*table index=*/1, "offset", /*default=*/Vec2f(0.f), /*max abs val=*/10000.f);
 	[[maybe_unused]] const bool visible = LuaUtils::getTableBoolFieldWithDefault(state, /*table index=*/1, "visible", /*default=*/true);
+	[[maybe_unused]] const float z = getUIZTableField(state, /*table index=*/1);
 
 	if(title.size() > MAX_UI_TEXT_SIZE)
 		throw glare::Exception("createUIWindow(): title is too long (max " + toString(MAX_UI_TEXT_SIZE) + " bytes)" + errorContextString(state));
@@ -799,7 +829,7 @@ static int createUIWindow(lua_State* state)
 		try
 		{
 			widget_id = sub_lua_script->gui_client->lua_script_ui->createWindow(sub_lua_script, title, anchor, offset_px, toLinearSRGB(background_colour), background_alpha, (float)padding,
-				onClose_ref, visible); // Takes ownership of onClose_ref
+				onClose_ref, z, visible); // Takes ownership of onClose_ref
 		}
 		catch(glare::Exception&)
 		{
