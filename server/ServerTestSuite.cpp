@@ -52,6 +52,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/CircularBuffer.h>
 #include <utils/Array.h>
 #include <utils/KeyPairGen.h>
+#include <utils/StringBuilder.h>
 #include <lua/LuaTests.h>
 #include <lua/LuaUtils.h>
 #include <lua/LuaSerialisation.h>
@@ -113,6 +114,8 @@ void ServerTestSuite::test()
 
 	Timer timer;
 
+	runTest([&]() { StringBuilder::test();												});
+	runTest([&]() { SmallVectorTest::test();											});
 	runTest([&]() { LuaTests::test();													});
 	runTest([&]() { LuaUtils::test();													});
 	runTest([&]() { LuaSerialisation::test();											});
