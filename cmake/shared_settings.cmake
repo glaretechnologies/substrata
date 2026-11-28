@@ -332,6 +332,8 @@ ${UTILS_DIR}/STLArenaAllocator.cpp
 ${UTILS_DIR}/STLArenaAllocator.h
 ${UTILS_DIR}/StackStringBuilder.cpp
 ${UTILS_DIR}/StackStringBuilder.h
+${UTILS_DIR}/StringBuilder.cpp
+${UTILS_DIR}/StringBuilder.h
 ${UTILS_DIR}/FileWatcherThread.cpp
 ${UTILS_DIR}/FileWatcherThread.h
 )

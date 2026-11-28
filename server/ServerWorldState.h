@@ -39,6 +39,8 @@ Copyright Glare Technologies Limited 2024 -
 #include <HashMap.h>
 #include <FastIterMap.h>
 #include <SocketBufferOutStream.h>
+#include <StringBuilder.h>
+#include <BufferOutStream.h>
 #include <map>
 #include <unordered_set>
 class ServerWorldState;
@@ -568,7 +570,8 @@ private:
 
 	Database database GUARDED_BY(mutex);
 
-	std::string scratch_string GUARDED_BY(mutex);
+	BufferOutStream temp_buf GUARDED_BY(mutex);
+	StringBuilder m_str_builder GUARDED_BY(mutex);
 };
 
 

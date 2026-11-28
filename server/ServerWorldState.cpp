@@ -1444,7 +1444,7 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 		db_records_to_delete.clear();
 
 		
-		BufferOutStream temp_buf;
+		temp_buf.clear();
 
 		// Iterate over all objects, if they are dirty, write to the DB
 
@@ -1981,32 +1981,33 @@ void ServerAllWorldsState::serialiseToDisk(WorldStateLock& lock)
 
 		database.flush();
 
-		scratch_string = "Saved ";
-		if(num_worlds > 0)                scratch_string += toString(num_worlds) + " world(s), ";
-		if(num_obs > 0)                   scratch_string += toString(num_obs) +   " object(s), ";
-		if(num_users > 0)                 scratch_string += toString(num_users) + " user(s), ";
-		if(num_parcels > 0)               scratch_string += toString(num_parcels) + " parcels(s), ";
-		if(num_resources > 0)             scratch_string += toString(num_resources) + " resources(s), ";
-		if(num_orders > 0)                scratch_string += toString(num_orders) + " orders(s), ";
-		if(num_sessions > 0)              scratch_string += toString(num_sessions) + " sessions(s), ";
-		if(num_auctions > 0)              scratch_string += toString(num_auctions) + " auctions(s), ";
-		if(num_screenshots > 0)           scratch_string += toString(num_screenshots) + " screenshots(s), ";
-		if(num_sub_eth_transactions > 0)  scratch_string += toString(num_sub_eth_transactions) + " sub eth transactions(s), ";
-		if(num_tiles_written > 0)         scratch_string += toString(num_tiles_written) + " tiles(s), ";
-		if(num_world_settings > 0)        scratch_string += toString(num_world_settings) + " world setting(s), ";
-		if(num_news_posts > 0)            scratch_string += toString(num_news_posts) + " news post(s), ";
-		if(num_object_storage_items > 0)  scratch_string += toString(num_object_storage_items) + " object storage item(s), ";
-		if(num_user_secrets > 0)          scratch_string += toString(num_user_secrets) + " user secret(s), ";
-		if(num_api_keys > 0)              scratch_string += toString(num_api_keys) + " API key(s), ";
-		if(num_lod_chunks > 0)            scratch_string += toString(num_lod_chunks) + " LOD chunk(s), ";
-		if(num_events > 0)                scratch_string += toString(num_events) + " event(s), ";
-		if(num_gear_items > 0)            scratch_string += toString(num_gear_items) + " gear item(s), ";
-		if(num_photos > 0)                scratch_string += toString(num_photos) + " photo(s), ";
-		if(num_chatbots > 0)              scratch_string += toString(num_chatbots) + " chatbot(s), ";
-		removeSuffixInPlace(scratch_string, ", ");
-		scratch_string += " in ";
-		scratch_string += timer.elapsedStringNSigFigs(4);
-		conPrint(scratch_string);
+		m_str_builder.clear();
+		m_str_builder.append("Saved ");
+		if(num_worlds > 0)                { m_str_builder.appendSizeT(num_worlds);               m_str_builder.append(" world(s), ");				   }
+		if(num_obs > 0)                   { m_str_builder.appendSizeT(num_obs);                  m_str_builder.append(" object(s), ");			   }
+		if(num_users > 0)                 { m_str_builder.appendSizeT(num_users);                m_str_builder.append(" user(s), ");				   }
+		if(num_parcels > 0)               { m_str_builder.appendSizeT(num_parcels);              m_str_builder.append(" parcels(s), ");			   }
+		if(num_resources > 0)             { m_str_builder.appendSizeT(num_resources);            m_str_builder.append(" resources(s), ");			   }
+		if(num_orders > 0)                { m_str_builder.appendSizeT(num_orders);               m_str_builder.append(" orders(s), ");			   }
+		if(num_sessions > 0)              { m_str_builder.appendSizeT(num_sessions);             m_str_builder.append(" sessions(s), ");			   }
+		if(num_auctions > 0)              { m_str_builder.appendSizeT(num_auctions);             m_str_builder.append(" auctions(s), ");			   }
+		if(num_screenshots > 0)           { m_str_builder.appendSizeT(num_screenshots);          m_str_builder.append(" screenshots(s), ");		   }
+		if(num_sub_eth_transactions > 0)  { m_str_builder.appendSizeT(num_sub_eth_transactions); m_str_builder.append(" sub eth transactions(s), "); }
+		if(num_tiles_written > 0)         { m_str_builder.appendSizeT(num_tiles_written);        m_str_builder.append(" tiles(s), ");				   }
+		if(num_world_settings > 0)        { m_str_builder.appendSizeT(num_world_settings);       m_str_builder.append(" world setting(s), ");		   }
+		if(num_news_posts > 0)            { m_str_builder.appendSizeT(num_news_posts);           m_str_builder.append(" news post(s), ");			   }
+		if(num_object_storage_items > 0)  { m_str_builder.appendSizeT(num_object_storage_items); m_str_builder.append(" object storage item(s), ");  }
+		if(num_user_secrets > 0)          { m_str_builder.appendSizeT(num_user_secrets);         m_str_builder.append(" user secret(s), ");		   }
+		if(num_api_keys > 0)              { m_str_builder.appendSizeT(num_api_keys);             m_str_builder.append(" API key(s), ");			   }
+		if(num_lod_chunks > 0)            { m_str_builder.appendSizeT(num_lod_chunks);           m_str_builder.append(" LOD chunk(s), ");			   }
+		if(num_events > 0)                { m_str_builder.appendSizeT(num_events);               m_str_builder.append(" event(s), ");				   }
+		if(num_gear_items > 0)            { m_str_builder.appendSizeT(num_gear_items);           m_str_builder.append(" gear item(s), ");			   }
+		if(num_photos > 0)                { m_str_builder.appendSizeT(num_photos);               m_str_builder.append(" photo(s), ");				   }
+		if(num_chatbots > 0)              { m_str_builder.appendSizeT(num_chatbots);             m_str_builder.append(" chatbot(s), ");			   }
+		m_str_builder.removeSuffixInPlace(", ");
+		m_str_builder.append(" in ");
+		m_str_builder.append(timer.elapsedStringNSigFigs(4));
+		conPrint(m_str_builder.getStringView());
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{
